@@ -9,7 +9,7 @@ import type { Abi } from 'viem'
 import classicAbi from 'assets/abis/GeneralizedTCR.json'
 import lightAbi from 'assets/abis/LightGeneralizedTCR.json'
 import permanentAbi from 'assets/abis/PermanentGTCR.json'
-import { Button } from 'components/ui'
+import { Button, Modal } from 'components/ui'
 import { CurateIcon, CurateIconName } from 'components/curate/icons'
 import { NETWORKS_INFO } from 'config/networks'
 import { wagmiConfig } from 'config/wagmi'
@@ -356,11 +356,19 @@ const ProgressBar = styled.div<{ $width: number }>`
 
 const GovernanceList = styled.div`
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   padding: 18px;
+
+  @media (max-width: 920px) {
+    grid-template-columns: 1fr;
+  }
 `
 
 const RegistryGovernanceCard = styled.div`
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
   border: 1px solid rgba(255, 255, 255, 0.075);
   border-radius: 16px;
   background: rgba(1, 4, 9, 0.45);
@@ -372,11 +380,37 @@ const RegistryHead = styled.div`
   justify-content: space-between;
   gap: 12px;
   padding: 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.065);
 
   @media (max-width: 760px) {
     flex-direction: column;
   }
+`
+
+const RegistryCardBody = styled.div`
+  display: grid;
+  gap: 12px;
+  padding: 0 14px 14px;
+`
+
+const RegistryMetaGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+`
+
+const RegistryMetaBox = styled.div`
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.18);
+`
+
+const RegistryActions = styled.div`
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: auto;
 `
 
 const FieldGrid = styled.div`
@@ -503,6 +537,15 @@ const parseParamValue = (value: string, kind: ParamKind) => {
     return BigInt(Math.max(0, Math.round(Number(value || '0') * 86400)))
   if (kind === 'raw') return BigInt(value || '0')
   return value
+}
+
+const formatDate = (timestamp?: number) => {
+  if (!timestamp) return 'Unavailable'
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(timestamp * 1000)
 }
 
 const editableParams = (registry: GovernedRegistry): ParamConfig[] => {
@@ -760,6 +803,52 @@ const GovernanceField = ({
   )
 }
 
+const GovernanceUpdateModal = ({
+  registry,
+  editable,
+  profileAddress,
+  onClose,
+}: {
+  registry: GovernedRegistry | null
+  editable: boolean
+  profileAddress: string
+  onClose: () => void
+}) => {
+  const queryClient = useQueryClient()
+  if (!registry) return null
+
+  return (
+    <Modal
+      visible
+      title={`Update ${registry.title}`}
+      width="760px"
+      footer={null}
+      onCancel={onClose}
+      destroyOnClose
+    >
+      <PanelSub style={{ marginTop: 0, marginBottom: 16 }}>
+        Changes are sent one parameter at a time and simulated before the wallet
+        transaction is requested.
+      </PanelSub>
+      <FieldGrid style={{ padding: 0 }}>
+        {editableParams(registry).map((config) => (
+          <GovernanceField
+            key={`${registry.id}-${config.key}`}
+            registry={registry}
+            config={config}
+            editable={editable}
+            onSaved={() =>
+              queryClient.invalidateQueries({
+                queryKey: ['addressProfile', profileAddress],
+              })
+            }
+          />
+        ))}
+      </FieldGrid>
+    </Modal>
+  )
+}
+
 const GovernancePanel = ({
   registries,
   profileAddress,
@@ -768,9 +857,12 @@ const GovernancePanel = ({
   profileAddress: string
 }) => {
   const { address: connectedAddress } = useAccount()
-  const queryClient = useQueryClient()
+  const [selectedRegistry, setSelectedRegistry] =
+    useState<GovernedRegistry | null>(null)
   const connected = normalizeAddress(connectedAddress)
   const isOwner = connected === profileAddress
+  const selectedEditable =
+    isOwner && normalizeAddress(selectedRegistry?.governor) === connected
 
   return (
     <Surface>
@@ -813,6 +905,46 @@ const GovernancePanel = ({
                     <Chip $tone={editable ? 'success' : 'neutral'}>
                       {editable ? 'Editable' : 'Read-only'}
                     </Chip>
+                  </div>
+                </RegistryHead>
+                <RegistryCardBody>
+                  <RegistryMetaGrid>
+                    <RegistryMetaBox>
+                      <MetricLabel>Created</MetricLabel>
+                      <MetricValue style={{ fontSize: 15 }}>
+                        {formatDate(registry.createdAt)}
+                      </MetricValue>
+                    </RegistryMetaBox>
+                    <RegistryMetaBox>
+                      <MetricLabel>Last update</MetricLabel>
+                      <MetricValue style={{ fontSize: 15 }}>
+                        {registry.lastActivityAt
+                          ? formatAgo(registry.lastActivityAt)
+                          : 'No recent activity'}
+                      </MetricValue>
+                    </RegistryMetaBox>
+                    <RegistryMetaBox>
+                      <MetricLabel>Items</MetricLabel>
+                      <MetricValue style={{ fontSize: 15 }}>
+                        {formatCompact(registry.itemCount)}
+                      </MetricValue>
+                    </RegistryMetaBox>
+                    <RegistryMetaBox>
+                      <MetricLabel>Type</MetricLabel>
+                      <MetricValue style={{ fontSize: 15 }}>
+                        {kindLabel(registry.kind)}
+                      </MetricValue>
+                    </RegistryMetaBox>
+                  </RegistryMetaGrid>
+                  <RegistryActions>
+                    <Button
+                      type="primary"
+                      size="small"
+                      disabled={!editable}
+                      onClick={() => setSelectedRegistry(registry)}
+                    >
+                      Update list
+                    </Button>
                     <Button
                       as={Link as any}
                       to={`/tcr/${registry.chainId}/${registry.address}`}
@@ -820,23 +952,8 @@ const GovernancePanel = ({
                     >
                       Open list
                     </Button>
-                  </div>
-                </RegistryHead>
-                <FieldGrid>
-                  {editableParams(registry).map((config) => (
-                    <GovernanceField
-                      key={`${registry.id}-${config.key}`}
-                      registry={registry}
-                      config={config}
-                      editable={editable}
-                      onSaved={() =>
-                        queryClient.invalidateQueries({
-                          queryKey: ['addressProfile', profileAddress],
-                        })
-                      }
-                    />
-                  ))}
-                </FieldGrid>
+                  </RegistryActions>
+                </RegistryCardBody>
               </RegistryGovernanceCard>
             )
           })}
@@ -847,6 +964,12 @@ const GovernancePanel = ({
           appear here after the profile scan can read their governor.
         </Empty>
       )}
+      <GovernanceUpdateModal
+        registry={selectedRegistry}
+        editable={selectedEditable}
+        profileAddress={profileAddress}
+        onClose={() => setSelectedRegistry(null)}
+      />
     </Surface>
   )
 }

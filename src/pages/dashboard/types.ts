@@ -26,6 +26,7 @@ export interface DashboardActivity {
   registryAddress: string
   registryTitle: string
   itemID?: string
+  previewProps?: { label: string; value: string }[]
   actor?: string
   secondaryActor?: string
   kind: 'submission' | 'removal' | 'challenge' | 'resolution'

@@ -1030,20 +1030,15 @@ const LargePanelBody = styled.div`
 
 const TapeGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-
-  @media (max-width: 900px) {
-    grid-template-columns: 1fr;
-  }
+  gap: 10px;
 `
 
 const TapeRow = styled(Link)`
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr) auto;
+  grid-template-columns: 38px minmax(0, 1fr) minmax(160px, 0.42fr) auto;
   gap: 12px;
   align-items: center;
-  min-height: 74px;
+  min-height: 70px;
   padding: 12px;
   border: 1px solid rgba(255, 255, 255, 0.075);
   border-radius: 14px;
@@ -1060,6 +1055,37 @@ const TapeRow = styled(Link)`
     background: rgba(255, 255, 255, 0.055);
     transform: translateY(-1px);
   }
+
+  @media (max-width: 820px) {
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+  }
+`
+
+const TapePreview = styled.div`
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+
+  @media (max-width: 820px) {
+    display: none;
+  }
+`
+
+const TapePreviewPill = styled.span`
+  min-width: 0;
+  max-width: 100%;
+  padding: 5px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 999px;
+  color: var(--curate-muted);
+  background: rgba(0, 0, 0, 0.16);
+  font-size: 11px;
+  font-weight: 750;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 `
 
 const shortAddress = (address?: string): string =>
@@ -1436,12 +1462,12 @@ const PrimaryActivityPanel = ({
             name={mode === 'tape' ? 'submit' : 'activity'}
             size={19}
           />
-          {mode === 'tape' ? 'Live Entry Tape' : 'Registry Activity'}
+          {mode === 'tape' ? 'Live Entry Tape' : 'Registry Explorer'}
         </PanelTitle>
         <PanelSub>
           {mode === 'tape'
-            ? 'Fresh submissions, removals, and challenges across every indexed registry and supported chain.'
-            : 'Registries with the strongest 30 day verification flow, disputes, and review pressure.'}
+            ? 'Fresh entries across every indexed registry, with the registry, chain, actor, and key item fields visible at a glance.'
+            : 'A compact registry board ranked by verification flow, disputes, and recent movement.'}
         </PanelSub>
       </PanelTitleBlock>
       <Segmented>
@@ -1454,7 +1480,7 @@ const PrimaryActivityPanel = ({
           onClick={() => onModeChange('activity')}
         >
           <CurateIcon name="activity" size={15} />
-          Registry Activity
+          Registry Explorer
         </Segment>
       </Segmented>
     </PanelTop>
@@ -1476,6 +1502,22 @@ const PrimaryActivityPanel = ({
                       | {formatAgo(activity.timestamp)}
                     </ActivityMeta>
                   </ActivityCopy>
+                  <TapePreview>
+                    {(activity.previewProps ?? []).length > 0 ? (
+                      activity.previewProps?.map((prop) => (
+                        <TapePreviewPill
+                          key={`${activity.id}-${prop.label}`}
+                          title={`${prop.label}: ${prop.value}`}
+                        >
+                          {prop.label}: {prop.value}
+                        </TapePreviewPill>
+                      ))
+                    ) : (
+                      <TapePreviewPill>
+                        {activity.registryTitle}
+                      </TapePreviewPill>
+                    )}
+                  </TapePreview>
                   <ChainChip $color={info?.color}>
                     {info?.name?.replace('Ethereum', 'Eth') || activity.chainId}
                   </ChainChip>

@@ -78,6 +78,11 @@ const ENVIO_DASHBOARD_QUERY = gql`
       registry {
         title
       }
+      props(order_by: { label: asc }) {
+        label
+        value
+        isIdentifier
+      }
       requests(limit: 1, order_by: { submissionTime: desc }) {
         requestType
         requester
@@ -298,6 +303,13 @@ const PERMANENT_DASHBOARD_QUERY = gql`
       submitter
       item {
         itemID
+        metadata {
+          props {
+            label
+            value
+            isIdentifier
+          }
+        }
         registry {
           id
         }
@@ -312,6 +324,13 @@ const PERMANENT_DASHBOARD_QUERY = gql`
       challengerStake
       item {
         itemID
+        metadata {
+          props {
+            label
+            value
+            isIdentifier
+          }
+        }
         registry {
           id
         }
@@ -573,6 +592,25 @@ export const buildActivityHref = (
     ? `/tcr/${chainId}/${registryAddress}/${itemID}`
     : `/tcr/${chainId}/${registryAddress}`
 
+const cleanPreviewValue = (value: unknown): string => {
+  const text = String(value ?? '').trim()
+  if (!text) return ''
+  if (text.startsWith('/ipfs/') || text.startsWith('ipfs://'))
+    return 'IPFS file'
+  if (text.length > 92) return `${text.slice(0, 89)}...`
+  return text
+}
+
+const previewProps = (props?: any[]): { label: string; value: string }[] =>
+  (props ?? [])
+    .filter((prop) => prop?.isIdentifier || prop?.label || prop?.value)
+    .map((prop) => ({
+      label: String(prop?.label || 'Field'),
+      value: cleanPreviewValue(prop?.value),
+    }))
+    .filter((prop) => prop.value)
+    .slice(0, 2)
+
 const requestToActivity = (
   requestEntity: any,
   kindHint: RegistryKind,
@@ -634,6 +672,7 @@ const itemToActivity = (
       kindHint,
     ),
     itemID: item.itemID,
+    previewProps: previewProps(item.props),
     actor: normalizeAddress(requestEntity.requester || item.latestRequester),
     secondaryActor: normalizeAddress(
       requestEntity.challenger || item.latestChallenger,
@@ -667,6 +706,7 @@ const permanentSubmissionToActivity = (
     registryTitle:
       registry?.title || registryTitle(registryAddress, null, 'permanent'),
     itemID: submission.item?.itemID,
+    previewProps: previewProps(submission.item?.metadata?.props),
     actor: normalizeAddress(submission.submitter),
     kind: 'submission',
     status: 'Permanent submission',
@@ -689,6 +729,7 @@ const permanentChallengeToActivity = (
     registryTitle:
       registry?.title || registryTitle(registryAddress, null, 'permanent'),
     itemID: challenge.item?.itemID,
+    previewProps: previewProps(challenge.item?.metadata?.props),
     actor: normalizeAddress(challenge.challenger),
     kind: 'challenge',
     status: `Dispute #${challenge.disputeID || 'pending'}`,

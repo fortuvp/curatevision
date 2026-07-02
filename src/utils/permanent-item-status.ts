@@ -87,21 +87,15 @@ export const itemToStatusCode = (
 
   if (status === CONTRACT_STATUS.ABSENT) {
     // The only paths to Absent are withdrawItem() and rule(). Dispute removals carry a
-    // resolution tx, so a latest-submission finishedTx that is NOT any resolution tx can
-    // only be a completed voluntary withdrawal. This intercepts that case only; every
-    // other Absent item still falls through to the REJECTED/REMOVED logic unchanged.
+    // resolution tx, so a latest-submission withdrawingTx can identify a completed
+    // voluntary withdrawal. This intercepts that case only; every other Absent item
+    // still falls through to the REJECTED/REMOVED logic unchanged.
     // Note: in list views these fields may be absent from the query, so detection simply
     // (and safely) falls through to REMOVED/REJECTED.
-    const submissions = (item.submissions as { finishedTx?: string }[]) || []
-    const finishedTx = submissions.length > 0 ? submissions[0].finishedTx : null
-    if (finishedTx) {
-      const resolutionTxs = new Set(
-        ((item.challenges as { resolutionTx?: string }[]) || [])
-          .map((c) => c.resolutionTx)
-          .filter((tx) => !!tx),
-      )
-      if (!resolutionTxs.has(finishedTx)) return STATUS_CODE.WITHDRAWN
-    }
+    const submissions = (item.submissions as { withdrawingTx?: string }[]) || []
+    const withdrawingTx =
+      submissions.length > 0 ? submissions[0].withdrawingTx : null
+    if (withdrawingTx) return STATUS_CODE.WITHDRAWN
 
     // Differentiate between rejected (never made it past submission) and removed (was accepted then taken off)
     // If includedAt + submissionPeriod < timestamp, the item passed submission and was accepted at some point

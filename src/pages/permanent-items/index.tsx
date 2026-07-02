@@ -254,9 +254,8 @@ const Items = () => {
       first: ITEMS_PER_PAGE,
       orderDirection: orderDirection,
       where: itemsWhere,
-      registryId: tcrAddress.toLowerCase(),
     }),
-    [page, orderDirection, itemsWhere, tcrAddress],
+    [page, orderDirection, itemsWhere],
   )
 
   const itemsQuery = useQuery({
@@ -285,14 +284,14 @@ const Items = () => {
       // No filters - return total count
       return (
         Number(r.numberOfAbsent) +
-        Number(r.numberOfRegistered) +
+        Number(r.numberOfSubmitted) +
         Number(r.numberOfDisputed)
       )
 
     // Sum counts for selected filters
     let sum = 0
     if (absent) sum += Number(r.numberOfAbsent)
-    if (registered) sum += Number(r.numberOfRegistered)
+    if (registered) sum += Number(r.numberOfSubmitted)
     if (disputed) sum += Number(r.numberOfDisputed)
 
     return sum

@@ -1,6 +1,7 @@
 import React from 'react'
 import styled, { css } from 'styled-components'
 import { smallScreenStyle } from 'styles/small-screen-style'
+import { Link } from 'react-router-dom'
 import icons from './social-icons'
 
 const Container = styled.footer`
@@ -55,6 +56,34 @@ const StyledSecuredByKleros = styled.a`
 const StyledSocialMedia = styled.div`
   display: flex;
   gap: 6px;
+`
+
+const FooterNav = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+`
+
+const FooterLink = styled(Link)`
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid var(--curate-border);
+  border-radius: 999px;
+  color: var(--curate-text);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 13px;
+  font-weight: 850;
+  text-decoration: none;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--curate-border-strong);
+  }
 `
 
 const StyledSocialButton = styled.a`
@@ -124,18 +153,21 @@ const Footer: React.FC = () => (
       >
         {icons.securedByKleros}
       </StyledSecuredByKleros>
-      <StyledSocialMedia>
-        {SOCIAL_NAV.map((item, index) => (
-          <StyledSocialButton
-            key={index}
-            href={item.href}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {item.icon}
-          </StyledSocialButton>
-        ))}
-      </StyledSocialMedia>
+      <FooterNav>
+        <FooterLink to="/pro">Curate Pro</FooterLink>
+        <StyledSocialMedia>
+          {SOCIAL_NAV.map((item, index) => (
+            <StyledSocialButton
+              key={index}
+              href={item.href}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {item.icon}
+            </StyledSocialButton>
+          ))}
+        </StyledSocialMedia>
+      </FooterNav>
     </FooterInner>
   </Container>
 )
