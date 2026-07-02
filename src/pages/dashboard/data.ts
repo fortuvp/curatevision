@@ -13,10 +13,12 @@ import {
   TrustStatus,
 } from './types'
 
-const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
+export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 const DAYS_30 = 30 * 24 * 60 * 60
 const DASHBOARD_QUERY_TIMEOUT_MS = 10_000
 const METADATA_TIMEOUT_MS = 2_000
+const LEADERBOARD_PAGE_SIZE = 1000
+const LEADERBOARD_MAX_PAGES = 5
 const SUPPORTED_CHAIN_IDS = [
   NETWORKS.ethereum,
   NETWORKS.gnosis,
@@ -318,15 +320,84 @@ const PERMANENT_DASHBOARD_QUERY = gql`
   }
 `
 
+const ENVIO_CURATOR_PAGE_QUERY = gql`
+  query EnvioCuratorPage(
+    $chainId: Int!
+    $since: numeric!
+    $limit: Int!
+    $offset: Int!
+  ) {
+    lightRequests: LRequest(
+      limit: $limit
+      offset: $offset
+      where: { chainId: { _eq: $chainId }, submissionTime: { _gte: $since } }
+      order_by: [{ submissionTime: desc }]
+    ) {
+      id
+      chainId
+      requestType
+      requester
+      challenger
+      disputed
+      disputeOutcome
+      submissionTime
+      challengeTime
+      resolutionTime
+    }
+    classicRequests: Request(
+      limit: $limit
+      offset: $offset
+      where: { chainId: { _eq: $chainId }, submissionTime: { _gte: $since } }
+      order_by: [{ submissionTime: desc }]
+    ) {
+      id
+      chainId
+      requestType
+      requester
+      challenger
+      disputed
+      disputeOutcome
+      submissionTime
+      resolutionTime
+    }
+  }
+`
+
+const PERMANENT_CURATOR_PAGE_QUERY = gql`
+  query PermanentCuratorPage($first: Int!, $skip: Int!) {
+    submissions(
+      first: $first
+      skip: $skip
+      orderBy: createdAt
+      orderDirection: desc
+    ) {
+      id
+      createdAt
+      submitter
+    }
+    challenges(
+      first: $first
+      skip: $skip
+      orderBy: createdAt
+      orderDirection: desc
+    ) {
+      id
+      createdAt
+      challenger
+      disputeOutcome
+    }
+  }
+`
+
 const toNumber = (value: unknown): number => {
   const parsed = Number(value ?? 0)
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-const normalizeAddress = (address: string | undefined | null): string =>
+export const normalizeAddress = (address: string | undefined | null): string =>
   (address || '').toLowerCase()
 
-const shortAddress = (address: string): string =>
+export const shortAddress = (address: string): string =>
   address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Unknown'
 
 const addBigIntStrings = (a: string, b?: string | null): string =>
@@ -493,7 +564,7 @@ const enrichRegistryMetadata = async (
   )
 }
 
-const buildActivityHref = (
+export const buildActivityHref = (
   chainId: number,
   registryAddress: string,
   itemID?: string,
@@ -641,6 +712,7 @@ const accumulateUser = (
     ({
       address: normalized,
       chainId,
+      chains: {},
       submissions: 0,
       removals: 0,
       challenges: 0,
@@ -652,6 +724,28 @@ const accumulateUser = (
   existing[field] += 1
   existing.activity += 1
   existing.lastActiveAt = Math.max(existing.lastActiveAt, timestamp)
+
+  const chainStats =
+    existing.chains[chainId] ??
+    ({
+      activity: 0,
+      submissions: 0,
+      removals: 0,
+      challenges: 0,
+      successfulChallenges: 0,
+      lastActiveAt: 0,
+    } satisfies DashboardUser['chains'][number])
+  chainStats[field] += 1
+  chainStats.activity += 1
+  chainStats.lastActiveAt = Math.max(chainStats.lastActiveAt, timestamp)
+  existing.chains[chainId] = chainStats
+
+  if (
+    chainStats.activity > (existing.chains[existing.chainId]?.activity ?? 0) ||
+    timestamp > existing.lastActiveAt
+  )
+    existing.chainId = chainId
+
   users.set(normalized, existing)
 }
 
@@ -909,11 +1003,160 @@ const mergeUsers = (maps: Map<string, DashboardUser>[]): DashboardUser[] => {
       existing.successfulChallenges += user.successfulChallenges
       existing.activity += user.activity
       existing.lastActiveAt = Math.max(existing.lastActiveAt, user.lastActiveAt)
+      for (const [chainIdKey, chainStats] of Object.entries(user.chains)) {
+        const chainId = Number(chainIdKey)
+        const existingChain =
+          existing.chains[chainId] ??
+          ({
+            activity: 0,
+            submissions: 0,
+            removals: 0,
+            challenges: 0,
+            successfulChallenges: 0,
+            lastActiveAt: 0,
+          } satisfies DashboardUser['chains'][number])
+        existingChain.submissions += chainStats.submissions
+        existingChain.removals += chainStats.removals
+        existingChain.challenges += chainStats.challenges
+        existingChain.successfulChallenges += chainStats.successfulChallenges
+        existingChain.activity += chainStats.activity
+        existingChain.lastActiveAt = Math.max(
+          existingChain.lastActiveAt,
+          chainStats.lastActiveAt,
+        )
+        existing.chains[chainId] = existingChain
+      }
+      existing.chainId = Number(
+        Object.entries(existing.chains).sort(
+          ([, a], [, b]) =>
+            b.activity - a.activity || b.lastActiveAt - a.lastActiveAt,
+        )[0]?.[0] ?? existing.chainId,
+      )
     }
 
   return [...merged.values()].sort(
     (a, b) => b.activity - a.activity || b.lastActiveAt - a.lastActiveAt,
   )
+}
+
+const normalizeEnvioLeaderboardPage = (
+  payload: any,
+  chainId: number,
+): Map<string, DashboardUser> => {
+  const users = new Map<string, DashboardUser>()
+
+  for (const requestEntity of [
+    ...(payload.lightRequests ?? []),
+    ...(payload.classicRequests ?? []),
+  ]) {
+    const timestamp = toNumber(requestEntity.submissionTime)
+    const field =
+      requestEntity.requestType === 'ClearingRequested'
+        ? 'removals'
+        : 'submissions'
+    accumulateUser(users, chainId, requestEntity.requester, field, timestamp)
+
+    if (requestEntity.disputed)
+      accumulateUser(
+        users,
+        chainId,
+        requestEntity.challenger,
+        'challenges',
+        toNumber(requestEntity.challengeTime) || timestamp,
+      )
+
+    if (
+      requestEntity.disputed &&
+      requestEntity.disputeOutcome === 'Reject' &&
+      requestEntity.challenger
+    )
+      accumulateUser(
+        users,
+        chainId,
+        requestEntity.challenger,
+        'successfulChallenges',
+        toNumber(requestEntity.resolutionTime) || timestamp,
+      )
+  }
+
+  return users
+}
+
+const normalizePermanentLeaderboardPage = (
+  payload: any,
+  chainId: number,
+  since: number,
+): Map<string, DashboardUser> => {
+  const users = new Map<string, DashboardUser>()
+
+  for (const submission of payload.submissions ?? []) {
+    const timestamp = toNumber(submission.createdAt)
+    if (timestamp < since) continue
+    accumulateUser(
+      users,
+      chainId,
+      submission.submitter,
+      'submissions',
+      timestamp,
+    )
+  }
+
+  for (const challenge of payload.challenges ?? []) {
+    const timestamp = toNumber(challenge.createdAt)
+    if (timestamp < since) continue
+    accumulateUser(
+      users,
+      chainId,
+      challenge.challenger,
+      'challenges',
+      timestamp,
+    )
+    if (challenge.disputeOutcome === 'Reject')
+      accumulateUser(
+        users,
+        chainId,
+        challenge.challenger,
+        'successfulChallenges',
+        timestamp,
+      )
+  }
+
+  return users
+}
+
+const fetchCuratorLeaderboard = async (
+  since: number,
+): Promise<DashboardUser[]> => {
+  const pages = await Promise.all(
+    SUPPORTED_CHAIN_IDS.flatMap((chainId) =>
+      Array.from({ length: LEADERBOARD_MAX_PAGES }).flatMap((_, page) => [
+        safeRequest<any>(subgraphUrl[chainId], ENVIO_CURATOR_PAGE_QUERY, {
+          chainId,
+          since,
+          limit: LEADERBOARD_PAGE_SIZE,
+          offset: page * LEADERBOARD_PAGE_SIZE,
+        }).then((payload) =>
+          payload ? normalizeEnvioLeaderboardPage(payload, chainId) : null,
+        ),
+        safeRequest<any>(
+          subgraphUrlPermanent[chainId],
+          PERMANENT_CURATOR_PAGE_QUERY,
+          {
+            first: LEADERBOARD_PAGE_SIZE,
+            skip: page * LEADERBOARD_PAGE_SIZE,
+          },
+        ).then((payload) =>
+          payload
+            ? normalizePermanentLeaderboardPage(payload, chainId, since)
+            : null,
+        ),
+      ]),
+    ),
+  )
+
+  return mergeUsers(
+    pages.filter(Boolean) as Map<string, DashboardUser>[],
+  ).slice(0, 100)
 }
 
 const dedupeRegistries = (
@@ -1048,10 +1291,7 @@ export const fetchDashboardData = async (): Promise<DashboardData> => {
     .sort((a, b) => b.timestamp - a.timestamp)
     .slice(0, 40)
 
-  const users = mergeUsers(allResults.map((result) => result.users)).slice(
-    0,
-    50,
-  )
+  const users = await fetchCuratorLeaderboard(since)
 
   const bountyByChain: Record<number, string> = {}
   let resultIndex = 0

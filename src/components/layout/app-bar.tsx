@@ -467,7 +467,11 @@ const AppBar = () => {
             </Dropdown>
           </ChainDropdownWrapper>
           {web3Context.active && web3Context.account ? (
-            <StyledIdenticonWrapper>
+            <StyledIdenticonWrapper
+              as={Link as any}
+              to={`/address/${web3Context.account}`}
+              title="Open profile"
+            >
               <Identicon />
             </StyledIdenticonWrapper>
           ) : (

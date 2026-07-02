@@ -37,6 +37,17 @@ export interface DashboardActivity {
 export interface DashboardUser {
   address: string
   chainId: number
+  chains: Record<
+    number,
+    {
+      activity: number
+      submissions: number
+      removals: number
+      challenges: number
+      successfulChallenges: number
+      lastActiveAt: number
+    }
+  >
   submissions: number
   removals: number
   challenges: number

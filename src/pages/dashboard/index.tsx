@@ -26,6 +26,7 @@ type RegistrySort = 'signal' | 'activity' | 'items' | 'recent'
 type TrustFilter = 'all' | TrustStatus
 type KindFilter = 'all' | RegistryKind
 type ViewMode = 'board' | 'cards'
+type PrimaryPanelMode = 'tape' | 'activity'
 
 const shimmer = keyframes`
   0% { transform: translateX(-100%); }
@@ -1023,6 +1024,44 @@ const ExternalArrow = styled.span`
   color: var(--curate-faint);
 `
 
+const LargePanelBody = styled.div`
+  padding: 18px;
+`
+
+const TapeGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+`
+
+const TapeRow = styled(Link)`
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-height: 74px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 14px;
+  color: inherit;
+  background: rgba(1, 4, 9, 0.46);
+  text-decoration: none;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+
+  &:hover {
+    border-color: rgba(0, 209, 255, 0.28);
+    background: rgba(255, 255, 255, 0.055);
+    transform: translateY(-1px);
+  }
+`
+
 const shortAddress = (address?: string): string =>
   address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Unknown'
 
@@ -1165,6 +1204,9 @@ const validSort = (value: string | null): RegistrySort =>
 
 const validView = (value: string | null): ViewMode =>
   value === 'cards' ? 'cards' : 'board'
+
+const validPrimaryPanel = (value: string | null): PrimaryPanelMode =>
+  value === 'activity' ? 'activity' : 'tape'
 
 const RegistryLogo = ({ registry }: { registry: DashboardRegistry }) => {
   const info = chainInfo(registry.chainId)
@@ -1337,12 +1379,17 @@ const UsersPanel = ({ users }: { users: DashboardUser[] }) => (
     {users.length > 0 ? (
       <ActivityList>
         {users.slice(0, 7).map((user, index) => {
-          const info = chainInfo(user.chainId)
+          const chainEntries = Object.entries(user.chains).sort(
+            ([, a], [, b]) =>
+              b.activity - a.activity || b.lastActiveAt - a.lastActiveAt,
+          )
+          const info = chainInfo(Number(chainEntries[0]?.[0] ?? user.chainId))
+          const chainLabel =
+            chainEntries.length > 1
+              ? `${chainEntries.length} chains`
+              : info?.name?.replace('Ethereum', 'Eth') || user.chainId
           return (
-            <RankRow
-              key={`${user.chainId}-${user.address}`}
-              to={`/?chain=${user.chainId}`}
-            >
+            <RankRow key={user.address} to={`/address/${user.address}`}>
               <RankNumber>{index + 1}</RankNumber>
               <ActivityCopy>
                 <ActivityTitle>{shortAddress(user.address)}</ActivityTitle>
@@ -1351,9 +1398,7 @@ const UsersPanel = ({ users }: { users: DashboardUser[] }) => (
                   | {formatAgo(user.lastActiveAt)}
                 </ActivityMeta>
               </ActivityCopy>
-              <ChainChip $color={info?.color}>
-                {info?.name?.replace('Ethereum', 'Eth') || user.chainId}
-              </ChainChip>
+              <ChainChip $color={info?.color}>{chainLabel}</ChainChip>
             </RankRow>
           )
         })}
@@ -1370,6 +1415,107 @@ const UsersPanel = ({ users }: { users: DashboardUser[] }) => (
       </EmptyState>
     )}
   </SidePanel>
+)
+
+const PrimaryActivityPanel = ({
+  mode,
+  activities,
+  registries,
+  onModeChange,
+}: {
+  mode: PrimaryPanelMode
+  activities: DashboardActivity[]
+  registries: DashboardRegistry[]
+  onModeChange: (mode: PrimaryPanelMode) => void
+}) => (
+  <MarketPanel>
+    <PanelTop>
+      <PanelTitleBlock>
+        <PanelTitle>
+          <CurateIcon
+            name={mode === 'tape' ? 'submit' : 'activity'}
+            size={19}
+          />
+          {mode === 'tape' ? 'Live Entry Tape' : 'Registry Activity'}
+        </PanelTitle>
+        <PanelSub>
+          {mode === 'tape'
+            ? 'Fresh submissions, removals, and challenges across every indexed registry and supported chain.'
+            : 'Registries with the strongest 30 day verification flow, disputes, and review pressure.'}
+        </PanelSub>
+      </PanelTitleBlock>
+      <Segmented>
+        <Segment $active={mode === 'tape'} onClick={() => onModeChange('tape')}>
+          <CurateIcon name="submit" size={15} />
+          Live Entry Tape
+        </Segment>
+        <Segment
+          $active={mode === 'activity'}
+          onClick={() => onModeChange('activity')}
+        >
+          <CurateIcon name="activity" size={15} />
+          Registry Activity
+        </Segment>
+      </Segmented>
+    </PanelTop>
+    {mode === 'tape' ? (
+      <LargePanelBody>
+        {activities.length > 0 ? (
+          <TapeGrid>
+            {activities.slice(0, 16).map((activity) => {
+              const info = chainInfo(activity.chainId)
+              return (
+                <TapeRow key={activity.id} to={activity.href}>
+                  <ActivityIcon $tone={activityTone(activity)}>
+                    <CurateIcon name={activityIcon(activity)} size={17} />
+                  </ActivityIcon>
+                  <ActivityCopy>
+                    <ActivityTitle>{activity.status}</ActivityTitle>
+                    <ActivityMeta>
+                      {activity.registryTitle} | {shortAddress(activity.actor)}{' '}
+                      | {formatAgo(activity.timestamp)}
+                    </ActivityMeta>
+                  </ActivityCopy>
+                  <ChainChip $color={info?.color}>
+                    {info?.name?.replace('Ethereum', 'Eth') || activity.chainId}
+                  </ChainChip>
+                </TapeRow>
+              )
+            })}
+          </TapeGrid>
+        ) : (
+          <EmptyState>
+            <div>
+              <EmptyIcon>
+                <CurateIcon name="submit" size={21} />
+              </EmptyIcon>
+              <EmptyTitle>No live entries yet</EmptyTitle>
+              Subgraph data is unavailable or no recent entries were indexed.
+            </div>
+          </EmptyState>
+        )}
+      </LargePanelBody>
+    ) : (
+      <BoardShell>
+        <BoardHeader>
+          <span>Registry</span>
+          <span>Chain</span>
+          <span>Type</span>
+          <span>Status</span>
+          <span>Items</span>
+          <span>30d flow</span>
+          <span>Disputes</span>
+          <span>Last</span>
+        </BoardHeader>
+        {registries.slice(0, 12).map((registry) => (
+          <RegistryBoardRow
+            key={`activity-${registry.id}`}
+            registry={registry}
+          />
+        ))}
+      </BoardShell>
+    )}
+  </MarketPanel>
 )
 
 const UnverifiedPanel = ({
@@ -1432,6 +1578,7 @@ const Dashboard = () => {
   const kindFilter = validKindFilter(searchParams.get('kind'))
   const sortMode = validSort(searchParams.get('sort'))
   const viewMode = validView(searchParams.get('view'))
+  const primaryPanel = validPrimaryPanel(searchParams.get('panel'))
   const search = searchParams.get('q') || ''
 
   const dashboardQuery = useQuery({
@@ -1538,9 +1685,9 @@ const Dashboard = () => {
           <HeaderContent>
             <Kicker>
               <Pulse />
-              Live registry markets
+              Live registry verification
             </Kicker>
-            <Title>Curate markets</Title>
+            <Title>The verification layer</Title>
             <Subtitle>
               Track verified lists, emerging registries, submissions, disputes,
               bounties, and curator activity across Ethereum, Gnosis, and
@@ -1748,12 +1895,27 @@ const Dashboard = () => {
       )}
 
       <DashboardGrid>
+        <PrimaryActivityPanel
+          mode={primaryPanel}
+          activities={data?.activities ?? []}
+          registries={mostActiveRegistries}
+          onModeChange={(mode) =>
+            updateParams({ panel: mode === 'tape' ? null : mode })
+          }
+        />
+        <SideRail>
+          <UsersPanel users={data?.users ?? []} />
+          <UnverifiedPanel registries={unverifiedRegistries} />
+        </SideRail>
+      </DashboardGrid>
+
+      <DashboardGrid>
         <MarketPanel>
           <PanelTop>
             <PanelTitleBlock>
               <PanelTitle>
                 <CurateIcon name="registry" size={19} />
-                Registry market
+                Registry explorer
               </PanelTitle>
               <PanelSub>
                 {filteredRegistries.length} visible registries. Default ranking
@@ -1937,20 +2099,12 @@ const Dashboard = () => {
 
         <SideRail>
           <ActivityPanel
-            title="Live entry tape"
-            hint="All registries"
-            icon="submit"
-            activities={data?.activities ?? []}
-            empty="No recent entries"
-          />
-          <ActivityPanel
             title="Dispute tape"
             hint="Cases"
             icon="dispute"
             activities={data?.disputes ?? []}
             empty="No disputes found"
           />
-          <UsersPanel users={data?.users ?? []} />
         </SideRail>
       </DashboardGrid>
 
@@ -1960,7 +2114,7 @@ const Dashboard = () => {
             <PanelTitleBlock>
               <PanelTitle>
                 <CurateIcon name="activity" size={19} />
-                Market movers
+                Registry activity
               </PanelTitle>
               <PanelSub>
                 Most active registries by submissions, removals, and challenges
