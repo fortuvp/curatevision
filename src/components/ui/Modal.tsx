@@ -12,7 +12,8 @@ const Overlay = styled.div<{ $centered?: boolean }>`
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(12px);
   z-index: 1000;
   display: flex;
   align-items: ${({ $centered }) => ($centered ? 'center' : 'flex-start')};
@@ -22,37 +23,42 @@ const Overlay = styled.div<{ $centered?: boolean }>`
 `
 
 const ModalContent = styled.div<{ $width?: string | number }>`
-  background: ${({ theme }) =>
-    theme.modalBackground || theme.componentBackground};
-  border-radius: 12px;
-  box-shadow: ${({ theme }) =>
-    `0 8px 24px ${theme.modalShadow || theme.shadowColor}`};
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.065),
+      rgba(255, 255, 255, 0.025)
+    ),
+    var(--curate-surface-strong);
+  border: 1px solid var(--curate-border);
+  border-radius: var(--curate-radius);
+  box-shadow: var(--curate-shadow-hover);
   width: ${({ $width }) =>
     typeof $width === 'number' ? `${$width}px` : $width};
   max-width: calc(100vw - 32px);
   position: relative;
-  color: ${({ theme }) => theme.textPrimary};
+  color: var(--curate-text);
 `
 
 const ModalHeader = styled.div`
   padding: 20px 24px;
-  border-bottom: 1px solid ${({ theme }) => theme.borderColor};
+  border-bottom: 1px solid var(--curate-border);
   font-size: 18px;
-  font-weight: 600;
-  color: ${({ theme }) => theme.textPrimary};
-  letter-spacing: -0.01em;
+  font-weight: 850;
+  color: var(--curate-text);
+  letter-spacing: 0;
 `
 
 const ModalBody = styled.div`
   padding: 24px;
   font-size: 14px;
   line-height: 1.6;
-  color: ${({ theme }) => theme.textPrimary};
+  color: var(--curate-text);
 `
 
 const ModalFooter = styled.div`
   padding: 16px 24px;
-  border-top: 1px solid ${({ theme }) => theme.borderColor};
+  border-top: 1px solid var(--curate-border);
   text-align: right;
   display: flex;
   justify-content: flex-end;
@@ -63,11 +69,11 @@ const CloseButton = styled.button`
   position: absolute;
   top: 20px;
   right: 20px;
-  background: none;
-  border: none;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--curate-border);
   cursor: pointer;
   font-size: 16px;
-  color: ${({ theme }) => theme.modalCloseColor || theme.textSecondary};
+  color: var(--curate-muted);
   padding: 0;
   line-height: 1;
   display: flex;
@@ -75,34 +81,37 @@ const CloseButton = styled.button`
   justify-content: center;
   width: 22px;
   height: 22px;
+  border-radius: 10px;
   transition: color 0.3s;
 
   &:hover {
-    color: ${({ theme }) => theme.textPrimary};
+    color: var(--curate-text);
+    border-color: var(--curate-border-strong);
   }
 `
 
 const DefaultButton = styled.button`
   padding: 4px 15px;
-  height: 32px;
-  border-radius: 4px;
-  border: 1px solid ${({ theme }) => theme.borderColor};
-  background: ${({ theme }) => theme.componentBackground};
-  color: ${({ theme }) => theme.textPrimary};
+  min-height: 38px;
+  border-radius: 12px;
+  border: 1px solid var(--curate-border);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--curate-text);
   cursor: pointer;
   transition: all 0.3s;
   font-size: 14px;
+  font-weight: 800;
 
   &:hover {
-    color: ${({ theme }) => theme.primaryColor};
-    border-color: ${({ theme }) => theme.primaryColor};
+    color: var(--curate-text);
+    border-color: var(--curate-border-strong);
   }
 `
 
 const PrimaryButton = styled(DefaultButton)`
   background: ${({ theme }) => theme.buttonPrimaryBg};
   color: ${({ theme }) => theme.buttonPrimaryText};
-  border-color: ${({ theme }) => theme.buttonPrimaryBg};
+  border-color: transparent;
 
   &:hover {
     background: ${({ theme }) => theme.buttonPrimaryHoverBg};

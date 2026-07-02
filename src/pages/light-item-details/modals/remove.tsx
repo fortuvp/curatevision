@@ -61,14 +61,13 @@ const RemoveModal = ({
       setIsSubmitting(true)
       try {
         let ipfsEvidencePath = ''
-        if (metadata && requireRemovalEvidence) {
+        if (metadata && requireRemovalEvidence)
           ipfsEvidencePath = await uploadEvidence({
             title: title || 'Removal Justification',
             description,
             attachment: evidenceAttachment as File | undefined,
             uploadFile,
           })
-        }
 
         const { request } = await simulateContract(wagmiConfig, {
           address: tcrAddress,

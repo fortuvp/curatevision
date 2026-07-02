@@ -12,14 +12,46 @@ const GlobalStyle = createGlobalStyle`
 
   body {
     margin: 0;
-    font-family: 'Roboto', sans-serif;
+    font-family:
+      Inter,
+      "Inter Tight",
+      "SF Pro Display",
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      sans-serif;
     font-size: 14px;
     transition: background-color 0.3s ease, color 0.3s ease;
     --horizontal-padding: min(4.6875vw, 66px);
+    --curate-bg: ${({ theme }) => theme.curateBg};
+    --curate-bg-soft: ${({ theme }) => theme.curateBgSoft};
+    --curate-surface: ${({ theme }) => theme.curateSurface};
+    --curate-surface-strong: ${({ theme }) => theme.curateSurfaceStrong};
+    --curate-border: ${({ theme }) => theme.curateBorder};
+    --curate-border-strong: ${({ theme }) => theme.curateBorderStrong};
+    --curate-text: ${({ theme }) => theme.curateText};
+    --curate-muted: ${({ theme }) => theme.curateMuted};
+    --curate-faint: ${({ theme }) => theme.curateFaint};
+    --curate-live: ${({ theme }) => theme.curateLive};
+    --curate-violet: ${({ theme }) => theme.curateViolet};
+    --curate-success: ${({ theme }) => theme.curateSuccess};
+    --curate-warning: ${({ theme }) => theme.curateWarning};
+    --curate-danger: ${({ theme }) => theme.curateDanger};
+    --curate-shadow: ${({ theme }) => theme.curateShadow};
+    --curate-shadow-hover: ${({ theme }) => theme.curateShadowHover};
+    --curate-radius: 14px;
+    --curate-radius-sm: 10px;
+    color: var(--curate-text);
+    background: linear-gradient(180deg, var(--curate-bg) 0%, var(--curate-bg-soft) 100%);
+    background-attachment: fixed;
+    font-variant-ligatures: contextual;
+    text-rendering: geometricPrecision;
 
     /* Font size scale */
-    --font-size-page-title: 36px;
-    --font-size-section-title: 24px;
+    --font-size-page-title: 40px;
+    --font-size-section-title: 26px;
     --font-size-title: 18px;
     --font-size-large: 16px;
     --font-size-base: 14px;
@@ -41,7 +73,7 @@ const GlobalStyle = createGlobalStyle`
     --toastify-color-error: ${({ theme }) => theme.errorColor};
     --toastify-color-progress-light: ${({ theme }) => theme.primaryColor};
     --toastify-color-progress-dark: ${({ theme }) => theme.primaryColor};
-    --toastify-font-family: 'Roboto', sans-serif;
+    --toastify-font-family: Inter, "Inter Tight", ui-sans-serif, system-ui, sans-serif;
   }
 
   .Toastify__toast-container--top-center {
@@ -49,8 +81,44 @@ const GlobalStyle = createGlobalStyle`
   }
 
   body[data-theme="dark"] {
-    background-color: ${({ theme }) => theme.bodyBackground} !important;
+    background-color: ${({ theme }) => theme.curateBg} !important;
     color: ${({ theme }) => theme.textPrimary} !important;
+  }
+
+  body,
+  #root {
+    min-height: 100vh;
+  }
+
+  ::selection {
+    color: #031016;
+    background: var(--curate-live);
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.18);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    letter-spacing: 0;
   }
 
   /* Global link styles */

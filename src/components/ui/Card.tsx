@@ -7,12 +7,21 @@ const shimmer = keyframes`
 `
 
 const StyledCard = styled.div<{ $bordered?: boolean; $hoverable?: boolean }>`
-  background: ${({ theme }) => theme.componentBackground};
-  border-radius: 12px;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.055),
+      rgba(255, 255, 255, 0.025)
+    ),
+    var(--curate-surface);
+  border-radius: var(--curate-radius-sm);
   border: ${({ $bordered, theme }) =>
-    $bordered ? `1px solid ${theme.borderColor}` : 'none'};
-  box-shadow: ${({ theme }) => `0 2px 8px ${theme.shadowColor}`};
-  transition: all 0.3s;
+    $bordered ? `1px solid ${theme.curateBorder}` : 'none'};
+  box-shadow: var(--curate-shadow);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
   overflow: hidden;
 
   ${({ $hoverable }) =>
@@ -20,17 +29,18 @@ const StyledCard = styled.div<{ $bordered?: boolean; $hoverable?: boolean }>`
     css`
       cursor: pointer;
       &:hover {
-        box-shadow: ${({ theme }) => `0 4px 16px ${theme.shadowColor}`};
+        border-color: var(--curate-border-strong);
+        box-shadow: var(--curate-shadow-hover);
         transform: translateY(-2px);
       }
     `}
 `
 
 const CardHead = styled.div`
-  background: ${({ theme }) => theme.elevatedBackground};
-  border-bottom: 1px solid ${({ theme }) => theme.borderColor};
-  padding: 16px 24px;
-  min-height: 48px;
+  background: rgba(255, 255, 255, 0.035);
+  border-bottom: 1px solid var(--curate-border);
+  padding: 16px 18px;
+  min-height: 54px;
 `
 
 const CardHeadWrapper = styled.div`
@@ -40,8 +50,8 @@ const CardHeadWrapper = styled.div`
 `
 
 const CardHeadTitle = styled.div`
-  color: ${({ theme }) => theme.textPrimary};
-  font-weight: 500;
+  color: var(--curate-text);
+  font-weight: 800;
   font-size: 16px;
   flex: 1;
   min-width: 0;
@@ -53,18 +63,18 @@ const CardHeadTitle = styled.div`
 const CardExtra = styled.div`
   margin-left: auto;
   padding-left: 16px;
-  color: ${({ theme }) => theme.textPrimary};
+  color: var(--curate-text);
 `
 
 const CardBody = styled.div`
-  padding: 24px;
-  color: ${({ theme }) => theme.textPrimary};
+  padding: 18px;
+  color: var(--curate-text);
 `
 
 const CardActions = styled.div`
   display: flex;
   align-items: center;
-  border-top: 1px solid ${({ theme }) => theme.borderColor};
+  border-top: 1px solid var(--curate-border);
 
   & > * {
     flex: 1;
@@ -74,7 +84,7 @@ const CardActions = styled.div`
     transition: color 0.3s;
 
     &:not(:last-child) {
-      border-right: 1px solid ${({ theme }) => theme.borderColor};
+      border-right: 1px solid var(--curate-border);
     }
   }
 `
@@ -120,8 +130,8 @@ const MetaDetail = styled.div`
 `
 
 const MetaTitle = styled.div`
-  color: ${({ theme }) => theme.textPrimary};
-  font-weight: 500;
+  color: var(--curate-text);
+  font-weight: 800;
   font-size: 16px;
   overflow: hidden;
   white-space: nowrap;
@@ -130,7 +140,7 @@ const MetaTitle = styled.div`
 `
 
 const MetaDescription = styled.div`
-  color: ${({ theme }) => theme.textSecondary};
+  color: var(--curate-muted);
   font-size: 14px;
 `
 

@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import styled from 'styled-components'
-import { MAX_WIDTH_CONTENT } from 'styles/small-screen-style'
 import { Steps, Button, Card, Modal } from 'components/ui'
-import Icon from 'components/ui/Icon'
 import { useDebounce } from 'use-debounce'
 import { useWeb3Context } from 'hooks/use-web3-context'
 import useUrlChainId from 'hooks/use-url-chain-id'
@@ -20,6 +18,7 @@ import {
   defaultArbitratorExtraData as defaultArbitratorExtraDataObj,
   defaultGovernor as defaultGovernorAddresses,
 } from 'config/tcr-addresses'
+import { CurateIcon } from 'components/curate/icons'
 
 const { Step } = Steps
 const { confirm } = Modal
@@ -34,6 +33,14 @@ export const StyledStepper = styled.div`
   display: flex;
   flex-direction: row;
   justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--curate-border);
+  border-radius: var(--curate-radius-sm);
+  background: var(--curate-surface);
+  box-shadow: var(--curate-shadow);
 `
 export const StyledContainer = styled.div`
   margin: 32px 0;
@@ -41,43 +48,67 @@ export const StyledContainer = styled.div`
 `
 
 export const StyledBanner = styled.div`
-  padding: 24px
-    max(
-      var(--horizontal-padding),
-      calc(50vw - ${MAX_WIDTH_CONTENT} / 2 + var(--horizontal-padding))
-    );
-  background: ${({ theme }) => theme.bannerGradient};
-  box-shadow: 0px 3px 24px ${({ theme }) => theme.shadowColor};
-  color: ${({ theme }) => theme.textPrimary};
+  width: calc(100% - var(--horizontal-padding) * 2);
+  max-width: 1440px;
+  margin: 24px auto 0;
+  padding: clamp(24px, 4vw, 42px);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.075),
+      rgba(255, 255, 255, 0.025)
+    ),
+    var(--curate-surface);
+  border: 1px solid var(--curate-border);
+  border-radius: var(--curate-radius);
+  box-shadow: var(--curate-shadow);
+  color: var(--curate-text);
   transition:
     background 0.3s ease,
     box-shadow 0.3s ease,
     color 0.3s ease;
-  width: 100vw;
   position: relative;
-  left: 50%;
-  margin-left: -50vw;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: -55% -10% auto auto;
+    width: 520px;
+    height: 520px;
+    background:
+      radial-gradient(circle, rgba(76, 201, 240, 0.12), transparent 55%),
+      radial-gradient(
+        circle at 35% 40%,
+        rgba(124, 92, 255, 0.18),
+        transparent 48%
+      );
+    pointer-events: none;
+  }
 `
 
 export const StyledGrid = styled.div`
   display: grid;
   margin: 24px 0;
   grid-gap: 20px;
-  grid-template-columns: repeat(auto-fill, minmax(225px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
 `
 
 export const StyledTitle = styled.h1`
+  position: relative;
   margin: 0;
-  font-size: var(--font-size-page-title);
-  font-weight: 600;
-  color: ${({ theme }) => theme.itemDetailsTitleColor};
+  max-width: 900px;
+  font-size: clamp(34px, 6vw, 64px);
+  line-height: 1;
+  font-weight: 850;
+  color: var(--curate-text);
 `
 
 export const StyledSubtitle = styled.h3`
   margin-bottom: 16px;
   font-size: var(--font-size-section-title);
-  font-weight: 500;
-  color: ${({ theme }) => theme.textSecondary};
+  font-weight: 750;
+  color: var(--curate-muted);
 `
 
 export const formIds = ['tcrParamsForm', 'itemParamsForm', 'deployTCRForm']
@@ -322,7 +353,10 @@ const FactoryPermanentPage = () => {
           />
         </StyledContainer>
         <StyledStepper>
-          <Button onClick={showConfirmReset} icon="trash-alt">
+          <Button
+            onClick={showConfirmReset}
+            icon={<CurateIcon name="remove" size={16} />}
+          >
             Reset
           </Button>
           <StyledButtonGroup>
@@ -331,7 +365,11 @@ const FactoryPermanentPage = () => {
               type="primary"
               disabled={currStep === 1}
             >
-              <Icon type="left" />
+              <CurateIcon
+                name="chevron-down"
+                size={16}
+                style={{ transform: 'rotate(90deg)' }}
+              />
               Previous
             </Button>
             <Button
@@ -341,7 +379,11 @@ const FactoryPermanentPage = () => {
               disabled={currStep === STEP_COUNT}
             >
               Next
-              <Icon type="right" />
+              <CurateIcon
+                name="chevron-down"
+                size={16}
+                style={{ transform: 'rotate(-90deg)' }}
+              />
             </Button>
           </StyledButtonGroup>
         </StyledStepper>

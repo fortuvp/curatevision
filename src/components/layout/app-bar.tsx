@@ -6,7 +6,7 @@ import React, {
   useEffect,
 } from 'react'
 import styled, { css } from 'styled-components'
-import { smallScreenStyle, MAX_WIDTH_CONTENT } from 'styles/small-screen-style'
+import { smallScreenStyle } from 'styles/small-screen-style'
 import { useWeb3Context } from 'hooks/use-web3-context'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { Button, Dropdown } from 'components/ui'
@@ -17,10 +17,6 @@ import { SUPPORTED_CHAINS } from 'config/chains'
 import Identicon from 'components/identicon'
 import Logo from 'assets/images/logo.svg'
 import StakeCurateLogoRaw from 'assets/images/logo-stake-curate.svg'
-import SunIcon from 'assets/icons/sun.svg'
-import MoonIcon from 'assets/icons/moon.svg'
-import HelpIcon from 'assets/icons/help.svg'
-import MenuIcon from 'assets/icons/menu.svg'
 import { SAVED_NETWORK_KEY } from 'utils/string'
 import AppMenu from 'components/layout/app-menu'
 import Help from 'components/layout/help'
@@ -28,38 +24,44 @@ import { defaultTcrAddresses, type validChains } from 'config/tcr-addresses'
 import { StakeContext } from 'contexts/stake-context'
 import useUrlChainId from 'hooks/use-url-chain-id'
 import { preloadFactory } from 'bootstrap/app-router'
+import { CurateIcon } from 'components/curate/icons'
 
 const Container = styled.div`
   padding: 0;
-  background-color: ${({ theme }) => theme.navbarBackground};
-  transition: background-color 0.3s ease;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background:
+    linear-gradient(180deg, rgba(5, 7, 13, 0.88), rgba(5, 7, 13, 0.72)),
+    ${({ theme }) => theme.navbarBackground};
+  border-bottom: 1px solid var(--curate-border);
+  backdrop-filter: blur(18px);
+  transition:
+    background-color 0.3s ease,
+    border-color 0.3s ease;
 `
 
 const ThemeToggleButton = styled.button`
-  background: transparent;
-  border: none;
+  width: 38px;
+  height: 38px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--curate-border);
   cursor: pointer;
-  padding: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-left: 6px;
-  border-radius: 50%;
-  transition: background-color 0.2s ease;
+  border-radius: 12px;
+  color: var(--curate-muted);
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
 
   &:hover {
     background-color: rgba(255, 255, 255, 0.1);
-  }
-
-  svg {
-    width: 20px;
-    height: 20px;
-    fill: #fff;
-    transition: transform 0.3s ease;
-  }
-
-  &:hover svg {
-    transform: rotate(15deg);
+    border-color: var(--curate-border-strong);
+    color: var(--curate-text);
   }
 `
 
@@ -87,22 +89,23 @@ const MobileMenuWrapper = styled.div`
 `
 
 const HamburgerButton = styled.button`
-  background: transparent;
-  border: none;
+  width: 38px;
+  height: 38px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--curate-border);
+  border-radius: 12px;
   cursor: pointer;
-  padding: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
+  color: var(--curate-text);
+  transition:
+    border-color 160ms ease,
+    background 160ms ease;
 
   &:hover {
-    opacity: 0.7;
-  }
-
-  svg {
-    width: 22px;
-    height: 22px;
-    color: #fff;
+    border-color: var(--curate-border-strong);
+    background: rgba(255, 255, 255, 0.1);
   }
 `
 
@@ -128,21 +131,22 @@ const MobileNavMenu = styled.div`
 const MobileMenuLink = styled(Link)<{ $active?: boolean }>`
   display: block;
   padding: 10px 16px;
-  color: ${({ $active }) => ($active ? '#fff' : 'rgba(255, 255, 255, 0.5)')};
+  color: ${({ $active }) =>
+    $active ? 'var(--curate-text)' : 'var(--curate-muted)'};
   text-decoration: none;
   font-size: var(--font-size-base);
   transition: all 0.2s;
   white-space: nowrap;
-  font-weight: ${({ $active }) => ($active ? '500' : '400')};
+  font-weight: ${({ $active }) => ($active ? '750' : '600')};
 
   &:hover {
-    color: #fff;
+    color: var(--curate-text);
     background: ${({ theme }) => theme.dropdownHoverBg};
   }
 `
 
 const StyledRouterLink = styled(Link)`
-  color: #fff;
+  color: var(--curate-text);
   display: flex;
   transition: opacity 0.2s ease;
 
@@ -152,15 +156,16 @@ const StyledRouterLink = styled(Link)`
 `
 
 const StyledConnectButton = styled(Button)`
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
-  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(76, 201, 240, 0.12);
+  color: var(--curate-text);
+  border-color: rgba(76, 201, 240, 0.28);
+  font-weight: 800;
 
   &:hover:not(:disabled),
   &:focus:not(:disabled) {
-    background: rgba(255, 255, 255, 0.2);
-    color: white;
-    border-color: rgba(255, 255, 255, 0.5);
+    background: rgba(76, 201, 240, 0.2);
+    color: var(--curate-text);
+    border-color: rgba(76, 201, 240, 0.5);
   }
   margin-left: 8px;
 `
@@ -185,8 +190,8 @@ const StyledAppBarRow = styled.div`
   align-items: center;
   justify-content: space-between;
   padding: 0 var(--horizontal-padding);
-  min-height: 67px;
-  max-width: ${MAX_WIDTH_CONTENT};
+  min-height: 72px;
+  max-width: 1440px;
   margin: 0 auto;
   width: 100%;
 
@@ -203,30 +208,24 @@ const StyledAppBarRow = styled.div`
 const ChainSelectorButton = styled.button`
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  background: ${({ theme }) =>
-    theme.name === 'dark'
-      ? 'rgba(255, 255, 255, 0.08)'
-      : 'rgba(255, 255, 255, 0.15)'};
-  border: 1px solid
-    ${({ theme }) =>
-      theme.name === 'dark'
-        ? 'rgba(255, 255, 255, 0.12)'
-        : 'rgba(255, 255, 255, 0.25)'};
-  border-radius: 32px;
-  padding: 0 15px;
-  height: 32px;
-  color: #fff;
-  font-size: 14px;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--curate-border);
+  border-radius: 999px;
+  padding: 0 13px;
+  height: 38px;
+  color: var(--curate-text);
+  font-size: 13px;
+  font-weight: 800;
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease;
   white-space: nowrap;
 
   &:hover {
-    background: ${({ theme }) =>
-      theme.name === 'dark'
-        ? 'rgba(255, 255, 255, 0.15)'
-        : 'rgba(255, 255, 255, 0.3)'};
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--curate-border-strong);
   }
 `
 
@@ -250,7 +249,8 @@ const ChainDropdownWrapper = styled.div`
 `
 
 const ChainMenu = styled.div`
-  padding: 4px 0;
+  min-width: 172px;
+  padding: 6px;
 `
 
 const ChainMenuItem = styled.button<{ $active?: boolean }>`
@@ -258,8 +258,10 @@ const ChainMenuItem = styled.button<{ $active?: boolean }>`
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 8px 16px;
+  min-height: 36px;
+  padding: 0 10px;
   border: none;
+  border-radius: 10px;
   background: ${({ $active, theme }) =>
     $active
       ? theme.dropdownSelectedBg || 'rgba(0, 0, 0, 0.06)'
@@ -277,30 +279,26 @@ const ChainMenuItem = styled.button<{ $active?: boolean }>`
 `
 
 const HelpButton = styled.button`
-  background: transparent;
-  border: none;
+  width: 38px;
+  height: 38px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--curate-border);
   cursor: pointer;
-  padding: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-left: -2px;
-  border-radius: 50%;
-  transition: background-color 0.2s ease;
+  border-radius: 12px;
+  color: var(--curate-muted);
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
 
   &:hover {
     background-color: rgba(255, 255, 255, 0.1);
-  }
-
-  svg {
-    width: 20px;
-    height: 20px;
-    fill: #fff;
-    transition: transform 0.3s ease;
-  }
-
-  &:hover svg {
-    transform: rotate(15deg);
+    border-color: var(--curate-border-strong);
+    color: var(--curate-text);
   }
 `
 
@@ -348,11 +346,11 @@ const AppBar = () => {
   const [chainDropdownOpen, setChainDropdownOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [helpDropdownOpen, setHelpDropdownOpen] = useState(false)
-  const isHome =
-    location.pathname.startsWith('/tcr/') || location.pathname === '/'
 
   const currentChainInfo =
     NETWORKS_INFO[displayedChainId as keyof typeof NETWORKS_INFO]
+  const defaultRegistryAddress =
+    defaultTcrAddresses[displayedChainId as validChains]
 
   const handleChainSelect = useCallback(
     (chainId: number) => {
@@ -370,6 +368,7 @@ const AppBar = () => {
         /^\/(factory(?:-classic|-permanent)?)\//,
       )
       if (factoryMatch) navigate(`/${factoryMatch[1]}/${chainId}`)
+      else if (location.pathname === '/') navigate(`/?chain=${chainId}`)
       else navigate(`/tcr/${chainId}/${nextTcr}`)
 
       setChainDropdownOpen(false)
@@ -381,18 +380,27 @@ const AppBar = () => {
     <MobileNavMenu>
       <MobileMenuLink
         to="/"
-        $active={isHome}
+        $active={location.pathname === '/'}
         onClick={() => setMobileMenuOpen(false)}
       >
-        Home
+        Dashboard
       </MobileMenuLink>
+      {defaultRegistryAddress && (
+        <MobileMenuLink
+          to={`/tcr/${displayedChainId}/${defaultRegistryAddress}`}
+          $active={location.pathname.startsWith('/tcr/')}
+          onClick={() => setMobileMenuOpen(false)}
+        >
+          Registries
+        </MobileMenuLink>
+      )}
       <MobileMenuLink
         to={`/factory/${displayedChainId}`}
         $active={location.pathname.startsWith('/factory')}
         onClick={() => setMobileMenuOpen(false)}
         onMouseEnter={() => preloadFactory()}
       >
-        Create a List
+        Create
       </MobileMenuLink>
     </MobileNavMenu>
   )
@@ -410,7 +418,7 @@ const AppBar = () => {
               onVisibleChange={setMobileMenuOpen}
             >
               <HamburgerButton type="button" aria-label="Open menu">
-                <MenuIcon />
+                <CurateIcon name="menu" size={20} />
               </HamburgerButton>
             </Dropdown>
           </MobileMenuWrapper>
@@ -475,7 +483,7 @@ const AppBar = () => {
             onClick={toggleTheme}
             title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
           >
-            {isDarkMode ? <SunIcon /> : <MoonIcon />}
+            <CurateIcon name={isDarkMode ? 'sun' : 'moon'} size={19} />
           </ThemeToggleButton>
           <Dropdown
             trigger={['click']}
@@ -485,7 +493,7 @@ const AppBar = () => {
             overlay={<Help />}
           >
             <HelpButton type="button" title="Help">
-              <HelpIcon />
+              <CurateIcon name="help" size={19} />
             </HelpButton>
           </Dropdown>
         </RightGroup>

@@ -45,12 +45,10 @@ const Overlay = styled.div<{ $visible?: boolean; $placement?: string }>`
   position: absolute;
   z-index: 1050;
   min-width: 120px;
-  background: ${({ theme }) => theme.componentBackground};
-  border-radius: 4px;
-  box-shadow:
-    0 3px 6px -4px rgba(0, 0, 0, 0.12),
-    0 6px 16px 0 rgba(0, 0, 0, 0.08),
-    0 9px 28px 8px rgba(0, 0, 0, 0.05);
+  background: var(--curate-surface-strong);
+  border: 1px solid var(--curate-border);
+  border-radius: 14px;
+  box-shadow: var(--curate-shadow-hover);
   opacity: ${({ $visible }) => ($visible ? 1 : 0)};
   visibility: ${({ $visible }) => ($visible ? 'visible' : 'hidden')};
   transition:

@@ -10,19 +10,19 @@ const spin = keyframes`
 
 const sizeStyles: Record<string, ReturnType<typeof css>> = {
   small: css`
-    height: 24px;
-    padding: 0 7px;
+    min-height: 28px;
+    padding: 0 10px;
     font-size: 12px;
   `,
   default: css`
-    height: 32px;
+    min-height: 38px;
     padding: 0 15px;
     font-size: 14px;
   `,
   large: css`
-    height: 40px;
-    padding: 0 15px;
-    font-size: 16px;
+    min-height: 46px;
+    padding: 0 18px;
+    font-size: 15px;
   `,
 }
 
@@ -36,27 +36,38 @@ const getTypeStyles = ({
   switch (btnType) {
     case 'primary':
       return css`
-        background: ${theme.buttonPrimaryBg};
+        background: linear-gradient(
+          135deg,
+          ${theme.buttonPrimaryBg},
+          ${theme.primaryColorHover}
+        );
         color: ${theme.buttonPrimaryText};
-        border-color: ${theme.buttonPrimaryBg};
+        border-color: transparent;
+        box-shadow: 0 12px 34px rgba(76, 201, 240, 0.18);
 
         &:hover:not(:disabled),
         &:focus:not(:disabled) {
-          background: ${theme.buttonPrimaryHoverBg};
-          border-color: ${theme.buttonPrimaryHoverBg};
+          background: linear-gradient(
+            135deg,
+            ${theme.buttonPrimaryHoverBg},
+            ${theme.primaryColor}
+          );
+          border-color: transparent;
           color: ${theme.buttonPrimaryText};
+          transform: translateY(-1px);
         }
       `
     case 'ghost':
       return css`
-        background: transparent;
-        color: ${theme.textPrimary};
-        border-color: ${theme.borderColor};
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--curate-text);
+        border-color: var(--curate-border);
 
         &:hover:not(:disabled),
         &:focus:not(:disabled) {
-          color: ${theme.primaryColor};
-          border-color: ${theme.primaryColor};
+          color: var(--curate-text);
+          border-color: var(--curate-border-strong);
+          background: rgba(255, 255, 255, 0.1);
         }
       `
     case 'danger':
@@ -85,14 +96,15 @@ const getTypeStyles = ({
       `
     default:
       return css`
-        background: ${theme.componentBackground};
-        color: ${theme.textPrimary};
-        border-color: ${theme.borderColor};
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--curate-text);
+        border-color: var(--curate-border);
 
         &:hover:not(:disabled),
         &:focus:not(:disabled) {
-          color: ${theme.primaryColor};
-          border-color: ${theme.primaryColor};
+          color: var(--curate-text);
+          border-color: var(--curate-border-strong);
+          background: rgba(255, 255, 255, 0.1);
         }
       `
   }
@@ -108,7 +120,7 @@ const shapeStyles = ({ shape }: { shape?: string }) => {
     `
   if (shape === 'round')
     return css`
-      border-radius: 32px;
+      border-radius: 999px;
     `
   return ''
 }
@@ -126,11 +138,15 @@ const StyledButton = styled.button<StyledButtonTransientProps>`
   justify-content: center;
   gap: 8px;
   border: 1px solid;
-  border-radius: 4px;
+  border-radius: 12px;
   cursor: pointer;
-  transition: all 0.3s;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
   line-height: 1.5;
-  font-weight: 400;
+  font-weight: 800;
   white-space: nowrap;
   user-select: none;
   touch-action: manipulation;
@@ -158,11 +174,15 @@ const StyledLink = styled.a<StyledButtonTransientProps>`
   justify-content: center;
   gap: 8px;
   border: 1px solid;
-  border-radius: 4px;
+  border-radius: 12px;
   cursor: pointer;
-  transition: all 0.3s;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
   line-height: 1.5;
-  font-weight: 400;
+  font-weight: 800;
   white-space: nowrap;
   user-select: none;
   touch-action: manipulation;
@@ -197,11 +217,11 @@ const GroupWrapper = styled.div`
     border-radius: 0;
 
     &:first-child {
-      border-radius: 4px 0 0 4px;
+      border-radius: 12px 0 0 12px;
     }
 
     &:last-child {
-      border-radius: 0 4px 4px 0;
+      border-radius: 0 12px 12px 0;
     }
 
     &:not(:last-child) {

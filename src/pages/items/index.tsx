@@ -30,6 +30,11 @@ import Banner from './banner'
 import { DISPUTE_STATUS } from 'utils/item-status'
 import { CLASSIC_REGISTRY_ITEMS_QUERY } from 'utils/graphql'
 import { useGraphqlBatcher } from 'contexts/graphql-batcher'
+import RegistryInfoPanel from 'components/curate/registry-info-panel'
+import ETHAmount from 'components/eth-amount'
+import { NETWORKS_INFO } from 'config/networks'
+import { getListOfListsAddresses } from 'config/list-of-lists'
+import humanizeDuration from 'humanize-duration'
 import {
   NSFW_FILTER_KEY,
   StyledLayoutContent,
@@ -60,6 +65,13 @@ const Items = () => {
     gtcrView,
     connectedTCRAddr,
     submissionDeposit,
+    submissionChallengeDeposit,
+    removalDeposit,
+    removalChallengeDeposit,
+    arbitrationCost,
+    arbitrator,
+    arbitratorExtraData,
+    governor,
   } = useContext(TCRViewContext)
   const [submissionFormOpen, setSubmissionFormOpen] = useState<
     boolean | undefined
@@ -294,6 +306,32 @@ const Items = () => {
   const { isConnectedTCR } = metadata || {}
 
   const itemCount = Math.floor(itemsQuery.data?.items?.length) ?? 0
+  const nativeSymbol =
+    chainId && NETWORKS_INFO[chainId as keyof typeof NETWORKS_INFO]
+      ? ` ${
+          NETWORKS_INFO[chainId as keyof typeof NETWORKS_INFO].nativeCurrency
+            .symbol
+        }`
+      : ' ETH'
+  const depositValue = (amount: unknown) =>
+    amount ? (
+      <ETHAmount
+        amount={amount as string}
+        decimals={18}
+        displayUnit={nativeSymbol}
+      />
+    ) : undefined
+  const periodValue = (seconds: unknown) =>
+    seconds
+      ? humanizeDuration(Number(seconds) * 1000, {
+          largest: 2,
+          round: true,
+        })
+      : undefined
+  const verifiedSource =
+    !!chainId &&
+    !!tcrAddress &&
+    getListOfListsAddresses(chainId).includes(tcrAddress.toLowerCase())
 
   return (
     <>
@@ -302,6 +340,58 @@ const Items = () => {
         setSubmissionFormOpen={setSubmissionFormOpen}
         connectedTCRAddr={connectedTCRAddr}
         tcrAddress={tcrAddress}
+      />
+      <RegistryInfoPanel
+        chainId={chainId}
+        address={tcrAddress}
+        verified={verifiedSource}
+        fields={[
+          {
+            label: 'Submission deposit',
+            icon: 'submit',
+            value: depositValue(submissionDeposit),
+            hint: 'Requester stake plus current arbitration cost.',
+          },
+          {
+            label: 'Challenge deposit',
+            icon: 'challenge',
+            value: depositValue(submissionChallengeDeposit),
+            hint: 'Required to challenge a pending registration.',
+          },
+          {
+            label: 'Removal deposit',
+            icon: 'remove',
+            value: depositValue(removalDeposit),
+          },
+          {
+            label: 'Removal challenge',
+            icon: 'dispute',
+            value: depositValue(removalChallengeDeposit),
+          },
+          {
+            label: 'Challenge period',
+            icon: 'activity',
+            value: periodValue(challengePeriodDuration),
+          },
+          {
+            label: 'Arbitration cost',
+            icon: 'court',
+            value: depositValue(arbitrationCost),
+          },
+          {
+            label: 'Governor',
+            icon: 'verified',
+            value: governor ? String(governor) : undefined,
+          },
+          {
+            label: 'Arbitrator',
+            icon: 'court',
+            value: arbitrator ? String(arbitrator) : undefined,
+            hint: arbitratorExtraData
+              ? `Extra data ${String(arbitratorExtraData).slice(0, 18)}...`
+              : undefined,
+          },
+        ]}
       />
       <StyledLayoutContent>
         <StyledContent>

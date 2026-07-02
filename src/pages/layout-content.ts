@@ -3,7 +3,10 @@ import Layout from 'components/ui/Layout'
 import { smallScreenStyle } from 'styles/small-screen-style'
 
 const StyledLayoutContent = styled(Layout.Content)`
-  padding: 42px var(--horizontal-padding) 42px;
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 42px var(--horizontal-padding) 56px;
 
   ${smallScreenStyle(
     () => css`

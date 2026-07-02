@@ -1,7 +1,6 @@
 import { Skeleton, Button } from 'components/ui'
-import Icon from 'components/ui/Icon'
 import styled, { css } from 'styled-components'
-import { smallScreenStyle, MAX_WIDTH_CONTENT } from 'styles/small-screen-style'
+import { smallScreenStyle } from 'styles/small-screen-style'
 import { Link } from 'react-router-dom'
 import useUrlChainId from 'hooks/use-url-chain-id'
 import React from 'react'
@@ -14,40 +13,73 @@ import { truncateAtWord } from 'utils/truncate-at-word'
 import { useAttachment } from 'hooks/use-attachment'
 import { buttonReset } from 'styles/button-reset'
 import PolicyUpdatedBadge from 'components/policy-updated-badge'
+import { CurateIcon } from 'components/curate/icons'
+import { ChainChip, StatusPill } from 'components/curate/primitives'
+import { NETWORKS_INFO } from 'config/networks'
 
 export const StyledBanner = styled.div`
-  display: flex;
-  padding: 24px
-    max(
-      var(--horizontal-padding),
-      calc(50vw - ${MAX_WIDTH_CONTENT} / 2 + var(--horizontal-padding))
-    );
-  background: ${({ theme }) => theme.bannerGradient};
-  box-shadow: 0px 3px 24px ${({ theme }) => theme.shadowColor};
-  color: ${({ theme }) => theme.bannerTextColor};
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: clamp(22px, 3vw, 34px);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.075),
+      rgba(255, 255, 255, 0.025)
+    ),
+    var(--curate-surface);
+  border: 1px solid var(--curate-border);
+  border-radius: var(--curate-radius);
+  box-shadow: var(--curate-shadow);
+  color: var(--curate-text);
   justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
+  align-items: stretch;
+  gap: clamp(18px, 4vw, 44px);
   transition:
     background 0.3s ease,
     box-shadow 0.3s ease,
     color 0.3s ease;
-  width: 100vw;
+  width: calc(100% - var(--horizontal-padding) * 2);
+  max-width: 1440px;
   position: relative;
-  left: 50%;
-  margin-left: -50vw;
+  margin: 24px auto 0;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: -40% -10% auto auto;
+    width: 440px;
+    height: 440px;
+    background:
+      radial-gradient(circle, rgba(76, 201, 240, 0.12), transparent 55%),
+      radial-gradient(
+        circle at 38% 40%,
+        rgba(124, 92, 255, 0.16),
+        transparent 48%
+      );
+    pointer-events: none;
+  }
+
+  ${smallScreenStyle(
+    () => css`
+      grid-template-columns: 1fr;
+    `,
+  )}
 `
 
 export const StyledButton = styled(Button)`
   text-transform: capitalize;
+  font-weight: 850;
 `
 
 export const TCRInfoColumn = styled.div`
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   flex-wrap: wrap;
-  max-width: calc(100% - 220px);
+  max-width: 940px;
 
   ${smallScreenStyle(
     () => css`
@@ -58,15 +90,19 @@ export const TCRInfoColumn = styled.div`
 
 export const StyledImage = styled.img`
   object-fit: contain;
-  height: 50px;
-  width: 50px;
+  height: 64px;
+  width: 64px;
+  padding: 8px;
+  border: 1px solid var(--curate-border);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.06);
 `
 
 export const TitleContainer = styled.div`
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0 12px;
+  gap: 10px;
 `
 
 export const StyledTitle = styled.h1`
@@ -74,35 +110,50 @@ export const StyledTitle = styled.h1`
   flex-wrap: wrap;
   align-items: center;
   margin: 0;
-  font-size: var(--font-size-page-title);
-  line-height: 1.2;
-  font-weight: 600;
-  color: ${({ theme }) => theme.bannerTitleColor};
+  font-size: clamp(30px, 4vw, 48px);
+  line-height: 1.05;
+  font-weight: 850;
+  color: var(--curate-text);
 `
 
 export const StyledDescription = styled.span`
   display: inline;
-  margin-top: 4px;
-  font-size: var(--font-size-base);
-  color: ${({ theme }) => theme.bannerDescriptionColor};
+  margin-top: 12px;
+  max-width: 900px;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--curate-muted);
 `
 
 export const StyledPolicyAnchor = styled.a`
   ${buttonReset}
-  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--curate-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
   margin-top: 12px;
-  font-size: var(--font-size-base);
-  color: ${({ theme }) => theme.bannerPolicyLinkColor};
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--curate-live);
 
   &:hover {
-    color: ${({ theme }) => theme.bannerPolicyLinkHoverColor};
+    color: var(--curate-text);
+    border-color: var(--curate-border-strong);
   }
 `
 
 export const ActionCol = styled.div`
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: center;
+  gap: 8px;
   align-items: flex-end;
 
   ${smallScreenStyle(
@@ -113,11 +164,11 @@ export const ActionCol = styled.div`
 `
 
 export const StyledLink = styled(Link)`
-  color: ${({ theme }) => theme.bannerLinkColor};
+  color: var(--curate-live);
   text-decoration: none;
 
   &:hover {
-    color: ${({ theme }) => theme.bannerLinkHoverColor};
+    color: var(--curate-text);
   }
 `
 
@@ -143,6 +194,8 @@ const Banner = ({
 }: BannerProps) => {
   const networkId = useUrlChainId()
   const defaultTCRAddress = defaultTcrAddresses[networkId]
+  const networkInfo =
+    networkId && NETWORKS_INFO[networkId as keyof typeof NETWORKS_INFO]
   const openAttachment = useAttachment()
   const { metadata, fileURI } = metaEvidence || {}
   const { itemName, tcrTitle, tcrDescription, logoURI, relTcrDisabled } =
@@ -180,6 +233,12 @@ const Banner = ({
                 {defaultTCRAddress && tcrAddress !== defaultTCRAddress && (
                   <TCRLogo logoURI={logoURI} />
                 )}
+                {networkInfo && (
+                  <ChainChip $color={networkInfo.color}>
+                    {networkInfo.name}
+                  </ChainChip>
+                )}
+                <StatusPill $tone="live">Live registry</StatusPill>
                 <ContractExplorerUrl
                   networkId={networkId}
                   contractAddress={tcrAddress}
@@ -213,8 +272,8 @@ const Banner = ({
             onClick={() => setSubmissionFormOpen(true)}
             id="submit-item-button"
           >
+            <CurateIcon name="submit" size={18} />
             {`Submit ${capitalizeFirstLetter(itemName) || 'Item'}`}
-            <Icon type="plus-circle-outline" />
           </StyledButton>
           <StyledPolicyAnchor
             as="button"
@@ -222,6 +281,7 @@ const Banner = ({
             id="policy-link"
             onClick={() => fileURI && openAttachment(parseIpfs(fileURI), true)}
           >
+            <CurateIcon name="policy" size={16} />
             View Submission Policy
             <PolicyUpdatedBadge registryAddress={tcrAddress} />
           </StyledPolicyAnchor>

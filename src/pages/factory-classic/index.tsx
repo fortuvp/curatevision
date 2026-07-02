@@ -1,5 +1,4 @@
 import { Steps, Button, Card, Modal } from 'components/ui'
-import Icon from 'components/ui/Icon'
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useDebounce } from 'use-debounce'
 import { useWeb3Context } from 'hooks/use-web3-context'
@@ -25,6 +24,7 @@ import {
   StyledButtonGroup,
   StyledTitle,
 } from 'pages/factory'
+import { CurateIcon } from 'components/curate/icons'
 
 const { Step } = Steps
 const { confirm } = Modal
@@ -258,7 +258,10 @@ const FactoryClassicPage = () => {
           />
         </StyledContainer>
         <StyledStepper>
-          <Button onClick={showConfirmReset} icon="trash-alt">
+          <Button
+            onClick={showConfirmReset}
+            icon={<CurateIcon name="remove" size={16} />}
+          >
             Reset
           </Button>
           <StyledButtonGroup>
@@ -267,7 +270,11 @@ const FactoryClassicPage = () => {
               type="primary"
               disabled={currStep === 1}
             >
-              <Icon type="left" />
+              <CurateIcon
+                name="chevron-down"
+                size={16}
+                style={{ transform: 'rotate(90deg)' }}
+              />
               Previous
             </Button>
             <Button
@@ -277,7 +284,11 @@ const FactoryClassicPage = () => {
               disabled={currStep === STEP_COUNT}
             >
               Next
-              <Icon type="right" />
+              <CurateIcon
+                name="chevron-down"
+                size={16}
+                style={{ transform: 'rotate(-90deg)' }}
+              />
             </Button>
           </StyledButtonGroup>
         </StyledStepper>

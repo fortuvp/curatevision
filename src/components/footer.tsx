@@ -1,11 +1,14 @@
 import React from 'react'
 import styled, { css } from 'styled-components'
-import { smallScreenStyle, MAX_WIDTH_CONTENT } from 'styles/small-screen-style'
+import { smallScreenStyle } from 'styles/small-screen-style'
 import icons from './social-icons'
 
 const Container = styled.footer`
   width: 100%;
-  background-color: ${({ theme }) => theme.footerBackground};
+  background:
+    linear-gradient(180deg, rgba(5, 7, 13, 0), rgba(5, 7, 13, 0.72)),
+    ${({ theme }) => theme.footerBackground};
+  border-top: 1px solid var(--curate-border);
   margin-top: auto;
 `
 
@@ -17,7 +20,7 @@ const FooterInner = styled.div`
   padding: 0 var(--horizontal-padding);
   height: 64px;
   gap: 16px;
-  max-width: ${MAX_WIDTH_CONTENT};
+  max-width: 1440px;
   margin: 0 auto;
   width: 100%;
 
@@ -51,16 +54,22 @@ const StyledSecuredByKleros = styled.a`
 
 const StyledSocialMedia = styled.div`
   display: flex;
+  gap: 6px;
 `
 
 const StyledSocialButton = styled.a`
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: transparent;
+  width: 38px;
+  height: 38px;
+  background-color: rgba(255, 255, 255, 0.04);
   padding: 8px;
-  border-radius: 7px;
-  transition: 0.1s;
+  border: 1px solid var(--curate-border);
+  border-radius: 12px;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease;
   text-decoration: none;
 
   svg path {
@@ -69,7 +78,8 @@ const StyledSocialButton = styled.a`
   }
 
   &:hover {
-    background-color: #ffffff26;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: var(--curate-border-strong);
 
     svg path {
       fill: ${({ theme }) => theme.white ?? '#ffffff'};

@@ -18,27 +18,27 @@ const SelectTrigger = styled.div<{ $focused?: boolean; $disabled?: boolean }>`
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  min-height: 32px;
-  padding: 4px 11px;
+  min-height: 38px;
+  padding: 4px 12px;
   font-size: 14px;
   line-height: 1.5;
   color: ${({ theme }) => theme.textPrimary};
-  background: ${({ theme }) => theme.componentBackground};
-  border: 1px solid ${({ theme }) => theme.borderColor};
-  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--curate-border);
+  border-radius: 12px;
   cursor: pointer;
   transition: all 0.3s;
   box-sizing: border-box;
   user-select: none;
 
   &:hover {
-    border-color: ${({ theme }) => theme.primaryColor};
+    border-color: var(--curate-border-strong);
   }
 
   ${({ $focused, theme }) =>
     $focused &&
     css`
-      border-color: ${theme.primaryColor};
+      border-color: var(--curate-border-strong);
       box-shadow: 0 0 0 2px ${theme.focusShadowColor};
     `}
 
@@ -77,10 +77,10 @@ const Arrow = styled.span<{ $open?: boolean }>`
 const DropdownStyled = styled.div`
   position: fixed;
   z-index: 1050;
-  background: ${({ theme }) => theme.componentBackground};
-  border: 1px solid ${({ theme }) => theme.borderColor};
-  border-radius: 4px;
-  box-shadow: ${({ theme }) => `0 4px 12px ${theme.shadowColor}`};
+  background: var(--curate-surface-strong);
+  border: 1px solid var(--curate-border);
+  border-radius: 14px;
+  box-shadow: var(--curate-shadow-hover);
   max-height: 256px;
   overflow-y: auto;
   padding: 4px 0;
@@ -91,8 +91,8 @@ const SearchInput = styled.input`
   padding: 5px 12px;
   margin-bottom: 4px;
   border: none;
-  border-bottom: 1px solid ${({ theme }) => theme.borderColor};
-  background: ${({ theme }) => theme.componentBackground};
+  border-bottom: 1px solid var(--curate-border);
+  background: transparent;
   color: ${({ theme }) => theme.textPrimary};
   font-size: 14px;
   outline: none;
@@ -104,7 +104,9 @@ const SearchInput = styled.input`
 `
 
 const OptionItem = styled.div<{ $selected?: boolean; $disabled?: boolean }>`
-  padding: 5px 12px;
+  margin: 2px 6px;
+  padding: 7px 10px;
+  border-radius: 10px;
   cursor: pointer;
   transition: background 0.3s;
   color: ${({ theme }) => theme.textPrimary};
@@ -115,7 +117,7 @@ const OptionItem = styled.div<{ $selected?: boolean; $disabled?: boolean }>`
     $selected &&
     css`
       background: ${theme.dropdownSelectedBg};
-      font-weight: 600;
+      font-weight: 800;
     `}
 
   ${({ $disabled, theme }) =>

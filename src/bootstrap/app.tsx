@@ -1,6 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react'
 import styled from 'styled-components'
-import { MAX_WIDTH_CONTENT } from 'styles/small-screen-style'
 import { BrowserRouter } from 'react-router-dom'
 import { WagmiProvider } from 'wagmi'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -55,12 +54,11 @@ const StyledClickaway = styled.div<{ isMenuClosed: boolean }>`
 
 const StyledLayout = styled(Layout)`
   min-height: 100vh !important;
-  background: ${({ theme }) => theme.bodyBackground} !important;
+  background: transparent !important;
   overflow-x: hidden;
 `
 
 const ContentContainer = styled.div`
-  max-width: ${MAX_WIDTH_CONTENT};
   margin: 0 auto;
   width: 100%;
   flex: 1;

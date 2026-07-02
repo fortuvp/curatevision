@@ -43,6 +43,10 @@ import { useGraphqlBatcher } from 'contexts/graphql-batcher'
 import useArbitrationCost from 'hooks/arbitration-cost'
 import useTokenSymbol from 'hooks/token-symbol'
 import { useEthersProvider } from 'hooks/ethers-adapters'
+import RegistryInfoPanel from 'components/curate/registry-info-panel'
+import ETHAmount from 'components/eth-amount'
+import { getListOfListsAddresses } from 'config/list-of-lists'
+import humanizeDuration from 'humanize-duration'
 
 export const NSFW_FILTER_KEY = 'NSFW_FILTER_KEY'
 
@@ -56,7 +60,10 @@ export const StyledContent = styled(Layout.Content)`
 `
 
 export const StyledLayoutContent = styled.div`
-  padding: 0 var(--horizontal-padding) 42px;
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 var(--horizontal-padding) 56px;
   display: flex;
   flex-direction: column;
 `
@@ -66,6 +73,18 @@ export const FiltersContainer = styled.div`
   margin-top: 24px;
   width: 100%;
   justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--curate-border);
+  border-radius: var(--curate-radius-sm);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.055),
+      rgba(255, 255, 255, 0.025)
+    ),
+    var(--curate-surface);
+  box-shadow: var(--curate-shadow);
 
   ${smallScreenStyle(
     () => css`
@@ -86,7 +105,6 @@ export const StyledFilters = styled.div`
 
 export const StyledSelect = styled(Select)`
   width: 120px;
-  height: 32px;
   margin-left: auto;
   flex-shrink: 0;
 
@@ -106,19 +124,21 @@ export const StyledTag = styled(Tag.CheckableTag)`
   &.ui-tag-checkable {
     background-color: ${({ theme, checked }) =>
       checked
-        ? theme.primaryColor
+        ? 'rgba(76, 201, 240, 0.13)'
         : theme.name === 'dark'
-          ? theme.elevatedBackground
-          : 'transparent'} !important;
+          ? 'rgba(255, 255, 255, 0.05)'
+          : 'rgba(255, 255, 255, 0.62)'} !important;
     border: 1px solid
       ${({ theme, checked }) =>
-        checked ? theme.primaryColor : theme.filterBorderColor} !important;
+        checked
+          ? 'var(--curate-border-strong)'
+          : theme.filterBorderColor} !important;
     color: ${({ theme, checked }) =>
-      checked
-        ? theme.textOnPrimary || '#fff'
-        : theme.filterTextColor} !important;
+      checked ? 'var(--curate-text)' : theme.filterTextColor} !important;
     height: 32px;
     line-height: 30px;
+    border-radius: 999px;
+    font-weight: 750;
     cursor: pointer;
   }
 
@@ -142,7 +162,7 @@ export const StyledGrid = styled.div`
   display: grid;
   margin: 24px 0;
   grid-gap: 20px;
-  grid-template-columns: repeat(auto-fill, minmax(225px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
 `
 
 export const StyledSwitch = styled(Switch)`
@@ -286,10 +306,7 @@ const Items = () => {
     })()
   }, [])
 
-  const items = useMemo(
-    () => (itemsQuery.data ? itemsQuery.data.items : []),
-    [itemsQuery.data],
-  )
+  const items = useMemo(() => itemsQuery.data?.items ?? [], [itemsQuery.data])
 
   useEffect(() => {
     if (!registryQuery.data || !registryQuery.data.registry) return
@@ -317,6 +334,26 @@ const Items = () => {
 
   const r = registryQuery.data.registry
   const metadata = r?.arbitrationSettings?.[0]?.metadata
+  const depositUnit = tokenSymbol ? ` ${tokenSymbol}` : ''
+  const depositValue = (amount: unknown) =>
+    amount ? (
+      <ETHAmount
+        amount={amount as string}
+        decimals={18}
+        displayUnit={depositUnit}
+      />
+    ) : undefined
+  const periodValue = (seconds: unknown) =>
+    seconds
+      ? humanizeDuration(Number(seconds) * 1000, {
+          largest: 2,
+          round: true,
+        })
+      : undefined
+  const verifiedSource =
+    !!chainId &&
+    !!tcrAddress &&
+    getListOfListsAddresses(chainId).includes(tcrAddress.toLowerCase())
 
   if (!r)
     return (
@@ -333,6 +370,62 @@ const Items = () => {
         metadata={metadata}
         setSubmissionFormOpen={setSubmissionFormOpen}
         tcrAddress={tcrAddress}
+      />
+      <RegistryInfoPanel
+        chainId={chainId}
+        address={tcrAddress}
+        verified={verifiedSource}
+        fields={[
+          {
+            label: 'Submission minimum',
+            icon: 'submit',
+            value: depositValue(r.submissionMinDeposit),
+            hint: 'Minimum bounty required for permanent submissions.',
+          },
+          {
+            label: 'Submission period',
+            icon: 'activity',
+            value: periodValue(r.submissionPeriod),
+          },
+          {
+            label: 'Withdrawing period',
+            icon: 'remove',
+            value: periodValue(r.withdrawingPeriod),
+          },
+          {
+            label: 'Reinclusion period',
+            icon: 'challenge',
+            value: periodValue(r.reinclusionPeriod),
+          },
+          {
+            label: 'Arbitration cost',
+            icon: 'court',
+            value: arbitrationCost.arbitrationCost
+              ? depositValue(arbitrationCost.arbitrationCost)
+              : undefined,
+          },
+          {
+            label: 'Arbitrator',
+            icon: 'court',
+            value: r.arbitrator?.id,
+            hint: r.arbitrationSettings?.[0]?.arbitratorExtraData
+              ? `Extra data ${r.arbitrationSettings[0].arbitratorExtraData.slice(
+                  0,
+                  18,
+                )}...`
+              : undefined,
+          },
+          {
+            label: 'Submitted',
+            icon: 'registry',
+            value: r.numberOfSubmitted,
+          },
+          {
+            label: 'Disputed',
+            icon: 'dispute',
+            value: r.numberOfDisputed,
+          },
+        ]}
       />
       <StyledLayoutContent>
         <StyledContent>
