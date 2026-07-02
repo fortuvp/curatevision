@@ -6,11 +6,13 @@ import { getPublicClient, simulateContract } from '@wagmi/core'
 import { useAccount, useWalletClient } from 'wagmi'
 import { formatEther, isAddress, parseEther } from 'viem'
 import type { Abi } from 'viem'
+import { useAtlasProvider } from '@kleros/kleros-app'
 import classicAbi from 'assets/abis/GeneralizedTCR.json'
 import lightAbi from 'assets/abis/LightGeneralizedTCR.json'
 import permanentAbi from 'assets/abis/PermanentGTCR.json'
 import { Button, Modal } from 'components/ui'
 import { CurateIcon, CurateIconName } from 'components/curate/icons'
+import EnsureAuth from 'components/ensure-auth'
 import { NETWORKS_INFO } from 'config/networks'
 import { klerosAddresses } from 'config/tcr-addresses'
 import { wagmiConfig } from 'config/wagmi'
@@ -19,6 +21,7 @@ import useCourtPolicies from 'hooks/use-court-policies'
 import useDocumentHead from 'hooks/use-document-head'
 import { wrapWithToast, errorToast } from 'utils/wrap-with-toast'
 import { jurorsAndCourtIDFromExtraData } from 'utils/string'
+import { JSON_UPLOAD_ROLE } from 'utils/atlas-roles'
 import {
   chainName,
   fetchAddressProfileData,
@@ -545,6 +548,32 @@ const FieldHint = styled.div`
   }
 `
 
+const InlineActions = styled.div`
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+`
+
+const HiddenFileInput = styled.input`
+  display: none;
+`
+
+const UploadButtonLabel = styled.label<{ $disabled?: boolean }>`
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  color: ${({ $disabled }) =>
+    $disabled ? 'var(--curate-faint)' : 'var(--curate-text)'};
+  background: rgba(255, 255, 255, 0.055);
+  cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
+  font-size: 12px;
+  font-weight: 850;
+`
+
 const SectionTitle = styled.div`
   margin: 10px 0 2px;
   color: var(--curate-text);
@@ -652,10 +681,10 @@ const editableParams = (registry: GovernedRegistry): ParamConfig[] => {
     return [
       {
         key: 'policyURI',
-        label: 'Policy URI',
+        label: 'MetaEvidence URI',
         kind: 'policy',
         functionName: 'changeArbitrationParams',
-        hint: 'Updates the current MetaEvidence URI while keeping the current court extra data.',
+        hint: 'Advanced users only: this must point to valid Curate MetaEvidence. A wrong URI may break frontend visualization for this registry.',
       },
       {
         key: 'submissionMinDeposit',
@@ -716,7 +745,7 @@ const editableParams = (registry: GovernedRegistry): ParamConfig[] => {
   return [
     {
       key: 'policyURI',
-      label: 'Policy URI',
+      label: 'MetaEvidence URI',
       kind: 'policy',
       functionName:
         registry.kind === 'light'
@@ -724,8 +753,8 @@ const editableParams = (registry: GovernedRegistry): ParamConfig[] => {
           : 'changeMetaEvidence',
       hint:
         registry.kind === 'light'
-          ? 'Updates registration and clearing MetaEvidence to the same URI while keeping current arbitration params.'
-          : 'Updates registration and clearing MetaEvidence to the same URI.',
+          ? 'Advanced users only: this updates registration and clearing MetaEvidence to the same URI while keeping current arbitration params. A wrong URI may break frontend visualization.'
+          : 'Advanced users only: this updates registration and clearing MetaEvidence to the same URI. A wrong URI may break frontend visualization.',
     },
     {
       key: 'submissionBaseDeposit',
@@ -1039,9 +1068,9 @@ const ArbitrationGovernanceField = ({
           </InlineGrid>
           <Input
             value={extraData}
-            disabled={!editable || pending}
-            onChange={(event) => setExtraData(event.currentTarget.value)}
-            placeholder="Arbitrator extra data"
+            disabled
+            readOnly
+            placeholder="Arbitrator extra data is generated automatically"
           />
           {registry.kind === 'light' && (
             <InlineGrid>
@@ -1076,9 +1105,11 @@ const ArbitrationGovernanceField = ({
           Save
         </Button>
         <FieldHint>
-          Court selection rewrites arbitrator extra data. Light and permanent
-          contracts update arbitration params together with MetaEvidence, so
-          those URIs are required for this transaction.
+          Court selection rewrites arbitrator extra data automatically. Light
+          and permanent contracts update arbitration params together with
+          MetaEvidence, so those URIs are required for this transaction.
+          MetaEvidence is for advanced users: a wrong URI may break frontend
+          visualization for this registry.
         </FieldHint>
       </FieldRow>
     </>
@@ -1097,6 +1128,7 @@ const GovernanceField = ({
   onSaved: () => void
 }) => {
   const { data: walletClient } = useWalletClient()
+  const { uploadFile } = useAtlasProvider()
   const [value, setValue] = useState(() =>
     formatParamValue(
       config.key === 'policyURI' ? '' : registry.params?.[config.key],
@@ -1104,12 +1136,36 @@ const GovernanceField = ({
     ),
   )
   const [pending, setPending] = useState(false)
+  const [uploading, setUploading] = useState(false)
 
   const disabled =
     !editable ||
     pending ||
+    uploading ||
     !walletClient ||
     (config.kind === 'policy' && !value.trim())
+
+  const uploadMetaEvidence = async (file?: File) => {
+    if (!file) return
+    if (
+      file.type !== 'application/json' &&
+      !file.name.toLowerCase().endsWith('.json')
+    ) {
+      errorToast('Upload a MetaEvidence JSON file.')
+      return
+    }
+    setUploading(true)
+    try {
+      const uri = await uploadFile(file, JSON_UPLOAD_ROLE)
+      if (!uri) throw new Error('Atlas upload failed.')
+      setValue(uri)
+    } catch (err) {
+      console.error(err)
+      errorToast('MetaEvidence upload failed.')
+    } finally {
+      setUploading(false)
+    }
+  }
 
   const save = async () => {
     if (config.kind === 'address' && !isAddress(value)) {
@@ -1147,7 +1203,7 @@ const GovernanceField = ({
 
   const placeholder =
     config.kind === 'policy'
-      ? 'ipfs://... or https://...'
+      ? '/ipfs/... or https://...'
       : config.kind === 'seconds'
         ? 'days'
         : undefined
@@ -1156,12 +1212,34 @@ const GovernanceField = ({
     <>
       <FieldRow>
         <FieldLabel>{config.label}</FieldLabel>
-        <Input
-          value={value}
-          placeholder={placeholder}
-          disabled={!editable || pending}
-          onChange={(event) => setValue(event.currentTarget.value)}
-        />
+        <div style={{ display: 'grid', gap: 8 }}>
+          <Input
+            value={value}
+            placeholder={placeholder}
+            disabled={!editable || pending || uploading}
+            onChange={(event) => setValue(event.currentTarget.value)}
+          />
+          {config.kind === 'policy' && (
+            <InlineActions>
+              <EnsureAuth>
+                <UploadButtonLabel
+                  $disabled={!editable || pending || uploading}
+                >
+                  <CurateIcon name="submit" size={14} />
+                  {uploading ? 'Uploading...' : 'Upload MetaEvidence JSON'}
+                  <HiddenFileInput
+                    type="file"
+                    accept="application/json,.json"
+                    disabled={!editable || pending || uploading}
+                    onChange={(event) =>
+                      uploadMetaEvidence(event.currentTarget.files?.[0])
+                    }
+                  />
+                </UploadButtonLabel>
+              </EnsureAuth>
+            </InlineActions>
+          )}
+        </div>
         <Button type="primary" size="small" disabled={disabled} onClick={save}>
           Save
         </Button>
@@ -1224,6 +1302,30 @@ const GovernanceUpdateModal = ({
         ))}
       </FieldGrid>
     </Modal>
+  )
+}
+
+const CourtDisplay = ({ registry }: { registry: GovernedRegistry }) => {
+  const extraData = registry.params?.arbitratorExtraData
+  const knownKleros = klerosAddresses[registry.chainId]
+  const chainProvider = useEthersProvider({ chainId: registry.chainId })
+  const { data: courts = [] } = useCourtPolicies(
+    knownKleros?.policy,
+    chainProvider ?? null,
+  )
+
+  if (!extraData || extraData === '0x') return <>Unavailable</>
+
+  const decoded = jurorsAndCourtIDFromExtraData(extraData)
+  const court = courts.find(
+    (item) => String(item.courtID) === String(decoded.courtID),
+  )
+
+  return (
+    <>
+      {court?.label || `Court ${decoded.courtID}`}
+      {decoded.numberOfJurors ? ` · ${decoded.numberOfJurors} jurors` : ''}
+    </>
   )
 }
 
@@ -1294,11 +1396,9 @@ const GovernancePanel = ({
                       </MetricValue>
                     </RegistryMetaBox>
                     <RegistryMetaBox>
-                      <MetricLabel>Last update</MetricLabel>
+                      <MetricLabel>Court</MetricLabel>
                       <MetricValue style={{ fontSize: 15 }}>
-                        {registry.lastActivityAt
-                          ? formatAgo(registry.lastActivityAt)
-                          : 'No recent activity'}
+                        <CourtDisplay registry={registry} />
                       </MetricValue>
                     </RegistryMetaBox>
                     <RegistryMetaBox>

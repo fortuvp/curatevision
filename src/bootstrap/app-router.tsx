@@ -7,6 +7,7 @@ import usePathValidation from 'hooks/use-path-validation'
 const Dashboard = lazy(() => import('pages/dashboard'))
 const AddressPage = lazy(() => import('pages/address'))
 const CuratePro = lazy(() => import('pages/curate-pro'))
+const Guide = lazy(() => import('pages/guide'))
 const ItemsRouter = lazy(() => import('pages/items-router'))
 const ItemDetailsRouter = lazy(() => import('pages/item-details-router'))
 
@@ -59,6 +60,7 @@ const AppRouter = () => {
           element={<PermanentFactory />}
         />
         <Route path="/" element={<Dashboard />} />
+        <Route path="/guide" element={<Guide />} />
         <Route path="/address/:address" element={<AddressPage />} />
         <Route path="/pro" element={<CuratePro />} />
         <Route path="*" element={<ErrorPage />} />

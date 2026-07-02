@@ -154,6 +154,7 @@ const Footer: React.FC = () => (
         {icons.securedByKleros}
       </StyledSecuredByKleros>
       <FooterNav>
+        <FooterLink to="/guide">Guide & Skills</FooterLink>
         <FooterLink to="/pro">Curate Pro</FooterLink>
         <StyledSocialMedia>
           {SOCIAL_NAV.map((item, index) => (

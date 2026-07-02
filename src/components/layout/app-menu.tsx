@@ -99,6 +99,7 @@ const AppMenu = () => {
       >
         Create
       </StyledNavLink>
+      <StyledNavLink to="/guide">Guide & Skills</StyledNavLink>
     </DesktopNav>
   )
 }

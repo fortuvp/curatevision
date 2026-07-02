@@ -5,6 +5,7 @@ Kleros Curate is the verification layer for policy-driven token-curated registri
 ## Primary URLs
 
 - Dashboard: https://curate.kleros.io/
+- Guide & Skills: https://curate.kleros.io/guide
 - Curate Pro: https://curate.kleros.io/pro
 - Address profiles: https://curate.kleros.io/address/{walletAddress}
 - Registry pages: https://curate.kleros.io/tcr/{chainId}/{registryAddress}
@@ -41,4 +42,3 @@ Agents working with Curate should load the kleros-curate skill before submitting
 - Mainnet: 0xba0304273a54dfec1fc7f4bccbf4b15519aecf15
 - Gnosis: 0xe456c79446c4De1A0bA4d06F294Db42bA2fD4F7F
 - Sepolia: 0xD965Ce430afE0423Ff19A5eb08F7C5722EFabCaF
-

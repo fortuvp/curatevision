@@ -402,6 +402,13 @@ const AppBar = () => {
       >
         Create
       </MobileMenuLink>
+      <MobileMenuLink
+        to="/guide"
+        $active={location.pathname === '/guide'}
+        onClick={() => setMobileMenuOpen(false)}
+      >
+        Guide & Skills
+      </MobileMenuLink>
     </MobileNavMenu>
   )
 

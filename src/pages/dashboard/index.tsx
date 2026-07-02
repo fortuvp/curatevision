@@ -34,6 +34,11 @@ const shimmer = keyframes`
   100% { transform: translateX(100%); }
 `
 
+const pulseGlow = keyframes`
+  0%, 100% { box-shadow: 0 0 0 rgba(0, 209, 255, 0); }
+  50% { box-shadow: 0 0 24px rgba(0, 209, 255, 0.28); }
+`
+
 const DashboardPage = styled.main`
   width: 100%;
   max-width: 1540px;
@@ -164,6 +169,27 @@ const HeaderActions = styled.div`
   flex-wrap: wrap;
   gap: 12px;
   margin-top: 28px;
+`
+
+const AutomationLink = styled(Link)`
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 15px;
+  border: 1px solid rgba(0, 209, 255, 0.32);
+  border-radius: 12px;
+  color: var(--curate-text);
+  background: rgba(0, 209, 255, 0.1);
+  font-size: 13px;
+  font-weight: 900;
+  text-decoration: none;
+  animation: ${pulseGlow} 2.4s ease-in-out infinite;
+
+  &:hover {
+    border-color: rgba(0, 209, 255, 0.55);
+    background: rgba(0, 209, 255, 0.16);
+  }
 `
 
 const SearchBox = styled.div`
@@ -1705,6 +1731,10 @@ const Dashboard = () => {
                 <CurateIcon name="factory" size={18} />
                 Create registry
               </Button>
+              <AutomationLink to="/guide">
+                <CurateIcon name="spark" size={17} />
+                Automate your flow
+              </AutomationLink>
             </HeaderActions>
             <ChainFilterRail>
               <ChainButton

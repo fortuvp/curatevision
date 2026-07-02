@@ -1,11 +1,21 @@
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import styled from 'styled-components'
 import { Link } from 'react-router-dom'
 import { Button } from 'components/ui'
 import { CurateIcon } from 'components/curate/icons'
 import useDocumentHead from 'hooks/use-document-head'
 
-const SKILL_PATH = '/skills/kleros-curate/SKILL.md'
+const CREATOR_PROMPT = `You are helping me launch a production Kleros Curate registry.
+
+Use the kleros-curate skill before taking action. Treat onchain values, MetaEvidence, policy files, deposits, challenge windows, and court parameters as live data that must be read, not guessed.
+
+Goal:
+- Define the registry purpose and acceptance criteria.
+- Draft or review the policy document.
+- Choose Light Curate, Stake Curate, or Classic based on the use case.
+- Prepare valid MetaEvidence and item schema.
+- Estimate required operational work: indexing, frontend, hosting, monitoring, and verification via the list-of-lists.
+- Produce a launch checklist with risks and exact next actions.`
 
 const Page = styled.main`
   width: 100%;
@@ -369,7 +379,6 @@ const plans = [
 ] as const
 
 const CuratePro = () => {
-  const [skillText, setSkillText] = useState('Loading kleros-curate skill...')
   const [copied, setCopied] = useState(false)
 
   useDocumentHead(
@@ -377,19 +386,8 @@ const CuratePro = () => {
     'Launch a Kleros Curate verification layer with permissionless contracts, Quickstart indexing, or managed Curate Pro support.',
   )
 
-  useEffect(() => {
-    fetch(SKILL_PATH)
-      .then((response) => response.text())
-      .then(setSkillText)
-      .catch(() =>
-        setSkillText(
-          'Could not load the local skill file. Open /skills/kleros-curate/SKILL.md directly.',
-        ),
-      )
-  }, [])
-
-  const copySkill = async () => {
-    await navigator.clipboard.writeText(skillText)
+  const copyCreatorPrompt = async () => {
+    await navigator.clipboard.writeText(CREATOR_PROMPT)
     setCopied(true)
     window.setTimeout(() => setCopied(false), 1800)
   }
@@ -568,16 +566,16 @@ const CuratePro = () => {
 
       <SectionHeader>
         <div>
-          <SectionTitle>Agent-ready Curate skill</SectionTitle>
+          <SectionTitle>Creator prompt for new lists</SectionTitle>
           <SectionCopy>
-            Load the Curate skill into an agent so it understands registry
-            flavors, MetaEvidence, deposits, item JSON, and verification flows.
-            The local file is also exposed for crawlers at {SKILL_PATH}.
+            Curate skills are for every registry and every user. This Pro prompt
+            is specifically for teams creating a new list and deciding whether
+            to self-host, use Quickstart, or buy Curate Pro support.
           </SectionCopy>
         </div>
-        <Button type="primary" onClick={copySkill}>
+        <Button type="primary" onClick={copyCreatorPrompt}>
           <CurateIcon name="copy" size={16} />
-          {copied ? 'Copied' : 'Copy skill'}
+          {copied ? 'Copied' : 'Copy creator prompt'}
         </Button>
       </SectionHeader>
 
@@ -588,17 +586,19 @@ const CuratePro = () => {
             Agent context
           </Eyebrow>
           <SectionTitle style={{ marginTop: 16 }}>
-            Paste this file into your agent runtime.
+            Start a launch conversation.
           </SectionTitle>
           <SectionCopy>
-            The skill tells agents to read live onchain values, respect
-            MetaEvidence schemas, distinguish Light Curate, Stake Curate, and
-            Scout, and avoid guessing deposits or policy data.
+            For the full Curate skill, use the global Guide & Skills page. For
+            Pro, paste this creator prompt after loading the skill so the agent
+            focuses on policy, indexing, frontend, and launch support.
           </SectionCopy>
-          <LinkLine href={SKILL_PATH}>Open local SKILL.md</LinkLine>
-          <LinkLine href="/llms.txt">Open llms.txt</LinkLine>
+          <LinkLine href="/guide">Open Guide & Skills</LinkLine>
+          <LinkLine href="/skills/kleros-curate/SKILL.md">
+            Open local SKILL.md
+          </LinkLine>
         </SkillIntro>
-        <SkillCode>{skillText}</SkillCode>
+        <SkillCode>{CREATOR_PROMPT}</SkillCode>
       </SkillPanel>
     </Page>
   )
