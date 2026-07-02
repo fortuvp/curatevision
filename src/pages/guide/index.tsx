@@ -43,12 +43,8 @@ const Surface = styled.section`
 `
 
 const Hero = styled(Surface)`
-  min-height: 360px;
+  min-height: 240px;
   padding: clamp(24px, 4vw, 46px);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  gap: 24px;
-  align-items: end;
   background:
     radial-gradient(
       circle at 84% 18%,
@@ -57,11 +53,6 @@ const Hero = styled(Surface)`
     ),
     linear-gradient(135deg, rgba(6, 9, 15, 0.99), rgba(9, 18, 28, 0.94)),
     #06090f;
-
-  @media (max-width: 960px) {
-    grid-template-columns: 1fr;
-    min-height: 0;
-  }
 `
 
 const Eyebrow = styled.div`
@@ -85,7 +76,7 @@ const Title = styled.h1`
   max-width: 850px;
   margin: 18px 0 12px;
   color: var(--curate-text);
-  font-size: clamp(42px, 6vw, 78px);
+  font-size: clamp(38px, 5vw, 68px);
   line-height: 0.96;
   font-weight: 950;
 `
@@ -102,14 +93,7 @@ const ActionRow = styled.div`
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  margin-top: 26px;
-`
-
-const HeroCard = styled.div`
-  padding: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
-  background: rgba(1, 4, 9, 0.56);
+  margin-top: 22px;
 `
 
 const Tabs = styled.div`
@@ -136,21 +120,6 @@ const TabButton = styled.button<{ $active?: boolean }>`
   cursor: pointer;
   font-size: 13px;
   font-weight: 900;
-`
-
-const Grid = styled.section`
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-
-  @media (max-width: 980px) {
-    grid-template-columns: 1fr;
-  }
-`
-
-const Card = styled(Surface)`
-  min-height: 220px;
-  padding: 20px;
 `
 
 const CardTitle = styled.h2`
@@ -204,24 +173,6 @@ const LinkLine = styled.a`
   }
 `
 
-const cards = [
-  {
-    icon: 'submit',
-    title: 'Submit safely',
-    body: 'Agents should read current MetaEvidence, copy the schema exactly, upload valid item JSON, and compute live deposits before preparing a transaction.',
-  },
-  {
-    icon: 'challenge',
-    title: 'Challenge with context',
-    body: 'Use the skill to fetch the active policy, evidence requirements, arbitration cost, and challenge deposit before opening a dispute.',
-  },
-  {
-    icon: 'policy',
-    title: 'Govern lists',
-    body: 'Governors can reason about court settings, MetaEvidence, deposits, periods, and appeal multipliers without guessing contract state.',
-  },
-] as const
-
 const Guide = () => {
   const [mode, setMode] = useState<GuideMode>('human')
   const [skillText, setSkillText] = useState('Loading kleros-curate skill...')
@@ -261,9 +212,8 @@ const Guide = () => {
           </Eyebrow>
           <Title>Automate your Curate flow without guessing.</Title>
           <Copy>
-            Use this page for normal registry work, not just Pro launches. The
-            Curate skill gives agents the rules for submissions, challenges,
-            evidence, appeals, governance, MetaEvidence, and deposits.
+            Copy the prompt or load the full Curate skill for submissions,
+            challenges, governance, and registry creation.
           </Copy>
           <ActionRow>
             <Button type="primary" as={Link as any} to="/">
@@ -272,19 +222,9 @@ const Guide = () => {
             <Button as={Link as any} to="/pro">
               Curate Pro
             </Button>
+            <Button href={SKILL_PATH}>Open SKILL.md</Button>
           </ActionRow>
         </div>
-        <HeroCard>
-          <CardTitle>Agent entrypoints</CardTitle>
-          <Copy>
-            `/llms.txt` points crawlers to the app routes and the local
-            kleros-curate skill. `/skills/kleros-curate/SKILL.md` exposes the
-            full skill file for direct loading.
-          </Copy>
-          <LinkLine href="/llms.txt">Open llms.txt</LinkLine>
-          <br />
-          <LinkLine href={SKILL_PATH}>Open SKILL.md</LinkLine>
-        </HeroCard>
       </Hero>
 
       <Tabs role="tablist" aria-label="Guide mode">
@@ -303,16 +243,6 @@ const Guide = () => {
           Agent skill
         </TabButton>
       </Tabs>
-
-      <Grid>
-        {cards.map((card) => (
-          <Card key={card.title}>
-            <CurateIcon name={card.icon} size={22} />
-            <CardTitle>{card.title}</CardTitle>
-            <Copy>{card.body}</Copy>
-          </Card>
-        ))}
-      </Grid>
 
       <Tabs aria-hidden="true" style={{ marginTop: 24 }}>
         <Button type="primary" onClick={copyText}>
@@ -340,6 +270,7 @@ const Guide = () => {
               ? 'This is the complete local skill file used by agents to understand Curate registry operations.'
               : 'This prompt is for ordinary users browsing, submitting, challenging, or governing any Curate registry.'}
           </Copy>
+          <LinkLine href="/llms.txt">llms.txt</LinkLine>
         </PanelIntro>
         <CodeBlock>{visibleText}</CodeBlock>
       </Panel>
