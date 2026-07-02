@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import styled, { css, keyframes } from 'styled-components'
@@ -26,7 +26,7 @@ type RegistrySort = 'signal' | 'activity' | 'items' | 'recent'
 type TrustFilter = 'all' | TrustStatus
 type KindFilter = 'all' | RegistryKind
 type ViewMode = 'board' | 'cards'
-type PrimaryPanelMode = 'tape' | 'activity'
+const REGISTRY_PAGE_SIZE = 15
 
 const shimmer = keyframes`
   0% { transform: translateX(-100%); }
@@ -953,6 +953,13 @@ const EmptyIcon = styled.div`
   background: rgba(0, 209, 255, 0.075);
 `
 
+const LoadMoreBar = styled.div`
+  display: flex;
+  justify-content: center;
+  padding: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.075);
+`
+
 const EmptyTitle = styled.div`
   margin-bottom: 5px;
   color: var(--curate-text);
@@ -1231,9 +1238,6 @@ const validSort = (value: string | null): RegistrySort =>
 const validView = (value: string | null): ViewMode =>
   value === 'cards' ? 'cards' : 'board'
 
-const validPrimaryPanel = (value: string | null): PrimaryPanelMode =>
-  value === 'activity' ? 'activity' : 'tape'
-
 const RegistryLogo = ({ registry }: { registry: DashboardRegistry }) => {
   const info = chainInfo(registry.chainId)
   const image = mediaUrl(registry.logoURI)
@@ -1443,120 +1447,70 @@ const UsersPanel = ({ users }: { users: DashboardUser[] }) => (
   </SidePanel>
 )
 
-const PrimaryActivityPanel = ({
-  mode,
-  activities,
-  registries,
-  onModeChange,
-}: {
-  mode: PrimaryPanelMode
-  activities: DashboardActivity[]
-  registries: DashboardRegistry[]
-  onModeChange: (mode: PrimaryPanelMode) => void
-}) => (
+const LiveTapePanel = ({ activities }: { activities: DashboardActivity[] }) => (
   <MarketPanel>
     <PanelTop>
       <PanelTitleBlock>
         <PanelTitle>
-          <CurateIcon
-            name={mode === 'tape' ? 'submit' : 'activity'}
-            size={19}
-          />
-          {mode === 'tape' ? 'Live Entry Tape' : 'Registry Explorer'}
+          <CurateIcon name="submit" size={19} />
+          Live Entry Tape
         </PanelTitle>
         <PanelSub>
-          {mode === 'tape'
-            ? 'Fresh entries across every indexed registry, with the registry, chain, actor, and key item fields visible at a glance.'
-            : 'A compact registry board ranked by verification flow, disputes, and recent movement.'}
+          Fresh entries across every indexed registry, with the registry, chain,
+          actor, and key item fields visible at a glance.
         </PanelSub>
       </PanelTitleBlock>
-      <Segmented>
-        <Segment $active={mode === 'tape'} onClick={() => onModeChange('tape')}>
-          <CurateIcon name="submit" size={15} />
-          Live Entry Tape
-        </Segment>
-        <Segment
-          $active={mode === 'activity'}
-          onClick={() => onModeChange('activity')}
-        >
-          <CurateIcon name="activity" size={15} />
-          Registry Explorer
-        </Segment>
-      </Segmented>
     </PanelTop>
-    {mode === 'tape' ? (
-      <LargePanelBody>
-        {activities.length > 0 ? (
-          <TapeGrid>
-            {activities.slice(0, 16).map((activity) => {
-              const info = chainInfo(activity.chainId)
-              return (
-                <TapeRow key={activity.id} to={activity.href}>
-                  <ActivityIcon $tone={activityTone(activity)}>
-                    <CurateIcon name={activityIcon(activity)} size={17} />
-                  </ActivityIcon>
-                  <ActivityCopy>
-                    <ActivityTitle>{activity.status}</ActivityTitle>
-                    <ActivityMeta>
-                      {activity.registryTitle} | {shortAddress(activity.actor)}{' '}
-                      | {formatAgo(activity.timestamp)}
-                    </ActivityMeta>
-                  </ActivityCopy>
-                  <TapePreview>
-                    {(activity.previewProps ?? []).length > 0 ? (
-                      activity.previewProps?.map((prop) => (
-                        <TapePreviewPill
-                          key={`${activity.id}-${prop.label}`}
-                          title={`${prop.label}: ${prop.value}`}
-                        >
-                          {prop.label}: {prop.value}
-                        </TapePreviewPill>
-                      ))
-                    ) : (
-                      <TapePreviewPill>
-                        {activity.registryTitle}
+    <LargePanelBody>
+      {activities.length > 0 ? (
+        <TapeGrid>
+          {activities.slice(0, 16).map((activity) => {
+            const info = chainInfo(activity.chainId)
+            return (
+              <TapeRow key={activity.id} to={activity.href}>
+                <ActivityIcon $tone={activityTone(activity)}>
+                  <CurateIcon name={activityIcon(activity)} size={17} />
+                </ActivityIcon>
+                <ActivityCopy>
+                  <ActivityTitle>{activity.status}</ActivityTitle>
+                  <ActivityMeta>
+                    {activity.registryTitle} | {shortAddress(activity.actor)} |{' '}
+                    {formatAgo(activity.timestamp)}
+                  </ActivityMeta>
+                </ActivityCopy>
+                <TapePreview>
+                  {(activity.previewProps ?? []).length > 0 ? (
+                    activity.previewProps?.map((prop) => (
+                      <TapePreviewPill
+                        key={`${activity.id}-${prop.label}`}
+                        title={`${prop.label}: ${prop.value}`}
+                      >
+                        {prop.label}: {prop.value}
                       </TapePreviewPill>
-                    )}
-                  </TapePreview>
-                  <ChainChip $color={info?.color}>
-                    {info?.name?.replace('Ethereum', 'Eth') || activity.chainId}
-                  </ChainChip>
-                </TapeRow>
-              )
-            })}
-          </TapeGrid>
-        ) : (
-          <EmptyState>
-            <div>
-              <EmptyIcon>
-                <CurateIcon name="submit" size={21} />
-              </EmptyIcon>
-              <EmptyTitle>No live entries yet</EmptyTitle>
-              Subgraph data is unavailable or no recent entries were indexed.
-            </div>
-          </EmptyState>
-        )}
-      </LargePanelBody>
-    ) : (
-      <BoardShell>
-        <BoardHeader>
-          <span>Registry</span>
-          <span>Chain</span>
-          <span>Type</span>
-          <span>Status</span>
-          <span>Items</span>
-          <span>30d flow</span>
-          <span>Disputes</span>
-          <span>Last</span>
-        </BoardHeader>
-        {registries.slice(0, 12).map((registry) => (
-          <RegistryBoardRow
-            key={`activity-${registry.id}`}
-            registry={registry}
-          />
-        ))}
-      </BoardShell>
-    )}
+                    ))
+                  ) : (
+                    <TapePreviewPill>{activity.registryTitle}</TapePreviewPill>
+                  )}
+                </TapePreview>
+                <ChainChip $color={info?.color}>
+                  {info?.name?.replace('Ethereum', 'Eth') || activity.chainId}
+                </ChainChip>
+              </TapeRow>
+            )
+          })}
+        </TapeGrid>
+      ) : (
+        <EmptyState>
+          <div>
+            <EmptyIcon>
+              <CurateIcon name="submit" size={21} />
+            </EmptyIcon>
+            <EmptyTitle>No live entries yet</EmptyTitle>
+            Subgraph data is unavailable or no recent entries were indexed.
+          </div>
+        </EmptyState>
+      )}
+    </LargePanelBody>
   </MarketPanel>
 )
 
@@ -1620,8 +1574,9 @@ const Dashboard = () => {
   const kindFilter = validKindFilter(searchParams.get('kind'))
   const sortMode = validSort(searchParams.get('sort'))
   const viewMode = validView(searchParams.get('view'))
-  const primaryPanel = validPrimaryPanel(searchParams.get('panel'))
   const search = searchParams.get('q') || ''
+  const [visibleRegistryCount, setVisibleRegistryCount] =
+    useState(REGISTRY_PAGE_SIZE)
 
   const dashboardQuery = useQuery({
     queryKey: ['curateDashboard'],
@@ -1686,6 +1641,13 @@ const Dashboard = () => {
     })
     return sortRegistries(filtered, sortMode)
   }, [chainFilter, data, kindFilter, search, sortMode, trustFilter])
+
+  useEffect(() => {
+    setVisibleRegistryCount(REGISTRY_PAGE_SIZE)
+  }, [chainFilter, kindFilter, search, sortMode, trustFilter, viewMode])
+
+  const visibleRegistries = filteredRegistries.slice(0, visibleRegistryCount)
+  const hasMoreRegistries = visibleRegistryCount < filteredRegistries.length
 
   const mostActiveRegistries = useMemo(
     () => sortRegistries(data?.registries ?? [], 'activity').slice(0, 8),
@@ -1937,14 +1899,7 @@ const Dashboard = () => {
       )}
 
       <DashboardGrid>
-        <PrimaryActivityPanel
-          mode={primaryPanel}
-          activities={data?.activities ?? []}
-          registries={mostActiveRegistries}
-          onModeChange={(mode) =>
-            updateParams({ panel: mode === 'tape' ? null : mode })
-          }
-        />
+        <LiveTapePanel activities={data?.activities ?? []} />
         <SideRail>
           <UsersPanel users={data?.users ?? []} />
           <UnverifiedPanel registries={unverifiedRegistries} />
@@ -1960,9 +1915,10 @@ const Dashboard = () => {
                 Registry explorer
               </PanelTitle>
               <PanelSub>
-                {filteredRegistries.length} visible registries. Default ranking
-                balances classic, light, and permanent registries so one type
-                cannot dominate the feed.
+                Showing{' '}
+                {Math.min(visibleRegistryCount, filteredRegistries.length)} of{' '}
+                {filteredRegistries.length} matching registries. Default ranking
+                balances classic, light, and permanent registries.
               </PanelSub>
             </PanelTitleBlock>
             <ControlCluster>
@@ -2046,11 +2002,26 @@ const Dashboard = () => {
             </SkeletonStack>
           ) : filteredRegistries.length > 0 ? (
             viewMode === 'cards' ? (
-              <CardGrid>
-                {filteredRegistries.map((registry) => (
-                  <RegistryCard key={registry.id} registry={registry} />
-                ))}
-              </CardGrid>
+              <>
+                <CardGrid>
+                  {visibleRegistries.map((registry) => (
+                    <RegistryCard key={registry.id} registry={registry} />
+                  ))}
+                </CardGrid>
+                {hasMoreRegistries && (
+                  <LoadMoreBar>
+                    <Button
+                      onClick={() =>
+                        setVisibleRegistryCount(
+                          (count) => count + REGISTRY_PAGE_SIZE,
+                        )
+                      }
+                    >
+                      Load more
+                    </Button>
+                  </LoadMoreBar>
+                )}
+              </>
             ) : (
               <>
                 <DesktopBoard>
@@ -2065,13 +2036,13 @@ const Dashboard = () => {
                       <span>Disputes</span>
                       <span>Last</span>
                     </BoardHeader>
-                    {filteredRegistries.map((registry) => (
+                    {visibleRegistries.map((registry) => (
                       <RegistryBoardRow key={registry.id} registry={registry} />
                     ))}
                   </BoardShell>
                 </DesktopBoard>
                 <MobileBoard>
-                  {filteredRegistries.map((registry) => {
+                  {visibleRegistries.map((registry) => {
                     const info = chainInfo(registry.chainId)
                     return (
                       <MobileRegistryCard
@@ -2124,6 +2095,19 @@ const Dashboard = () => {
                     )
                   })}
                 </MobileBoard>
+                {hasMoreRegistries && (
+                  <LoadMoreBar>
+                    <Button
+                      onClick={() =>
+                        setVisibleRegistryCount(
+                          (count) => count + REGISTRY_PAGE_SIZE,
+                        )
+                      }
+                    >
+                      Load more
+                    </Button>
+                  </LoadMoreBar>
+                )}
               </>
             )
           ) : (
@@ -2156,11 +2140,11 @@ const Dashboard = () => {
             <PanelTitleBlock>
               <PanelTitle>
                 <CurateIcon name="activity" size={19} />
-                Registry activity
+                Most active registries
               </PanelTitle>
               <PanelSub>
-                Most active registries by submissions, removals, and challenges
-                over the last 30 days.
+                Ranked by submissions, removals, and challenges over the last 30
+                days.
               </PanelSub>
             </PanelTitleBlock>
           </PanelTop>

@@ -608,6 +608,19 @@ const Items = () => {
     !!chainId &&
     !!tcrAddress &&
     getListOfListsAddresses(chainId).includes(tcrAddress.toLowerCase())
+  const registryStats = itemsQuery.data?.lregistry
+  const totalRegistryItems = registryStats
+    ? Number(registryStats.numberOfAbsent) +
+      Number(registryStats.numberOfRegistered) +
+      Number(registryStats.numberOfRegistrationRequested) +
+      Number(registryStats.numberOfClearingRequested) +
+      Number(registryStats.numberOfChallengedRegistrations) +
+      Number(registryStats.numberOfChallengedClearing)
+    : undefined
+  const totalRegistryDisputes = registryStats
+    ? Number(registryStats.numberOfChallengedRegistrations) +
+      Number(registryStats.numberOfChallengedClearing)
+    : undefined
 
   return (
     <>
@@ -622,6 +635,27 @@ const Items = () => {
         address={tcrAddress}
         verified={verifiedSource}
         fields={[
+          {
+            label: 'Total items',
+            icon: 'registry',
+            value:
+              totalRegistryItems !== undefined
+                ? String(totalRegistryItems)
+                : undefined,
+          },
+          {
+            label: 'Removed items',
+            icon: 'remove',
+            value: registryStats?.numberOfAbsent,
+          },
+          {
+            label: 'Disputes generated',
+            icon: 'dispute',
+            value:
+              totalRegistryDisputes !== undefined
+                ? String(totalRegistryDisputes)
+                : undefined,
+          },
           {
             label: 'Submission deposit',
             icon: 'submit',

@@ -124,6 +124,43 @@ const Grid = styled.section`
   }
 `
 
+const Comparison = styled(Surface)`
+  margin-top: 18px;
+  overflow-x: auto;
+`
+
+const CompareGrid = styled.div`
+  min-width: 920px;
+  display: grid;
+  grid-template-columns: 1.05fr repeat(3, minmax(0, 1fr));
+`
+
+const CompareCell = styled.div<{ $head?: boolean; $accent?: boolean }>`
+  min-height: ${({ $head }) => ($head ? '96px' : '86px')};
+  padding: 16px;
+  border-right: 1px solid rgba(255, 255, 255, 0.075);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.075);
+  background: ${({ $accent }) =>
+    $accent ? 'rgba(0, 209, 255, 0.06)' : 'transparent'};
+
+  &:nth-child(4n) {
+    border-right: 0;
+  }
+`
+
+const CompareTitle = styled.div`
+  color: var(--curate-text);
+  font-size: 15px;
+  font-weight: 900;
+`
+
+const CompareMeta = styled.div`
+  margin-top: 6px;
+  color: var(--curate-muted);
+  font-size: 13px;
+  line-height: 1.45;
+`
+
 const Card = styled(Surface)`
   min-height: 250px;
   padding: 20px;
@@ -229,6 +266,79 @@ const CuratePro = () => (
         </List>
       </PricePanel>
     </Hero>
+
+    <Comparison>
+      <CompareGrid>
+        <CompareCell $head>
+          <CompareTitle>Capability</CompareTitle>
+          <CompareMeta>
+            Choose how much infrastructure and support you want.
+          </CompareMeta>
+        </CompareCell>
+        <CompareCell $head>
+          <CompareTitle>Free permissionless</CompareTitle>
+          <CompareMeta>$0/month, self-managed</CompareMeta>
+        </CompareCell>
+        <CompareCell $head $accent>
+          <CompareTitle>Fast Index</CompareTitle>
+          <CompareMeta>$19.99/month, API access</CompareMeta>
+        </CompareCell>
+        <CompareCell $head $accent>
+          <CompareTitle>Curate Pro</CompareTitle>
+          <CompareMeta>$199/month, full support</CompareMeta>
+        </CompareCell>
+
+        <CompareCell>
+          <CompareTitle>Your own frontend</CompareTitle>
+        </CompareCell>
+        <CompareCell>
+          <CompareMeta>
+            Autonomous. You build, host, and maintain it.
+          </CompareMeta>
+        </CompareCell>
+        <CompareCell>
+          <CompareMeta>
+            You build the frontend, but can give the API to an agent or
+            developer to move faster.
+          </CompareMeta>
+        </CompareCell>
+        <CompareCell>
+          <CompareMeta>Full support creating a dedicated frontend.</CompareMeta>
+        </CompareCell>
+
+        <CompareCell>
+          <CompareTitle>Indexing</CompareTitle>
+        </CompareCell>
+        <CompareCell>
+          <CompareMeta>
+            Locally index the graph yourself or use a third-party indexer.
+          </CompareMeta>
+        </CompareCell>
+        <CompareCell>
+          <CompareMeta>Super fast indexing with an API provided.</CompareMeta>
+        </CompareCell>
+        <CompareCell>
+          <CompareMeta>
+            API provided for fast indexing, plus operational support.
+          </CompareMeta>
+        </CompareCell>
+
+        <CompareCell>
+          <CompareTitle>Policy</CompareTitle>
+        </CompareCell>
+        <CompareCell>
+          <CompareMeta>
+            You are fully in control and write your own policy.
+          </CompareMeta>
+        </CompareCell>
+        <CompareCell>
+          <CompareMeta>No policy support included.</CompareMeta>
+        </CompareCell>
+        <CompareCell>
+          <CompareMeta>We assist with policy creation and review.</CompareMeta>
+        </CompareCell>
+      </CompareGrid>
+    </Comparison>
 
     <Grid>
       <Card>

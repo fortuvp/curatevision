@@ -79,7 +79,7 @@ const Content = styled.div`
 
 const FieldGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 
   @media (max-width: 1100px) {
@@ -93,7 +93,7 @@ const FieldGrid = styled.div`
 
 const Field = styled.div`
   min-width: 0;
-  min-height: 92px;
+  min-height: 104px;
   padding: 14px;
   border: 1px solid var(--curate-border);
   border-radius: 14px;
@@ -113,12 +113,20 @@ const FieldLabel = styled.div`
 
 const FieldValue = styled.div`
   margin-top: 10px;
-  overflow: hidden;
   color: var(--curate-text);
-  text-overflow: ellipsis;
-  white-space: nowrap;
   font-size: 14px;
   font-weight: 750;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: normal;
+`
+
+const AddressValue = styled.span`
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    monospace;
+  font-size: 12px;
+  line-height: 1.55;
 `
 
 const FieldHint = styled.div`
@@ -130,6 +138,15 @@ const FieldHint = styled.div`
 
 const shortAddress = (address?: string | null): string =>
   address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Unknown'
+
+const ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/
+
+const renderFieldValue = (value: React.ReactNode) =>
+  typeof value === 'string' && ADDRESS_PATTERN.test(value) ? (
+    <AddressValue>{value}</AddressValue>
+  ) : (
+    value
+  )
 
 const RegistryInfoPanel = ({
   title = 'Registry Info',
@@ -184,7 +201,7 @@ const RegistryInfoPanel = ({
                     : undefined
                 }
               >
-                {field.value}
+                {renderFieldValue(field.value)}
               </FieldValue>
               {field.hint && <FieldHint>{field.hint}</FieldHint>}
             </Field>

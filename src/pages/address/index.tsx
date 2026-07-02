@@ -413,6 +413,51 @@ const RegistryActions = styled.div`
   margin-top: auto;
 `
 
+const ProfileTabs = styled.div`
+  display: inline-flex;
+  gap: 6px;
+  margin-top: 18px;
+  padding: 5px;
+  border: 1px solid var(--curate-border);
+  border-radius: 14px;
+  background: rgba(1, 4, 9, 0.56);
+
+  @media (max-width: 620px) {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+`
+
+const ProfileTabButton = styled.button<{ $active?: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid
+    ${({ $active }) =>
+      $active ? 'rgba(0, 209, 255, 0.34)' : 'rgba(255, 255, 255, 0)'};
+  border-radius: 10px;
+  color: ${({ $active }) =>
+    $active ? 'var(--curate-text)' : 'var(--curate-muted)'};
+  background: ${({ $active }) =>
+    $active ? 'rgba(0, 209, 255, 0.1)' : 'transparent'};
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 900;
+  transition:
+    border-color 160ms ease,
+    color 160ms ease,
+    background 160ms ease;
+
+  &:hover {
+    color: var(--curate-text);
+    background: rgba(255, 255, 255, 0.055);
+  }
+`
+
 const FieldGrid = styled.div`
   display: grid;
   gap: 10px;
@@ -878,7 +923,7 @@ const GovernancePanel = ({
           </PanelSub>
         </div>
         <Chip $tone={isOwner ? 'success' : 'neutral'}>
-          {isOwner ? 'Owner view' : 'Read-only'}
+          {isOwner ? 'Owner view' : 'Public profile'}
         </Chip>
       </PanelTop>
       {registries.length > 0 ? (
@@ -903,7 +948,7 @@ const GovernancePanel = ({
                       {chainInfo?.name || registry.chainId}
                     </ChainChip>
                     <Chip $tone={editable ? 'success' : 'neutral'}>
-                      {editable ? 'Editable' : 'Read-only'}
+                      {editable ? 'Editable' : 'Governed list'}
                     </Chip>
                   </div>
                 </RegistryHead>
@@ -943,7 +988,7 @@ const GovernancePanel = ({
                       disabled={!editable}
                       onClick={() => setSelectedRegistry(registry)}
                     >
-                      Update list
+                      {editable ? 'Update list' : 'Connect governor'}
                     </Button>
                     <Button
                       as={Link as any}
@@ -974,10 +1019,13 @@ const GovernancePanel = ({
   )
 }
 
+type ProfileTab = 'curator' | 'governor'
+
 const AddressPage = () => {
   const params = useParams()
   const address = normalizeAddress(params.address)
   const validAddress = isAddress(address)
+  const [activeTab, setActiveTab] = useState<ProfileTab>('curator')
 
   const profileQuery = useQuery({
     queryKey: ['addressProfile', address],
@@ -1095,61 +1143,90 @@ const AddressPage = () => {
         </MetricGrid>
       )}
 
-      <Grid>
-        <ActivityPanel
-          title="Profile activity"
-          icon="activity"
-          activities={data?.activities ?? []}
-          empty="No submissions, removals, or challenges were found for this address."
-        />
-        <Surface>
-          <PanelTop>
-            <div>
-              <PanelTitle>
-                <CurateIcon name="spark" size={18} />
-                Badges
-              </PanelTitle>
-              <PanelSub>
-                Badges are calculated across all supported chains.
-              </PanelSub>
-            </div>
-          </PanelTop>
-          <div style={{ padding: 18 }}>
-            {data ? (
-              <BadgeGrid>
-                {data.badges.map((badge) => (
-                  <BadgeCard key={badge.id} $earned={badge.earned}>
-                    <RowTitle>{badge.label}</RowTitle>
-                    <RowMeta>
-                      {badge.description} | {badge.progress}/{badge.goal}
-                    </RowMeta>
-                    <ProgressTrack>
-                      <ProgressBar
-                        $width={(badge.progress / badge.goal) * 100}
-                      />
-                    </ProgressTrack>
-                  </BadgeCard>
-                ))}
-              </BadgeGrid>
-            ) : (
-              <Skeleton $height="210px" />
-            )}
-          </div>
-        </Surface>
-      </Grid>
+      <ProfileTabs role="tablist" aria-label="Address profile sections">
+        <ProfileTabButton
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'curator'}
+          $active={activeTab === 'curator'}
+          onClick={() => setActiveTab('curator')}
+        >
+          <CurateIcon name="activity" size={16} />
+          Curator
+        </ProfileTabButton>
+        <ProfileTabButton
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'governor'}
+          $active={activeTab === 'governor'}
+          onClick={() => setActiveTab('governor')}
+        >
+          <CurateIcon name="policy" size={16} />
+          Governor
+        </ProfileTabButton>
+      </ProfileTabs>
 
-      <Grid>
-        <GovernancePanel
-          registries={data?.governedRegistries ?? []}
-          profileAddress={address}
-        />
-        <ActivityPanel
-          title="Dispute history"
-          icon="dispute"
-          activities={data?.disputes ?? []}
-          empty="No previous disputes were found for this address."
-        />
-      </Grid>
+      {activeTab === 'curator' ? (
+        <>
+          <Grid>
+            <ActivityPanel
+              title="Profile activity"
+              icon="activity"
+              activities={data?.activities ?? []}
+              empty="No submissions, removals, or challenges were found for this address."
+            />
+            <Surface>
+              <PanelTop>
+                <div>
+                  <PanelTitle>
+                    <CurateIcon name="spark" size={18} />
+                    Badges
+                  </PanelTitle>
+                  <PanelSub>
+                    Badges are calculated across all supported chains.
+                  </PanelSub>
+                </div>
+              </PanelTop>
+              <div style={{ padding: 18 }}>
+                {data ? (
+                  <BadgeGrid>
+                    {data.badges.map((badge) => (
+                      <BadgeCard key={badge.id} $earned={badge.earned}>
+                        <RowTitle>{badge.label}</RowTitle>
+                        <RowMeta>
+                          {badge.description} | {badge.progress}/{badge.goal}
+                        </RowMeta>
+                        <ProgressTrack>
+                          <ProgressBar
+                            $width={(badge.progress / badge.goal) * 100}
+                          />
+                        </ProgressTrack>
+                      </BadgeCard>
+                    ))}
+                  </BadgeGrid>
+                ) : (
+                  <Skeleton $height="210px" />
+                )}
+              </div>
+            </Surface>
+          </Grid>
+          <div style={{ marginTop: 18 }}>
+            <ActivityPanel
+              title="Dispute history"
+              icon="dispute"
+              activities={data?.disputes ?? []}
+              empty="No previous disputes were found for this address."
+            />
+          </div>
+        </>
+      ) : (
+        <div style={{ marginTop: 18 }}>
+          <GovernancePanel
+            registries={data?.governedRegistries ?? []}
+            profileAddress={address}
+          />
+        </div>
+      )}
     </Page>
   )
 }

@@ -306,6 +306,13 @@ const Items = () => {
   const { isConnectedTCR } = metadata || {}
 
   const itemCount = Math.floor(itemsQuery.data?.items?.length) ?? 0
+  const loadedItems = itemsQuery.data?.items ?? []
+  const loadedRemovedCount = loadedItems.filter(
+    (item) => item.status === 'Absent',
+  ).length
+  const loadedDisputeCount = loadedItems.filter((item) =>
+    item.requests?.some((request) => request.disputed || request.disputeID),
+  ).length
   const nativeSymbol =
     chainId && NETWORKS_INFO[chainId as keyof typeof NETWORKS_INFO]
       ? ` ${
@@ -346,6 +353,22 @@ const Items = () => {
         address={tcrAddress}
         verified={verifiedSource}
         fields={[
+          {
+            label: 'Loaded items',
+            icon: 'registry',
+            value: String(itemCount),
+            hint: 'Classic registry sample currently loaded on this page.',
+          },
+          {
+            label: 'Removed loaded',
+            icon: 'remove',
+            value: String(loadedRemovedCount),
+          },
+          {
+            label: 'Disputes loaded',
+            icon: 'dispute',
+            value: String(loadedDisputeCount),
+          },
           {
             label: 'Submission deposit',
             icon: 'submit',

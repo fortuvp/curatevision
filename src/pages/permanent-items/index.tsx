@@ -353,6 +353,10 @@ const Items = () => {
     !!chainId &&
     !!tcrAddress &&
     getListOfListsAddresses(chainId).includes(tcrAddress.toLowerCase())
+  const totalRegistryItems =
+    Number(r?.numberOfSubmitted ?? 0) +
+    Number(r?.numberOfAbsent ?? 0) +
+    Number(r?.numberOfDisputed ?? 0)
 
   if (!r)
     return (
@@ -375,6 +379,21 @@ const Items = () => {
         address={tcrAddress}
         verified={verifiedSource}
         fields={[
+          {
+            label: 'Total items',
+            icon: 'registry',
+            value: String(totalRegistryItems),
+          },
+          {
+            label: 'Removed items',
+            icon: 'remove',
+            value: r.numberOfAbsent,
+          },
+          {
+            label: 'Disputes generated',
+            icon: 'dispute',
+            value: r.numberOfDisputed,
+          },
           {
             label: 'Submission minimum',
             icon: 'submit',
