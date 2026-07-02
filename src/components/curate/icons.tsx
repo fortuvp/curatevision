@@ -11,6 +11,7 @@ export type CurateIconName =
   | 'chain'
   | 'challenge'
   | 'chevron-down'
+  | 'copy'
   | 'court'
   | 'dispute'
   | 'external'
@@ -96,6 +97,12 @@ const icons: Record<CurateIconName, (props: IconProps) => JSX.Element> = {
       <path d="M5 9h14L12 4 5 9Z" />
       <path d="M10 17V9" />
       <path d="M14 17V9" />
+    </StrokeIcon>
+  ),
+  copy: (props) => (
+    <StrokeIcon {...props}>
+      <rect x="8" y="8" width="10" height="10" rx="2" />
+      <path d="M6 14H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1" />
     </StrokeIcon>
   ),
   dispute: (props) => (

@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://curate.kleros.io/sitemap.xml
+LLMS: https://curate.kleros.io/llms.txt
+Agent-Skill: https://curate.kleros.io/skills/kleros-curate/SKILL.md
+

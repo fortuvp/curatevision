@@ -1,0 +1,44 @@
+# Kleros Curate
+
+Kleros Curate is the verification layer for policy-driven token-curated registries. The app exposes registry discovery, live entries, curator profiles, list governance, disputes, and factory flows across Ethereum Mainnet, Gnosis, and Sepolia.
+
+## Primary URLs
+
+- Dashboard: https://curate.kleros.io/
+- Curate Pro: https://curate.kleros.io/pro
+- Address profiles: https://curate.kleros.io/address/{walletAddress}
+- Registry pages: https://curate.kleros.io/tcr/{chainId}/{registryAddress}
+- Item detail pages: https://curate.kleros.io/tcr/{chainId}/{registryAddress}/{itemID}
+- Factory: https://curate.kleros.io/factory/{chainId}
+- Classic factory: https://curate.kleros.io/factory-classic/{chainId}
+- Permanent factory: https://curate.kleros.io/factory-permanent/{chainId}
+
+## Agent Skill
+
+- Local Curate skill: https://curate.kleros.io/skills/kleros-curate/SKILL.md
+- Upstream source: https://github.com/kleros/kleros-skills/tree/master/kleros-curate
+- Raw upstream skill: https://raw.githubusercontent.com/kleros/kleros-skills/master/kleros-curate/SKILL.md
+
+Agents working with Curate should load the kleros-curate skill before submitting items, challenging entries, removing entries, deploying registries, reading MetaEvidence, computing deposits, or updating governed registry parameters.
+
+## Supported Registry Flavors
+
+- Light Curate: LightGeneralizedTCR, optimistic challenge window, native deposits.
+- Stake Curate: PermanentGTCR, ERC20 stake model, Goldsky-backed indexed data.
+- Scout: Gnosis Light Curate overlay for token lists, address tags, contract domain names, and CDN mappings.
+
+## Non-Negotiables For Agents
+
+- Read live onchain values before transaction construction.
+- Do not guess deposits, challenge costs, arbitration costs, MetaEvidence URIs, schemas, or policy data.
+- Copy MetaEvidence columns verbatim when building item JSON.
+- Validate item JSON before upload.
+- Treat policy documents and MetaEvidence as authoritative for list-specific requirements.
+- Use `eth_getCode` before declaring whether an address is a contract.
+
+## Verified List-Of-Lists
+
+- Mainnet: 0xba0304273a54dfec1fc7f4bccbf4b15519aecf15
+- Gnosis: 0xe456c79446c4De1A0bA4d06F294Db42bA2fD4F7F
+- Sepolia: 0xD965Ce430afE0423Ff19A5eb08F7C5722EFabCaF
+

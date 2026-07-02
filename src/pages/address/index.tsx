@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 import styled from 'styled-components'
@@ -12,8 +12,13 @@ import permanentAbi from 'assets/abis/PermanentGTCR.json'
 import { Button, Modal } from 'components/ui'
 import { CurateIcon, CurateIconName } from 'components/curate/icons'
 import { NETWORKS_INFO } from 'config/networks'
+import { klerosAddresses } from 'config/tcr-addresses'
 import { wagmiConfig } from 'config/wagmi'
+import { useEthersProvider } from 'hooks/ethers-adapters'
+import useCourtPolicies from 'hooks/use-court-policies'
+import useDocumentHead from 'hooks/use-document-head'
 import { wrapWithToast, errorToast } from 'utils/wrap-with-toast'
+import { jurorsAndCourtIDFromExtraData } from 'utils/string'
 import {
   chainName,
   fetchAddressProfileData,
@@ -500,6 +505,53 @@ const Input = styled.input`
   }
 `
 
+const SelectInput = styled.select`
+  min-width: 0;
+  width: 100%;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 11px;
+  color: var(--curate-text);
+  background: rgba(0, 0, 0, 0.22);
+  font-size: 13px;
+  font-weight: 650;
+
+  &:disabled {
+    color: var(--curate-muted);
+    opacity: 0.7;
+  }
+`
+
+const InlineGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+
+  @media (max-width: 780px) {
+    grid-template-columns: 1fr;
+  }
+`
+
+const FieldHint = styled.div`
+  grid-column: 2 / 4;
+  margin-top: -5px;
+  color: var(--curate-muted);
+  font-size: 11px;
+  line-height: 1.45;
+
+  @media (max-width: 780px) {
+    grid-column: auto;
+  }
+`
+
+const SectionTitle = styled.div`
+  margin: 10px 0 2px;
+  color: var(--curate-text);
+  font-size: 13px;
+  font-weight: 900;
+`
+
 const Empty = styled.div`
   display: grid;
   place-items: center;
@@ -516,12 +568,14 @@ const Skeleton = styled.div<{ $height?: string }>`
 `
 
 type ParamKind = 'wei' | 'seconds' | 'raw' | 'address' | 'policy'
+type ParamKey = keyof GovernanceParams | 'policyURI'
 
 interface ParamConfig {
-  key: keyof GovernanceParams | 'policyURI'
+  key: ParamKey
   label: string
   kind: ParamKind
   functionName: string
+  hint?: string
 }
 
 const iconForActivity = (activity: DashboardActivity): CurateIconName => {
@@ -601,6 +655,7 @@ const editableParams = (registry: GovernedRegistry): ParamConfig[] => {
         label: 'Policy URI',
         kind: 'policy',
         functionName: 'changeArbitrationParams',
+        hint: 'Updates the current MetaEvidence URI while keeping the current court extra data.',
       },
       {
         key: 'submissionMinDeposit',
@@ -633,6 +688,24 @@ const editableParams = (registry: GovernedRegistry): ParamConfig[] => {
         functionName: 'changeChallengeStakeMultiplier',
       },
       {
+        key: 'winnerStakeMultiplier',
+        label: 'Winner appeal multiplier',
+        kind: 'raw',
+        functionName: 'changeWinnerStakeMultiplier',
+      },
+      {
+        key: 'loserStakeMultiplier',
+        label: 'Loser appeal multiplier',
+        kind: 'raw',
+        functionName: 'changeLoserStakeMultiplier',
+      },
+      {
+        key: 'sharedStakeMultiplier',
+        label: 'Shared appeal multiplier',
+        kind: 'raw',
+        functionName: 'changeSharedStakeMultiplier',
+      },
+      {
         key: 'governor',
         label: 'Governor address',
         kind: 'address',
@@ -649,6 +722,10 @@ const editableParams = (registry: GovernedRegistry): ParamConfig[] => {
         registry.kind === 'light'
           ? 'changeArbitrationParams'
           : 'changeMetaEvidence',
+      hint:
+        registry.kind === 'light'
+          ? 'Updates registration and clearing MetaEvidence to the same URI while keeping current arbitration params.'
+          : 'Updates registration and clearing MetaEvidence to the same URI.',
     },
     {
       key: 'submissionBaseDeposit',
@@ -684,6 +761,42 @@ const editableParams = (registry: GovernedRegistry): ParamConfig[] => {
           : 'changeTimeToChallenge',
     },
     {
+      key: 'winnerStakeMultiplier',
+      label: 'Winner appeal multiplier',
+      kind: 'raw',
+      functionName: 'changeWinnerStakeMultiplier',
+    },
+    {
+      key: 'loserStakeMultiplier',
+      label: 'Loser appeal multiplier',
+      kind: 'raw',
+      functionName: 'changeLoserStakeMultiplier',
+    },
+    {
+      key: 'sharedStakeMultiplier',
+      label: 'Shared appeal multiplier',
+      kind: 'raw',
+      functionName: 'changeSharedStakeMultiplier',
+    },
+    {
+      key: 'connectedTCR',
+      label: 'Connected TCR address',
+      kind: 'address',
+      functionName: 'changeConnectedTCR',
+      hint: 'Optional contract hook for connected registry flows. Leave untouched unless your list uses one.',
+    },
+    ...(registry.kind === 'light'
+      ? [
+          {
+            key: 'relayerContract' as ParamKey,
+            label: 'Relayer contract address',
+            kind: 'address' as ParamKind,
+            functionName: 'changeRelayerContract',
+            hint: 'Optional relayer for delegated Light Curate submissions.',
+          },
+        ]
+      : []),
+    {
       key: 'governor',
       label: 'Governor address',
       kind: 'address',
@@ -710,6 +823,13 @@ const buildArgs = (
   }
   return [parseParamValue(value, config.kind)]
 }
+
+const buildArbitratorExtraData = (courtID: string, jurors: string) =>
+  `0x${Number(courtID || 0)
+    .toString(16)
+    .padStart(64, '0')}${Math.max(1, Math.ceil(Number(jurors || 1)))
+    .toString(16)
+    .padStart(64, '0')}`
 
 const ActivityPanel = ({
   title,
@@ -763,6 +883,208 @@ const ActivityPanel = ({
   </Surface>
 )
 
+const ArbitrationGovernanceField = ({
+  registry,
+  editable,
+  onSaved,
+}: {
+  registry: GovernedRegistry
+  editable: boolean
+  onSaved: () => void
+}) => {
+  const queryClient = useQueryClient()
+  const { data: walletClient } = useWalletClient()
+  const chainProvider = useEthersProvider({ chainId: registry.chainId })
+  const knownKleros = klerosAddresses[registry.chainId]
+  const { data: courts = [] } = useCourtPolicies(
+    knownKleros?.policy,
+    chainProvider ?? null,
+  )
+  const [arbitrator, setArbitrator] = useState(
+    registry.params?.arbitrator || knownKleros?.arbitrator || '',
+  )
+  const [extraData, setExtraData] = useState(
+    registry.params?.arbitratorExtraData || '0x',
+  )
+  const [courtID, setCourtID] = useState('')
+  const [jurors, setJurors] = useState('3')
+  const [registrationMetaEvidence, setRegistrationMetaEvidence] = useState('')
+  const [clearingMetaEvidence, setClearingMetaEvidence] = useState('')
+  const [metaEvidence, setMetaEvidence] = useState('')
+  const [pending, setPending] = useState(false)
+
+  useEffect(() => {
+    if (!extraData || extraData === '0x') return
+    const decoded = jurorsAndCourtIDFromExtraData(extraData)
+    setCourtID(String(decoded.courtID))
+    setJurors(String(decoded.numberOfJurors))
+  }, [extraData])
+
+  const updateCourt = (nextCourtID: string) => {
+    setCourtID(nextCourtID)
+    if (!Number.isNaN(Number(nextCourtID)))
+      setExtraData(buildArbitratorExtraData(nextCourtID, jurors))
+  }
+
+  const updateJurors = (nextJurors: string) => {
+    const normalized = Math.max(1, Math.min(33, Number(nextJurors || 1)))
+    const oddJurors = normalized % 2 === 0 ? normalized - 1 : normalized
+    setJurors(String(oddJurors))
+    if (courtID !== '')
+      setExtraData(buildArbitratorExtraData(courtID, String(oddJurors)))
+  }
+
+  const save = async () => {
+    if (registry.kind !== 'permanent' && !isAddress(arbitrator)) {
+      errorToast('Enter a valid arbitrator address.')
+      return
+    }
+    if (
+      registry.kind === 'light' &&
+      (!registrationMetaEvidence.trim() || !clearingMetaEvidence.trim())
+    ) {
+      errorToast('Light registries require both MetaEvidence URIs.')
+      return
+    }
+    if (registry.kind === 'permanent' && !metaEvidence.trim()) {
+      errorToast('Permanent registries require a MetaEvidence URI.')
+      return
+    }
+
+    const functionName =
+      registry.kind === 'classic'
+        ? 'changeArbitrator'
+        : 'changeArbitrationParams'
+    const args =
+      registry.kind === 'classic'
+        ? [arbitrator, extraData || '0x']
+        : registry.kind === 'light'
+          ? [
+              arbitrator,
+              extraData || '0x',
+              registrationMetaEvidence,
+              clearingMetaEvidence,
+            ]
+          : [extraData || '0x', metaEvidence]
+
+    setPending(true)
+    try {
+      const { request } = await simulateContract(wagmiConfig, {
+        chainId: registry.chainId,
+        address: registry.address as `0x${string}`,
+        abi: abiForKind(registry.kind),
+        functionName,
+        args,
+      } as any)
+      const publicClient = getPublicClient(wagmiConfig, {
+        chainId: registry.chainId,
+      })
+      const result = await wrapWithToast(
+        () => walletClient!.writeContract(request),
+        publicClient!,
+      )
+      if (result.status) {
+        onSaved()
+        queryClient.invalidateQueries({
+          queryKey: ['addressProfile'],
+        })
+      }
+    } finally {
+      setPending(false)
+    }
+  }
+
+  const disabled = !editable || pending || !walletClient
+
+  return (
+    <>
+      <SectionTitle>Arbitration and court</SectionTitle>
+      <FieldRow>
+        <FieldLabel>
+          {registry.kind === 'permanent'
+            ? 'Court and MetaEvidence'
+            : 'Arbitrator and court'}
+        </FieldLabel>
+        <div style={{ display: 'grid', gap: 10 }}>
+          {registry.kind !== 'permanent' && (
+            <Input
+              value={arbitrator}
+              disabled={!editable || pending}
+              onChange={(event) => setArbitrator(event.currentTarget.value)}
+              placeholder="Arbitrator address"
+            />
+          )}
+          <InlineGrid>
+            <SelectInput
+              value={courtID}
+              disabled={!editable || pending || courts.length === 0}
+              onChange={(event) => updateCourt(event.currentTarget.value)}
+            >
+              <option value="">
+                {courts.length > 0 ? 'Select court' : 'Court list unavailable'}
+              </option>
+              {courts.map((court) => (
+                <option key={court.value} value={court.value}>
+                  {court.label}
+                </option>
+              ))}
+            </SelectInput>
+            <Input
+              value={jurors}
+              disabled={!editable || pending}
+              onChange={(event) => updateJurors(event.currentTarget.value)}
+              placeholder="Jurors"
+              inputMode="numeric"
+            />
+          </InlineGrid>
+          <Input
+            value={extraData}
+            disabled={!editable || pending}
+            onChange={(event) => setExtraData(event.currentTarget.value)}
+            placeholder="Arbitrator extra data"
+          />
+          {registry.kind === 'light' && (
+            <InlineGrid>
+              <Input
+                value={registrationMetaEvidence}
+                disabled={!editable || pending}
+                onChange={(event) =>
+                  setRegistrationMetaEvidence(event.currentTarget.value)
+                }
+                placeholder="Registration MetaEvidence URI"
+              />
+              <Input
+                value={clearingMetaEvidence}
+                disabled={!editable || pending}
+                onChange={(event) =>
+                  setClearingMetaEvidence(event.currentTarget.value)
+                }
+                placeholder="Clearing MetaEvidence URI"
+              />
+            </InlineGrid>
+          )}
+          {registry.kind === 'permanent' && (
+            <Input
+              value={metaEvidence}
+              disabled={!editable || pending}
+              onChange={(event) => setMetaEvidence(event.currentTarget.value)}
+              placeholder="MetaEvidence URI"
+            />
+          )}
+        </div>
+        <Button type="primary" size="small" disabled={disabled} onClick={save}>
+          Save
+        </Button>
+        <FieldHint>
+          Court selection rewrites arbitrator extra data. Light and permanent
+          contracts update arbitration params together with MetaEvidence, so
+          those URIs are required for this transaction.
+        </FieldHint>
+      </FieldRow>
+    </>
+  )
+}
+
 const GovernanceField = ({
   registry,
   config,
@@ -777,9 +1099,7 @@ const GovernanceField = ({
   const { data: walletClient } = useWalletClient()
   const [value, setValue] = useState(() =>
     formatParamValue(
-      config.key === 'policyURI'
-        ? ''
-        : registry.params?.[config.key as keyof GovernanceParams],
+      config.key === 'policyURI' ? '' : registry.params?.[config.key],
       config.kind,
     ),
   )
@@ -833,18 +1153,21 @@ const GovernanceField = ({
         : undefined
 
   return (
-    <FieldRow>
-      <FieldLabel>{config.label}</FieldLabel>
-      <Input
-        value={value}
-        placeholder={placeholder}
-        disabled={!editable || pending}
-        onChange={(event) => setValue(event.currentTarget.value)}
-      />
-      <Button type="primary" size="small" disabled={disabled} onClick={save}>
-        Save
-      </Button>
-    </FieldRow>
+    <>
+      <FieldRow>
+        <FieldLabel>{config.label}</FieldLabel>
+        <Input
+          value={value}
+          placeholder={placeholder}
+          disabled={!editable || pending}
+          onChange={(event) => setValue(event.currentTarget.value)}
+        />
+        <Button type="primary" size="small" disabled={disabled} onClick={save}>
+          Save
+        </Button>
+        {config.hint && <FieldHint>{config.hint}</FieldHint>}
+      </FieldRow>
+    </>
   )
 }
 
@@ -876,6 +1199,16 @@ const GovernanceUpdateModal = ({
         transaction is requested.
       </PanelSub>
       <FieldGrid style={{ padding: 0 }}>
+        <ArbitrationGovernanceField
+          registry={registry}
+          editable={editable}
+          onSaved={() =>
+            queryClient.invalidateQueries({
+              queryKey: ['addressProfile', profileAddress],
+            })
+          }
+        />
+        <SectionTitle>Registry parameters</SectionTitle>
         {editableParams(registry).map((config) => (
           <GovernanceField
             key={`${registry.id}-${config.key}`}
@@ -1026,6 +1359,14 @@ const AddressPage = () => {
   const address = normalizeAddress(params.address)
   const validAddress = isAddress(address)
   const [activeTab, setActiveTab] = useState<ProfileTab>('curator')
+  useDocumentHead(
+    validAddress
+      ? `${shortAddress(address)} | Curate profile`
+      : 'Curate profile | Kleros Curate',
+    validAddress
+      ? `Curator and governor profile for ${address} across Kleros Curate registries, submissions, challenges, disputes, and governed lists.`
+      : 'Explore Kleros Curate address profiles, curator activity, disputes, and governed registries.',
+  )
 
   const profileQuery = useQuery({
     queryKey: ['addressProfile', address],

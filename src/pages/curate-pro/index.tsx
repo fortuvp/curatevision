@@ -1,30 +1,21 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import styled from 'styled-components'
 import { Link } from 'react-router-dom'
 import { Button } from 'components/ui'
 import { CurateIcon } from 'components/curate/icons'
+import useDocumentHead from 'hooks/use-document-head'
+
+const SKILL_PATH = '/skills/kleros-curate/SKILL.md'
 
 const Page = styled.main`
   width: 100%;
-  max-width: 1440px;
+  max-width: 1460px;
   margin: 0 auto;
-  padding: 28px var(--horizontal-padding) 64px;
+  padding: 28px var(--horizontal-padding) 70px;
   color: var(--curate-text);
 `
 
-const Hero = styled.section`
-  min-height: 420px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 420px;
-  gap: 22px;
-  align-items: stretch;
-
-  @media (max-width: 980px) {
-    grid-template-columns: 1fr;
-  }
-`
-
-const Surface = styled.div`
+const Surface = styled.section`
   overflow: hidden;
   border: 1px solid var(--curate-border);
   border-radius: var(--curate-radius);
@@ -32,20 +23,32 @@ const Surface = styled.div`
     linear-gradient(
       180deg,
       rgba(255, 255, 255, 0.06),
-      rgba(255, 255, 255, 0.022)
+      rgba(255, 255, 255, 0.02)
     ),
     rgba(7, 11, 18, 0.9);
   box-shadow: var(--curate-shadow);
 `
 
-const HeroPanel = styled(Surface)`
-  padding: clamp(24px, 4vw, 46px);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+const Hero = styled(Surface)`
+  min-height: 520px;
+  padding: clamp(26px, 5vw, 58px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.46fr);
+  gap: clamp(22px, 4vw, 48px);
+  align-items: end;
   background:
-    linear-gradient(130deg, rgba(7, 11, 18, 0.98), rgba(12, 26, 34, 0.92)),
-    #070b12;
+    radial-gradient(
+      circle at 82% 18%,
+      rgba(0, 209, 255, 0.16),
+      transparent 32%
+    ),
+    linear-gradient(135deg, rgba(6, 9, 15, 0.99), rgba(8, 20, 28, 0.94)),
+    #06090f;
+
+  @media (max-width: 980px) {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
 `
 
 const Eyebrow = styled.div`
@@ -55,7 +58,7 @@ const Eyebrow = styled.div`
   width: fit-content;
   min-height: 30px;
   padding: 0 11px;
-  border: 1px solid rgba(0, 209, 255, 0.25);
+  border: 1px solid rgba(0, 209, 255, 0.26);
   border-radius: 999px;
   color: var(--curate-live);
   background: rgba(0, 209, 255, 0.08);
@@ -66,21 +69,21 @@ const Eyebrow = styled.div`
 `
 
 const Title = styled.h1`
-  max-width: 880px;
-  margin: 20px 0 12px;
+  max-width: 920px;
+  margin: 18px 0 14px;
   color: var(--curate-text);
-  font-size: clamp(44px, 7vw, 88px);
-  line-height: 0.94;
-  font-weight: 900;
+  font-size: clamp(46px, 7vw, 90px);
+  line-height: 0.95;
+  font-weight: 950;
   letter-spacing: 0;
 `
 
 const Copy = styled.p`
-  max-width: 760px;
+  max-width: 790px;
   margin: 0;
   color: var(--curate-muted);
-  font-size: clamp(16px, 1.8vw, 19px);
-  line-height: 1.68;
+  font-size: clamp(16px, 1.7vw, 19px);
+  line-height: 1.65;
 `
 
 const ActionRow = styled.div`
@@ -91,79 +94,91 @@ const ActionRow = styled.div`
   margin-top: 28px;
 `
 
-const PricePanel = styled(Surface)`
-  padding: 22px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+const HeroStats = styled.div`
+  display: grid;
+  gap: 12px;
 `
 
-const Price = styled.div`
-  margin-top: 18px;
-  color: var(--curate-text);
-  font-size: 58px;
-  line-height: 1;
-  font-weight: 900;
-  font-variant-numeric: tabular-nums;
+const SignalCard = styled.div`
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  background: rgba(1, 4, 9, 0.55);
+`
 
-  span {
-    color: var(--curate-muted);
-    font-size: 16px;
-    font-weight: 800;
+const SignalLabel = styled.div`
+  color: var(--curate-faint);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+`
+
+const SignalValue = styled.div`
+  margin-top: 8px;
+  color: var(--curate-text);
+  font-size: 28px;
+  font-weight: 950;
+`
+
+const SectionHeader = styled.div`
+  margin: 34px 0 14px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+
+  @media (max-width: 760px) {
+    align-items: flex-start;
+    flex-direction: column;
   }
 `
 
-const Grid = styled.section`
+const SectionTitle = styled.h2`
+  margin: 0;
+  color: var(--curate-text);
+  font-size: clamp(24px, 3vw, 38px);
+  font-weight: 950;
+`
+
+const SectionCopy = styled.p`
+  max-width: 720px;
+  margin: 8px 0 0;
+  color: var(--curate-muted);
+  font-size: 15px;
+  line-height: 1.6;
+`
+
+const PlanGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-  margin-top: 18px;
+  gap: 14px;
 
-  @media (max-width: 960px) {
+  @media (max-width: 1020px) {
     grid-template-columns: 1fr;
   }
 `
 
-const Comparison = styled(Surface)`
-  margin-top: 18px;
-  overflow-x: auto;
-`
-
-const CompareGrid = styled.div`
-  min-width: 920px;
-  display: grid;
-  grid-template-columns: 1.05fr repeat(3, minmax(0, 1fr));
-`
-
-const CompareCell = styled.div<{ $head?: boolean; $accent?: boolean }>`
-  min-height: ${({ $head }) => ($head ? '96px' : '86px')};
-  padding: 16px;
-  border-right: 1px solid rgba(255, 255, 255, 0.075);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.075);
-  background: ${({ $accent }) =>
-    $accent ? 'rgba(0, 209, 255, 0.06)' : 'transparent'};
-
-  &:nth-child(4n) {
-    border-right: 0;
-  }
-`
-
-const CompareTitle = styled.div`
-  color: var(--curate-text);
-  font-size: 15px;
-  font-weight: 900;
-`
-
-const CompareMeta = styled.div`
-  margin-top: 6px;
-  color: var(--curate-muted);
-  font-size: 13px;
-  line-height: 1.45;
-`
-
-const Card = styled(Surface)`
-  min-height: 250px;
+const PlanCard = styled(Surface)<{ $featured?: boolean }>`
+  min-height: 430px;
   padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  border-color: ${({ $featured }) =>
+    $featured ? 'rgba(0, 209, 255, 0.34)' : 'var(--curate-border)'};
+  background: ${({ $featured }) =>
+      $featured
+        ? 'linear-gradient(180deg, rgba(0, 209, 255, 0.11), rgba(255, 255, 255, 0.025)),'
+        : 'linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.02)),'}
+    rgba(7, 11, 18, 0.9);
+`
+
+const PlanTop = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
 `
 
 const IconBox = styled.div`
@@ -178,17 +193,44 @@ const IconBox = styled.div`
   background: rgba(0, 209, 255, 0.08);
 `
 
-const CardTitle = styled.h2`
-  margin: 16px 0 8px;
-  color: var(--curate-text);
-  font-size: 20px;
+const Pill = styled.div`
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 999px;
+  color: var(--curate-muted);
+  background: rgba(255, 255, 255, 0.045);
+  font-size: 11px;
   font-weight: 900;
+  text-transform: uppercase;
 `
 
-const List = styled.ul`
+const PlanName = styled.h3`
+  margin: 0;
+  color: var(--curate-text);
+  font-size: 22px;
+  font-weight: 950;
+`
+
+const Price = styled.div`
+  color: var(--curate-text);
+  font-size: 38px;
+  font-weight: 950;
+  line-height: 1;
+
+  span {
+    color: var(--curate-muted);
+    font-size: 13px;
+    font-weight: 800;
+  }
+`
+
+const FeatureList = styled.ul`
   display: grid;
   gap: 10px;
-  margin: 16px 0 0;
+  margin: 0;
   padding: 0;
   list-style: none;
   color: var(--curate-muted);
@@ -196,186 +238,370 @@ const List = styled.ul`
   line-height: 1.45;
 
   li {
-    display: flex;
-    gap: 9px;
-  }
-
-  li::before {
-    content: '';
-    width: 7px;
-    height: 7px;
-    margin-top: 7px;
-    border-radius: 50%;
-    background: var(--curate-live);
-    box-shadow: 0 0 12px var(--curate-live);
-    flex: 0 0 auto;
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr);
+    gap: 8px;
   }
 `
 
-const CuratePro = () => (
-  <Page>
-    <Hero>
-      <HeroPanel>
+const Compare = styled(Surface)`
+  margin-top: 14px;
+  overflow-x: auto;
+`
+
+const CompareGrid = styled.div`
+  min-width: 960px;
+  display: grid;
+  grid-template-columns: 0.9fr repeat(3, minmax(0, 1fr));
+`
+
+const CompareCell = styled.div<{ $head?: boolean; $featured?: boolean }>`
+  min-height: ${({ $head }) => ($head ? '86px' : '78px')};
+  padding: 15px;
+  border-right: 1px solid rgba(255, 255, 255, 0.075);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.075);
+  background: ${({ $featured }) =>
+    $featured ? 'rgba(0, 209, 255, 0.065)' : 'transparent'};
+
+  &:nth-child(4n) {
+    border-right: 0;
+  }
+`
+
+const CompareTitle = styled.div`
+  color: var(--curate-text);
+  font-size: 14px;
+  font-weight: 950;
+`
+
+const CompareMeta = styled.div`
+  margin-top: 6px;
+  color: var(--curate-muted);
+  font-size: 13px;
+  line-height: 1.45;
+`
+
+const SkillPanel = styled(Surface)`
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 0;
+
+  @media (max-width: 980px) {
+    grid-template-columns: 1fr;
+  }
+`
+
+const SkillIntro = styled.div`
+  padding: 22px;
+`
+
+const SkillCode = styled.pre`
+  min-height: 440px;
+  max-height: 620px;
+  margin: 0;
+  padding: 18px;
+  overflow: auto;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  color: #d9f7ff;
+  background: rgba(1, 4, 9, 0.78);
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+`
+
+const LinkLine = styled.a`
+  display: inline-flex;
+  margin-top: 14px;
+  color: var(--curate-live);
+  font-size: 13px;
+  font-weight: 850;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+`
+
+const plans = [
+  {
+    icon: 'factory',
+    name: 'Free permissionless',
+    price: '$0',
+    meta: 'Open-source, self-managed',
+    badge: 'Build yourself',
+    features: [
+      'Create registries permissionlessly on Curate.',
+      'Build, host, and maintain your own frontend.',
+      'Index locally or connect a third-party indexer.',
+      'Write and maintain your own policy.',
+    ],
+  },
+  {
+    icon: 'activity',
+    name: 'Quickstart',
+    price: '$19.99',
+    meta: 'Fast indexing API',
+    badge: 'API only',
+    featured: true,
+    features: [
+      'Create registries permissionlessly on Curate.',
+      'Build, host, and maintain your own frontend.',
+      'Use a ready indexing API instead of local indexing.',
+      'Write and maintain your own policy.',
+    ],
+  },
+  {
+    icon: 'policy',
+    name: 'Curate Pro',
+    price: '$199',
+    meta: 'Managed launch support',
+    badge: 'Kleros support',
+    features: [
+      'Create registries with guided parameter setup.',
+      'Get support creating a dedicated frontend.',
+      'Use a ready indexing API with operational support.',
+      'Get policy creation and review support.',
+    ],
+  },
+] as const
+
+const CuratePro = () => {
+  const [skillText, setSkillText] = useState('Loading kleros-curate skill...')
+  const [copied, setCopied] = useState(false)
+
+  useDocumentHead(
+    'Curate Pro | Kleros Curate',
+    'Launch a Kleros Curate verification layer with permissionless contracts, Quickstart indexing, or managed Curate Pro support.',
+  )
+
+  useEffect(() => {
+    fetch(SKILL_PATH)
+      .then((response) => response.text())
+      .then(setSkillText)
+      .catch(() =>
+        setSkillText(
+          'Could not load the local skill file. Open /skills/kleros-curate/SKILL.md directly.',
+        ),
+      )
+  }, [])
+
+  const copySkill = async () => {
+    await navigator.clipboard.writeText(skillText)
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 1800)
+  }
+
+  return (
+    <Page>
+      <Hero>
         <div>
           <Eyebrow>
             <CurateIcon name="spark" size={15} />
             Curate Pro
           </Eyebrow>
-          <Title>
-            Launch a verification layer without rebuilding the stack.
-          </Title>
+          <Title>Launch a verification layer people can actually use.</Title>
           <Copy>
-            Curate is open source and permissionless: anyone can create a
-            registry, index it locally, host their own frontend, and build on
-            the same verification rails. Curate Pro is for teams that want the
-            fast path with Kleros support.
+            Curate is open source and permissionless. Teams can run everything
+            themselves, start faster with an indexing API, or work with Kleros
+            on policy, indexing, and frontend delivery.
           </Copy>
+          <ActionRow>
+            <Button
+              type="primary"
+              size="large"
+              as={Link as any}
+              to="/factory/100"
+            >
+              Create a registry
+            </Button>
+            <Button
+              size="large"
+              href="mailto:contact@kleros.io?subject=Curate%20Pro"
+            >
+              Talk to Kleros
+            </Button>
+          </ActionRow>
         </div>
-        <ActionRow>
-          <Button type="primary" size="large" as={Link as any} to="/">
-            Explore Curate
-          </Button>
-          <Button
-            size="large"
-            href="mailto:contact@kleros.io?subject=Curate%20Pro"
-          >
-            Talk to Kleros
-          </Button>
-        </ActionRow>
-      </HeroPanel>
+        <HeroStats>
+          <SignalCard>
+            <SignalLabel>Default path</SignalLabel>
+            <SignalValue>Permissionless</SignalValue>
+            <Copy>Deploy and operate a registry without asking Kleros.</Copy>
+          </SignalCard>
+          <SignalCard>
+            <SignalLabel>Fastest path</SignalLabel>
+            <SignalValue>Quickstart API</SignalValue>
+            <Copy>
+              Use ready indexing so agents and frontends can build faster.
+            </Copy>
+          </SignalCard>
+          <SignalCard>
+            <SignalLabel>Supported path</SignalLabel>
+            <SignalValue>Curate Pro</SignalValue>
+            <Copy>
+              Launch with direct help on policy, indexing, and frontend UX.
+            </Copy>
+          </SignalCard>
+        </HeroStats>
+      </Hero>
 
-      <PricePanel>
+      <SectionHeader>
         <div>
-          <Eyebrow>
-            <CurateIcon name="bounty" size={15} />
-            Managed package
-          </Eyebrow>
-          <Price>
-            $199 <span>/ month</span>
-          </Price>
-          <Copy>
-            Support for teams that need a production registry experience without
-            operating every piece alone.
-          </Copy>
+          <SectionTitle>Choose how you want to operate</SectionTitle>
+          <SectionCopy>
+            The underlying protocol stays open. The difference is how much
+            infrastructure and launch support you want Kleros to provide.
+          </SectionCopy>
         </div>
-        <List>
-          <li>List creation support and parameter setup.</li>
-          <li>Policy review before launch.</li>
-          <li>Indexing guidance and operational support.</li>
-          <li>Support creating a dedicated frontend for your registry.</li>
-        </List>
-      </PricePanel>
-    </Hero>
+      </SectionHeader>
 
-    <Comparison>
-      <CompareGrid>
-        <CompareCell $head>
-          <CompareTitle>Capability</CompareTitle>
-          <CompareMeta>
-            Choose how much infrastructure and support you want.
-          </CompareMeta>
-        </CompareCell>
-        <CompareCell $head>
-          <CompareTitle>Free permissionless</CompareTitle>
-          <CompareMeta>$0/month, self-managed</CompareMeta>
-        </CompareCell>
-        <CompareCell $head $accent>
-          <CompareTitle>Fast Index</CompareTitle>
-          <CompareMeta>$19.99/month, API access</CompareMeta>
-        </CompareCell>
-        <CompareCell $head $accent>
-          <CompareTitle>Curate Pro</CompareTitle>
-          <CompareMeta>$199/month, full support</CompareMeta>
-        </CompareCell>
+      <PlanGrid>
+        {plans.map((plan) => (
+          <PlanCard key={plan.name} $featured={plan.featured}>
+            <PlanTop>
+              <IconBox>
+                <CurateIcon name={plan.icon} size={20} />
+              </IconBox>
+              <Pill>{plan.badge}</Pill>
+            </PlanTop>
+            <div>
+              <PlanName>{plan.name}</PlanName>
+              <CompareMeta>{plan.meta}</CompareMeta>
+            </div>
+            <Price>
+              {plan.price} <span>/ month</span>
+            </Price>
+            <FeatureList>
+              {plan.features.map((feature) => (
+                <li key={feature}>
+                  <CurateIcon name="verified" size={15} />
+                  <span>{feature}</span>
+                </li>
+              ))}
+            </FeatureList>
+          </PlanCard>
+        ))}
+      </PlanGrid>
 
-        <CompareCell>
-          <CompareTitle>Your own frontend</CompareTitle>
-        </CompareCell>
-        <CompareCell>
-          <CompareMeta>
-            Autonomous. You build, host, and maintain it.
-          </CompareMeta>
-        </CompareCell>
-        <CompareCell>
-          <CompareMeta>
-            You build the frontend, but can give the API to an agent or
-            developer to move faster.
-          </CompareMeta>
-        </CompareCell>
-        <CompareCell>
-          <CompareMeta>Full support creating a dedicated frontend.</CompareMeta>
-        </CompareCell>
+      <SectionHeader>
+        <div>
+          <SectionTitle>What changes between plans</SectionTitle>
+          <SectionCopy>
+            Free and Quickstart are intentionally close: both are self-managed
+            product paths. Quickstart removes the indexing bottleneck. Curate
+            Pro adds Kleros support around launch quality.
+          </SectionCopy>
+        </div>
+      </SectionHeader>
 
-        <CompareCell>
-          <CompareTitle>Indexing</CompareTitle>
-        </CompareCell>
-        <CompareCell>
-          <CompareMeta>
-            Locally index the graph yourself or use a third-party indexer.
-          </CompareMeta>
-        </CompareCell>
-        <CompareCell>
-          <CompareMeta>Super fast indexing with an API provided.</CompareMeta>
-        </CompareCell>
-        <CompareCell>
-          <CompareMeta>
-            API provided for fast indexing, plus operational support.
-          </CompareMeta>
-        </CompareCell>
+      <Compare>
+        <CompareGrid>
+          <CompareCell $head>
+            <CompareTitle>Capability</CompareTitle>
+          </CompareCell>
+          <CompareCell $head>
+            <CompareTitle>Free permissionless</CompareTitle>
+            <CompareMeta>$0, self-managed</CompareMeta>
+          </CompareCell>
+          <CompareCell $head $featured>
+            <CompareTitle>Quickstart</CompareTitle>
+            <CompareMeta>$19.99, API access</CompareMeta>
+          </CompareCell>
+          <CompareCell $head>
+            <CompareTitle>Curate Pro</CompareTitle>
+            <CompareMeta>$199, managed support</CompareMeta>
+          </CompareCell>
 
-        <CompareCell>
-          <CompareTitle>Policy</CompareTitle>
-        </CompareCell>
-        <CompareCell>
-          <CompareMeta>
-            You are fully in control and write your own policy.
-          </CompareMeta>
-        </CompareCell>
-        <CompareCell>
-          <CompareMeta>No policy support included.</CompareMeta>
-        </CompareCell>
-        <CompareCell>
-          <CompareMeta>We assist with policy creation and review.</CompareMeta>
-        </CompareCell>
-      </CompareGrid>
-    </Comparison>
+          <CompareCell>
+            <CompareTitle>Frontend</CompareTitle>
+          </CompareCell>
+          <CompareCell>
+            <CompareMeta>
+              Build, host, and maintain your own frontend.
+            </CompareMeta>
+          </CompareCell>
+          <CompareCell $featured>
+            <CompareMeta>
+              Build, host, and maintain your own frontend.
+            </CompareMeta>
+          </CompareCell>
+          <CompareCell>
+            <CompareMeta>Support creating a dedicated frontend.</CompareMeta>
+          </CompareCell>
 
-    <Grid>
-      <Card>
-        <IconBox>
-          <CurateIcon name="factory" size={20} />
-        </IconBox>
-        <CardTitle>Permissionless by default</CardTitle>
-        <Copy>
-          Create your own registry directly on Curate. The contracts and
-          frontend are open source, so teams can self-host, modify, and operate
-          their own verification experience.
-        </Copy>
-      </Card>
-      <Card>
-        <IconBox>
-          <CurateIcon name="chain" size={20} />
-        </IconBox>
-        <CardTitle>Bring your own infrastructure</CardTitle>
-        <Copy>
-          Self-managed teams cover hosting, local indexing, monitoring, and any
-          dedicated frontend work. That path stays open for builders who want
-          full control.
-        </Copy>
-      </Card>
-      <Card>
-        <IconBox>
-          <CurateIcon name="policy" size={20} />
-        </IconBox>
-        <CardTitle>Or get direct support</CardTitle>
-        <Copy>
-          Curate Pro packages Kleros support around list design, policy quality,
-          indexing, and frontend delivery so teams can launch faster and keep
-          their registry usable.
-        </Copy>
-      </Card>
-    </Grid>
-  </Page>
-)
+          <CompareCell>
+            <CompareTitle>Indexing</CompareTitle>
+          </CompareCell>
+          <CompareCell>
+            <CompareMeta>
+              Index locally or connect a third-party indexer.
+            </CompareMeta>
+          </CompareCell>
+          <CompareCell $featured>
+            <CompareMeta>
+              Ready indexing API for agents and frontends.
+            </CompareMeta>
+          </CompareCell>
+          <CompareCell>
+            <CompareMeta>
+              Ready indexing API with operational support.
+            </CompareMeta>
+          </CompareCell>
+
+          <CompareCell>
+            <CompareTitle>Policy</CompareTitle>
+          </CompareCell>
+          <CompareCell>
+            <CompareMeta>Write and maintain your own policy.</CompareMeta>
+          </CompareCell>
+          <CompareCell $featured>
+            <CompareMeta>Write and maintain your own policy.</CompareMeta>
+          </CompareCell>
+          <CompareCell>
+            <CompareMeta>Policy creation and review support.</CompareMeta>
+          </CompareCell>
+        </CompareGrid>
+      </Compare>
+
+      <SectionHeader>
+        <div>
+          <SectionTitle>Agent-ready Curate skill</SectionTitle>
+          <SectionCopy>
+            Load the Curate skill into an agent so it understands registry
+            flavors, MetaEvidence, deposits, item JSON, and verification flows.
+            The local file is also exposed for crawlers at {SKILL_PATH}.
+          </SectionCopy>
+        </div>
+        <Button type="primary" onClick={copySkill}>
+          <CurateIcon name="copy" size={16} />
+          {copied ? 'Copied' : 'Copy skill'}
+        </Button>
+      </SectionHeader>
+
+      <SkillPanel>
+        <SkillIntro>
+          <Eyebrow>
+            <CurateIcon name="activity" size={15} />
+            Agent context
+          </Eyebrow>
+          <SectionTitle style={{ marginTop: 16 }}>
+            Paste this file into your agent runtime.
+          </SectionTitle>
+          <SectionCopy>
+            The skill tells agents to read live onchain values, respect
+            MetaEvidence schemas, distinguish Light Curate, Stake Curate, and
+            Scout, and avoid guessing deposits or policy data.
+          </SectionCopy>
+          <LinkLine href={SKILL_PATH}>Open local SKILL.md</LinkLine>
+          <LinkLine href="/llms.txt">Open llms.txt</LinkLine>
+        </SkillIntro>
+        <SkillCode>{skillText}</SkillCode>
+      </SkillPanel>
+    </Page>
+  )
+}
 
 export default CuratePro

@@ -153,6 +153,8 @@ export interface GovernanceParams {
   governor?: string
   arbitrator?: string
   arbitratorExtraData?: string
+  relayerContract?: string
+  connectedTCR?: string
   metaEvidenceUpdates?: string
   submissionBaseDeposit?: string
   submissionChallengeBaseDeposit?: string
@@ -376,6 +378,7 @@ const readGovernanceParams = async (
     'winnerStakeMultiplier',
     'loserStakeMultiplier',
     'sharedStakeMultiplier',
+    'relayerContract',
     'metaEvidenceUpdates',
   ] as const
   const permanent = [

@@ -6,6 +6,7 @@ import { Button } from 'components/ui'
 import { CurateIcon, CurateIconName } from 'components/curate/icons'
 import { NETWORKS, NETWORKS_INFO } from 'config/networks'
 import { parseIpfs } from 'utils/ipfs-parse'
+import useDocumentHead from 'hooks/use-document-head'
 import { fetchDashboardData, formatAgo, formatCompact, formatWei } from './data'
 import {
   DashboardActivity,
@@ -694,10 +695,6 @@ const Numeric = styled.div<{ $tone?: 'success' | 'warning' | 'danger' }>`
   font-size: 13px;
   font-weight: 850;
   font-variant-numeric: tabular-nums;
-`
-
-const Muted = styled.span`
-  color: var(--curate-muted);
 `
 
 const CardGrid = styled.div`
@@ -1564,6 +1561,10 @@ const UnverifiedPanel = ({
 
 const Dashboard = () => {
   const navigate = useNavigate()
+  useDocumentHead(
+    'The verification layer | Kleros Curate',
+    'Discover Kleros Curate registries, live entries, disputes, curators, and verification activity across Ethereum, Gnosis, and Sepolia.',
+  )
   const [searchParams, setSearchParams] = useSearchParams()
   const chainParam = searchParams.get('chain')
   const chainFilter: ChainFilter =
@@ -1649,11 +1650,6 @@ const Dashboard = () => {
   const visibleRegistries = filteredRegistries.slice(0, visibleRegistryCount)
   const hasMoreRegistries = visibleRegistryCount < filteredRegistries.length
 
-  const mostActiveRegistries = useMemo(
-    () => sortRegistries(data?.registries ?? [], 'activity').slice(0, 8),
-    [data],
-  )
-
   const unverifiedRegistries = useMemo(
     () =>
       sortRegistries(
@@ -1664,16 +1660,6 @@ const Dashboard = () => {
       ).slice(0, 10),
     [data],
   )
-
-  const registryMix = useMemo(() => {
-    const registries = data?.registries ?? []
-    return (['light', 'classic', 'permanent'] as RegistryKind[]).map(
-      (kind) => ({
-        kind,
-        count: registries.filter((registry) => registry.kind === kind).length,
-      }),
-    )
-  }, [data])
 
   const createChainId =
     chainFilter === 'all' ? NETWORKS.gnosis : Number(chainFilter)
@@ -2131,86 +2117,6 @@ const Dashboard = () => {
             activities={data?.disputes ?? []}
             empty="No disputes found"
           />
-        </SideRail>
-      </DashboardGrid>
-
-      <DashboardGrid>
-        <MarketPanel>
-          <PanelTop>
-            <PanelTitleBlock>
-              <PanelTitle>
-                <CurateIcon name="activity" size={19} />
-                Most active registries
-              </PanelTitle>
-              <PanelSub>
-                Ranked by submissions, removals, and challenges over the last 30
-                days.
-              </PanelSub>
-            </PanelTitleBlock>
-          </PanelTop>
-          <BoardShell>
-            <BoardHeader>
-              <span>Registry</span>
-              <span>Chain</span>
-              <span>Type</span>
-              <span>Status</span>
-              <span>Items</span>
-              <span>30d flow</span>
-              <span>Disputes</span>
-              <span>Last</span>
-            </BoardHeader>
-            {mostActiveRegistries.map((registry) => (
-              <RegistryBoardRow
-                key={`mover-${registry.id}`}
-                registry={registry}
-              />
-            ))}
-          </BoardShell>
-        </MarketPanel>
-
-        <SideRail>
-          <UnverifiedPanel registries={unverifiedRegistries} />
-          <SidePanel>
-            <SideHeader>
-              <SideTitle>
-                <CurateIcon name="chain" size={17} />
-                Registry mix
-              </SideTitle>
-              <SideHint>Types</SideHint>
-            </SideHeader>
-            <ChainDepth>
-              {registryMix.map((stat) => {
-                const max = Math.max(
-                  1,
-                  ...registryMix.map((item) => item.count),
-                )
-                return (
-                  <ChainDepthRow key={stat.kind}>
-                    <span>{kindLabel(stat.kind)}</span>
-                    <DepthTrack>
-                      <DepthBar
-                        $width={(stat.count / max) * 100}
-                        $color={
-                          stat.kind === 'light'
-                            ? 'var(--curate-live)'
-                            : stat.kind === 'classic'
-                              ? 'var(--curate-violet)'
-                              : 'var(--curate-warning)'
-                        }
-                      />
-                    </DepthTrack>
-                    <span>{formatCompact(stat.count)}</span>
-                  </ChainDepthRow>
-                )
-              })}
-            </ChainDepth>
-            <PanelSub style={{ marginTop: 14 }}>
-              <Muted>
-                Classic and light registries use the standard Curate subgraphs.
-                Permanent registries are shown separately when indexed.
-              </Muted>
-            </PanelSub>
-          </SidePanel>
         </SideRail>
       </DashboardGrid>
     </DashboardPage>
