@@ -35,8 +35,8 @@ const shimmer = keyframes`
 `
 
 const pulseGlow = keyframes`
-  0%, 100% { box-shadow: 0 0 0 rgba(0, 209, 255, 0); }
-  50% { box-shadow: 0 0 24px rgba(0, 209, 255, 0.28); }
+  0%, 100% { box-shadow: 0 0 0 rgba(0, 163, 255, 0); }
+  50% { box-shadow: 0 0 24px rgba(0, 163, 255, 0.28); }
 `
 
 const DashboardPage = styled.main`
@@ -63,14 +63,48 @@ const Surface = styled.div<{ $padded?: boolean }>`
   overflow: hidden;
   border: 1px solid var(--curate-border);
   border-radius: var(--curate-radius);
-  background:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.055),
-      rgba(255, 255, 255, 0.018)
-    ),
-    rgba(7, 11, 18, 0.88);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.34);
+  background: var(--curate-panel);
+  box-shadow: var(--curate-shadow);
+  backdrop-filter: blur(24px);
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      118deg,
+      rgba(255, 255, 255, 0.07),
+      transparent 28%,
+      transparent 73%,
+      rgba(255, 255, 255, 0.028)
+    );
+    opacity: 0.48;
+    pointer-events: none;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    right: 18px;
+    bottom: -36px;
+    left: 18px;
+    height: 70px;
+    border-radius: 50%;
+    background: radial-gradient(
+      ellipse,
+      var(--curate-under-glow),
+      transparent 70%
+    );
+    filter: blur(18px);
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
+  & > * {
+    position: relative;
+    z-index: 1;
+  }
+
   ${({ $padded }) =>
     $padded &&
     css`
@@ -84,14 +118,7 @@ const HeaderPanel = styled(Surface)`
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  background:
-    linear-gradient(
-      120deg,
-      rgba(7, 11, 18, 0.98) 0%,
-      rgba(10, 18, 28, 0.94) 62%,
-      rgba(7, 11, 18, 0.98) 100%
-    ),
-    #070b12;
+  background: var(--curate-panel);
 
   &::before {
     content: '';
@@ -119,10 +146,10 @@ const Kicker = styled.div`
   gap: 8px;
   min-height: 28px;
   padding: 0 10px;
-  border: 1px solid rgba(0, 209, 255, 0.24);
+  border: 1px solid rgba(0, 163, 255, 0.24);
   border-radius: 999px;
   color: var(--curate-live);
-  background: rgba(0, 209, 255, 0.075);
+  background: rgba(0, 163, 255, 0.075);
   font-size: 11px;
   font-weight: 850;
   letter-spacing: 0.08em;
@@ -177,18 +204,18 @@ const AutomationLink = styled(Link)`
   align-items: center;
   gap: 8px;
   padding: 0 15px;
-  border: 1px solid rgba(0, 209, 255, 0.32);
+  border: 1px solid rgba(0, 163, 255, 0.32);
   border-radius: 12px;
   color: var(--curate-text);
-  background: rgba(0, 209, 255, 0.1);
+  background: rgba(0, 163, 255, 0.1);
   font-size: 13px;
   font-weight: 900;
   text-decoration: none;
   animation: ${pulseGlow} 2.4s ease-in-out infinite;
 
   &:hover {
-    border-color: rgba(0, 209, 255, 0.55);
-    background: rgba(0, 209, 255, 0.16);
+    border-color: rgba(0, 163, 255, 0.55);
+    background: rgba(0, 163, 255, 0.16);
   }
 `
 
@@ -200,17 +227,18 @@ const SearchBox = styled.div`
   max-width: 560px;
   min-height: 48px;
   padding: 0 14px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  border: 1px solid var(--curate-border);
+  border-radius: 18px;
   color: var(--curate-muted);
-  background: rgba(1, 4, 9, 0.72);
+  background: var(--curate-field);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.045);
   transition:
     border-color 160ms ease,
     background 160ms ease;
 
   &:focus-within {
-    border-color: rgba(0, 209, 255, 0.48);
-    background: rgba(1, 4, 9, 0.9);
+    border-color: var(--curate-border-strong);
+    background: rgba(2, 6, 12, 0.92);
   }
 
   input {
@@ -229,50 +257,30 @@ const SearchBox = styled.div`
   }
 `
 
-const ChainFilterRail = styled.div`
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 9px;
-  margin-top: 20px;
+const ExplorerSearch = styled(SearchBox)`
+  max-width: 440px;
+  min-height: 42px;
+  flex: 1 1 300px;
+  border-radius: 14px;
 `
 
-const ChainButton = styled.button<{ $active?: boolean; $color?: string }>`
+const ClearSearchButton = styled.button`
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-height: 34px;
-  padding: 0 12px;
-  border: 1px solid
-    ${({ $active }) =>
-      $active ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.09)'};
-  border-radius: 999px;
-  color: ${({ $active }) =>
-    $active ? 'var(--curate-text)' : 'var(--curate-muted)'};
-  background: ${({ $active }) =>
-    $active ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.045)'};
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--curate-border);
+  border-radius: 10px;
+  color: var(--curate-muted);
+  background: var(--curate-button-soft);
   cursor: pointer;
-  font-size: 12px;
-  font-weight: 800;
-  transition:
-    border-color 160ms ease,
-    color 160ms ease,
-    background 160ms ease;
-
-  &::before {
-    content: '';
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: ${({ $color }) => $color || 'var(--curate-live)'};
-    box-shadow: 0 0 14px ${({ $color }) => $color || 'var(--curate-live)'};
-  }
 
   &:hover {
     color: var(--curate-text);
-    border-color: rgba(255, 255, 255, 0.2);
+    border-color: var(--curate-border-strong);
+    background: rgba(0, 163, 255, 0.1);
   }
 `
 
@@ -378,16 +386,12 @@ const DepthBar = styled.div<{ $width: number; $color?: string }>`
 
 const MetricStrip = styled.section`
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin-top: 16px;
 
-  @media (max-width: 1220px) {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
   @media (max-width: 680px) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
 `
 
@@ -566,6 +570,9 @@ const FilterBar = styled.div`
 `
 
 const BoardShell = styled.div`
+  display: grid;
+  gap: 9px;
+  padding: 12px;
   overflow-x: auto;
 `
 
@@ -578,9 +585,11 @@ const BoardHeader = styled.div`
   align-items: center;
   min-width: 1040px;
   min-height: 42px;
-  padding: 0 18px;
+  padding: 0 16px;
+  border: 1px solid var(--curate-border);
+  border-radius: 14px;
   color: var(--curate-faint);
-  background: rgba(1, 4, 9, 0.44);
+  background: rgba(2, 6, 12, 0.66);
   font-size: 10px;
   font-weight: 900;
   letter-spacing: 0.08em;
@@ -596,21 +605,26 @@ const BoardRow = styled(Link)<{ $verified?: boolean }>`
   align-items: center;
   min-width: 1040px;
   min-height: 78px;
-  padding: 10px 18px;
-  border-top: 1px solid rgba(255, 255, 255, 0.065);
+  padding: 12px 16px;
+  border: 1px solid rgba(117, 151, 197, 0.16);
+  border-radius: 18px;
   color: inherit;
   text-decoration: none;
   background: ${({ $verified }) =>
-    $verified
-      ? 'linear-gradient(90deg, rgba(22, 241, 149, 0.045), transparent 34%)'
-      : 'transparent'};
+      $verified
+        ? 'linear-gradient(90deg, rgba(22, 241, 149, 0.06), transparent 34%),'
+        : ''}
+    rgba(2, 8, 18, 0.52);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.035);
   transition:
     background 160ms ease,
-    border-color 160ms ease;
+    border-color 160ms ease,
+    transform 160ms ease;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.045);
-    border-color: rgba(255, 255, 255, 0.12);
+    transform: translateY(-1px);
+    background: rgba(8, 21, 38, 0.72);
+    border-color: var(--curate-border-strong);
   }
 `
 
@@ -729,39 +743,104 @@ const CardGrid = styled.div`
   gap: 14px;
   padding: 18px;
 
+  > a:first-child {
+    grid-column: span 2;
+  }
+
   @media (max-width: 1280px) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   @media (max-width: 720px) {
     grid-template-columns: 1fr;
+
+    > a:first-child {
+      grid-column: span 1;
+    }
   }
 `
 
 const MarketCard = styled(Link)`
-  min-height: 238px;
-  padding: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.085);
-  border-radius: 14px;
+  min-height: 348px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(117, 151, 197, 0.16);
+  border-radius: 22px;
   color: inherit;
-  background:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.055),
-      rgba(255, 255, 255, 0.018)
-    ),
-    rgba(1, 4, 9, 0.54);
+  background: var(--curate-card);
+  box-shadow: 0 22px 66px rgba(0, 0, 0, 0.34);
   text-decoration: none;
   transition:
     border-color 160ms ease,
     transform 160ms ease,
-    background 160ms ease;
+    box-shadow 160ms ease;
 
   &:hover {
-    transform: translateY(-2px);
-    border-color: rgba(0, 209, 255, 0.32);
-    background: rgba(255, 255, 255, 0.055);
+    transform: translateY(-4px);
+    border-color: var(--curate-border-strong);
+    box-shadow: var(--curate-shadow-hover);
   }
+`
+
+const CardVisual = styled.div<{ $color?: string; $image?: string | null }>`
+  position: relative;
+  min-height: 176px;
+  padding: 14px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  overflow: hidden;
+  background: ${({ $color, $image }) =>
+    $image
+      ? `linear-gradient(180deg, rgba(2, 6, 12, 0.12), rgba(2, 6, 12, 0.82)), url(${$image}) center / cover`
+      : `radial-gradient(circle at 35% 30%, color-mix(in srgb, ${
+          $color || 'var(--curate-live)'
+        } 34%, transparent), transparent 34%),
+           radial-gradient(circle at 78% 74%, rgba(108, 161, 255, 0.18), transparent 34%),
+           linear-gradient(145deg, rgba(8, 25, 45, 0.96), rgba(3, 7, 14, 0.98))`};
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: auto 0 0;
+    height: 54px;
+    background: linear-gradient(180deg, transparent, rgba(4, 10, 20, 0.94));
+    pointer-events: none;
+  }
+`
+
+const RegistryArtworkAvatar = styled(RegistryAvatar)`
+  position: relative;
+  z-index: 1;
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  color: var(--curate-text);
+  box-shadow:
+    inset 0 1px rgba(255, 255, 255, 0.08),
+    0 18px 44px rgba(0, 0, 0, 0.34);
+
+  svg {
+    width: 30px;
+    height: 30px;
+  }
+`
+
+const VisualBadgeStack = styled.div`
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+`
+
+const CardBody = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
 `
 
 const CardHead = styled.div`
@@ -787,7 +866,15 @@ const CardStats = styled.div`
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  margin-top: 16px;
+  margin-top: auto;
+  padding-top: 16px;
+`
+
+const CardChipRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
 `
 
 const CardStat = styled.div`
@@ -948,7 +1035,7 @@ const RankNumber = styled.div`
   height: 30px;
   border-radius: 10px;
   color: var(--curate-live);
-  background: rgba(0, 209, 255, 0.085);
+  background: rgba(0, 163, 255, 0.085);
   font-size: 12px;
   font-weight: 900;
   font-variant-numeric: tabular-nums;
@@ -970,10 +1057,10 @@ const EmptyIcon = styled.div`
   width: 44px;
   height: 44px;
   margin: 0 auto 12px;
-  border: 1px solid rgba(0, 209, 255, 0.24);
+  border: 1px solid rgba(0, 163, 255, 0.24);
   border-radius: 14px;
   color: var(--curate-live);
-  background: rgba(0, 209, 255, 0.075);
+  background: rgba(0, 163, 255, 0.075);
 `
 
 const LoadMoreBar = styled.div`
@@ -1081,7 +1168,7 @@ const TapeRow = styled(Link)`
     transform 160ms ease;
 
   &:hover {
-    border-color: rgba(0, 209, 255, 0.28);
+    border-color: rgba(0, 163, 255, 0.28);
     background: rgba(255, 255, 255, 0.055);
     transform: translateY(-1px);
   }
@@ -1245,6 +1332,29 @@ const sortRegistries = (
   return balanced
 }
 
+const includesSearch = (
+  normalizedSearch: string,
+  values: Array<string | number | null | undefined>,
+) =>
+  !normalizedSearch ||
+  values
+    .filter((value) => value !== null && value !== undefined)
+    .some((value) => String(value).toLowerCase().includes(normalizedSearch))
+
+const registryMatchesSearch = (
+  registry: DashboardRegistry,
+  normalizedSearch: string,
+) =>
+  includesSearch(normalizedSearch, [
+    registry.title,
+    registry.description,
+    registry.address,
+    shortAddress(registry.address),
+    kindLabel(registry.kind),
+    chainInfo(registry.chainId)?.name,
+    registry.trustStatus,
+  ])
+
 const validTrustFilter = (value: string | null): TrustFilter =>
   value === 'verified' || value === 'unverified' ? value : 'all'
 
@@ -1259,7 +1369,7 @@ const validSort = (value: string | null): RegistrySort =>
     : 'signal'
 
 const validView = (value: string | null): ViewMode =>
-  value === 'cards' ? 'cards' : 'board'
+  value === 'board' ? 'board' : 'cards'
 
 const RegistryLogo = ({ registry }: { registry: DashboardRegistry }) => {
   const info = chainInfo(registry.chainId)
@@ -1319,45 +1429,69 @@ const RegistryBoardRow = ({ registry }: { registry: DashboardRegistry }) => {
 
 const RegistryCard = ({ registry }: { registry: DashboardRegistry }) => {
   const info = chainInfo(registry.chainId)
+  const image = mediaUrl(registry.logoURI)
   return (
     <MarketCard to={registryHref(registry)}>
-      <CardHead>
-        <RegistryIdentity registry={registry} />
-        <ExternalArrow>
-          <CurateIcon name="external" size={16} />
-        </ExternalArrow>
-      </CardHead>
-      <CardDescription>
-        {registry.description ||
-          `${kindLabel(registry.kind)} registry ${shortAddress(
-            registry.address,
-          )} indexed on ${info?.name || 'Curate'}.`}
-      </CardDescription>
-      <HeaderActions style={{ marginTop: 14 }}>
-        <ChainChip $color={info?.color}>
-          {info?.name || registry.chainId}
-        </ChainChip>
-        <Chip $tone={kindTone(registry.kind)}>{kindLabel(registry.kind)}</Chip>
-        <Chip
-          $tone={registry.trustStatus === 'verified' ? 'success' : 'neutral'}
-        >
-          {registry.trustStatus === 'verified' ? 'Verified' : 'Unverified'}
-        </Chip>
-      </HeaderActions>
-      <CardStats>
-        <CardStat>
-          <CardStatValue>{formatCompact(registry.itemCount)}</CardStatValue>
-          <CardStatLabel>Items</CardStatLabel>
-        </CardStat>
-        <CardStat>
-          <CardStatValue>{formatCompact(registry.activeCount)}</CardStatValue>
-          <CardStatLabel>30d flow</CardStatLabel>
-        </CardStat>
-        <CardStat>
-          <CardStatValue>{formatCompact(registry.disputeCount)}</CardStatValue>
-          <CardStatLabel>Disputes</CardStatLabel>
-        </CardStat>
-      </CardStats>
+      <CardVisual $color={info?.color} $image={image}>
+        <RegistryArtworkAvatar $color={info?.color} $image={image}>
+          {!image && <CurateIcon name="registry" size={28} />}
+        </RegistryArtworkAvatar>
+        <VisualBadgeStack>
+          <ChainChip $color={info?.color}>
+            {info?.name || registry.chainId}
+          </ChainChip>
+          <Chip
+            $tone={registry.trustStatus === 'verified' ? 'success' : 'neutral'}
+          >
+            {registry.trustStatus === 'verified' ? 'Verified' : 'Unverified'}
+          </Chip>
+        </VisualBadgeStack>
+      </CardVisual>
+      <CardBody>
+        <CardHead>
+          <RegistryName>
+            <RegistryTitle>{registry.title}</RegistryTitle>
+            <RegistryMeta>
+              {kindLabel(registry.kind)} | {shortAddress(registry.address)}
+            </RegistryMeta>
+          </RegistryName>
+          <ExternalArrow>
+            <CurateIcon name="external" size={16} />
+          </ExternalArrow>
+        </CardHead>
+        <CardDescription>
+          {registry.description ||
+            `${kindLabel(registry.kind)} registry indexed on ${
+              info?.name || 'Curate'
+            }.`}
+        </CardDescription>
+        <CardChipRow>
+          <Chip $tone={kindTone(registry.kind)}>
+            {kindLabel(registry.kind)}
+          </Chip>
+          <Chip $tone={registry.pendingCount > 0 ? 'warning' : 'neutral'}>
+            {registry.pendingCount > 0
+              ? `${formatCompact(registry.pendingCount)} pending`
+              : 'No pending'}
+          </Chip>
+        </CardChipRow>
+        <CardStats>
+          <CardStat>
+            <CardStatValue>{formatCompact(registry.itemCount)}</CardStatValue>
+            <CardStatLabel>Items</CardStatLabel>
+          </CardStat>
+          <CardStat>
+            <CardStatValue>{formatCompact(registry.activeCount)}</CardStatValue>
+            <CardStatLabel>30d flow</CardStatLabel>
+          </CardStat>
+          <CardStat>
+            <CardStatValue>
+              {formatCompact(registry.disputeCount)}
+            </CardStatValue>
+            <CardStatLabel>Disputes</CardStatLabel>
+          </CardStat>
+        </CardStats>
+      </CardBody>
     </MarketCard>
   )
 }
@@ -1655,19 +1789,46 @@ const Dashboard = () => {
       if (trustFilter !== 'all' && registry.trustStatus !== trustFilter)
         return false
       if (kindFilter !== 'all' && registry.kind !== kindFilter) return false
-      if (!normalizedSearch) return true
-      return [
-        registry.title,
-        registry.description,
-        registry.address,
-        kindLabel(registry.kind),
-        chainInfo(registry.chainId)?.name,
-      ]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(normalizedSearch))
+      return registryMatchesSearch(registry, normalizedSearch)
     })
     return sortRegistries(filtered, sortMode)
   }, [chainFilter, data, kindFilter, search, sortMode, trustFilter])
+
+  const filteredActivities = useMemo(() => {
+    if (!data) return []
+    const normalizedSearch = search.trim().toLowerCase()
+    return data.activities.filter((activity) => {
+      if (chainFilter !== 'all' && activity.chainId !== chainFilter)
+        return false
+      return includesSearch(normalizedSearch, [
+        activity.status,
+        activity.registryTitle,
+        activity.actor,
+        activity.kind,
+        chainInfo(activity.chainId)?.name,
+        ...(activity.previewProps ?? []).flatMap((prop) => [
+          prop.label,
+          prop.value,
+        ]),
+      ])
+    })
+  }, [chainFilter, data, search])
+
+  const filteredUsers = useMemo(() => {
+    if (!data) return []
+    const normalizedSearch = search.trim().toLowerCase()
+    return data.users.filter((user) =>
+      includesSearch(normalizedSearch, [
+        user.address,
+        shortAddress(user.address),
+        user.chainId,
+        chainInfo(user.chainId)?.name,
+        ...Object.keys(user.chains).map(
+          (chainId) => chainInfo(Number(chainId))?.name,
+        ),
+      ]),
+    )
+  }, [data, search])
 
   useEffect(() => {
     setVisibleRegistryCount(REGISTRY_PAGE_SIZE)
@@ -1679,12 +1840,14 @@ const Dashboard = () => {
   const unverifiedRegistries = useMemo(
     () =>
       sortRegistries(
-        (data?.registries ?? []).filter(
-          (registry) => registry.trustStatus !== 'verified',
-        ),
+        (data?.registries ?? []).filter((registry) => {
+          if (registry.trustStatus === 'verified') return false
+          const normalizedSearch = search.trim().toLowerCase()
+          return registryMatchesSearch(registry, normalizedSearch)
+        }),
         'signal',
       ).slice(0, 10),
-    [data],
+    [data, search],
   )
 
   const createChainId =
@@ -1710,54 +1873,40 @@ const Dashboard = () => {
               Sepolia.
             </Subtitle>
           </HeaderContent>
-          <div>
-            <HeaderActions>
-              <SearchBox>
-                <CurateIcon name="search" size={18} />
-                <input
-                  aria-label="Search registries"
-                  placeholder="Search registry, address, chain, type..."
-                  value={search}
-                  onChange={(event) =>
-                    updateParams({ q: event.currentTarget.value || null })
-                  }
-                />
-              </SearchBox>
-              <Button
-                type="primary"
-                size="large"
-                onClick={() => navigate(`/factory/${createChainId}`)}
-              >
-                <CurateIcon name="factory" size={18} />
-                Create registry
-              </Button>
-              <AutomationLink to="/guide">
-                <CurateIcon name="spark" size={17} />
-                Automate your flow
-              </AutomationLink>
-            </HeaderActions>
-            <ChainFilterRail>
-              <ChainButton
-                $active={chainFilter === 'all'}
-                onClick={() => updateParams({ chain: null })}
-              >
-                All chains
-              </ChainButton>
-              {SUPPORTED_CHAIN_IDS.map((chainId) => {
-                const info = chainInfo(chainId)
-                return (
-                  <ChainButton
-                    key={chainId}
-                    $active={chainFilter === chainId}
-                    $color={info?.color}
-                    onClick={() => updateParams({ chain: String(chainId) })}
-                  >
-                    {info?.name || chainId}
-                  </ChainButton>
-                )
-              })}
-            </ChainFilterRail>
-          </div>
+          <HeaderActions>
+            <SearchBox>
+              <CurateIcon name="search" size={18} />
+              <input
+                aria-label="Search registries"
+                placeholder="Search registry, address, chain, type..."
+                value={search}
+                onChange={(event) =>
+                  updateParams({ q: event.currentTarget.value || null })
+                }
+              />
+              {search && (
+                <ClearSearchButton
+                  type="button"
+                  aria-label="Clear dashboard search"
+                  onClick={() => updateParams({ q: null })}
+                >
+                  <CurateIcon name="close" size={14} />
+                </ClearSearchButton>
+              )}
+            </SearchBox>
+            <Button
+              type="primary"
+              size="large"
+              onClick={() => navigate(`/factory/${createChainId}`)}
+            >
+              <CurateIcon name="factory" size={18} />
+              Create registry
+            </Button>
+            <AutomationLink to="/guide">
+              <CurateIcon name="spark" size={17} />
+              Automate your flow
+            </AutomationLink>
+          </HeaderActions>
         </HeaderPanel>
 
         <StatusConsole>
@@ -1791,9 +1940,9 @@ const Dashboard = () => {
                 </ConsoleStat>
                 <ConsoleStat>
                   <ConsoleValue>
-                    {formatCompact(data.metrics.activeVerification)}
+                    {formatCompact(data.metrics.curatedItems)}
                   </ConsoleValue>
-                  <ConsoleLabel>Needs review</ConsoleLabel>
+                  <ConsoleLabel>Total items</ConsoleLabel>
                 </ConsoleStat>
                 <ConsoleStat>
                   <ConsoleValue>
@@ -1823,54 +1972,12 @@ const Dashboard = () => {
 
       {dashboardQuery.isLoading || !data ? (
         <MetricStrip>
-          {Array.from({ length: 6 }).map((_, index) => (
+          {Array.from({ length: 3 }).map((_, index) => (
             <Skeleton key={index} $height="116px" />
           ))}
         </MetricStrip>
       ) : (
         <MetricStrip>
-          <MetricCard>
-            <MetricTop>
-              <MetricIcon $tone="live">
-                <CurateIcon name="registry" size={17} />
-              </MetricIcon>
-              <MetricTrend $tone="flat">Indexed</MetricTrend>
-            </MetricTop>
-            <div>
-              <MetricValue>
-                {formatCompact(data.metrics.registries)}
-              </MetricValue>
-              <MetricLabel>Total registries</MetricLabel>
-            </div>
-          </MetricCard>
-          <MetricCard>
-            <MetricTop>
-              <MetricIcon $tone="success">
-                <CurateIcon name="verified" size={17} />
-              </MetricIcon>
-              <MetricTrend $tone="up">List-of-lists</MetricTrend>
-            </MetricTop>
-            <div>
-              <MetricValue>
-                {formatCompact(data.metrics.verifiedRegistries)}
-              </MetricValue>
-              <MetricLabel>Verified registries</MetricLabel>
-            </div>
-          </MetricCard>
-          <MetricCard>
-            <MetricTop>
-              <MetricIcon $tone="violet">
-                <CurateIcon name="submit" size={17} />
-              </MetricIcon>
-              <MetricTrend $tone="flat">Curated</MetricTrend>
-            </MetricTop>
-            <div>
-              <MetricValue>
-                {formatCompact(data.metrics.curatedItems)}
-              </MetricValue>
-              <MetricLabel>Total items</MetricLabel>
-            </div>
-          </MetricCard>
           <MetricCard>
             <MetricTop>
               <MetricIcon $tone="warning">
@@ -1915,9 +2022,9 @@ const Dashboard = () => {
       )}
 
       <DashboardGrid>
-        <LiveTapePanel activities={data?.activities ?? []} />
+        <LiveTapePanel activities={filteredActivities} />
         <SideRail>
-          <UsersPanel users={data?.users ?? []} />
+          <UsersPanel users={filteredUsers} />
           <UnverifiedPanel registries={unverifiedRegistries} />
         </SideRail>
       </DashboardGrid>
@@ -1944,7 +2051,7 @@ const Dashboard = () => {
                     key={view}
                     $active={viewMode === view}
                     onClick={() =>
-                      updateParams({ view: view === 'board' ? null : view })
+                      updateParams({ view: view === 'cards' ? null : view })
                     }
                   >
                     <CurateIcon
@@ -1959,6 +2066,26 @@ const Dashboard = () => {
           </PanelTop>
 
           <FilterBar>
+            <ExplorerSearch>
+              <CurateIcon name="search" size={17} />
+              <input
+                aria-label="Search registry explorer"
+                placeholder="Search by name, address, chain, or type"
+                value={search}
+                onChange={(event) =>
+                  updateParams({ q: event.currentTarget.value || null })
+                }
+              />
+              {search && (
+                <ClearSearchButton
+                  type="button"
+                  aria-label="Clear dashboard search"
+                  onClick={() => updateParams({ q: null })}
+                >
+                  <CurateIcon name="close" size={14} />
+                </ClearSearchButton>
+              )}
+            </ExplorerSearch>
             <ControlCluster>
               <Segmented>
                 {(['all', 'verified', 'unverified'] as TrustFilter[]).map(

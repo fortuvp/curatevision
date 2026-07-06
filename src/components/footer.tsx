@@ -7,7 +7,7 @@ import icons from './social-icons'
 const Container = styled.footer`
   width: 100%;
   background:
-    linear-gradient(180deg, rgba(5, 7, 13, 0), rgba(5, 7, 13, 0.72)),
+    linear-gradient(180deg, rgba(2, 5, 12, 0), rgba(2, 5, 12, 0.82)),
     ${({ theme }) => theme.footerBackground};
   border-top: 1px solid var(--curate-border);
   margin-top: auto;
@@ -72,7 +72,7 @@ const FooterLink = styled(Link)`
   border: 1px solid var(--curate-border);
   border-radius: 999px;
   color: var(--curate-text);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--curate-button-soft);
   font-size: 13px;
   font-weight: 850;
   text-decoration: none;
@@ -81,7 +81,7 @@ const FooterLink = styled(Link)`
     border-color 0.16s ease;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(0, 163, 255, 0.1);
     border-color: var(--curate-border-strong);
   }
 `
@@ -92,10 +92,10 @@ const StyledSocialButton = styled.a`
   justify-content: center;
   width: 38px;
   height: 38px;
-  background-color: rgba(255, 255, 255, 0.04);
+  background: var(--curate-button-soft);
   padding: 8px;
   border: 1px solid var(--curate-border);
-  border-radius: 12px;
+  border-radius: 14px;
   transition:
     background 0.16s ease,
     border-color 0.16s ease;
@@ -107,7 +107,7 @@ const StyledSocialButton = styled.a`
   }
 
   &:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: rgba(0, 163, 255, 0.1);
     border-color: var(--curate-border-strong);
 
     svg path {

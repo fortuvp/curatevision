@@ -36,30 +36,25 @@ const getTypeStyles = ({
   switch (btnType) {
     case 'primary':
       return css`
-        background: linear-gradient(
-          135deg,
-          ${theme.buttonPrimaryBg},
-          ${theme.primaryColorHover}
-        );
+        background: linear-gradient(135deg, #063756, #0b2a56 48%, #142f62);
         color: ${theme.buttonPrimaryText};
-        border-color: transparent;
-        box-shadow: 0 12px 34px rgba(76, 201, 240, 0.18);
+        border-color: rgba(0, 163, 255, 0.46);
+        box-shadow:
+          inset 0 1px rgba(255, 255, 255, 0.12),
+          0 16px 42px rgba(0, 0, 0, 0.35),
+          0 0 36px rgba(0, 163, 255, 0.12);
 
         &:hover:not(:disabled),
         &:focus:not(:disabled) {
-          background: linear-gradient(
-            135deg,
-            ${theme.buttonPrimaryHoverBg},
-            ${theme.primaryColor}
-          );
-          border-color: transparent;
+          background: linear-gradient(135deg, #07496f, #0e3970 48%, #193c7b);
+          border-color: rgba(0, 163, 255, 0.62);
           color: ${theme.buttonPrimaryText};
-          transform: translateY(-1px);
+          transform: translateY(-2px);
         }
       `
     case 'ghost':
       return css`
-        background: rgba(255, 255, 255, 0.04);
+        background: var(--curate-button-soft);
         color: var(--curate-text);
         border-color: var(--curate-border);
 
@@ -67,7 +62,7 @@ const getTypeStyles = ({
         &:focus:not(:disabled) {
           color: var(--curate-text);
           border-color: var(--curate-border-strong);
-          background: rgba(255, 255, 255, 0.1);
+          background: rgba(0, 163, 255, 0.11);
         }
       `
     case 'danger':
@@ -96,15 +91,17 @@ const getTypeStyles = ({
       `
     default:
       return css`
-        background: rgba(255, 255, 255, 0.05);
+        background: var(--curate-button);
         color: var(--curate-text);
         border-color: var(--curate-border);
+        box-shadow: 0 16px 42px rgba(0, 0, 0, 0.28);
 
         &:hover:not(:disabled),
         &:focus:not(:disabled) {
           color: var(--curate-text);
           border-color: var(--curate-border-strong);
-          background: rgba(255, 255, 255, 0.1);
+          background: rgba(0, 163, 255, 0.1);
+          transform: translateY(-1px);
         }
       `
   }
@@ -138,15 +135,17 @@ const StyledButton = styled.button<StyledButtonTransientProps>`
   justify-content: center;
   gap: 8px;
   border: 1px solid;
-  border-radius: 12px;
+  border-radius: var(--curate-radius-sm);
   cursor: pointer;
   transition:
     background 0.2s ease,
     border-color 0.2s ease,
     color 0.2s ease,
-    transform 0.2s ease;
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
   line-height: 1.5;
-  font-weight: 800;
+  font-weight: 850;
+  letter-spacing: 0;
   white-space: nowrap;
   user-select: none;
   touch-action: manipulation;
@@ -174,15 +173,16 @@ const StyledLink = styled.a<StyledButtonTransientProps>`
   justify-content: center;
   gap: 8px;
   border: 1px solid;
-  border-radius: 12px;
+  border-radius: var(--curate-radius-sm);
   cursor: pointer;
   transition:
     background 0.2s ease,
     border-color 0.2s ease,
     color 0.2s ease,
-    transform 0.2s ease;
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
   line-height: 1.5;
-  font-weight: 800;
+  font-weight: 850;
   white-space: nowrap;
   user-select: none;
   touch-action: manipulation;
@@ -217,11 +217,11 @@ const GroupWrapper = styled.div`
     border-radius: 0;
 
     &:first-child {
-      border-radius: 12px 0 0 12px;
+      border-radius: var(--curate-radius-sm) 0 0 var(--curate-radius-sm);
     }
 
     &:last-child {
-      border-radius: 0 12px 12px 0;
+      border-radius: 0 var(--curate-radius-sm) var(--curate-radius-sm) 0;
     }
 
     &:not(:last-child) {

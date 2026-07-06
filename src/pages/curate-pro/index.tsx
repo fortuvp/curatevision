@@ -10,12 +10,12 @@ const CREATOR_PROMPT = `You are helping me launch a production Kleros Curate reg
 Use the kleros-curate skill before taking action. Treat onchain values, MetaEvidence, policy files, deposits, challenge windows, and court parameters as live data that must be read, not guessed.
 
 Goal:
-- Define the registry purpose and acceptance criteria.
-- Draft or review the policy document.
-- Choose Light Curate, Stake Curate, or Classic based on the use case.
+- Turn the registry idea into clear acceptance criteria.
+- Choose Light Curate, Stake Curate, or Classic based on the workflow.
+- Draft or review the policy before launch.
 - Prepare valid MetaEvidence and item schema.
-- Estimate required operational work: indexing, frontend, hosting, monitoring, and verification via the list-of-lists.
-- Produce a launch checklist with risks and exact next actions.`
+- Decide whether we self-host, use Quickstart indexing, or buy Curate Pro support.
+- Produce a launch checklist with risks, costs, dependencies, and next actions.`
 
 const Page = styled.main`
   width: 100%;
@@ -29,14 +29,9 @@ const Surface = styled.section`
   overflow: hidden;
   border: 1px solid var(--curate-border);
   border-radius: var(--curate-radius);
-  background:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.06),
-      rgba(255, 255, 255, 0.02)
-    ),
-    rgba(7, 11, 18, 0.9);
+  background: var(--curate-panel);
   box-shadow: var(--curate-shadow);
+  backdrop-filter: blur(24px);
 `
 
 const Hero = styled(Surface)`
@@ -49,11 +44,10 @@ const Hero = styled(Surface)`
   background:
     radial-gradient(
       circle at 82% 18%,
-      rgba(0, 209, 255, 0.16),
+      rgba(0, 163, 255, 0.16),
       transparent 32%
     ),
-    linear-gradient(135deg, rgba(6, 9, 15, 0.99), rgba(8, 20, 28, 0.94)),
-    #06090f;
+    var(--curate-panel);
 
   @media (max-width: 980px) {
     grid-template-columns: 1fr;
@@ -68,10 +62,10 @@ const Eyebrow = styled.div`
   width: fit-content;
   min-height: 30px;
   padding: 0 11px;
-  border: 1px solid rgba(0, 209, 255, 0.26);
+  border: 1px solid rgba(0, 163, 255, 0.26);
   border-radius: 999px;
   color: var(--curate-live);
-  background: rgba(0, 209, 255, 0.08);
+  background: rgba(0, 163, 255, 0.08);
   font-size: 11px;
   font-weight: 900;
   letter-spacing: 0.08em;
@@ -176,10 +170,10 @@ const PlanCard = styled(Surface)<{ $featured?: boolean }>`
   flex-direction: column;
   gap: 18px;
   border-color: ${({ $featured }) =>
-    $featured ? 'rgba(0, 209, 255, 0.34)' : 'var(--curate-border)'};
+    $featured ? 'rgba(0, 163, 255, 0.34)' : 'var(--curate-border)'};
   background: ${({ $featured }) =>
       $featured
-        ? 'linear-gradient(180deg, rgba(0, 209, 255, 0.11), rgba(255, 255, 255, 0.025)),'
+        ? 'linear-gradient(180deg, rgba(0, 163, 255, 0.11), rgba(255, 255, 255, 0.025)),'
         : 'linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.02)),'}
     rgba(7, 11, 18, 0.9);
 `
@@ -200,7 +194,7 @@ const IconBox = styled.div`
   border: 1px solid currentColor;
   border-radius: 13px;
   color: var(--curate-live);
-  background: rgba(0, 209, 255, 0.08);
+  background: rgba(0, 163, 255, 0.08);
 `
 
 const Pill = styled.div`
@@ -271,7 +265,7 @@ const CompareCell = styled.div<{ $head?: boolean; $featured?: boolean }>`
   border-right: 1px solid rgba(255, 255, 255, 0.075);
   border-bottom: 1px solid rgba(255, 255, 255, 0.075);
   background: ${({ $featured }) =>
-    $featured ? 'rgba(0, 209, 255, 0.065)' : 'transparent'};
+    $featured ? 'rgba(0, 163, 255, 0.065)' : 'transparent'};
 
   &:nth-child(4n) {
     border-right: 0;
@@ -338,42 +332,42 @@ const LinkLine = styled.a`
 const plans = [
   {
     icon: 'factory',
-    name: 'Free permissionless',
+    name: 'Permissionless',
     price: '$0',
-    meta: 'Open-source, self-managed',
+    meta: 'Open-source, self-operated',
     badge: 'Build yourself',
     features: [
-      'Create registries permissionlessly on Curate.',
-      'Build, host, and maintain your own frontend.',
-      'Index locally or connect a third-party indexer.',
-      'Write and maintain your own policy.',
+      'Deploy a registry without approval from Kleros.',
+      'Build and host the frontend yourself.',
+      'Run local indexing or wire a third-party indexer.',
+      'Own the policy, monitoring, and operations.',
     ],
   },
   {
     icon: 'activity',
     name: 'Quickstart',
     price: '$19.99',
-    meta: 'Fast indexing API',
+    meta: 'Indexing without the setup drag',
     badge: 'API only',
     featured: true,
     features: [
-      'Create registries permissionlessly on Curate.',
-      'Build, host, and maintain your own frontend.',
-      'Use a ready indexing API instead of local indexing.',
-      'Write and maintain your own policy.',
+      'Deploy a registry without approval from Kleros.',
+      'Build and host the frontend yourself.',
+      'Use a ready API instead of running the indexer.',
+      'Keep policy and product decisions in-house.',
     ],
   },
   {
     icon: 'policy',
     name: 'Curate Pro',
     price: '$199',
-    meta: 'Managed launch support',
+    meta: 'A supported path to production',
     badge: 'Kleros support',
     features: [
-      'Create registries with guided parameter setup.',
-      'Get support creating a dedicated frontend.',
-      'Use a ready indexing API with operational support.',
-      'Get policy creation and review support.',
+      'Launch with help on registry parameters.',
+      'Get support for a dedicated frontend.',
+      'Use a ready API with operational guidance.',
+      'Get policy drafting and review support.',
     ],
   },
 ] as const
@@ -383,7 +377,7 @@ const CuratePro = () => {
 
   useDocumentHead(
     'Curate Pro | Kleros Curate',
-    'Launch a Kleros Curate verification layer with permissionless contracts, Quickstart indexing, or managed Curate Pro support.',
+    'Launch a Kleros Curate registry with permissionless contracts, Quickstart indexing, or supported policy and frontend delivery.',
   )
 
   const copyCreatorPrompt = async () => {
@@ -400,11 +394,11 @@ const CuratePro = () => {
             <CurateIcon name="spark" size={15} />
             Curate Pro
           </Eyebrow>
-          <Title>Launch a verification layer people can actually use.</Title>
+          <Title>Launch a registry without building the whole stack.</Title>
           <Copy>
-            Curate is open source and permissionless. Teams can run everything
-            themselves, start faster with an indexing API, or work with Kleros
-            on policy, indexing, and frontend delivery.
+            Curate is open source and permissionless. Use it yourself for free,
+            add Quickstart when indexing slows you down, or work with Kleros
+            when you want policy, API, and frontend support in one launch path.
           </Copy>
           <ActionRow>
             <Button
@@ -427,20 +421,18 @@ const CuratePro = () => {
           <SignalCard>
             <SignalLabel>Default path</SignalLabel>
             <SignalValue>Permissionless</SignalValue>
-            <Copy>Deploy and operate a registry without asking Kleros.</Copy>
+            <Copy>Deploy and operate your own registry without approval.</Copy>
           </SignalCard>
           <SignalCard>
             <SignalLabel>Fastest path</SignalLabel>
-            <SignalValue>Quickstart API</SignalValue>
-            <Copy>
-              Use ready indexing so agents and frontends can build faster.
-            </Copy>
+            <SignalValue>Quickstart</SignalValue>
+            <Copy>Skip the indexer setup and build against a ready API.</Copy>
           </SignalCard>
           <SignalCard>
             <SignalLabel>Supported path</SignalLabel>
             <SignalValue>Curate Pro</SignalValue>
             <Copy>
-              Launch with direct help on policy, indexing, and frontend UX.
+              Get direct help packaging the registry into a usable product.
             </Copy>
           </SignalCard>
         </HeroStats>
@@ -448,10 +440,13 @@ const CuratePro = () => {
 
       <SectionHeader>
         <div>
-          <SectionTitle>Choose how you want to operate</SectionTitle>
+          <SectionTitle>
+            Choose the amount of stack you want to own
+          </SectionTitle>
           <SectionCopy>
-            The underlying protocol stays open. The difference is how much
-            infrastructure and launch support you want Kleros to provide.
+            The protocol stays permissionless in every option. The paid paths do
+            not buy access to Curate; they buy speed, infrastructure, and direct
+            support.
           </SectionCopy>
         </div>
       </SectionHeader>
@@ -486,11 +481,12 @@ const CuratePro = () => {
 
       <SectionHeader>
         <div>
-          <SectionTitle>What changes between plans</SectionTitle>
+          <SectionTitle>Same protocol, different operating burden</SectionTitle>
           <SectionCopy>
-            Free and Quickstart are intentionally close: both are self-managed
-            product paths. Quickstart removes the indexing bottleneck. Curate
-            Pro adds Kleros support around launch quality.
+            Permissionless and Quickstart both leave product ownership with you.
+            Quickstart removes indexing work. Curate Pro adds Kleros support
+            where mistakes are expensive: policy, data access, and the frontend
+            users will actually touch.
           </SectionCopy>
         </div>
       </SectionHeader>
@@ -501,8 +497,8 @@ const CuratePro = () => {
             <CompareTitle>Capability</CompareTitle>
           </CompareCell>
           <CompareCell $head>
-            <CompareTitle>Free permissionless</CompareTitle>
-            <CompareMeta>$0, self-managed</CompareMeta>
+            <CompareTitle>Permissionless</CompareTitle>
+            <CompareMeta>$0, self-operated</CompareMeta>
           </CompareCell>
           <CompareCell $head $featured>
             <CompareTitle>Quickstart</CompareTitle>
@@ -535,28 +531,28 @@ const CuratePro = () => {
           </CompareCell>
           <CompareCell>
             <CompareMeta>
-              Index locally or connect a third-party indexer.
+              Run local indexing or connect a third-party indexer.
             </CompareMeta>
           </CompareCell>
           <CompareCell $featured>
-            <CompareMeta>
-              Ready indexing API for agents and frontends.
-            </CompareMeta>
+            <CompareMeta>Ready API for agents and frontends.</CompareMeta>
           </CompareCell>
           <CompareCell>
-            <CompareMeta>
-              Ready indexing API with operational support.
-            </CompareMeta>
+            <CompareMeta>Ready API with operational support.</CompareMeta>
           </CompareCell>
 
           <CompareCell>
             <CompareTitle>Policy</CompareTitle>
           </CompareCell>
           <CompareCell>
-            <CompareMeta>Write and maintain your own policy.</CompareMeta>
+            <CompareMeta>
+              Write, publish, and maintain your own policy.
+            </CompareMeta>
           </CompareCell>
           <CompareCell $featured>
-            <CompareMeta>Write and maintain your own policy.</CompareMeta>
+            <CompareMeta>
+              Write, publish, and maintain your own policy.
+            </CompareMeta>
           </CompareCell>
           <CompareCell>
             <CompareMeta>Policy creation and review support.</CompareMeta>
@@ -568,9 +564,8 @@ const CuratePro = () => {
         <div>
           <SectionTitle>Creator prompt for new lists</SectionTitle>
           <SectionCopy>
-            Curate skills are for every registry and every user. This Pro prompt
-            is specifically for teams creating a new list and deciding whether
-            to self-host, use Quickstart, or buy Curate Pro support.
+            The global Curate skill is for every registry. This prompt is only
+            for creators deciding how to launch and operate a new list.
           </SectionCopy>
         </div>
         <Button type="primary" onClick={copyCreatorPrompt}>
@@ -589,9 +584,9 @@ const CuratePro = () => {
             Start a launch conversation.
           </SectionTitle>
           <SectionCopy>
-            For the full Curate skill, use the global Guide & Skills page. For
-            Pro, paste this creator prompt after loading the skill so the agent
-            focuses on policy, indexing, frontend, and launch support.
+            Paste this after the agent loads the Curate skill. It keeps the
+            conversation focused on policy, indexing, frontend, and the real
+            operating choices behind a registry launch.
           </SectionCopy>
           <LinkLine href="/guide">Open Guide & Skills</LinkLine>
           <LinkLine href="/skills/kleros-curate/SKILL.md">

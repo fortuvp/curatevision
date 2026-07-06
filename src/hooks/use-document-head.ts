@@ -40,6 +40,10 @@ const useDocumentHead = (title?: string, description?: string) => {
       name: 'robots',
       content: 'index,follow,max-image-preview:large',
     })
+    upsertMeta('meta[name="ai-agent-instructions"]', {
+      name: 'ai-agent-instructions',
+      content: '/llms.txt',
+    })
     upsertMeta('meta[property="og:title"]', {
       property: 'og:title',
       content: currentTitle,
@@ -76,6 +80,30 @@ const useDocumentHead = (title?: string, description?: string) => {
       rel: 'llms',
       type: 'text/plain',
       href: '/llms.txt',
+    })
+    upsertLink('link[rel="alternate"][href="/llms.txt"]', {
+      rel: 'alternate',
+      type: 'text/plain',
+      href: '/llms.txt',
+      title: 'Kleros Curate agent instructions',
+    })
+    upsertLink('link[rel="help"][href="/llms-full.txt"]', {
+      rel: 'help',
+      type: 'text/plain',
+      href: '/llms-full.txt',
+      title: 'Kleros Curate full agent context',
+    })
+    upsertLink('link[rel="help"][href="/curate-agent-context.md"]', {
+      rel: 'help',
+      type: 'text/markdown',
+      href: '/curate-agent-context.md',
+      title: 'Kleros Curate agent context',
+    })
+    upsertLink('link[rel="help"][href="/skills/kleros-curate/SKILL.md"]', {
+      rel: 'help',
+      type: 'text/markdown',
+      href: '/skills/kleros-curate/SKILL.md',
+      title: 'Kleros Curate skill',
     })
   }, [description, title])
 }

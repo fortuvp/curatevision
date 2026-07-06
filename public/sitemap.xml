@@ -21,6 +21,21 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://curate.kleros.io/llms-full.txt</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://curate.kleros.io/curate-agent-context.md</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://curate.kleros.io/.well-known/llms.txt</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://curate.kleros.io/skills/kleros-curate/SKILL.md</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>

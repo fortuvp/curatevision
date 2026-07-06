@@ -49,14 +49,9 @@ const Surface = styled.section`
   overflow: hidden;
   border: 1px solid var(--curate-border);
   border-radius: var(--curate-radius);
-  background:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.055),
-      rgba(255, 255, 255, 0.02)
-    ),
-    rgba(7, 11, 18, 0.9);
+  background: var(--curate-panel);
   box-shadow: var(--curate-shadow);
+  backdrop-filter: blur(24px);
 `
 
 const Hero = styled(Surface)`
@@ -66,9 +61,7 @@ const Hero = styled(Surface)`
   grid-template-columns: minmax(0, 1fr) 360px;
   gap: 20px;
   align-items: end;
-  background:
-    linear-gradient(120deg, rgba(7, 11, 18, 0.98), rgba(10, 18, 28, 0.92)),
-    #070b12;
+  background: var(--curate-panel);
 
   @media (max-width: 980px) {
     grid-template-columns: 1fr;
@@ -81,10 +74,10 @@ const Eyebrow = styled.div`
   gap: 8px;
   min-height: 28px;
   padding: 0 10px;
-  border: 1px solid rgba(0, 209, 255, 0.24);
+  border: 1px solid rgba(0, 163, 255, 0.24);
   border-radius: 999px;
   color: var(--curate-live);
-  background: rgba(0, 209, 255, 0.075);
+  background: rgba(0, 163, 255, 0.075);
   font-size: 11px;
   font-weight: 850;
   letter-spacing: 0.08em;
@@ -446,12 +439,12 @@ const ProfileTabButton = styled.button<{ $active?: boolean }>`
   padding: 0 16px;
   border: 1px solid
     ${({ $active }) =>
-      $active ? 'rgba(0, 209, 255, 0.34)' : 'rgba(255, 255, 255, 0)'};
+      $active ? 'rgba(0, 163, 255, 0.34)' : 'rgba(255, 255, 255, 0)'};
   border-radius: 10px;
   color: ${({ $active }) =>
     $active ? 'var(--curate-text)' : 'var(--curate-muted)'};
   background: ${({ $active }) =>
-    $active ? 'rgba(0, 209, 255, 0.1)' : 'transparent'};
+    $active ? 'rgba(0, 163, 255, 0.1)' : 'transparent'};
   cursor: pointer;
   font-size: 13px;
   font-weight: 900;

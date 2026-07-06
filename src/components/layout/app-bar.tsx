@@ -32,7 +32,7 @@ const Container = styled.div`
   top: 0;
   z-index: 50;
   background:
-    linear-gradient(180deg, rgba(5, 7, 13, 0.88), rgba(5, 7, 13, 0.72)),
+    linear-gradient(180deg, rgba(3, 8, 15, 0.92), rgba(3, 8, 15, 0.76)),
     ${({ theme }) => theme.navbarBackground};
   border-bottom: 1px solid var(--curate-border);
   backdrop-filter: blur(18px);
@@ -44,14 +44,14 @@ const Container = styled.div`
 const ThemeToggleButton = styled.button`
   width: 38px;
   height: 38px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--curate-button);
   border: 1px solid var(--curate-border);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-left: 6px;
-  border-radius: 12px;
+  border-radius: 14px;
   color: var(--curate-muted);
   transition:
     background-color 0.2s ease,
@@ -59,7 +59,7 @@ const ThemeToggleButton = styled.button`
     color 0.2s ease;
 
   &:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: rgba(0, 163, 255, 0.1);
     border-color: var(--curate-border-strong);
     color: var(--curate-text);
   }
@@ -91,9 +91,9 @@ const MobileMenuWrapper = styled.div`
 const HamburgerButton = styled.button`
   width: 38px;
   height: 38px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--curate-button);
   border: 1px solid var(--curate-border);
-  border-radius: 12px;
+  border-radius: 14px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -105,7 +105,7 @@ const HamburgerButton = styled.button`
 
   &:hover {
     border-color: var(--curate-border-strong);
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(0, 163, 255, 0.1);
   }
 `
 

@@ -11,6 +11,7 @@ export type CurateIconName =
   | 'chain'
   | 'challenge'
   | 'chevron-down'
+  | 'close'
   | 'copy'
   | 'court'
   | 'dispute'
@@ -48,7 +49,7 @@ const StrokeIcon = ({ size = 20, title, children, ...props }: IconProps) => (
     {title && <title>{title}</title>}
     <g
       stroke="currentColor"
-      strokeWidth="1.8"
+      strokeWidth="1.85"
       strokeLinecap="round"
       strokeLinejoin="round"
     >
@@ -87,6 +88,12 @@ const icons: Record<CurateIconName, (props: IconProps) => JSX.Element> = {
   'chevron-down': (props) => (
     <StrokeIcon {...props}>
       <path d="m7 9 5 5 5-5" />
+    </StrokeIcon>
+  ),
+  close: (props) => (
+    <StrokeIcon {...props}>
+      <path d="M6.5 6.5 17.5 17.5" />
+      <path d="M17.5 6.5 6.5 17.5" />
     </StrokeIcon>
   ),
   court: (props) => (

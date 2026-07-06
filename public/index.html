@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -6,10 +6,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#000000" />
     <meta name="robots" content="index,follow,max-image-preview:large" />
+    <meta name="ai-agent-instructions" content="/llms.txt" />
     <link rel="canonical" href="https://curate.kleros.io/" />
     <link rel="llms" type="text/plain" href="/llms.txt" />
     <link
       rel="alternate"
+      type="text/plain"
+      title="Kleros Curate agent instructions"
+      href="/llms.txt"
+    />
+    <link
+      rel="help"
+      type="text/plain"
+      title="Kleros Curate full agent context"
+      href="/llms-full.txt"
+    />
+    <link
+      rel="help"
+      type="text/markdown"
+      title="Kleros Curate agent context"
+      href="/curate-agent-context.md"
+    />
+    <link
+      rel="help"
       type="text/markdown"
       title="Kleros Curate Agent Skill"
       href="/skills/kleros-curate/SKILL.md"
@@ -18,7 +37,10 @@
       name="description"
       content="Kleros Curate is the verification layer for token-curated registries, live submissions, disputes, list governance, and agent-ready Curate workflows."
     />
-    <meta property="og:title" content="The verification layer | Kleros Curate" />
+    <meta
+      property="og:title"
+      content="The verification layer | Kleros Curate"
+    />
     <meta
       property="og:description"
       content="Discover Kleros Curate registries, live entries, disputes, curator profiles, governance tools, and agent-ready registry skills."
@@ -26,7 +48,10 @@
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://curate.kleros.io/" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="The verification layer | Kleros Curate" />
+    <meta
+      name="twitter:title"
+      content="The verification layer | Kleros Curate"
+    />
     <meta
       name="twitter:description"
       content="Discover and govern Kleros Curate registries across Ethereum, Gnosis, and Sepolia."
@@ -36,6 +61,12 @@
       user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
     -->
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
     <!--
       Notice the use of %PUBLIC_URL% in the tags above.
       It will be replaced with the URL of the `public` folder during the build.
@@ -50,14 +81,15 @@
   <body>
     <script>
       // Prevent flash of light theme on load - check dark mode preference immediately
-      (function() {
-        var saved = localStorage.getItem('kleros-curate-theme');
-        var isDark = saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      ;(function () {
+        var saved = localStorage.getItem('kleros-curate-theme')
+        var isDark = saved !== 'light'
         if (isDark) {
-          document.body.setAttribute('data-theme', 'dark');
-          document.body.style.backgroundColor = '#13101a';
+          document.body.setAttribute('data-theme', 'dark')
+          document.body.style.backgroundColor = '#020611'
+          document.documentElement.classList.add('dark')
         }
-      })();
+      })()
     </script>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>

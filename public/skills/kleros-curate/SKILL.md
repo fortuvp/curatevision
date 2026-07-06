@@ -1,6 +1,6 @@
 ---
 name: kleros-curate
-description: "Interact with Kleros Curate registries — the decentralized token-curated list protocol for token lists, address tags, and policy-driven curation. Use this skill when the user mentions Curate, Light Curate, LightGeneralizedTCR, LGTCR, LightCurate, Stake Curate, PermanentGTCR, PGTCR, Scout, token-curated registry, TCR, curated list, decentralized registry, registry, token list, address tags, CDN tags, Goldsky, or Solidity functions addItem, removeItem, challengeItem, challengeRequest. Covers all three flavors — Light Curate (LGTCR, optimistic challenge window), Stake Curate (PGTCR, permanent ERC20 stake), and Scout (Gnosis registries for contract/token tagging). Also trigger when the user wants to submit an item to a registry, challenge a submission, remove an item, appeal a dispute on a registry item, deploy a new Curate registry, curate a list, browse registry entries, check whether an address is tagged, add a token to a token list, query a curated list, or fund an appeal round. Even if Curate is not mentioned, trigger when the user describes registry operations — adding entries to a list, checking item status, browsing items, querying a decentralized list — combined with Kleros context signals (Kleros, arbitrator, dispute, juror, PNK). Do NOT trigger for non-Kleros registries or generic IPFS uploads without Curate context — IPFS uploads belong to kleros-ipfs-upload. Exception: if the user explicitly names the kleros-curate skill or asks to test this skill, trigger regardless of context."
+description: 'Interact with Kleros Curate registries — the decentralized token-curated list protocol for token lists, address tags, and policy-driven curation. Use this skill when the user mentions Curate, Light Curate, LightGeneralizedTCR, LGTCR, LightCurate, Stake Curate, PermanentGTCR, PGTCR, Scout, token-curated registry, TCR, curated list, decentralized registry, registry, token list, address tags, CDN tags, Goldsky, or Solidity functions addItem, removeItem, challengeItem, challengeRequest. Covers all three flavors — Light Curate (LGTCR, optimistic challenge window), Stake Curate (PGTCR, permanent ERC20 stake), and Scout (Gnosis registries for contract/token tagging). Also trigger when the user wants to submit an item to a registry, challenge a submission, remove an item, appeal a dispute on a registry item, deploy a new Curate registry, curate a list, browse registry entries, check whether an address is tagged, add a token to a token list, query a curated list, or fund an appeal round. Even if Curate is not mentioned, trigger when the user describes registry operations — adding entries to a list, checking item status, browsing items, querying a decentralized list — combined with Kleros context signals (Kleros, arbitrator, dispute, juror, PNK). Do NOT trigger for non-Kleros registries or generic IPFS uploads without Curate context — IPFS uploads belong to kleros-ipfs-upload. Exception: if the user explicitly names the kleros-curate skill or asks to test this skill, trigger regardless of context.'
 ---
 
 # Kleros Curate
@@ -26,7 +26,7 @@ consult it if a dispute arises.
 
 - **Earn by curating**: users can profit by finding non-compliant entries in challengeable registries. In
   Stake Curate especially, successful challengers can recover their challenge deposit and win the item's stake.
-- **Launch your own verification market**: projects can create a Curate list for almost any verifiable
+- **Launch your own verification registry**: projects can create a Curate list for almost any verifiable
   standard, define their own policy, deposits, challenge windows, arbitrator/court, and governance. The result
   is a fast, low-overhead registry that can power a public Curate view or a custom frontend.
 
@@ -42,7 +42,7 @@ that submits the wrong deposit amount will have its transaction revert. Always r
   widely deployed flavor. Used by the majority of Curate registries across Ethereum and Gnosis.
 - **Stake Curate (PGTCR)** — `PermanentGTCR`: permanent ERC20 stake (not returned on item removal),
   Goldsky subgraph as primary data source, different status model (Submitted / Reincluded / Disputed / Absent
-  + withdrawal flow). Identified by PGTCR-specific hallmark read calls (see `references/stake-curate.md`).
+  - withdrawal flow). Identified by PGTCR-specific hallmark read calls (see `references/stake-curate.md`).
 - **Scout** — LGTCR contracts on Gnosis, specialized for 4 well-known registries (contract address tags,
   token lists, address tags, CDN mappings). Scout IS an overlay on LGTCR — it is not a separate contract
   type. Working with Scout always requires both `references/scout-registries.md` (Scout-specific context)
@@ -116,14 +116,15 @@ See the flavor reference file for hallmark calls — SKILL.md does not embed fun
 **Upload to IPFS** → `references/shared-ipfs-upload.md`
 
 **ABI / function signatures** → `references/shared-abi-fragments.md`
-  grep: `grep -n "function\|event" references/shared-abi-fragments.md`
+grep: `grep -n "function\|event" references/shared-abi-fragments.md`
 
 **Scout registry addresses + seed templates** → `references/scout-registries.md`
-  grep: `grep -n "0x\|ATQ\|Address Tags\|Tokens\|CDN" references/scout-registries.md`
+grep: `grep -n "0x\|ATQ\|Address Tags\|Tokens\|CDN" references/scout-registries.md`
 
 ## Common workflows
 
 **Submit an item (any flavor):**
+
 1. `references/shared-metaevidence.md` — fetch schema (columns) and policy URI
 2. `references/shared-item-json.md` — build the item.json payload
 3. `references/shared-ipfs-upload.md` — upload item.json to IPFS, get CID
@@ -131,18 +132,21 @@ See the flavor reference file for hallmark calls — SKILL.md does not embed fun
 5. Flavor reference (`light-curate.md` or `stake-curate.md`) — send the addItem transaction
 
 **Challenge or remove an item:**
+
 1. `references/shared-metaevidence.md` — fetch the applicable policy (clearing policy for removal; registration policy for challenge)
 2. `references/shared-ipfs-upload.md` — upload evidence JSON to IPFS
 3. `references/shared-deposits.md` — compute the challenge deposit
 4. Flavor reference — send the challenge or removeItem transaction
 
 **Deploy a new registry:**
+
 1. `references/shared-metaevidence.md` - prepare valid MetaEvidence JSON (policy URI + column schema + logoURI)
 2. `references/shared-ipfs-upload.md` — upload MetaEvidence JSON to IPFS
 3. Flavor reference — call the factory deploy function
 4. `references/verify-your-list.md` - submit the new registry to the network's list-of-lists if frontend visibility is required
 
 **Frontend visibility after deployment:**
+
 - Deploying a registry does not automatically make it visible on the Curate frontend.
 - Verifying a list gives it more visibility, makes it findable in the frontend, and marks it as a listed
   registry for users.

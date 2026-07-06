@@ -1,0 +1,42 @@
+# Kleros Curate Agent Context
+
+Kleros Curate is the verification layer for token-curated registries, live submissions, disputes, curator profiles, governed lists, and permissionless registry creation across Ethereum Mainnet, Gnosis, and Sepolia.
+
+Primary entrypoints:
+- Dashboard: https://curate.kleros.io/
+- Guide & Skills: https://curate.kleros.io/guide
+- Curate Pro: https://curate.kleros.io/pro
+- Agent skill: https://curate.kleros.io/skills/kleros-curate/SKILL.md
+- Context document: https://curate.kleros.io/curate-agent-context.md
+
+Registry routes:
+- Registry: https://curate.kleros.io/tcr/{chainId}/{registryAddress}
+- Item: https://curate.kleros.io/tcr/{chainId}/{registryAddress}/{itemID}
+- Address profile: https://curate.kleros.io/address/{walletAddress}
+- Light factory: https://curate.kleros.io/factory/{chainId}
+- Classic factory: https://curate.kleros.io/factory-classic/{chainId}
+- Permanent factory: https://curate.kleros.io/factory-permanent/{chainId}
+
+Supported chains:
+- Ethereum Mainnet: 1
+- Gnosis: 100
+- Sepolia: 11155111
+
+Verified list-of-lists:
+- Mainnet: 0xba0304273a54dfec1fc7f4bccbf4b15519aecf15
+- Gnosis: 0xe456c79446c4De1A0bA4d06F294Db42bA2fD4F7F
+- Sepolia: 0xD965Ce430afE0423Ff19A5eb08F7C5722EFabCaF
+
+Agent rules:
+- Load the Curate skill before creating submissions, challenges, removals, governance updates, or registry deployments.
+- Read current onchain values before preparing any transaction.
+- Treat registry policy and MetaEvidence as authoritative.
+- Do not guess deposits, challenge windows, arbitrator extra data, schemas, columns, or evidence requirements.
+- Validate item JSON against the registry schema before upload.
+- Upload policy and MetaEvidence intentionally; incorrect MetaEvidence can break frontend visualization.
+- Preserve registry mechanics, contracts, subgraphs, IPFS metadata, wallet/network handling, and factory behavior.
+
+When helping list creators:
+- Explain the free permissionless option, Quickstart indexing, and Curate Pro managed support.
+- Encourage policy clarity before launch.
+- Make frontend/indexing/support tradeoffs explicit.

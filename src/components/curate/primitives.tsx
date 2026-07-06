@@ -36,17 +36,12 @@ export const Surface = styled.div<{
 }>`
   position: relative;
   overflow: hidden;
-  background:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, ${({ $tone }) => ($tone === 'strong' ? 0.08 : 0.055)})
-        0%,
-      rgba(255, 255, 255, 0.025) 100%
-    ),
-    var(--curate-surface);
+  background: ${({ $tone }) =>
+    $tone === 'strong' ? 'var(--curate-card)' : 'var(--curate-panel)'};
   border: 1px solid var(--curate-border);
   border-radius: var(--curate-radius);
   box-shadow: var(--curate-shadow);
+  backdrop-filter: blur(24px);
   transition:
     border-color 160ms ease,
     background 160ms ease,
@@ -84,7 +79,7 @@ export const DashboardHero = styled(Surface)`
       radial-gradient(circle, rgba(76, 201, 240, 0.16), transparent 55%),
       radial-gradient(
         circle at 35% 35%,
-        rgba(124, 92, 255, 0.18),
+        rgba(108, 161, 255, 0.18),
         transparent 45%
       );
     pointer-events: none;
@@ -101,12 +96,12 @@ export const Eyebrow = styled.div`
   gap: 8px;
   min-height: 28px;
   padding: 6px 10px;
-  border: 1px solid rgba(76, 201, 240, 0.2);
+  border: 1px solid rgba(0, 163, 255, 0.24);
   border-radius: 999px;
-  background: rgba(76, 201, 240, 0.08);
+  background: rgba(0, 163, 255, 0.08);
   color: var(--curate-live);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 `
@@ -134,7 +129,7 @@ export const HeroTitle = styled.h1`
   color: var(--curate-text);
   font-size: clamp(44px, 7vw, 82px);
   line-height: 0.96;
-  font-weight: 800;
+  font-weight: 900;
   letter-spacing: 0;
 `
 
@@ -161,16 +156,17 @@ export const SearchShell = styled.div`
   min-height: 46px;
   padding: 0 14px;
   border: 1px solid var(--curate-border);
-  border-radius: 14px;
-  background: rgba(3, 6, 14, 0.62);
+  border-radius: 18px;
+  background: var(--curate-field);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.045);
   color: var(--curate-muted);
   transition:
     border-color 160ms ease,
     background 160ms ease;
 
   &:focus-within {
-    border-color: rgba(76, 201, 240, 0.55);
-    background: rgba(3, 6, 14, 0.82);
+    border-color: var(--curate-border-strong);
+    background: rgba(2, 6, 12, 0.92);
   }
 
   input {
@@ -218,7 +214,8 @@ export const MetricIcon = styled.div<{
   justify-content: center;
   width: 38px;
   height: 38px;
-  border-radius: 12px;
+  border: 1px solid currentColor;
+  border-radius: 13px;
   color: ${({ $tone }) =>
     $tone === 'success'
       ? 'var(--curate-success)'
@@ -229,10 +226,10 @@ export const MetricIcon = styled.div<{
           : $tone === 'violet'
             ? 'var(--curate-violet)'
             : 'var(--curate-live)'};
-  background: currentColor;
+  background: color-mix(in srgb, currentColor 12%, transparent);
 
   svg {
-    color: #06101a;
+    color: currentColor;
   }
 `
 
@@ -241,7 +238,7 @@ export const MetricValue = styled.div`
   color: var(--curate-text);
   font-size: 30px;
   line-height: 1;
-  font-weight: 800;
+  font-weight: 900;
   font-variant-numeric: tabular-nums;
 `
 
@@ -249,7 +246,7 @@ export const MetricLabel = styled.div`
   margin-top: 7px;
   color: var(--curate-muted);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 850;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 `
