@@ -1,13 +1,12 @@
 import { Skeleton, Button } from 'components/ui'
 import styled, { css } from 'styled-components'
 import { smallScreenStyle } from 'styles/small-screen-style'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import useUrlChainId from 'hooks/use-url-chain-id'
 import React from 'react'
 import useDocumentHead from 'hooks/use-document-head'
 import { capitalizeFirstLetter } from 'utils/string'
 import ContractExplorerUrl from 'components/contract-explorer-url'
-import { defaultTcrAddresses } from 'config/tcr-addresses'
 import { parseIpfs } from 'utils/ipfs-parse'
 import { truncateAtWord } from 'utils/truncate-at-word'
 import { useAttachment } from 'hooks/use-attachment'
@@ -20,18 +19,13 @@ import { NETWORKS_INFO } from 'config/networks'
 export const StyledBanner = styled.div`
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  padding: clamp(22px, 3vw, 34px);
-  background:
-    linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.075),
-      rgba(255, 255, 255, 0.025)
-    ),
-    var(--curate-surface);
-  border: 1px solid var(--curate-border);
-  border-radius: var(--curate-radius);
-  box-shadow: var(--curate-shadow);
-  color: var(--curate-text);
+  padding: clamp(20px, 3vw, 32px);
+  background: var(--v2-card);
+  border: 1px solid var(--v2-stroke);
+  border-top: 5px solid var(--v2-purple);
+  border-radius: 3px;
+  box-shadow: var(--v2-shadow);
+  color: var(--v2-text);
   justify-content: space-between;
   align-items: stretch;
   gap: clamp(18px, 4vw, 44px);
@@ -45,22 +39,6 @@ export const StyledBanner = styled.div`
   margin: 24px auto 0;
   overflow: hidden;
 
-  &::before {
-    content: '';
-    position: absolute;
-    inset: -40% -10% auto auto;
-    width: 440px;
-    height: 440px;
-    background:
-      radial-gradient(circle, rgba(76, 201, 240, 0.12), transparent 55%),
-      radial-gradient(
-        circle at 38% 40%,
-        rgba(124, 92, 255, 0.16),
-        transparent 48%
-      );
-    pointer-events: none;
-  }
-
   ${smallScreenStyle(
     () => css`
       grid-template-columns: 1fr;
@@ -70,19 +48,20 @@ export const StyledBanner = styled.div`
 
 export const StyledButton = styled(Button)`
   text-transform: capitalize;
-  font-weight: 850;
+  font-weight: 600;
 `
 
 export const TCRInfoColumn = styled.div`
   position: relative;
   z-index: 1;
-  display: flex;
-  flex-direction: column;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 125px minmax(0, 1fr);
+  gap: 18px;
   max-width: 940px;
 
   ${smallScreenStyle(
     () => css`
+      grid-template-columns: 1fr;
       max-width: 100%;
     `,
   )}
@@ -90,12 +69,29 @@ export const TCRInfoColumn = styled.div`
 
 export const StyledImage = styled.img`
   object-fit: contain;
-  height: 64px;
-  width: 64px;
-  padding: 8px;
-  border: 1px solid var(--curate-border);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.06);
+  height: 125px;
+  width: 125px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+`
+
+export const LogoFallback = styled.div`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 125px;
+  width: 125px;
+  border: 1px solid var(--v2-stroke);
+  border-radius: 3px;
+  background: var(--v2-soft);
+  color: var(--v2-blue);
+
+  svg {
+    width: 36px;
+    height: 36px;
+  }
 `
 
 export const TitleContainer = styled.div`
@@ -110,10 +106,10 @@ export const StyledTitle = styled.h1`
   flex-wrap: wrap;
   align-items: center;
   margin: 0;
-  font-size: clamp(30px, 4vw, 48px);
-  line-height: 1.05;
-  font-weight: 850;
-  color: var(--curate-text);
+  font-size: clamp(24px, 3vw, 34px);
+  line-height: 1.22;
+  font-weight: 600;
+  color: var(--v2-text);
 `
 
 export const StyledDescription = styled.span`
@@ -122,7 +118,7 @@ export const StyledDescription = styled.span`
   max-width: 900px;
   font-size: 15px;
   line-height: 1.65;
-  color: var(--curate-muted);
+  color: var(--v2-muted);
 `
 
 export const StyledPolicyAnchor = styled.a`
@@ -132,18 +128,18 @@ export const StyledPolicyAnchor = styled.a`
   gap: 8px;
   min-height: 38px;
   padding: 0 12px;
-  border: 1px solid var(--curate-border);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--v2-stroke);
+  border-radius: 7px;
+  background: var(--v2-card);
   margin-top: 12px;
   text-decoration: none;
   font-size: 13px;
-  font-weight: 800;
-  color: var(--curate-live);
+  font-weight: 600;
+  color: var(--v2-blue);
 
   &:hover {
-    color: var(--curate-text);
-    border-color: var(--curate-border-strong);
+    color: var(--v2-blue-hover);
+    border-color: var(--v2-blue);
   }
 `
 
@@ -164,16 +160,16 @@ export const ActionCol = styled.div`
 `
 
 export const StyledLink = styled(Link)`
-  color: var(--curate-live);
+  color: var(--v2-blue);
   text-decoration: none;
 
   &:hover {
-    color: var(--curate-text);
+    color: var(--v2-blue-hover);
   }
 `
 
 const StyledTermsLink = styled.a`
-  color: var(--curate-live);
+  color: var(--v2-blue);
   text-decoration: underline;
 `
 
@@ -182,7 +178,13 @@ interface TCRLogoProps {
 }
 
 const TCRLogo = ({ logoURI }: TCRLogoProps) =>
-  logoURI && <StyledImage src={parseIpfs(logoURI)} alt="item" />
+  logoURI ? (
+    <StyledImage src={parseIpfs(logoURI)} alt="item" />
+  ) : (
+    <LogoFallback>
+      <CurateIcon name="registry" size={36} />
+    </LogoFallback>
+  )
 
 // Registry-specific terms and conditions URLs
 const TERMS_AND_CONDITIONS_URLS = {
@@ -267,7 +269,7 @@ const Banner = ({
   tcrAddress,
 }: BannerProps) => {
   const networkId = useUrlChainId()
-  const defaultTCRAddress = defaultTcrAddresses[networkId]
+  const navigate = useNavigate()
   const networkInfo =
     networkId && NETWORKS_INFO[networkId as keyof typeof NETWORKS_INFO]
   const openAttachment = useAttachment()
@@ -298,28 +300,28 @@ const Banner = ({
         <TCRInfoColumn id="tcr-info-column">
           {metadata ? (
             <>
-              <TitleContainer>
-                <StyledTitle>{title}</StyledTitle>
-                {defaultTCRAddress && tcrAddress !== defaultTCRAddress && (
-                  <TCRLogo logoURI={logoURI} />
-                )}
-                {networkInfo && (
-                  <ChainChip $color={networkInfo.color}>
-                    {networkInfo.name}
-                  </ChainChip>
-                )}
-                <StatusPill $tone="live">Permanent</StatusPill>
-                <ContractExplorerUrl
-                  networkId={networkId}
-                  contractAddress={tcrAddress}
-                />
-              </TitleContainer>
-              <StyledDescription>
-                <DescriptionWithTermsLink
-                  description={capitalizeFirstLetter(normalizedDescription)}
-                  tcrAddress={tcrAddress}
-                />
-              </StyledDescription>
+              <TCRLogo logoURI={logoURI} />
+              <div>
+                <TitleContainer>
+                  <StyledTitle>{title}</StyledTitle>
+                  {networkInfo && (
+                    <ChainChip $color={networkInfo.color}>
+                      {networkInfo.name}
+                    </ChainChip>
+                  )}
+                  <StatusPill $tone="live">Permanent</StatusPill>
+                  <ContractExplorerUrl
+                    networkId={networkId}
+                    contractAddress={tcrAddress}
+                  />
+                </TitleContainer>
+                <StyledDescription>
+                  <DescriptionWithTermsLink
+                    description={capitalizeFirstLetter(normalizedDescription)}
+                    tcrAddress={tcrAddress}
+                  />
+                </StyledDescription>
+              </div>
             </>
           ) : (
             <>
@@ -332,7 +334,11 @@ const Banner = ({
           <StyledButton
             type="primary"
             size="large"
-            onClick={() => setSubmissionFormOpen(true)}
+            onClick={() => {
+              if (networkId && tcrAddress)
+                navigate(`/tcr/${networkId}/${tcrAddress}/submit`)
+              else setSubmissionFormOpen(true)
+            }}
             id="submit-item-button"
           >
             <CurateIcon name="submit" size={18} />

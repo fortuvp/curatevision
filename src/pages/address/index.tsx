@@ -10,7 +10,7 @@ import { useAtlasProvider } from '@kleros/kleros-app'
 import classicAbi from 'assets/abis/GeneralizedTCR.json'
 import lightAbi from 'assets/abis/LightGeneralizedTCR.json'
 import permanentAbi from 'assets/abis/PermanentGTCR.json'
-import { Button, Modal } from 'components/ui'
+import { Button, Modal, Tooltip } from 'components/ui'
 import { CurateIcon, CurateIconName } from 'components/curate/icons'
 import EnsureAuth from 'components/ensure-auth'
 import { NETWORKS_INFO } from 'config/networks'
@@ -42,16 +42,15 @@ const Page = styled.main`
   max-width: 1480px;
   margin: 0 auto;
   padding: 24px var(--horizontal-padding) 56px;
-  color: var(--curate-text);
+  color: var(--v2-text);
 `
 
 const Surface = styled.section`
   overflow: hidden;
-  border: 1px solid var(--curate-border);
-  border-radius: var(--curate-radius);
-  background: var(--curate-panel);
-  box-shadow: var(--curate-shadow);
-  backdrop-filter: blur(24px);
+  border: 1px solid var(--v2-stroke);
+  border-radius: 3px;
+  background: var(--v2-card);
+  box-shadow: var(--v2-shadow);
 `
 
 const Hero = styled(Surface)`
@@ -61,7 +60,8 @@ const Hero = styled(Surface)`
   grid-template-columns: minmax(0, 1fr) 360px;
   gap: 20px;
   align-items: end;
-  background: var(--curate-panel);
+  background: var(--v2-card);
+  border-top: 5px solid var(--v2-purple);
 
   @media (max-width: 980px) {
     grid-template-columns: 1fr;
@@ -74,22 +74,22 @@ const Eyebrow = styled.div`
   gap: 8px;
   min-height: 28px;
   padding: 0 10px;
-  border: 1px solid rgba(0, 163, 255, 0.24);
-  border-radius: 999px;
-  color: var(--curate-live);
-  background: rgba(0, 163, 255, 0.075);
+  border: 1px solid var(--v2-stroke);
+  border-radius: 3px;
+  color: var(--v2-blue);
+  background: var(--v2-blue-soft);
   font-size: 11px;
-  font-weight: 850;
-  letter-spacing: 0.08em;
+  font-weight: 700;
+  letter-spacing: 0;
   text-transform: uppercase;
 `
 
 const Title = styled.h1`
   margin: 18px 0 10px;
-  color: var(--curate-text);
-  font-size: clamp(38px, 5.6vw, 70px);
-  line-height: 0.98;
-  font-weight: 900;
+  color: var(--v2-text);
+  font-size: clamp(30px, 4.6vw, 48px);
+  line-height: 1.12;
+  font-weight: 600;
   letter-spacing: 0;
   overflow-wrap: anywhere;
 `
@@ -97,16 +97,16 @@ const Title = styled.h1`
 const Subtitle = styled.p`
   max-width: 760px;
   margin: 0;
-  color: var(--curate-muted);
+  color: var(--v2-muted);
   font-size: 16px;
   line-height: 1.65;
 `
 
 const HeroCard = styled.div`
   padding: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
-  background: rgba(1, 4, 9, 0.56);
+  border: 1px solid var(--v2-stroke);
+  border-radius: 3px;
+  background: var(--v2-soft);
 `
 
 const Grid = styled.section`
@@ -370,9 +370,10 @@ const RegistryGovernanceCard = styled.div`
   min-height: 220px;
   display: flex;
   flex-direction: column;
-  border: 1px solid rgba(255, 255, 255, 0.075);
-  border-radius: 16px;
-  background: rgba(1, 4, 9, 0.45);
+  border: 1px solid var(--v2-stroke);
+  border-radius: 3px;
+  background: var(--v2-card);
+  box-shadow: var(--v2-shadow);
 `
 
 const RegistryHead = styled.div`
@@ -402,9 +403,9 @@ const RegistryMetaGrid = styled.div`
 const RegistryMetaBox = styled.div`
   min-width: 0;
   padding: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--v2-stroke);
+  border-radius: 3px;
+  background: var(--v2-soft);
 `
 
 const RegistryActions = styled.div`
@@ -419,9 +420,9 @@ const ProfileTabs = styled.div`
   gap: 6px;
   margin-top: 18px;
   padding: 5px;
-  border: 1px solid var(--curate-border);
-  border-radius: 14px;
-  background: rgba(1, 4, 9, 0.56);
+  border: 1px solid var(--v2-stroke);
+  border-radius: 3px;
+  background: var(--v2-card);
 
   @media (max-width: 620px) {
     display: grid;
@@ -438,24 +439,22 @@ const ProfileTabButton = styled.button<{ $active?: boolean }>`
   min-height: 40px;
   padding: 0 16px;
   border: 1px solid
-    ${({ $active }) =>
-      $active ? 'rgba(0, 163, 255, 0.34)' : 'rgba(255, 255, 255, 0)'};
-  border-radius: 10px;
-  color: ${({ $active }) =>
-    $active ? 'var(--curate-text)' : 'var(--curate-muted)'};
+    ${({ $active }) => ($active ? 'var(--v2-blue)' : 'transparent')};
+  border-radius: 3px;
+  color: ${({ $active }) => ($active ? 'var(--v2-text)' : 'var(--v2-muted)')};
   background: ${({ $active }) =>
-    $active ? 'rgba(0, 163, 255, 0.1)' : 'transparent'};
+    $active ? 'var(--v2-blue-soft)' : 'transparent'};
   cursor: pointer;
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 600;
   transition:
     border-color 160ms ease,
     color 160ms ease,
     background 160ms ease;
 
   &:hover {
-    color: var(--curate-text);
-    background: rgba(255, 255, 255, 0.055);
+    color: var(--v2-text);
+    background: var(--v2-soft);
   }
 `
 
@@ -488,10 +487,10 @@ const Input = styled.input`
   width: 100%;
   min-height: 38px;
   padding: 0 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 11px;
-  color: var(--curate-text);
-  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--v2-stroke);
+  border-radius: 3px;
+  color: var(--v2-text);
+  background: var(--v2-card);
   font-size: 13px;
   font-weight: 650;
 
@@ -506,10 +505,10 @@ const SelectInput = styled.select`
   width: 100%;
   min-height: 38px;
   padding: 0 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 11px;
-  color: var(--curate-text);
-  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--v2-stroke);
+  border-radius: 3px;
+  color: var(--v2-text);
+  background: var(--v2-card);
   font-size: 13px;
   font-weight: 650;
 
@@ -526,6 +525,45 @@ const InlineGrid = styled.div`
 
   @media (max-width: 780px) {
     grid-template-columns: 1fr;
+  }
+`
+
+const LabeledControl = styled.label`
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+`
+
+const ControlLabel = styled.span`
+  color: var(--curate-muted);
+  font-size: 11px;
+  font-weight: 800;
+`
+
+const HelpTrigger = styled.span`
+  width: 18px;
+  height: 18px;
+  display: inline-grid;
+  place-items: center;
+  margin-left: 6px;
+  border: 1px solid var(--v2-stroke);
+  border-radius: 50%;
+  color: var(--v2-blue);
+  background: var(--v2-soft);
+  cursor: help;
+  font-size: 11px;
+  font-weight: 900;
+`
+
+const CourtSummary = styled.div`
+  display: grid;
+  gap: 5px;
+  color: var(--curate-muted);
+  font-size: 12px;
+  line-height: 1.5;
+
+  strong {
+    color: var(--v2-text);
   }
 `
 
@@ -557,11 +595,11 @@ const UploadButtonLabel = styled.label<{ $disabled?: boolean }>`
   align-items: center;
   gap: 7px;
   padding: 0 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 10px;
+  border: 1px solid var(--v2-stroke);
+  border-radius: 3px;
   color: ${({ $disabled }) =>
-    $disabled ? 'var(--curate-faint)' : 'var(--curate-text)'};
-  background: rgba(255, 255, 255, 0.055);
+    $disabled ? 'var(--v2-faint)' : 'var(--v2-text)'};
+  background: var(--v2-soft);
   cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
   font-size: 12px;
   font-weight: 850;
@@ -670,20 +708,18 @@ const formatDate = (timestamp?: number) => {
 }
 
 const editableParams = (registry: GovernedRegistry): ParamConfig[] => {
+  const permanentTokenLabel =
+    registry.params?.tokenSymbol ||
+    (registry.token ? shortAddress(registry.token) : 'registry token')
+
   if (registry.kind === 'permanent')
     return [
       {
-        key: 'policyURI',
-        label: 'MetaEvidence URI',
-        kind: 'policy',
-        functionName: 'changeArbitrationParams',
-        hint: 'Advanced users only: this must point to valid Curate MetaEvidence. A wrong URI may break frontend visualization for this registry.',
-      },
-      {
         key: 'submissionMinDeposit',
-        label: `Submission minimum deposit (${nativeSymbol(registry.chainId)})`,
+        label: `Submission minimum deposit (${permanentTokenLabel})`,
         kind: 'wei',
         functionName: 'changeSubmissionMinDeposit',
+        hint: 'Permanent lists use their configured staking token, which may differ from the chain native currency.',
       },
       {
         key: 'submissionPeriod',
@@ -736,19 +772,17 @@ const editableParams = (registry: GovernedRegistry): ParamConfig[] => {
     ]
 
   return [
-    {
-      key: 'policyURI',
-      label: 'MetaEvidence URI',
-      kind: 'policy',
-      functionName:
-        registry.kind === 'light'
-          ? 'changeArbitrationParams'
-          : 'changeMetaEvidence',
-      hint:
-        registry.kind === 'light'
-          ? 'Advanced users only: this updates registration and clearing MetaEvidence to the same URI while keeping current arbitration params. A wrong URI may break frontend visualization.'
-          : 'Advanced users only: this updates registration and clearing MetaEvidence to the same URI. A wrong URI may break frontend visualization.',
-    },
+    ...(registry.kind === 'classic'
+      ? [
+          {
+            key: 'policyURI' as ParamKey,
+            label: 'MetaEvidence URI',
+            kind: 'policy' as ParamKind,
+            functionName: 'changeMetaEvidence',
+            hint: 'Advanced users only: this updates registration and clearing MetaEvidence to the same URI. A wrong URI may break frontend visualization.',
+          },
+        ]
+      : []),
     {
       key: 'submissionBaseDeposit',
       label: `Submission deposit (${nativeSymbol(registry.chainId)})`,
@@ -918,13 +952,18 @@ const ArbitrationGovernanceField = ({
   const { data: walletClient } = useWalletClient()
   const chainProvider = useEthersProvider({ chainId: registry.chainId })
   const knownKleros = klerosAddresses[registry.chainId]
-  const { data: courts = [] } = useCourtPolicies(
-    knownKleros?.policy,
-    chainProvider ?? null,
-  )
   const [arbitrator, setArbitrator] = useState(
     registry.params?.arbitrator || knownKleros?.arbitrator || '',
   )
+  const courtArbitrator =
+    registry.kind === 'permanent' ? knownKleros?.arbitrator : arbitrator
+  const { data: courts = [] } = useCourtPolicies(
+    knownKleros?.policy,
+    chainProvider ?? null,
+    courtArbitrator,
+  )
+  const currentMetaEvidenceURI =
+    registry.params?.metaEvidenceURI || registry.metaEvidenceURI || ''
   const [extraData, setExtraData] = useState(
     registry.params?.arbitratorExtraData || '0x',
   )
@@ -932,7 +971,7 @@ const ArbitrationGovernanceField = ({
   const [jurors, setJurors] = useState('3')
   const [registrationMetaEvidence, setRegistrationMetaEvidence] = useState('')
   const [clearingMetaEvidence, setClearingMetaEvidence] = useState('')
-  const [metaEvidence, setMetaEvidence] = useState('')
+  const [metaEvidence, setMetaEvidence] = useState(currentMetaEvidenceURI)
   const [pending, setPending] = useState(false)
 
   useEffect(() => {
@@ -1017,10 +1056,30 @@ const ArbitrationGovernanceField = ({
   }
 
   const disabled = !editable || pending || !walletClient
+  const selectedCourt = courts.find(
+    (court) => String(court.courtID) === courtID,
+  )
+  const nativeSymbol =
+    NETWORKS_INFO[registry.chainId]?.nativeCurrency?.symbol || 'native token'
+  const feePerJuror = selectedCourt?.feeForJuror
+    ? Number(formatEther(BigInt(selectedCourt.feeForJuror))).toLocaleString(
+        undefined,
+        { maximumFractionDigits: 6 },
+      )
+    : null
+  const arbitrationHelp =
+    "Court selection rewrites arbitrator extra data automatically. Light and permanent contracts update arbitration parameters together with MetaEvidence, so those URIs are required for this transaction. MetaEvidence is intended for advanced users: an invalid URI may break this registry's frontend presentation."
 
   return (
     <>
-      <SectionTitle>Arbitration and court</SectionTitle>
+      <SectionTitle>
+        Arbitration and court
+        <Tooltip title={arbitrationHelp} placement="right">
+          <HelpTrigger aria-label="About arbitration and court settings">
+            ?
+          </HelpTrigger>
+        </Tooltip>
+      </SectionTitle>
       <FieldRow>
         <FieldLabel>
           {registry.kind === 'permanent'
@@ -1037,28 +1096,53 @@ const ArbitrationGovernanceField = ({
             />
           )}
           <InlineGrid>
-            <SelectInput
-              value={courtID}
-              disabled={!editable || pending || courts.length === 0}
-              onChange={(event) => updateCourt(event.currentTarget.value)}
-            >
-              <option value="">
-                {courts.length > 0 ? 'Select court' : 'Court list unavailable'}
-              </option>
-              {courts.map((court) => (
-                <option key={court.value} value={court.value}>
-                  {court.label}
+            <LabeledControl>
+              <ControlLabel>Court</ControlLabel>
+              <SelectInput
+                value={courtID}
+                disabled={!editable || pending || courts.length === 0}
+                onChange={(event) => updateCourt(event.currentTarget.value)}
+              >
+                <option value="">
+                  {courts.length > 0
+                    ? 'Select court'
+                    : 'Court list unavailable'}
                 </option>
-              ))}
-            </SelectInput>
-            <Input
-              value={jurors}
-              disabled={!editable || pending}
-              onChange={(event) => updateJurors(event.currentTarget.value)}
-              placeholder="Jurors"
-              inputMode="numeric"
-            />
+                {courts.map((court) => (
+                  <option key={court.value} value={court.value}>
+                    {court.label} · ID {court.courtID}
+                  </option>
+                ))}
+              </SelectInput>
+            </LabeledControl>
+            <LabeledControl>
+              <ControlLabel>Number of jurors</ControlLabel>
+              <Input
+                value={jurors}
+                disabled={!editable || pending}
+                onChange={(event) => updateJurors(event.currentTarget.value)}
+                placeholder="Number of jurors"
+                inputMode="numeric"
+                aria-label="Number of jurors"
+              />
+            </LabeledControl>
           </InlineGrid>
+          {selectedCourt && (
+            <CourtSummary>
+              <span>
+                {selectedCourt.description ||
+                  `${selectedCourt.label} handles disputes submitted to this court.`}
+              </span>
+              <span>
+                Fee per juror:{' '}
+                <strong>
+                  {feePerJuror
+                    ? `${feePerJuror} ${nativeSymbol}`
+                    : 'Unavailable'}
+                </strong>
+              </span>
+            </CourtSummary>
+          )}
           <Input
             value={extraData}
             disabled
@@ -1090,20 +1174,13 @@ const ArbitrationGovernanceField = ({
               value={metaEvidence}
               disabled={!editable || pending}
               onChange={(event) => setMetaEvidence(event.currentTarget.value)}
-              placeholder="MetaEvidence URI"
+              placeholder="Current MetaEvidence URI"
             />
           )}
         </div>
         <Button type="primary" size="small" disabled={disabled} onClick={save}>
           Save
         </Button>
-        <FieldHint>
-          Court selection rewrites arbitrator extra data automatically. Light
-          and permanent contracts update arbitration params together with
-          MetaEvidence, so those URIs are required for this transaction.
-          MetaEvidence is for advanced users: a wrong URI may break frontend
-          visualization for this registry.
-        </FieldHint>
       </FieldRow>
     </>
   )
@@ -1299,7 +1376,8 @@ const GovernanceUpdateModal = ({
 }
 
 const CourtDisplay = ({ registry }: { registry: GovernedRegistry }) => {
-  const extraData = registry.params?.arbitratorExtraData
+  const extraData =
+    registry.params?.arbitratorExtraData || registry.arbitratorExtraData
   const knownKleros = klerosAddresses[registry.chainId]
   const chainProvider = useEthersProvider({ chainId: registry.chainId })
   const { data: courts = [] } = useCourtPolicies(
@@ -1309,14 +1387,20 @@ const CourtDisplay = ({ registry }: { registry: GovernedRegistry }) => {
 
   if (!extraData || extraData === '0x') return <>Unavailable</>
 
-  const decoded = jurorsAndCourtIDFromExtraData(extraData)
+  let decoded: ReturnType<typeof jurorsAndCourtIDFromExtraData>
+  try {
+    decoded = jurorsAndCourtIDFromExtraData(extraData)
+  } catch {
+    return <>Court data unavailable</>
+  }
   const court = courts.find(
     (item) => String(item.courtID) === String(decoded.courtID),
   )
 
   return (
     <>
-      {court?.label || `Court ${decoded.courtID}`}
+      {court?.label || 'Court'}
+      {` · ID ${decoded.courtID}`}
       {decoded.numberOfJurors ? ` · ${decoded.numberOfJurors} jurors` : ''}
     </>
   )
@@ -1417,8 +1501,7 @@ const GovernancePanel = ({
                       {editable ? 'Update list' : 'Connect governor'}
                     </Button>
                     <Button
-                      as={Link as any}
-                      to={`/tcr/${registry.chainId}/${registry.address}`}
+                      href={`/tcr/${registry.chainId}/${registry.address}`}
                       size="small"
                     >
                       Open list

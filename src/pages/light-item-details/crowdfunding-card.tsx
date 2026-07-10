@@ -17,17 +17,14 @@ const { formatEther } = ethers.utils
 import useNativeCurrency from 'hooks/native-currency'
 
 export const StyledCard = styled(Card)`
-  background: linear-gradient(
-    111.6deg,
-    ${({ theme }) => theme.gradientStart} 46.25%,
-    ${({ theme }) => theme.gradientEnd} 96.25%
-  ) !important;
-  border-color: transparent !important;
-  color: white;
+  background: var(--v2-card) !important;
+  border-top: 5px solid var(--v2-purple) !important;
+  border-color: var(--v2-stroke) !important;
+  color: var(--v2-text);
   margin: 40px 0 20px !important;
 
   & > .ui-card-body {
-    background: transparent !important;
+    background: var(--v2-card) !important;
   }
 `
 
@@ -58,12 +55,12 @@ export const StyledSection = styled.div`
 `
 
 export const StyledTitle = styled(Typography.Title)`
-  color: white !important;
+  color: var(--v2-text) !important;
   text-align: center;
 `
 
 export const StyledParagraph = styled(Typography.Paragraph)`
-  color: white;
+  color: var(--v2-muted);
   text-align: center;
 `
 

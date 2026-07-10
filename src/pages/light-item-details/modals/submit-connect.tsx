@@ -35,7 +35,12 @@ import EnsureAuth from 'components/ensure-auth'
 import { wrapWithToast, errorToast } from 'utils/wrap-with-toast'
 import { parseWagmiError } from 'utils/parse-wagmi-error'
 import { wagmiConfig } from 'config/wagmi'
-import { StyledModal, StyledSpin, InsufficientBalanceText } from './challenge'
+import { StyledSpin, InsufficientBalanceText } from './challenge'
+import {
+  StyledModal,
+  SubmissionFlowScaffold,
+  SubmissionNavigation,
+} from './submit'
 
 export const StyledAlert = styled(Alert)`
   margin-bottom: 24px;
@@ -282,144 +287,155 @@ const SubmitConnectModal = (props: SubmitConnectModalProps) => {
     )
 
   return (
-    <StyledModal
-      title="Enable Badge"
-      footer={[
-        <Button key="back" onClick={onCancel}>
-          Back
-        </Button>,
-        <div key="submit">
-          <EnsureAuth>
-            <Button
-              type="primary"
-              htmlType="submit"
-              onClick={handleSubmit}
-              disabled={submitDisabled || !!insufficientBalance}
-              loading={isSubmitting}
-            >
-              Submit
-            </Button>
-          </EnsureAuth>
-          {insufficientBalance && (
-            <InsufficientBalanceText>
-              Insufficient balance
-            </InsufficientBalanceText>
-          )}
-        </div>,
-      ]}
-      {...props}
-    >
-      <Typography.Title level={4}>
-        Read the&nbsp;
-        <ListingCriteriaLink fileURI={fileURI}>
-          Listing Criteria
-        </ListingCriteriaLink>
-        .
-      </Typography.Title>
-      <Form.Item
-        label={
-          <span>
-            Parent list Address&nbsp;
-            <Tooltip title="Fill with the address of the parent list.">
-              <Icon type="question-circle-o" />
-            </Tooltip>
-          </span>
-        }
-        style={{ marginBottom: '12px' }}
-      >
-        {initialValues ? (
-          <Input value={initialValues[0]} disabled />
-        ) : (
-          <Input
-            placeholder="0x1337deadbeef..."
-            onChange={(e) => setTCRAddr(e.target.value)}
-          />
-        )}
-      </Form.Item>
-      <Form.Item
-        label={
-          <span>
-            Badge list address&nbsp;
-            <Tooltip title="Fill here the address of the badge list.">
-              <Icon type="question-circle-o" />
-            </Tooltip>
-          </span>
-        }
-      >
-        <Input
-          placeholder="0xbeafb047beef..."
-          onChange={(e) => setBadgeTCRAddr(e.target.value)}
-          disabled={!tcrMetaEvidence}
-        />
-      </Form.Item>
-      <StyledAlert
-        message="Understand Badges"
-        description="An item has a badge if it is also present on the badge list. As an example, a token submission 'PNK' on a list of Tokens can display the ERC20 Badge if the same submission is also present on the ERC20 Badge list. To check if an item is present on two lists we must match common fields. In the example we would choose field 'Address'. The comparison is strict, in other words, if multiple fields are matched, ALL values must match perfectly. In general, you should use the least amount of columns that are enough to uniquely identify a submission on both lists to avoid items not being detected due to (for example, case differences)."
-        type="info"
-        showIcon
-      />
-      <Typography.Paragraph>
-        Match at least one ID column of the parent list to use to when searching
-        for the item in the badge list. The more fields matched, the stricter
-        the search.
-      </Typography.Paragraph>
-      {badgeTCRMetadata &&
-        badgeTCRMetadata.columns.map((column, i) => (
-          <Row key={i} gutter={[8, 8]}>
-            <Col span={12}>
-              <span>
-                {column.label}
-                {column.description && (
-                  <Tooltip title={addPeriod(column.description)}>
-                    &nbsp;
-                    <Icon type="question-circle-o" />
-                  </Tooltip>
-                )}
-              </span>
-            </Col>
-            <Col span={12}>
-              {tcrMetaEvidence.metadata ? (
-                <Select
-                  defaultValue={NONE}
-                  style={{ width: '100%' }}
-                  onChange={(_, { key }) => handleChange(i, key)}
-                  disabled={!column.isIdentifier}
+    <StyledModal title="Enable Badge" footer={null} {...props}>
+      <SubmissionFlowScaffold
+        tcrTitle={relTCRMetaEvidence.metadata?.tcrTitle || 'this list'}
+        itemName="badge"
+        nativeCurrency={nativeCurrency}
+        submissionDeposit={relTCRSubmissionDeposit}
+        fileURI={fileURI}
+        activeStep={0}
+        fieldLabels={[
+          'Parent list Address',
+          'Badge list address',
+          'Column matching',
+        ]}
+        navigation={
+          <SubmissionNavigation>
+            <Button onClick={onCancel}>Back</Button>
+            <div>
+              <EnsureAuth>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  onClick={handleSubmit}
+                  disabled={submitDisabled || !!insufficientBalance}
+                  loading={isSubmitting}
                 >
-                  {[{ label: NONE }, ...tcrMetaEvidence.metadata.columns].map(
-                    (column, j) => (
-                      <Select.Option value={column.label} key={j}>
-                        {column.label}
-                      </Select.Option>
-                    ),
-                  )}
-                </Select>
-              ) : (
-                <StyledSkeleton
-                  active
-                  paragraph={false}
-                  title={SkeletonTitleProps}
-                />
+                  Submit
+                </Button>
+              </EnsureAuth>
+              {insufficientBalance && (
+                <InsufficientBalanceText>
+                  Insufficient balance
+                </InsufficientBalanceText>
               )}
-            </Col>
-          </Row>
-        ))}
-      <Typography.Paragraph>
-        A deposit is required to submit. This value reimbursed at the end of the
-        challenge period or, if there is a dispute, be awarded to the party that
-        wins.
-      </Typography.Paragraph>
-      <Descriptions
-        bordered
-        column={{ xxl: 4, xl: 3, lg: 3, md: 3, sm: 2, xs: 1 }}
+            </div>
+          </SubmissionNavigation>
+        }
       >
-        <Descriptions.Item label="Total Deposit Required">
-          <ETHAmount
-            decimals={3}
-            amount={relTCRSubmissionDeposit.toString()}
-            displayUnit={` ${nativeCurrency}`}
+        <Typography.Title level={4}>
+          Read the&nbsp;
+          <ListingCriteriaLink fileURI={fileURI}>
+            Listing Criteria
+          </ListingCriteriaLink>
+          .
+        </Typography.Title>
+        <Form.Item
+          label={
+            <span>
+              Parent list Address&nbsp;
+              <Tooltip title="Fill with the address of the parent list.">
+                <Icon type="question-circle-o" />
+              </Tooltip>
+            </span>
+          }
+          style={{ marginBottom: '12px' }}
+        >
+          {initialValues ? (
+            <Input value={initialValues[0]} disabled />
+          ) : (
+            <Input
+              placeholder="0x1337deadbeef..."
+              onChange={(e) => setTCRAddr(e.target.value)}
+            />
+          )}
+        </Form.Item>
+        <Form.Item
+          label={
+            <span>
+              Badge list address&nbsp;
+              <Tooltip title="Fill here the address of the badge list.">
+                <Icon type="question-circle-o" />
+              </Tooltip>
+            </span>
+          }
+        >
+          <Input
+            placeholder="0xbeafb047beef..."
+            onChange={(e) => setBadgeTCRAddr(e.target.value)}
+            disabled={!tcrMetaEvidence}
           />
-        </Descriptions.Item>
-      </Descriptions>
+        </Form.Item>
+        <StyledAlert
+          message="Understand Badges"
+          description="An item has a badge if it is also present on the badge list. As an example, a token submission 'PNK' on a list of Tokens can display the ERC20 Badge if the same submission is also present on the ERC20 Badge list. To check if an item is present on two lists we must match common fields. In the example we would choose field 'Address'. The comparison is strict, in other words, if multiple fields are matched, ALL values must match perfectly. In general, you should use the least amount of columns that are enough to uniquely identify a submission on both lists to avoid items not being detected due to (for example, case differences)."
+          type="info"
+          showIcon
+        />
+        <Typography.Paragraph>
+          Match at least one ID column of the parent list to use to when
+          searching for the item in the badge list. The more fields matched, the
+          stricter the search.
+        </Typography.Paragraph>
+        {badgeTCRMetadata &&
+          badgeTCRMetadata.columns.map((column, i) => (
+            <Row key={i} gutter={[8, 8]}>
+              <Col span={12}>
+                <span>
+                  {column.label}
+                  {column.description && (
+                    <Tooltip title={addPeriod(column.description)}>
+                      &nbsp;
+                      <Icon type="question-circle-o" />
+                    </Tooltip>
+                  )}
+                </span>
+              </Col>
+              <Col span={12}>
+                {tcrMetaEvidence.metadata ? (
+                  <Select
+                    defaultValue={NONE}
+                    style={{ width: '100%' }}
+                    onChange={(_, { key }) => handleChange(i, key)}
+                    disabled={!column.isIdentifier}
+                  >
+                    {[{ label: NONE }, ...tcrMetaEvidence.metadata.columns].map(
+                      (column, j) => (
+                        <Select.Option value={column.label} key={j}>
+                          {column.label}
+                        </Select.Option>
+                      ),
+                    )}
+                  </Select>
+                ) : (
+                  <StyledSkeleton
+                    active
+                    paragraph={false}
+                    title={SkeletonTitleProps}
+                  />
+                )}
+              </Col>
+            </Row>
+          ))}
+        <Typography.Paragraph>
+          A deposit is required to submit. This value reimbursed at the end of
+          the challenge period or, if there is a dispute, be awarded to the
+          party that wins.
+        </Typography.Paragraph>
+        <Descriptions
+          bordered
+          column={{ xxl: 4, xl: 3, lg: 3, md: 3, sm: 2, xs: 1 }}
+        >
+          <Descriptions.Item label="Total Deposit Required">
+            <ETHAmount
+              decimals={3}
+              amount={relTCRSubmissionDeposit.toString()}
+              displayUnit={` ${nativeCurrency}`}
+            />
+          </Descriptions.Item>
+        </Descriptions>
+      </SubmissionFlowScaffold>
     </StyledModal>
   )
 }

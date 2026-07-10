@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import styled from 'styled-components'
-import { Steps, Button, Card, Modal } from 'components/ui'
+import { Button, Card, Modal } from 'components/ui'
 import { useDebounce } from 'use-debounce'
 import { useWeb3Context } from 'hooks/use-web3-context'
 import useUrlChainId from 'hooks/use-url-chain-id'
 import { ethers } from 'ethers'
 import _GTCRFactory from 'assets/abis/LightGTCRFactory.json'
-import TCRParams from './tcr-params'
+import TCRParams, { FactorySection } from './tcr-params'
 import ItemParams from './item-params'
 import Deploy from './deploy'
 import StyledLayoutContent from '../layout-content'
@@ -20,9 +20,42 @@ import {
   defaultGovernor as defaultGovernorAddresses,
 } from 'config/tcr-addresses'
 import { CurateIcon } from 'components/curate/icons'
+import {
+  FactoryActionGroup,
+  FactoryActions,
+  FactoryCreateLabel,
+  FactoryDeploymentGrid,
+  FactoryDeploymentsCard,
+  FactoryDeploymentsHeader,
+  FactoryHeroImage,
+  FactoryPageShell,
+  FactoryStepTimeline,
+  FactoryWizardGrid,
+  FactoryWorkArea,
+} from 'components/curate/v2-factory-shell'
 
-const { Step } = Steps
 const { confirm } = Modal
+
+export const LIGHT_FACTORY_STEPS = [
+  {
+    title: 'List',
+    description: '',
+    subitems: ['Name', 'Description', 'Logo', 'Policy'],
+  },
+  {
+    title: 'Item',
+    description: '',
+    subitems: ['Deposit', 'Fields', 'Preview', 'Custom'],
+  },
+  {
+    title: 'Advanced',
+    description: 'Badges, governor, and court.',
+  },
+  {
+    title: 'Deploy',
+    description: 'Review the generated transactions and publish the list.',
+  },
+]
 
 export const StyledButtonGroup = styled(Button.Group)`
   &.ui-btn-group {
@@ -38,10 +71,10 @@ export const StyledStepper = styled.div`
   flex-wrap: wrap;
   gap: 12px;
   padding: 14px;
-  border: 1px solid var(--curate-border);
-  border-radius: var(--curate-radius-sm);
-  background: var(--curate-surface);
-  box-shadow: var(--curate-shadow);
+  border: 1px solid var(--v2-stroke);
+  border-radius: 3px;
+  background: var(--v2-card);
+  box-shadow: var(--v2-shadow);
 `
 export const StyledContainer = styled.div`
   margin: 32px 0;
@@ -53,17 +86,12 @@ export const StyledBanner = styled.div`
   max-width: 1440px;
   margin: 24px auto 0;
   padding: clamp(24px, 4vw, 42px);
-  background:
-    linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.075),
-      rgba(255, 255, 255, 0.025)
-    ),
-    var(--curate-surface);
-  border: 1px solid var(--curate-border);
-  border-radius: var(--curate-radius);
-  box-shadow: var(--curate-shadow);
-  color: var(--curate-text);
+  background: var(--v2-card);
+  border: 1px solid var(--v2-stroke);
+  border-top: 5px solid var(--v2-purple);
+  border-radius: 3px;
+  box-shadow: var(--v2-shadow);
+  color: var(--v2-text);
   transition:
     background 0.3s ease,
     box-shadow 0.3s ease,
@@ -72,19 +100,7 @@ export const StyledBanner = styled.div`
   overflow: hidden;
 
   &::before {
-    content: '';
-    position: absolute;
-    inset: -55% -10% auto auto;
-    width: 520px;
-    height: 520px;
-    background:
-      radial-gradient(circle, rgba(76, 201, 240, 0.12), transparent 55%),
-      radial-gradient(
-        circle at 35% 40%,
-        rgba(124, 92, 255, 0.18),
-        transparent 48%
-      );
-    pointer-events: none;
+    content: none;
   }
 `
 
@@ -99,17 +115,17 @@ export const StyledTitle = styled.h1`
   position: relative;
   margin: 0;
   max-width: 900px;
-  font-size: clamp(34px, 6vw, 64px);
-  line-height: 1;
-  font-weight: 850;
-  color: var(--curate-text);
+  font-size: clamp(30px, 4.8vw, 48px);
+  line-height: 1.12;
+  font-weight: 600;
+  color: var(--v2-text);
 `
 
 export const StyledSubtitle = styled.h3`
   margin-bottom: 16px;
   font-size: var(--font-size-section-title);
-  font-weight: 750;
-  color: var(--curate-muted);
+  font-weight: 600;
+  color: var(--v2-muted);
 `
 
 export const formIds = [
@@ -117,6 +133,63 @@ export const formIds = [
   'itemParamsForm',
   'relTCRParamsForm',
   'deployTCRForm',
+]
+
+type LightFactoryVisualStep = {
+  title: string
+  componentStep: number
+  groupStep: number
+  kind: 'tcr' | 'item' | 'rel' | 'deploy'
+  section?: FactorySection
+}
+
+const LIGHT_FACTORY_VISUAL_STEPS: LightFactoryVisualStep[] = [
+  {
+    title: 'Name',
+    componentStep: 1,
+    groupStep: 1,
+    kind: 'tcr',
+    section: 'title',
+  },
+  {
+    title: 'Description',
+    componentStep: 1,
+    groupStep: 1,
+    kind: 'tcr',
+    section: 'description',
+  },
+  {
+    title: 'Logo',
+    componentStep: 1,
+    groupStep: 1,
+    kind: 'tcr',
+    section: 'logo',
+  },
+  {
+    title: 'Policy',
+    componentStep: 1,
+    groupStep: 1,
+    kind: 'tcr',
+    section: 'policy',
+  },
+  {
+    title: 'Deposit',
+    componentStep: 1,
+    groupStep: 2,
+    kind: 'tcr',
+    section: 'deposit',
+  },
+  { title: 'Fields', componentStep: 2, groupStep: 2, kind: 'item' },
+  { title: 'Preview', componentStep: 2, groupStep: 2, kind: 'item' },
+  {
+    title: 'Custom',
+    componentStep: 1,
+    groupStep: 2,
+    kind: 'tcr',
+    section: 'custom',
+  },
+  { title: 'Advanced', componentStep: 3, groupStep: 3, kind: 'rel' },
+  { title: 'Deploy', componentStep: 4, groupStep: 4, kind: 'deploy' },
 ]
 
 export const CurrentStep = (props: Record<string, unknown>) => (
@@ -309,10 +382,11 @@ const FactoryPage = () => {
   const factoryChainId = urlChainId ?? undefined
   const cachedFactory = useCachedFactory(version, factoryChainId)
   const [previousDeployments, setPreviousDeployments] = useState([])
-  const { tcrState, nextStep, previousStep, STEP_COUNT, resetTcrState } =
-    cachedFactory ?? {}
+  const { tcrState, setTcrState, resetTcrState } = cachedFactory ?? {}
+  const [visualStepIndex, setVisualStepIndex] = useState(0)
 
-  const { currStep, transactions } = tcrState ?? {}
+  const { transactions } = tcrState ?? {}
+  const currentVisualStep = LIGHT_FACTORY_VISUAL_STEPS[visualStepIndex]
 
   const factoryInterface = useMemo(
     () => new ethers.utils.Interface(_GTCRFactory),
@@ -326,9 +400,25 @@ const FactoryPage = () => {
       okText: 'Yes, start over',
       onOk: () => {
         resetTcrState()
+        setVisualStepIndex(0)
       },
     })
   }, [resetTcrState])
+
+  const goToVisualStep = useCallback((nextIndex: number) => {
+    setVisualStepIndex(
+      Math.max(0, Math.min(LIGHT_FACTORY_VISUAL_STEPS.length - 1, nextIndex)),
+    )
+  }, [])
+
+  useEffect(() => {
+    if (!setTcrState || !currentVisualStep) return
+    setTcrState((prev) =>
+      prev.currStep === currentVisualStep.componentStep
+        ? prev
+        : { ...prev, currStep: currentVisualStep.componentStep },
+    )
+  }, [currentVisualStep, setTcrState])
 
   // Fetch previously deployed list information
   useEffect(() => {
@@ -373,75 +463,121 @@ const FactoryPage = () => {
       </>
     )
 
-  return (
-    <>
-      <StyledBanner>
-        <StyledTitle>Create a List</StyledTitle>
-      </StyledBanner>
-      <StyledLayoutContent>
-        <Steps current={currStep - 1}>
-          <Step title="List" />
-          <Step title="Item" />
-          <Step title="Badges List" />
-          <Step title="Deploy" />
-        </Steps>
-        <StyledContainer>
-          <CurrentStep
-            key={factoryChainId}
-            postSubmit={() => nextStep()}
+  const renderVisualStep = () => {
+    switch (currentVisualStep.kind) {
+      case 'tcr':
+        return (
+          <TCRParams
+            key={`${factoryChainId}-${visualStepIndex}`}
+            formId={formIds[0]}
+            factorySection={currentVisualStep.section}
+            postSubmit={() => goToVisualStep(visualStepIndex + 1)}
             {...cachedFactory}
           />
-        </StyledContainer>
-        <StyledStepper>
-          <Button
-            onClick={showConfirmReset}
-            icon={<CurateIcon name="remove" size={16} />}
-          >
-            Reset
-          </Button>
-          <StyledButtonGroup>
-            <Button
-              onClick={() => previousStep()}
-              type="primary"
-              disabled={currStep === 1}
-            >
-              <CurateIcon
-                name="chevron-down"
-                size={16}
-                style={{ transform: 'rotate(90deg)' }}
-              />
-              Previous
-            </Button>
-            <Button
-              form={formIds[currStep]}
-              htmlType="submit"
-              type="primary"
-              disabled={currStep === STEP_COUNT}
-            >
-              Next
-              <CurateIcon
-                name="chevron-down"
-                size={16}
-                style={{ transform: 'rotate(-90deg)' }}
-              />
-            </Button>
-          </StyledButtonGroup>
-        </StyledStepper>
-        {previousDeployments.length > 0 && (
-          <StyledContainer>
-            <Card title="Previous Deployments">
-              <StyledGrid>
-                {previousDeployments.map((contractAddress, i) => (
-                  <Card key={i}>
-                    <TCRCardContent
-                      tcrAddress={contractAddress}
-                      hideDetailsButton
+        )
+      case 'item':
+        return (
+          <ItemParams
+            key={`${factoryChainId}-${visualStepIndex}`}
+            formId={formIds[1]}
+            postSubmit={() => goToVisualStep(visualStepIndex + 1)}
+            {...cachedFactory}
+          />
+        )
+      case 'rel':
+        return (
+          <RelTCRParams
+            key={`${factoryChainId}-${visualStepIndex}`}
+            formId={formIds[2]}
+            postSubmit={() => goToVisualStep(visualStepIndex + 1)}
+            {...cachedFactory}
+            nextStep={() => goToVisualStep(visualStepIndex + 1)}
+          />
+        )
+      case 'deploy':
+        return (
+          <Deploy
+            key={`${factoryChainId}-${visualStepIndex}`}
+            formId={formIds[3]}
+            {...cachedFactory}
+          />
+        )
+      default:
+        return null
+    }
+  }
+
+  return (
+    <>
+      <FactoryHeroImage />
+      <FactoryCreateLabel>Create a List</FactoryCreateLabel>
+      <StyledLayoutContent>
+        <FactoryPageShell>
+          <FactoryWizardGrid>
+            <FactoryStepTimeline
+              currentStep={currentVisualStep.groupStep}
+              steps={LIGHT_FACTORY_STEPS}
+            />
+            <div>
+              <FactoryWorkArea>{renderVisualStep()}</FactoryWorkArea>
+              <FactoryActions>
+                <Button
+                  onClick={showConfirmReset}
+                  icon={<CurateIcon name="remove" size={16} />}
+                >
+                  Reset
+                </Button>
+                <FactoryActionGroup>
+                  <Button
+                    onClick={() => goToVisualStep(visualStepIndex - 1)}
+                    type="primary"
+                    disabled={visualStepIndex === 0}
+                  >
+                    <CurateIcon
+                      name="chevron-down"
+                      size={16}
+                      style={{ transform: 'rotate(90deg)' }}
                     />
-                  </Card>
-                ))}
-              </StyledGrid>
-            </Card>
-          </StyledContainer>
+                    Previous
+                  </Button>
+                  <Button
+                    onClick={() => goToVisualStep(visualStepIndex + 1)}
+                    type="primary"
+                    disabled={
+                      visualStepIndex === LIGHT_FACTORY_VISUAL_STEPS.length - 1
+                    }
+                  >
+                    Next
+                    <CurateIcon
+                      name="chevron-down"
+                      size={16}
+                      style={{ transform: 'rotate(-90deg)' }}
+                    />
+                  </Button>
+                </FactoryActionGroup>
+              </FactoryActions>
+            </div>
+          </FactoryWizardGrid>
+        </FactoryPageShell>
+        {previousDeployments.length > 0 && (
+          <FactoryDeploymentsCard>
+            <FactoryDeploymentsHeader>
+              <div>
+                <h2>Previous deployments</h2>
+                <span>Lists deployed from this browser and network.</span>
+              </div>
+            </FactoryDeploymentsHeader>
+            <FactoryDeploymentGrid>
+              {previousDeployments.map((contractAddress, i) => (
+                <Card key={i}>
+                  <TCRCardContent
+                    tcrAddress={contractAddress}
+                    hideDetailsButton
+                  />
+                </Card>
+              ))}
+            </FactoryDeploymentGrid>
+          </FactoryDeploymentsCard>
         )}
       </StyledLayoutContent>
     </>

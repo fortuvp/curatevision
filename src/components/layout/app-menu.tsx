@@ -28,7 +28,7 @@ const StyledNavLink = styled(NavLink)`
   align-items: center;
   min-height: 36px;
   padding: 0 13px;
-  border-radius: 999px;
+  border-radius: 3px;
   color: var(--curate-muted);
   text-decoration: none;
   transition:
@@ -51,7 +51,7 @@ const StyledLink = styled(Link)<{ $active?: boolean }>`
   align-items: center;
   min-height: 36px;
   padding: 0 13px;
-  border-radius: 999px;
+  border-radius: 3px;
   color: ${({ $active }) =>
     $active ? 'var(--curate-text)' : 'var(--curate-muted)'};
   background: ${({ $active }) =>

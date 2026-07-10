@@ -5,6 +5,7 @@ import { simulateContract } from '@wagmi/core'
 import _gtcr from 'assets/abis/PermanentGTCR.json'
 import EnsureAuth from 'components/ensure-auth'
 import EvidenceForm from 'components/evidence-form'
+import InlineEvidenceComposer from 'components/inline-evidence-composer'
 import { useAtlasProvider } from '@kleros/kleros-app'
 import { uploadEvidence } from 'utils/upload-evidence'
 import { wrapWithToast, errorToast } from 'utils/wrap-with-toast'
@@ -14,16 +15,27 @@ import { StyledModal } from './challenge'
 
 interface EvidenceModalProps {
   item: SubgraphItem
+  inline?: boolean
+  composerId?: string
+  visible?: boolean
+  onCancel?: () => void
   [key: string]: unknown
 }
 
-const EvidenceModal = ({ item, ...rest }: EvidenceModalProps) => {
+const EvidenceModal = ({
+  item,
+  inline = false,
+  composerId = 'evidence-composer',
+  onCancel,
+  ...rest
+}: EvidenceModalProps) => {
   const tcrAddress = item?.registry?.id
   const { address: account } = useAccount()
   const publicClient = usePublicClient()
   const { data: walletClient } = useWalletClient()
   const { uploadFile } = useAtlasProvider()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [formKey, setFormKey] = useState(0)
 
   const submitEvidence = async ({ title, description, evidenceAttachment }) => {
     setIsSubmitting(true)
@@ -48,7 +60,9 @@ const EvidenceModal = ({ item, ...rest }: EvidenceModalProps) => {
         publicClient,
       )
 
-      if (result.status) rest.onCancel()
+      if (result.status)
+        if (inline) setFormKey((key) => key + 1)
+        else onCancel?.()
     } catch (err) {
       console.error('Error submitting evidence:', err)
       errorToast(parseWagmiError(err))
@@ -58,10 +72,21 @@ const EvidenceModal = ({ item, ...rest }: EvidenceModalProps) => {
 
   const EVIDENCE_FORM_ID = 'submitEvidenceForm'
 
+  if (inline)
+    return (
+      <InlineEvidenceComposer
+        id={composerId}
+        formID={EVIDENCE_FORM_ID}
+        formKey={formKey}
+        isSubmitting={isSubmitting}
+        onSubmit={submitEvidence}
+      />
+    )
+
   return (
     <StyledModal
       footer={[
-        <Button key="back" onClick={rest.onCancel}>
+        <Button key="back" onClick={onCancel}>
           Back
         </Button>,
         <EnsureAuth key="ensure-auth">
@@ -76,6 +101,7 @@ const EvidenceModal = ({ item, ...rest }: EvidenceModalProps) => {
           </Button>
         </EnsureAuth>,
       ]}
+      onCancel={onCancel}
       {...rest}
     >
       <Typography.Title level={4}>Evidence Submission</Typography.Title>

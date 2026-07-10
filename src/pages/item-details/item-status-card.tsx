@@ -1,7 +1,6 @@
 import React, { useContext, useMemo } from 'react'
 import { Descriptions, Skeleton, Card } from 'components/ui'
 import { abi as _gtcr } from '@kleros/tcr/build/contracts/GeneralizedTCR.json'
-import ItemStatusBadge from 'components/item-status-badge'
 import { useAccount, usePublicClient, useWalletClient, useChainId } from 'wagmi'
 import { simulateContract } from '@wagmi/core'
 import {
@@ -25,6 +24,7 @@ import { wagmiConfig } from 'config/wagmi'
 import {
   StyledItemStatusCard,
   StyledDescriptions,
+  RequestActionBar,
   Ruling,
 } from 'pages/light-item-details/item-status-card'
 
@@ -140,29 +140,13 @@ const ItemStatusCard = ({
   const appealable =
     statusCode === STATUS_CODE.CROWDFUNDING_WINNER ||
     statusCode === STATUS_CODE.CROWDFUNDING
+  const hasRequestAction =
+    statusCode !== STATUS_CODE.CHALLENGED &&
+    statusCode !== STATUS_CODE.WAITING_ARBITRATOR
 
   return (
     <>
-      <StyledItemStatusCard
-        id="item-status-card"
-        title={
-          <ItemStatusBadge
-            item={item}
-            challengePeriodDuration={challengePeriodDuration}
-            timestamp={timestamp}
-            dark
-          />
-        }
-        extra={
-          <ItemActionButton
-            statusCode={statusCode}
-            itemName={itemName}
-            itemID={item?.itemID}
-            onClick={onClick}
-            type="secondary"
-          />
-        }
-      >
+      <StyledItemStatusCard id="item-status-card" title="Request details">
         <StyledDescriptions
           column={{ xxl: 3, xl: 3, lg: 2, md: 2, sm: 1, xs: 1 }}
         >
@@ -200,9 +184,9 @@ const ItemStatusCard = ({
                 ) : (
                   disputeID.toString()
                 )}
-                <Descriptions.Item label="Arbitrator">
-                  <ETHAddress address={arbitrator} />
-                </Descriptions.Item>
+              </Descriptions.Item>
+              <Descriptions.Item label="Arbitrator">
+                <ETHAddress address={arbitrator} />
               </Descriptions.Item>
             </>
           )}
@@ -239,6 +223,17 @@ const ItemStatusCard = ({
               </Descriptions.Item>
             )}
         </StyledDescriptions>
+        {hasRequestAction && (
+          <RequestActionBar>
+            <ItemActionButton
+              statusCode={statusCode}
+              itemName={itemName}
+              itemID={item?.itemID}
+              onClick={onClick}
+              type="secondary"
+            />
+          </RequestActionBar>
+        )}
       </StyledItemStatusCard>
       {statusCode !== STATUS_CODE.PENDING_SUBMISSION &&
         statusCode !== STATUS_CODE.PENDING_REMOVAL &&

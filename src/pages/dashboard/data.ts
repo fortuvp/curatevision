@@ -283,6 +283,7 @@ const PERMANENT_DASHBOARD_QUERY = gql`
   query PermanentDashboard {
     registries(first: 120, orderBy: createdAt, orderDirection: desc) {
       id
+      token
       createdAt
       numberOfSubmitted
       numberOfAbsent
@@ -290,6 +291,8 @@ const PERMANENT_DASHBOARD_QUERY = gql`
       submissionMinDeposit
       submissionPeriod
       arbitrationSettings(first: 1, orderBy: timestamp, orderDirection: desc) {
+        arbitratorExtraData
+        metaEvidenceURI
         metadata {
           title
           description
@@ -964,6 +967,10 @@ const normalizePermanent = (
         pendingCount: toNumber(registry.numberOfSubmitted),
         disputeCount: toNumber(registry.numberOfDisputed),
         bountyWei: registry.submissionMinDeposit,
+        token: registry.token,
+        arbitratorExtraData:
+          registry.arbitrationSettings?.[0]?.arbitratorExtraData,
+        metaEvidenceURI: registry.arbitrationSettings?.[0]?.metaEvidenceURI,
         createdAt: toNumber(registry.createdAt),
         lastActivityAt: toNumber(registry.createdAt),
         trustStatus: 'unverified' as TrustStatus,

@@ -10,6 +10,7 @@ const CuratePro = lazy(() => import('pages/curate-pro'))
 const Guide = lazy(() => import('pages/guide'))
 const ItemsRouter = lazy(() => import('pages/items-router'))
 const ItemDetailsRouter = lazy(() => import('pages/item-details-router'))
+const SubmitItem = lazy(() => import('pages/submit-item'))
 
 // Exported for preloading on link hover (instant navigation feel)
 export const preloadFactory = () => import('pages/factory/index')
@@ -37,6 +38,14 @@ const AppRouter = () => {
   return (
     <Suspense fallback={<Loading />}>
       <Routes>
+        <Route
+          path="/tcr/:chainId/:tcrAddress/submit"
+          element={
+            <RouteReset>
+              <SubmitItem />
+            </RouteReset>
+          }
+        />
         <Route
           path="/tcr/:chainId/:tcrAddress/:itemID"
           element={

@@ -9,8 +9,6 @@ import {
   Divider,
   Button,
   Collapse,
-  Row,
-  Col,
 } from 'components/ui'
 import Icon from 'components/ui/Icon'
 import useUrlChainId from 'hooks/use-url-chain-id'
@@ -35,17 +33,19 @@ const StyledText = styled(Typography.Text)`
 
 const StyledCard = styled(Card)`
   cursor: default;
-  background: ${({ theme }) => theme.componentBackground} !important;
-  border-color: ${({ theme }) => theme.evidenceCardBorder} !important;
+  background: var(--v2-card) !important;
+  border-color: var(--v2-stroke) !important;
+  border-radius: 3px !important;
+  box-shadow: var(--v2-shadow) !important;
 
   & > .ui-card-head {
-    background: ${({ theme }) => theme.cardHeaderGradient} !important;
-    border-color: transparent !important;
-    color: #ffffff !important;
+    background: var(--v2-card) !important;
+    border-color: var(--v2-stroke) !important;
+    color: var(--v2-text) !important;
   }
 
   & > .ui-card-head .ui-card-head-title {
-    color: #ffffff !important;
+    color: var(--v2-text) !important;
   }
 
   & > .ui-card-head .ui-card-extra a {
@@ -57,7 +57,7 @@ const StyledCard = styled(Card)`
   }
 
   & > .ui-card-body {
-    background: ${({ theme }) => theme.componentBackground} !important;
+    background: var(--v2-card) !important;
   }
 
   .ui-card-meta-description {
@@ -353,11 +353,21 @@ const Timeline = ({ request, item, metaEvidence }: TimelineProps) => {
 
 const StyledDivider = styled(Divider)`
   text-transform: capitalize;
+  flex: 1;
+  min-width: 0;
+
+  &.ui-divider {
+    margin: 0;
+  }
 `
 
 const StyledButton = styled(Button)`
   text-transform: capitalize;
-  margin: 16px 0;
+  margin: 0;
+
+  @media (max-width: 640px) {
+    width: 100%;
+  }
 `
 
 const StyledLoadingCard = styled(Card)`
@@ -367,8 +377,33 @@ const StyledLoadingCard = styled(Card)`
 const StyledCollapse = styled(Collapse)`
   background-color: ${({ theme }) => theme.componentBackground} !important;
   border: 1px solid ${({ theme }) => theme.borderColor};
-  border-radius: 8px;
+  border-radius: 3px;
 `
+
+const HistoryHeader = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 16px;
+
+  @media (max-width: 640px) {
+    align-items: stretch;
+    flex-direction: column;
+  }
+`
+
+const EVIDENCE_COMPOSER_ID = 'evidence-composer'
+
+const scrollToEvidenceComposer = () => {
+  const composer = document.querySelector(`#${EVIDENCE_COMPOSER_ID}`)
+  composer?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  window.setTimeout(() => {
+    const input = composer?.querySelector('textarea, input') as
+      | HTMLElement
+      | undefined
+    input?.focus()
+  }, 260)
+}
 
 interface RequestTimelinesProps {
   item: SubgraphItem
@@ -383,8 +418,7 @@ const RequestTimelines = ({
   kind,
   metaEvidence,
 }: RequestTimelinesProps) => {
-  const [evidenceModalOpen, setEvidenceModalOpen] = useState()
-  const EvidenceModal =
+  const EvidenceComposer =
     kind === 'classic' ? ClassicEvidenceModal : LightEvidenceModal
 
   const { metadata } = metaEvidence || {}
@@ -399,25 +433,16 @@ const RequestTimelines = ({
 
   return (
     <div id="request-timelines">
-      {!hasPendingRequest(item.status) && (
+      <HistoryHeader>
         <StyledDivider orientation="left">{`${
           capitalizeFirstLetter(itemName) || 'Item'
         } History`}</StyledDivider>
-      )}
-      {hasPendingRequest(item.status) && (
-        <Row type="flex" align="middle">
-          <Col style={{ flex: 1 }}>
-            <StyledDivider orientation="left">{`${
-              capitalizeFirstLetter(itemName) || 'Item'
-            } History`}</StyledDivider>
-          </Col>
-          <Col style={{ marginLeft: 12 }}>
-            <StyledButton onClick={() => setEvidenceModalOpen(true)}>
-              Submit Evidence
-            </StyledButton>
-          </Col>
-        </Row>
-      )}
+        {hasPendingRequest(item.status) && (
+          <StyledButton onClick={scrollToEvidenceComposer}>
+            Submit evidence
+          </StyledButton>
+        )}
+      </HistoryHeader>
       {requests && (
         <StyledCollapse bordered={false} defaultActiveKey={['0']}>
           {requests.map((request, i) => (
@@ -437,11 +462,13 @@ const RequestTimelines = ({
           ))}
         </StyledCollapse>
       )}
-      <EvidenceModal
-        item={item}
-        visible={evidenceModalOpen}
-        onCancel={() => setEvidenceModalOpen(false)}
-      />
+      {hasPendingRequest(item.status) && (
+        <EvidenceComposer
+          item={item}
+          inline
+          composerId={EVIDENCE_COMPOSER_ID}
+        />
+      )}
     </div>
   )
 }

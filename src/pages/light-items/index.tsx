@@ -38,7 +38,6 @@ import ItemCard from './item-card'
 import Banner from './banner'
 import { DISPUTE_STATUS } from 'utils/item-status'
 import { LIGHT_ITEMS_QUERY } from 'utils/graphql'
-import LightSearchBar from 'components/light-search-bar'
 import { parseIpfs } from 'utils/ipfs-parse'
 import { useGraphqlBatcher } from 'contexts/graphql-batcher'
 import useSeerMarketsData from 'components/custom-registries/seer/use-seer-markets-data'
@@ -48,6 +47,15 @@ import ETHAmount from 'components/eth-amount'
 import { NETWORKS_INFO } from 'config/networks'
 import { getListOfListsAddresses } from 'config/list-of-lists'
 import humanizeDuration from 'humanize-duration'
+import { CurateIcon } from 'components/curate/icons'
+import {
+  ToolbarMeta,
+  ToolbarSearch,
+  ToolbarSearchInput,
+  V2RegistryViewMode,
+  ViewModeToggle,
+  itemMatchesSearch,
+} from 'components/curate/v2-registry-toolbar'
 
 export const NSFW_FILTER_KEY = 'NSFW_FILTER_KEY'
 
@@ -71,25 +79,19 @@ export const StyledLayoutContent = styled.div`
 
 export const FiltersContainer = styled.div`
   display: flex;
-  margin-top: 24px;
   width: 100%;
   justify-content: space-between;
-  gap: 12px;
-  padding: 14px;
-  border: 1px solid var(--curate-border);
-  border-radius: var(--curate-radius-sm);
-  background:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.055),
-      rgba(255, 255, 255, 0.025)
-    ),
-    var(--curate-surface);
-  box-shadow: var(--curate-shadow);
+  align-items: center;
+  gap: 16px;
+  margin-top: 24px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--klerosUIComponentsStroke);
+  background: transparent;
 
   ${smallScreenStyle(
     () => css`
       flex-direction: column;
+      align-items: stretch;
       gap: 12px;
     `,
   )}
@@ -128,37 +130,29 @@ export const StyledTag = styled(Tag.CheckableTag)`
 
   &.ui-tag-checkable {
     background-color: ${({ theme, checked }) =>
-      checked
-        ? 'rgba(76, 201, 240, 0.13)'
-        : theme.name === 'dark'
-          ? 'rgba(255, 255, 255, 0.05)'
-          : 'rgba(255, 255, 255, 0.62)'} !important;
+      checked ? theme.curateLiveSoft : 'transparent'} !important;
     border: 1px solid
       ${({ theme, checked }) =>
-        checked
-          ? 'var(--curate-border-strong)'
-          : theme.filterBorderColor} !important;
+        checked ? theme.primaryColor : theme.borderColor} !important;
     color: ${({ theme, checked }) =>
-      checked ? 'var(--curate-text)' : theme.filterTextColor} !important;
+      checked ? theme.primaryColor : theme.textSecondary} !important;
     height: 32px;
     line-height: 30px;
-    border-radius: 999px;
-    font-weight: 750;
+    border-radius: 3px;
+    font-weight: 600;
     cursor: pointer;
   }
 
   &.ui-tag-checkable:hover {
-    color: ${({ theme, checked }) =>
-      checked ? theme.textOnPrimary || '#fff' : theme.textPrimary} !important;
-    border-color: ${({ theme, checked }) =>
-      checked ? theme.primaryColorHover : theme.textPrimary} !important;
+    color: ${({ theme }) => theme.primaryColor} !important;
+    border-color: ${({ theme }) => theme.primaryColor} !important;
     cursor: pointer;
   }
 
   &.ui-tag-checkable-checked {
-    background-color: rgba(76, 201, 240, 0.13) !important;
-    border-color: var(--curate-border-strong) !important;
-    color: var(--curate-text) !important;
+    background-color: var(--klerosUIComponentsMediumBlue) !important;
+    border-color: var(--klerosUIComponentsPrimaryBlue) !important;
+    color: var(--klerosUIComponentsPrimaryBlue) !important;
   }
 `
 
@@ -169,11 +163,13 @@ export const StyledPagination = styled(Pagination)`
   margin-top: 2em;
 `
 
-export const StyledGrid = styled.div`
-  display: grid;
+export const StyledGrid = styled.div<{ $viewMode?: V2RegistryViewMode }>`
+  display: ${({ $viewMode }) => ($viewMode === 'grid' ? 'grid' : 'flex')};
+  grid-template-columns: ${({ $viewMode }) =>
+    $viewMode === 'grid' ? 'repeat(auto-fill, minmax(246px, 1fr))' : 'none'};
+  flex-direction: column;
   margin: 24px 0;
-  grid-gap: 20px;
-  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: ${({ $viewMode }) => ($viewMode === 'grid' ? '24px' : '8px')};
 `
 
 export const StyledSwitch = styled(Switch)`
@@ -223,6 +219,8 @@ const Items = () => {
   const [error, setError] = useState<string | undefined>()
   const queryOptions = searchStrToFilterObjLight(search)
   const [nsfwFilterOn, setNSFWFilter] = useState(true)
+  const [itemSearch, setItemSearch] = useState('')
+  const [viewMode, setViewMode] = useState<V2RegistryViewMode>('list')
   const [queryItemParams, setQueryItemParams] = useState<
     Record<string, unknown> | undefined
   >()
@@ -547,6 +545,20 @@ const Items = () => {
     })
   }, [metaEvidence, tcrAddress, decodedItems, chainId, seerMarketsData])
 
+  const visibleItems = useMemo(() => {
+    if (!items) return
+
+    return [...items]
+      .filter((item) => itemMatchesSearch(item, itemSearch))
+      .sort(({ tcrData: tcrDataA }, { tcrData: tcrDataB }) => {
+        // Display items with pending requests first.
+        if (!tcrDataA || !tcrDataB) return 0 // Handle errored TCRs.
+        if (!tcrDataA.resolved && tcrDataB.resolved) return -1
+        if (tcrDataA.resolved && !tcrDataB.resolved) return 1
+        return 0
+      })
+  }, [itemSearch, items])
+
   // This component supports URL actions.
   // This means someone can be sent to curate with a bunch of data to submit
   // an item to a list.
@@ -660,7 +672,7 @@ const Items = () => {
             label: 'Submission deposit',
             icon: 'submit',
             value: depositValue(submissionDeposit),
-            hint: 'Requester stake plus current arbitration cost.',
+            hint: 'Requester stake plus the current arbitration fee.',
           },
           {
             label: 'Challenge deposit',
@@ -684,9 +696,10 @@ const Items = () => {
             value: periodValue(challengePeriodDuration),
           },
           {
-            label: 'Arbitration cost',
+            label: 'Arbitration fee',
             icon: 'court',
             value: depositValue(arbitrationCost),
+            hint: 'Arbitration fees are paid up front to open or continue a dispute. They are reimbursed to the side that wins, so parties acting in good faith should not ultimately bear them.',
           },
           {
             label: 'Governor',
@@ -707,10 +720,16 @@ const Items = () => {
         <StyledContent>
           <Spin spinning={itemsQuery.isLoading || !metadata}>
             <>
-              <StyledTopPadding>
-                <LightSearchBar />
-              </StyledTopPadding>
               <FiltersContainer id="items-filters">
+                <ToolbarSearch>
+                  <CurateIcon name="search" size={18} />
+                  <ToolbarSearchInput
+                    aria-label="Search registry entries"
+                    placeholder="Search entries"
+                    value={itemSearch}
+                    onChange={(event) => setItemSearch(event.target.value)}
+                  />
+                </ToolbarSearch>
                 <StyledFilters>
                   <StyledSwitch
                     checkedChildren="NSFW Filter: On"
@@ -747,6 +766,10 @@ const Items = () => {
                       ) : null,
                     )}
                 </StyledFilters>
+                <ToolbarMeta>
+                  {visibleItems?.length ?? 0}/{itemCount || 0} shown
+                </ToolbarMeta>
+                <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
                 <StyledSelect
                   defaultValue={oldestFirst ? 'oldestFirst' : 'newestFirst'}
                   onChange={(val) => {
@@ -764,28 +787,21 @@ const Items = () => {
                   <Select.Option value="oldestFirst">Oldest</Select.Option>
                 </StyledSelect>
               </FiltersContainer>
-              <StyledGrid id="items-grid-view">
-                {items
-                  ? items
-                      .sort(({ tcrData: tcrDataA }, { tcrData: tcrDataB }) => {
-                        // Display items with pending requests first.
-                        if (!tcrDataA || !tcrDataB) return 0 // Handle errored TCRs.
-                        if (!tcrDataA.resolved && tcrDataB.resolved) return -1
-                        if (tcrDataA.resolved && !tcrDataB.resolved) return 1
-                        return 0
-                      })
-                      .map((item, i) => (
-                        <ItemCard
-                          item={item}
-                          key={i}
-                          metaEvidence={metaEvidence}
-                          chainId={chainId}
-                          tcrAddress={tcrAddress}
-                          challengePeriodDuration={challengePeriodDuration}
-                          timestamp={timestamp}
-                          forceReveal={!nsfwFilterOn}
-                        />
-                      ))
+              <StyledGrid id="items-grid-view" $viewMode={viewMode}>
+                {visibleItems
+                  ? visibleItems.map((item, i) => (
+                      <ItemCard
+                        item={item}
+                        key={i}
+                        metaEvidence={metaEvidence}
+                        chainId={chainId}
+                        tcrAddress={tcrAddress}
+                        challengePeriodDuration={challengePeriodDuration}
+                        timestamp={timestamp}
+                        forceReveal={!nsfwFilterOn}
+                        viewMode={viewMode}
+                      />
+                    ))
                   : Array.from({ length: 8 }).map((_, i) => (
                       <Card key={i} style={{ height: '100%' }} loading />
                     ))}

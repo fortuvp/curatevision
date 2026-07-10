@@ -1,232 +1,225 @@
 import React from 'react'
-import styled, { css, keyframes, DefaultTheme } from 'styled-components'
+import styled from 'styled-components'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
 
-const spin = keyframes`
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+const variantMap: Record<string, 'primary' | 'secondary' | 'tertiary'> = {
+  default: 'secondary',
+  primary: 'primary',
+  secondary: 'secondary',
+  ghost: 'secondary',
+  link: 'secondary',
+  purple: 'tertiary',
+  danger: 'tertiary',
+}
+
+const ButtonScope = styled.span<{
+  $block?: boolean
+  $link?: boolean
+  $small?: boolean
+  $shape?: string
+  $variant?: 'primary' | 'secondary' | 'tertiary'
+}>`
+  display: ${({ $block }) => ($block ? 'flex' : 'inline-flex')};
+  width: ${({ $block }) => ($block ? '100%' : 'auto')};
+
+  > .gtcr-v2-button {
+    position: relative;
+    box-sizing: border-box;
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: ${({ $block }) => ($block ? '100%' : 'fit-content')};
+    min-height: ${({ $small }) => ($small ? '32px' : '46px')};
+    padding: ${({ $small, $variant }) =>
+      $variant === 'secondary'
+        ? $small
+          ? '5px 23px'
+          : '10.5px 31px'
+        : $small
+          ? '6px 24px'
+          : '11.5px 32px'};
+    border: ${({ $variant }) =>
+      $variant === 'secondary'
+        ? '1px solid var(--klerosUIComponentsPrimaryBlue)'
+        : '1px solid transparent'};
+    border-radius: ${({ $shape }) => ($shape === 'round' ? '999px' : '3px')};
+    background: ${({ $variant }) =>
+      $variant === 'tertiary'
+        ? 'var(--klerosUIComponentsSecondaryPurple)'
+        : $variant === 'secondary'
+          ? 'var(--klerosUIComponentsWhiteBackground)'
+          : 'var(--klerosUIComponentsPrimaryBlue)'};
+    color: ${({ $variant }) =>
+      $variant === 'secondary'
+        ? 'var(--klerosUIComponentsPrimaryBlue)'
+        : 'var(--klerosUIComponentsWhiteBackground)'};
+    cursor: pointer;
+    appearance: none;
+    font: inherit;
+    transform: translateZ(0);
+    transition:
+      background var(--klerosUIComponentsTransitionSpeed),
+      transform var(--klerosUIComponentsTransitionSpeed);
+    text-decoration: none;
+  }
+
+  > .gtcr-v2-button:hover {
+    background: ${({ $variant }) =>
+      $variant === 'tertiary'
+        ? 'var(--klerosUIComponentsPrimaryPurple)'
+        : $variant === 'secondary'
+          ? 'var(--klerosUIComponentsMediumBlue)'
+          : 'var(--klerosUIComponentsSecondaryBlue)'};
+  }
+
+  > .gtcr-v2-button:active {
+    transform: scale(0.95);
+  }
+
+  > .gtcr-v2-button[disabled],
+  > .gtcr-v2-button[aria-disabled='true'],
+  > .gtcr-v2-button[data-loading='true'] {
+    border-color: ${({ $variant }) =>
+      $variant === 'secondary'
+        ? 'var(--klerosUIComponentsStroke)'
+        : 'transparent'};
+    background: var(--klerosUIComponentsLightGrey);
+    cursor: not-allowed;
+  }
+
+  .button-text {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: ${({ $variant }) =>
+      $variant === 'secondary'
+        ? 'var(--klerosUIComponentsPrimaryBlue)'
+        : 'var(--klerosUIComponentsWhiteBackground)'};
+    text-align: center;
+    font-size: 16px;
+    line-height: 22px;
+    font-weight: 600;
+    white-space: nowrap;
+
+    > svg {
+      display: block;
+      flex-shrink: 0;
+    }
+  }
+
+  .button-svg {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    color: ${({ $variant }) =>
+      $variant === 'secondary'
+        ? 'var(--klerosUIComponentsPrimaryBlue)'
+        : 'var(--klerosUIComponentsWhiteBackground)'};
+    fill: currentColor;
+
+    > svg {
+      display: block;
+      width: 16px;
+      height: 16px;
+    }
+  }
+
+  .button-loading {
+    width: 16px;
+    height: 16px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: gtcr-button-spin 800ms linear infinite;
+  }
+
+  @keyframes gtcr-button-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  ${({ $shape, $small }) =>
+    $shape === 'circle' &&
+    `
+      > .gtcr-v2-button {
+        width: ${$small ? '32px' : '46px'};
+        min-width: ${$small ? '32px' : '46px'};
+        padding: 0;
+        border-radius: 50%;
+      }
+
+      .button-svg {
+        margin-right: 0;
+      }
+
+      .button-text {
+        display: none;
+      }
+    `}
+
+  > .gtcr-v2-button[disabled] .button-text,
+  > .gtcr-v2-button[aria-disabled='true'] .button-text,
+  > .gtcr-v2-button[data-loading='true'] .button-text,
+  > .gtcr-v2-button[disabled] .button-svg,
+  > .gtcr-v2-button[aria-disabled='true'] .button-svg,
+  > .gtcr-v2-button[data-loading='true'] .button-svg {
+    color: var(--klerosUIComponentsStroke);
+    fill: var(--klerosUIComponentsStroke);
+  }
+
+  ${({ $link }) =>
+    $link &&
+    `
+      > .gtcr-v2-button {
+        border: 0 !important;
+        padding-inline: 0 !important;
+        background: transparent !important;
+      }
+
+      > .gtcr-v2-button:hover {
+        background: transparent !important;
+      }
+    `}
 `
 
-const sizeStyles: Record<string, ReturnType<typeof css>> = {
-  small: css`
-    min-height: 28px;
-    padding: 0 10px;
-    font-size: 12px;
-  `,
-  default: css`
-    min-height: 38px;
-    padding: 0 15px;
-    font-size: 14px;
-  `,
-  large: css`
-    min-height: 46px;
-    padding: 0 18px;
-    font-size: 15px;
-  `,
-}
-
-const getTypeStyles = ({
-  btnType,
-  theme,
-}: {
-  btnType?: string
-  theme: DefaultTheme
-}) => {
-  switch (btnType) {
-    case 'primary':
-      return css`
-        background: linear-gradient(135deg, #063756, #0b2a56 48%, #142f62);
-        color: ${theme.buttonPrimaryText};
-        border-color: rgba(0, 163, 255, 0.46);
-        box-shadow:
-          inset 0 1px rgba(255, 255, 255, 0.12),
-          0 16px 42px rgba(0, 0, 0, 0.35),
-          0 0 36px rgba(0, 163, 255, 0.12);
-
-        &:hover:not(:disabled),
-        &:focus:not(:disabled) {
-          background: linear-gradient(135deg, #07496f, #0e3970 48%, #193c7b);
-          border-color: rgba(0, 163, 255, 0.62);
-          color: ${theme.buttonPrimaryText};
-          transform: translateY(-2px);
-        }
-      `
-    case 'ghost':
-      return css`
-        background: var(--curate-button-soft);
-        color: var(--curate-text);
-        border-color: var(--curate-border);
-
-        &:hover:not(:disabled),
-        &:focus:not(:disabled) {
-          color: var(--curate-text);
-          border-color: var(--curate-border-strong);
-          background: rgba(0, 163, 255, 0.11);
-        }
-      `
-    case 'danger':
-      return css`
-        background: ${theme.errorColor};
-        color: #fff;
-        border-color: ${theme.errorColor};
-
-        &:hover:not(:disabled),
-        &:focus:not(:disabled) {
-          opacity: 0.85;
-        }
-      `
-    case 'link':
-      return css`
-        background: transparent;
-        color: ${theme.linkColor};
-        border-color: transparent;
-        box-shadow: none;
-
-        &:hover:not(:disabled),
-        &:focus:not(:disabled) {
-          color: ${theme.primaryColor};
-          opacity: 0.85;
-        }
-      `
-    default:
-      return css`
-        background: var(--curate-button);
-        color: var(--curate-text);
-        border-color: var(--curate-border);
-        box-shadow: 0 16px 42px rgba(0, 0, 0, 0.28);
-
-        &:hover:not(:disabled),
-        &:focus:not(:disabled) {
-          color: var(--curate-text);
-          border-color: var(--curate-border-strong);
-          background: rgba(0, 163, 255, 0.1);
-          transform: translateY(-1px);
-        }
-      `
-  }
-}
-
-const shapeStyles = ({ shape }: { shape?: string }) => {
-  if (shape === 'circle')
-    return css`
-      border-radius: 50%;
-      min-width: 32px;
-      padding: 0;
-      text-align: center;
-    `
-  if (shape === 'round')
-    return css`
-      border-radius: 999px;
-    `
-  return ''
-}
-
-interface StyledButtonTransientProps {
-  btnType?: string
-  shape?: string
-  size?: string
-  block?: boolean
-}
-
-const StyledButton = styled.button<StyledButtonTransientProps>`
+const IconWrap = styled.span`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  border: 1px solid;
-  border-radius: var(--curate-radius-sm);
-  cursor: pointer;
-  transition:
-    background 0.2s ease,
-    border-color 0.2s ease,
-    color 0.2s ease,
-    transform 0.2s ease,
-    box-shadow 0.2s ease;
-  line-height: 1.5;
-  font-weight: 850;
-  letter-spacing: 0;
-  white-space: nowrap;
-  user-select: none;
-  touch-action: manipulation;
-
-  ${({ size }) => sizeStyles[size || 'default']}
-  ${getTypeStyles}
-  ${shapeStyles}
-
-  ${({ block }) =>
-    block &&
-    css`
-      display: flex;
-      width: 100%;
-    `}
-
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.65;
-  }
-`
-
-const StyledLink = styled.a<StyledButtonTransientProps>`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  border: 1px solid;
-  border-radius: var(--curate-radius-sm);
-  cursor: pointer;
-  transition:
-    background 0.2s ease,
-    border-color 0.2s ease,
-    color 0.2s ease,
-    transform 0.2s ease,
-    box-shadow 0.2s ease;
-  line-height: 1.5;
-  font-weight: 850;
-  white-space: nowrap;
-  user-select: none;
-  touch-action: manipulation;
-  text-decoration: none;
-
-  ${({ size }) => sizeStyles[size || 'default']}
-  ${getTypeStyles}
-  ${shapeStyles}
-
-  ${({ block }) =>
-    block &&
-    css`
-      display: flex;
-      width: 100%;
-    `}
-
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.65;
-  }
-`
-
-const Spinner = styled(FontAwesomeIcon)`
-  animation: ${spin} 1s linear infinite;
 `
 
 const GroupWrapper = styled.div`
   display: inline-flex;
+  align-items: center;
 
-  & > button,
-  & > a {
-    border-radius: 0;
+  > ${ButtonScope} {
+    margin-left: -1px;
 
     &:first-child {
-      border-radius: var(--curate-radius-sm) 0 0 var(--curate-radius-sm);
+      margin-left: 0;
     }
+  }
 
-    &:last-child {
-      border-radius: 0 var(--curate-radius-sm) var(--curate-radius-sm) 0;
-    }
+  > ${ButtonScope}:first-child > .gtcr-v2-button {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
 
-    &:not(:last-child) {
-      border-right-width: 0;
-    }
+  > ${ButtonScope}:last-child > .gtcr-v2-button {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+
+  > ${ButtonScope}:not(:first-child):not(:last-child) > .gtcr-v2-button {
+    border-radius: 0;
   }
 `
 
@@ -238,14 +231,17 @@ interface ButtonProps {
   htmlType?: 'button' | 'submit' | 'reset'
   disabled?: boolean
   onClick?: React.MouseEventHandler
+  onPress?: React.MouseEventHandler
   href?: string
   target?: string
   block?: boolean
   icon?: React.ReactNode
   form?: string
+  text?: React.ReactNode
   children?: React.ReactNode
   style?: React.CSSProperties
   className?: string
+  id?: string
   [key: string]: unknown
 }
 
@@ -263,66 +259,81 @@ const Button: React.FC<ButtonProps> & { Group: React.FC<ButtonGroupProps> } = ({
   htmlType = 'button',
   disabled,
   onClick,
+  onPress,
   href,
   target,
   block,
   icon,
   form,
+  text: textProp,
   children,
   style,
   className,
+  id,
   ...rest
 }) => {
-  const iconContent = loading ? (
-    <Spinner icon="spinner" />
-  ) : icon ? (
-    typeof icon === 'string' ? (
-      <FontAwesomeIcon icon={icon as IconDefinition} />
-    ) : (
-      icon
-    )
+  const variant = variantMap[type] || 'secondary'
+  const text = children ?? textProp ?? ''
+  const isDisabled = Boolean(disabled || loading)
+  const handleClick: React.MouseEventHandler = (event) => {
+    if (isDisabled && href) {
+      event.preventDefault()
+      return
+    }
+    ;(onClick || onPress)?.(event)
+  }
+  const iconNode = icon ? (
+    <IconWrap className="button-svg">
+      {typeof icon === 'string' ? (
+        <FontAwesomeIcon icon={icon as IconDefinition} />
+      ) : (
+        icon
+      )}
+    </IconWrap>
   ) : null
 
-  if (href)
-    return (
-      <StyledLink
-        href={href}
-        target={target}
-        btnType={type}
-        shape={shape}
-        size={size}
-        block={block}
-        style={style}
-        className={className}
-        onClick={
-          disabled || loading
-            ? (e: React.MouseEvent) => e.preventDefault()
-            : onClick
-        }
-        {...rest}
-      >
-        {iconContent}
-        {children}
-      </StyledLink>
-    )
-
   return (
-    <StyledButton
-      type={htmlType}
-      btnType={type}
-      shape={shape}
-      size={size}
-      disabled={disabled || loading}
-      onClick={onClick}
-      block={block}
-      form={form}
-      style={style}
+    <ButtonScope
+      $block={block}
+      $link={type === 'link' || type === 'ghost'}
+      $shape={shape}
+      $small={size === 'small'}
+      $variant={variant}
       className={className}
-      {...rest}
+      style={style}
     >
-      {iconContent}
-      {children}
-    </StyledButton>
+      {href ? (
+        <a
+          id={id}
+          className={['gtcr-v2-button', className].filter(Boolean).join(' ')}
+          href={isDisabled ? undefined : href}
+          target={target}
+          aria-disabled={isDisabled}
+          data-loading={loading ? 'true' : undefined}
+          onClick={handleClick}
+          {...rest}
+        >
+          {loading && <span className="button-loading" aria-hidden="true" />}
+          {iconNode}
+          {text && <span className="button-text">{text}</span>}
+        </a>
+      ) : (
+        <button
+          id={id}
+          className={['gtcr-v2-button', className].filter(Boolean).join(' ')}
+          disabled={isDisabled}
+          data-loading={loading ? 'true' : undefined}
+          type={htmlType}
+          form={form}
+          onClick={handleClick}
+          {...rest}
+        >
+          {loading && <span className="button-loading" aria-hidden="true" />}
+          {iconNode}
+          {text && <span className="button-text">{text}</span>}
+        </button>
+      )}
+    </ButtonScope>
   )
 }
 

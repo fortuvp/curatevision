@@ -1,6 +1,6 @@
 import { gql, request } from 'graphql-request'
 import { readContract } from '@wagmi/core'
-import type { Abi } from 'viem'
+import { erc20Abi, type Abi } from 'viem'
 import classicAbi from 'assets/abis/GeneralizedTCR.json'
 import lightAbi from 'assets/abis/LightGeneralizedTCR.json'
 import permanentAbi from 'assets/abis/PermanentGTCR.json'
@@ -156,6 +156,7 @@ export interface GovernanceParams {
   relayerContract?: string
   connectedTCR?: string
   metaEvidenceUpdates?: string
+  metaEvidenceURI?: string
   submissionBaseDeposit?: string
   submissionChallengeBaseDeposit?: string
   removalBaseDeposit?: string
@@ -169,6 +170,7 @@ export interface GovernanceParams {
   winnerStakeMultiplier?: string
   loserStakeMultiplier?: string
   sharedStakeMultiplier?: string
+  tokenSymbol?: string
 }
 
 export interface GovernedRegistry extends DashboardRegistry {
@@ -365,6 +367,24 @@ const readParam = async (
   }
 }
 
+const readTokenSymbol = async (
+  registry: DashboardRegistry,
+): Promise<string | undefined> => {
+  if (!registry.token) return undefined
+  try {
+    const symbol = await readContract(wagmiConfig, {
+      chainId: registry.chainId,
+      address: registry.token as `0x${string}`,
+      abi: erc20Abi,
+      functionName: 'symbol',
+    })
+    return typeof symbol === 'string' && symbol ? symbol : undefined
+  } catch (err) {
+    console.warn('Token symbol read failed', registry.token, err)
+    return undefined
+  }
+}
+
 const readGovernanceParams = async (
   registry: DashboardRegistry,
 ): Promise<GovernanceParams> => {
@@ -399,9 +419,24 @@ const readGovernanceParams = async (
   const entries = await Promise.all(
     names.map(async (name) => [name, await readParam(registry, name)] as const),
   )
-  return Object.fromEntries(
+  const params = Object.fromEntries(
     entries.filter(([, value]) => value !== undefined),
   ) as GovernanceParams
+
+  if (
+    registry.kind === 'permanent' &&
+    !params.arbitratorExtraData &&
+    registry.arbitratorExtraData
+  )
+    params.arbitratorExtraData = registry.arbitratorExtraData
+
+  if (registry.kind === 'permanent') {
+    if (registry.metaEvidenceURI)
+      params.metaEvidenceURI = registry.metaEvidenceURI
+    params.tokenSymbol = await readTokenSymbol(registry)
+  }
+
+  return params
 }
 
 const fetchGovernedRegistries = async (

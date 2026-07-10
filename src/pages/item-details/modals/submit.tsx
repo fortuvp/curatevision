@@ -1,38 +1,38 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { ethers } from 'ethers'
-import { Button, Form, Tooltip, Descriptions } from 'components/ui'
+import { Button, Form, Tooltip } from 'components/ui'
 import Icon from 'components/ui/Icon'
 import { abi as _gtcr } from '@kleros/tcr/build/contracts/GeneralizedTCR.json'
 import { useAccount, usePublicClient, useWalletClient, useChainId } from 'wagmi'
 import { simulateContract } from '@wagmi/core'
 import { getAddress, keccak256 } from 'viem'
 import { withFormik } from 'formik'
-import humanizeDuration from 'humanize-duration'
 import { gtcrEncode, ItemTypes, typeDefaultValues } from '@kleros/gtcr-encoder'
 import InputSelector from 'components/input-selector'
 import EnsureAuth from 'components/ensure-auth'
-import ETHAmount from 'components/eth-amount'
 import useFactory from 'hooks/factory'
 import { useAtlasProvider } from '@kleros/kleros-app'
 import { resolveStashedFiles } from 'utils/resolve-stashed-files'
-import { addPeriod, capitalizeFirstLetter, getArticleFor } from 'utils/string'
+import { addPeriod, capitalizeFirstLetter } from 'utils/string'
 import useNativeCurrency from 'hooks/native-currency'
 import useNativeBalance from 'hooks/use-native-balance'
-import ListingCriteriaLink from 'components/listing-criteria-link'
 import { wrapWithToast, errorToast } from 'utils/wrap-with-toast'
 import { parseWagmiError } from 'utils/parse-wagmi-error'
 import { wagmiConfig } from 'config/wagmi'
 import {
+  PolicyReviewPanel,
   SUBMISSION_FORM_ID,
-  StyledParagraph,
-  StyledListingCriteria,
+  SubmissionNavigation,
+  SubmissionPreview,
+  SubmissionPreviewRow,
+  SubmissionStageTitle,
   StyledModal,
+  SubmissionFlowScaffold,
 } from 'pages/light-item-details/modals/submit'
 import {
   StyledSpin,
   InsufficientBalanceText,
 } from 'pages/light-item-details/modals/challenge'
-import { StyledAlert } from 'pages/light-item-details/modals/remove'
 
 export interface Column {
   label: string
@@ -45,6 +45,8 @@ export interface Column {
 const _SubmissionForm: React.FC<{
   style: React.CSSProperties
   columns: Column[]
+  activeStage?: SubmissionStage
+  activeFieldIndex?: number
   setFieldValue: (fieldName: string, value: unknown) => void
   handleSubmit: () => void
   disabledFields: boolean[]
@@ -64,35 +66,80 @@ const _SubmissionForm: React.FC<{
     p.onFieldsComplete(allFilled)
   }, [p])
 
+  const activeStage = p.activeStage || 'field'
+  const activeFieldIndex = p.activeFieldIndex || 0
+  const activeColumn = p.columns?.[activeFieldIndex]
+
   return (
     <Form onSubmit={p.handleSubmit} id={SUBMISSION_FORM_ID}>
-      {p.columns &&
-        p.columns.length > 0 &&
-        p.columns.map((column, index) => (
+      {activeStage === 'field' && activeColumn && (
+        <>
+          <SubmissionStageTitle>{activeColumn.label}</SubmissionStageTitle>
           <InputSelector
             style={p.style}
-            type={column.type}
-            name={`${column.label}`}
-            allowedFileTypes={column.allowedFileTypes}
-            key={index}
+            type={activeColumn.type}
+            name={`${activeColumn.label}`}
+            allowedFileTypes={activeColumn.allowedFileTypes}
+            key={activeFieldIndex}
             values={p.values}
-            error={p.errors[column.label]}
+            error={p.errors[activeColumn.label]}
             setFieldValue={p.setFieldValue}
-            disabled={p.disabledFields && p.disabledFields[index]}
-            touched={p.touched[column.label]}
+            disabled={p.disabledFields && p.disabledFields[activeFieldIndex]}
+            touched={p.touched[activeColumn.label]}
             label={
               <span>
-                {column.label}&nbsp;
-                <Tooltip title={addPeriod(column.description)}>
+                {activeColumn.label}&nbsp;
+                <Tooltip title={addPeriod(activeColumn.description)}>
                   <Icon type="question-circle-o" />
                 </Tooltip>
               </span>
             }
           />
-        ))}
+        </>
+      )}
+      {activeStage === 'policy' && (
+        <>
+          <SubmissionStageTitle>Policy Review</SubmissionStageTitle>
+          <PolicyReviewPanel>
+            <p>
+              Review the list policy before submitting. Incorrect entries can be
+              challenged and removed.
+            </p>
+            <p>
+              The deposit is returned if the submission is accepted and no valid
+              challenge succeeds.
+            </p>
+          </PolicyReviewPanel>
+        </>
+      )}
+      {activeStage === 'preview' && (
+        <>
+          <SubmissionStageTitle>Preview</SubmissionStageTitle>
+          <SubmissionPreview>
+            {p.columns.map((column) => {
+              const value = p.values[column.label]
+              const displayValue =
+                value instanceof File
+                  ? value.name
+                  : value === undefined || value === ''
+                    ? 'Not provided'
+                    : String(value)
+
+              return (
+                <SubmissionPreviewRow key={column.label}>
+                  <small>{column.label}</small>
+                  <span>{displayValue}</span>
+                </SubmissionPreviewRow>
+              )
+            })}
+          </SubmissionPreview>
+        </>
+      )}
     </Form>
   )
 }
+
+type SubmissionStage = 'field' | 'policy' | 'preview'
 
 const SubmissionForm: React.ComponentType<Record<string, unknown>> = withFormik(
   {
@@ -187,6 +234,7 @@ const SubmitModal: React.FC<{
   }
   disabledFields: boolean[]
   challengePeriodDuration: ethers.BigNumber
+  embedded?: boolean
 }> = (props) => {
   const {
     onCancel,
@@ -196,6 +244,7 @@ const SubmitModal: React.FC<{
     metaEvidence,
     disabledFields,
     challengePeriodDuration,
+    embedded = false,
   } = props
   const nativeCurrency = useNativeCurrency()
   const { address: account } = useAccount()
@@ -219,6 +268,40 @@ const SubmitModal: React.FC<{
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [fieldsComplete, setFieldsComplete] = useState(false)
+  const [activeStage, setActiveStage] = useState<SubmissionStage>('field')
+  const [activeFieldIndex, setActiveFieldIndex] = useState(0)
+  const activeStep =
+    activeStage === 'field' ? 0 : activeStage === 'policy' ? 1 : 2
+  const fieldLabels = columns?.map((column) => column.label) || []
+
+  const goBack = useCallback(() => {
+    if (activeStage === 'preview') {
+      setActiveStage('policy')
+      return
+    }
+    if (activeStage === 'policy') {
+      setActiveStage('field')
+      setActiveFieldIndex(Math.max(0, (columns?.length || 1) - 1))
+      return
+    }
+    if (activeFieldIndex > 0) {
+      setActiveFieldIndex((index) => Math.max(0, index - 1))
+      return
+    }
+    onCancel()
+  }, [activeFieldIndex, activeStage, columns?.length, onCancel])
+
+  const goNext = useCallback(() => {
+    if (activeStage === 'field') {
+      if (activeFieldIndex < (columns?.length || 1) - 1) {
+        setActiveFieldIndex((index) => index + 1)
+        return
+      }
+      setActiveStage('policy')
+      return
+    }
+    if (activeStage === 'policy') setActiveStage('preview')
+  }, [activeFieldIndex, activeStage, columns?.length])
 
   const postSubmit = useCallback(
     async (
@@ -316,47 +399,55 @@ const SubmitModal: React.FC<{
       </StyledModal>
     )
 
-  return (
-    // @ts-ignore
-    <StyledModal
-      title={`Submit ${
-        (itemName && capitalizeFirstLetter(itemName)) || 'Item'
-      }`}
-      footer={[
-        <Button key="back" onClick={onCancel}>
-          Back
-        </Button>,
-        <EnsureAuth key="ensure-auth">
-          <div>
-            <Button
-              key="challengeSubmit"
-              type="primary"
-              form={SUBMISSION_FORM_ID}
-              htmlType="submit"
-              disabled={!!insufficientBalance || !fieldsComplete}
-              loading={isSubmitting}
-            >
-              Submit
+  const submitContent = (
+    <SubmissionFlowScaffold
+      tcrTitle={tcrTitle}
+      itemName={itemName}
+      nativeCurrency={nativeCurrency}
+      submissionDeposit={submissionDeposit}
+      challengePeriodDuration={challengePeriodDuration}
+      fileURI={fileURI}
+      activeStep={activeStep}
+      fieldLabels={fieldLabels}
+      navigation={
+        <SubmissionNavigation>
+          <Button onClick={goBack}>
+            {activeStage === 'field' && activeFieldIndex === 0
+              ? 'Cancel'
+              : 'Previous'}
+          </Button>
+          {activeStage === 'preview' ? (
+            <EnsureAuth>
+              <div>
+                <Button
+                  key="challengeSubmit"
+                  type="primary"
+                  form={SUBMISSION_FORM_ID}
+                  htmlType="submit"
+                  disabled={!!insufficientBalance || !fieldsComplete}
+                  loading={isSubmitting}
+                >
+                  Submit
+                </Button>
+                {insufficientBalance && (
+                  <InsufficientBalanceText>
+                    Insufficient balance
+                  </InsufficientBalanceText>
+                )}
+              </div>
+            </EnsureAuth>
+          ) : (
+            <Button type="primary" onClick={goNext}>
+              Next
             </Button>
-            {insufficientBalance && (
-              <InsufficientBalanceText>
-                Insufficient balance
-              </InsufficientBalanceText>
-            )}
-          </div>
-        </EnsureAuth>,
-      ]}
-      {...props}
+          )}
+        </SubmissionNavigation>
+      }
     >
-      <StyledParagraph>
-        Submit{' '}
-        {itemName
-          ? `${getArticleFor(itemName)} ${itemName.toLowerCase()}`
-          : 'an item'}{' '}
-        to {tcrTitle || 'this list'} so other users can find it.
-      </StyledParagraph>
       <SubmissionForm
         columns={columns}
+        activeStage={activeStage}
+        activeFieldIndex={activeFieldIndex}
         postSubmit={postSubmit}
         initialValues={initialValues}
         disabledFields={disabledFields}
@@ -365,46 +456,21 @@ const SubmitModal: React.FC<{
         deployedWithPermanentFactory={deployedWithPermanentFactory}
         onFieldsComplete={setFieldsComplete}
       />
-      <StyledListingCriteria>
-        Make sure your submission complies with the{' '}
-        <ListingCriteriaLink fileURI={fileURI}>
-          listing criteria
-        </ListingCriteriaLink>{' '}
-        to avoid challenges.
-      </StyledListingCriteria>
-      <StyledAlert
-        message={`Note that this is a deposit, not a fee and it will be reimbursed if your submission is accepted. ${
-          challengePeriodDuration &&
-          `The challenge period lasts ${humanizeDuration(
-            challengePeriodDuration.toNumber() * 1000,
-          )}`
-        }.`}
-        type="info"
-        showIcon
-      />
-      <Descriptions
-        bordered
-        column={{ xxl: 4, xl: 3, lg: 3, md: 3, sm: 2, xs: 1 }}
-        style={{ marginTop: 4 }}
-      >
-        <Descriptions.Item
-          label={
-            <span>
-              Total Deposit Required
-              <Tooltip title="A deposit is required to submit. This value reimbursed at the end of the challenge period or, if there is a dispute, be awarded to the party that wins.">
-                &nbsp;
-                <Icon type="question-circle-o" />
-              </Tooltip>
-            </span>
-          }
-        >
-          <ETHAmount
-            decimals={3}
-            amount={submissionDeposit.toString()}
-            displayUnit={` ${nativeCurrency}`}
-          />
-        </Descriptions.Item>
-      </Descriptions>
+    </SubmissionFlowScaffold>
+  )
+
+  if (embedded) return submitContent
+
+  return (
+    // @ts-ignore
+    <StyledModal
+      title={`Submit ${
+        (itemName && capitalizeFirstLetter(itemName)) || 'Item'
+      }`}
+      footer={null}
+      {...props}
+    >
+      {submitContent}
     </StyledModal>
   )
 }

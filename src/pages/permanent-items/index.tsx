@@ -37,16 +37,26 @@ import {
 import ItemCard from './item-card'
 import Banner from './banner'
 import { PERMANENT_ITEMS_QUERY, PERMANENT_REGISTRY_QUERY } from 'utils/graphql'
-import PermanentSearchBar from 'components/permanent-search-bar'
 import { parseIpfs } from 'utils/ipfs-parse'
 import { useGraphqlBatcher } from 'contexts/graphql-batcher'
 import useArbitrationCost from 'hooks/arbitration-cost'
 import useTokenSymbol from 'hooks/token-symbol'
+import useNativeCurrency from 'hooks/native-currency'
 import { useEthersProvider } from 'hooks/ethers-adapters'
 import RegistryInfoPanel from 'components/curate/registry-info-panel'
 import ETHAmount from 'components/eth-amount'
+import TokenAmount from 'components/token-amount'
 import { getListOfListsAddresses } from 'config/list-of-lists'
 import humanizeDuration from 'humanize-duration'
+import { CurateIcon } from 'components/curate/icons'
+import {
+  ToolbarMeta,
+  ToolbarSearch,
+  ToolbarSearchInput,
+  V2RegistryViewMode,
+  ViewModeToggle,
+  itemMatchesSearch,
+} from 'components/curate/v2-registry-toolbar'
 
 export const NSFW_FILTER_KEY = 'NSFW_FILTER_KEY'
 
@@ -159,10 +169,10 @@ export const StyledPagination = styled(Pagination)`
 `
 
 export const StyledGrid = styled.div`
-  display: grid;
+  display: flex;
+  flex-direction: column;
   margin: 24px 0;
-  grid-gap: 20px;
-  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 8px;
 `
 
 export const StyledSwitch = styled(Switch)`
@@ -196,6 +206,8 @@ const Items = () => {
   const [columns, setColumns] = useState<Column[] | undefined>()
   const queryOptions = searchStrToFilterObjPermanent(search)
   const [nsfwFilterOn, setNSFWFilter] = useState(true)
+  const [itemSearch, setItemSearch] = useState('')
+  const [viewMode, setViewMode] = useState<V2RegistryViewMode>('list')
   const [queryItemParams, _setQueryItemParams] = useState<
     Record<string, unknown> | undefined
   >()
@@ -306,6 +318,10 @@ const Items = () => {
   }, [])
 
   const items = useMemo(() => itemsQuery.data?.items ?? [], [itemsQuery.data])
+  const visibleItems = useMemo(
+    () => items.filter((item) => itemMatchesSearch(item, itemSearch)),
+    [itemSearch, items],
+  )
 
   useEffect(() => {
     if (!registryQuery.data || !registryQuery.data.registry) return
@@ -324,22 +340,33 @@ const Items = () => {
         ?.arbitratorExtraData,
     library,
   })
-  const { symbol: tokenSymbol } = useTokenSymbol(
+  const { symbol: tokenSymbol, decimals: tokenDecimals } = useTokenSymbol(
     registryQuery.data?.registry?.token,
   )
+  const nativeCurrency = useNativeCurrency()
 
   // provisional early return
   if (!registryQuery.data) return null
 
   const r = registryQuery.data.registry
   const metadata = r?.arbitrationSettings?.[0]?.metadata
-  const depositUnit = tokenSymbol ? ` ${tokenSymbol}` : ''
-  const depositValue = (amount: unknown) =>
+  const tokenDepositUnit = tokenSymbol ? ` ${tokenSymbol}` : ''
+  const nativeDepositUnit = nativeCurrency ? ` ${nativeCurrency}` : ''
+  const tokenDepositValue = (amount: unknown) =>
+    amount ? (
+      <TokenAmount
+        amount={amount as string}
+        tokenDecimals={tokenDecimals}
+        precision={3}
+        displayUnit={tokenDepositUnit}
+      />
+    ) : undefined
+  const nativeDepositValue = (amount: unknown) =>
     amount ? (
       <ETHAmount
         amount={amount as string}
         decimals={18}
-        displayUnit={depositUnit}
+        displayUnit={nativeDepositUnit}
       />
     ) : undefined
   const periodValue = (seconds: unknown) =>
@@ -397,7 +424,7 @@ const Items = () => {
           {
             label: 'Submission minimum',
             icon: 'submit',
-            value: depositValue(r.submissionMinDeposit),
+            value: tokenDepositValue(r.submissionMinDeposit),
             hint: 'Minimum bounty required for permanent submissions.',
           },
           {
@@ -416,11 +443,12 @@ const Items = () => {
             value: periodValue(r.reinclusionPeriod),
           },
           {
-            label: 'Arbitration cost',
+            label: 'Arbitration fee',
             icon: 'court',
             value: arbitrationCost.arbitrationCost
-              ? depositValue(arbitrationCost.arbitrationCost)
+              ? nativeDepositValue(arbitrationCost.arbitrationCost)
               : undefined,
+            hint: 'Arbitration fees are paid up front to open or continue a dispute. They are reimbursed to the side that wins, so parties acting in good faith should not ultimately bear them.',
           },
           {
             label: 'Arbitrator',
@@ -449,14 +477,16 @@ const Items = () => {
         <StyledContent>
           <Spin spinning={itemsQuery.isLoading || !metadata}>
             <>
-              <StyledTopPadding>
-                <PermanentSearchBar
-                  items={items}
-                  chainId={chainId}
-                  tcrAddress={tcrAddress}
-                />
-              </StyledTopPadding>
               <FiltersContainer id="items-filters">
+                <ToolbarSearch>
+                  <CurateIcon name="search" size={18} />
+                  <ToolbarSearchInput
+                    aria-label="Search registry entries"
+                    placeholder="Search entries"
+                    value={itemSearch}
+                    onChange={(event) => setItemSearch(event.target.value)}
+                  />
+                </ToolbarSearch>
                 <StyledFilters>
                   <StyledSwitch
                     checkedChildren="NSFW Filter: On"
@@ -494,6 +524,10 @@ const Items = () => {
                       ) : null,
                     )}
                 </StyledFilters>
+                <ToolbarMeta>
+                  {visibleItems.length}/{itemCount || 0} shown
+                </ToolbarMeta>
+                <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
                 <StyledSelect
                   defaultValue={oldestFirst ? 'oldestFirst' : 'newestFirst'}
                   onChange={(val) => {
@@ -511,12 +545,12 @@ const Items = () => {
                   <Select.Option value="oldestFirst">Oldest</Select.Option>
                 </StyledSelect>
               </FiltersContainer>
-              <StyledGrid id="items-grid-view">
-                {items.length === 0 && !itemsQuery.data
+              <StyledGrid id="items-grid-view" $viewMode={viewMode}>
+                {visibleItems.length === 0 && !itemsQuery.data
                   ? Array.from({ length: 8 }).map((_, i) => (
                       <Card key={i} style={{ height: '100%' }} loading />
                     ))
-                  : items.map((item, _i) => (
+                  : visibleItems.map((item, _i) => (
                       <ItemCard
                         item={item}
                         columns={columns}
@@ -528,6 +562,7 @@ const Items = () => {
                         timestamp={timestamp}
                         forceReveal={!nsfwFilterOn}
                         tokenSymbol={tokenSymbol}
+                        viewMode={viewMode}
                       />
                     ))}
               </StyledGrid>

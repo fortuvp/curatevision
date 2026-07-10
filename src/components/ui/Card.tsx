@@ -7,17 +7,11 @@ const shimmer = keyframes`
 `
 
 const StyledCard = styled.div<{ $bordered?: boolean; $hoverable?: boolean }>`
-  background:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.055),
-      rgba(255, 255, 255, 0.025)
-    ),
-    var(--curate-surface);
-  border-radius: var(--curate-radius-sm);
+  background: var(--v2-card);
+  border-radius: 3px;
   border: ${({ $bordered, theme }) =>
-    $bordered ? `1px solid ${theme.curateBorder}` : 'none'};
-  box-shadow: var(--curate-shadow);
+    $bordered ? `1px solid ${theme.borderColor}` : 'none'};
+  box-shadow: var(--v2-shadow);
   transition:
     border-color 0.2s ease,
     box-shadow 0.2s ease,
@@ -29,16 +23,16 @@ const StyledCard = styled.div<{ $bordered?: boolean; $hoverable?: boolean }>`
     css`
       cursor: pointer;
       &:hover {
-        border-color: var(--curate-border-strong);
-        box-shadow: var(--curate-shadow-hover);
-        transform: translateY(-2px);
+        border-color: var(--v2-stroke-strong);
+        box-shadow: var(--v2-shadow-hover);
+        transform: translateY(-1px);
       }
     `}
 `
 
 const CardHead = styled.div`
-  background: rgba(255, 255, 255, 0.035);
-  border-bottom: 1px solid var(--curate-border);
+  background: var(--v2-card);
+  border-bottom: 1px solid var(--v2-stroke);
   padding: 16px 18px;
   min-height: 54px;
 `
@@ -50,8 +44,8 @@ const CardHeadWrapper = styled.div`
 `
 
 const CardHeadTitle = styled.div`
-  color: var(--curate-text);
-  font-weight: 800;
+  color: var(--v2-text);
+  font-weight: 600;
   font-size: 16px;
   flex: 1;
   min-width: 0;
@@ -63,18 +57,18 @@ const CardHeadTitle = styled.div`
 const CardExtra = styled.div`
   margin-left: auto;
   padding-left: 16px;
-  color: var(--curate-text);
+  color: var(--v2-text);
 `
 
 const CardBody = styled.div`
   padding: 18px;
-  color: var(--curate-text);
+  color: var(--v2-text);
 `
 
 const CardActions = styled.div`
   display: flex;
   align-items: center;
-  border-top: 1px solid var(--curate-border);
+  border-top: 1px solid var(--v2-stroke);
 
   & > * {
     flex: 1;
@@ -84,7 +78,7 @@ const CardActions = styled.div`
     transition: color 0.3s;
 
     &:not(:last-child) {
-      border-right: 1px solid var(--curate-border);
+      border-right: 1px solid var(--v2-stroke);
     }
   }
 `
@@ -130,8 +124,8 @@ const MetaDetail = styled.div`
 `
 
 const MetaTitle = styled.div`
-  color: var(--curate-text);
-  font-weight: 800;
+  color: var(--v2-text);
+  font-weight: 600;
   font-size: 16px;
   overflow: hidden;
   white-space: nowrap;
@@ -140,7 +134,7 @@ const MetaTitle = styled.div`
 `
 
 const MetaDescription = styled.div`
-  color: var(--curate-muted);
+  color: var(--v2-muted);
   font-size: 14px;
 `
 

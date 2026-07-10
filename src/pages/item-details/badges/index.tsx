@@ -223,7 +223,7 @@ const Badges = ({ connectedTCRAddr, item, tcrAddress }: BadgesProps) => {
             const { columns: matchColumns } = matchFile
             const { metadata: badgeMetadata, fileURI } = badgeMetaEvidence
 
-            // Submission deposit = submitter base deposit + arbitration cost
+            // Submission deposit = submitter base deposit + arbitration fee
             const { submissionBaseDeposit, arbitrationCost } = badgeTcrData
             const submissionDeposit = submissionBaseDeposit.add(arbitrationCost)
 

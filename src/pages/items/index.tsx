@@ -11,6 +11,7 @@ import React, {
 } from 'react'
 import localforage from 'localforage'
 import { useQuery } from '@tanstack/react-query'
+import { request } from 'graphql-request'
 import { STALE_TIME } from 'consts'
 import ErrorPage from '../error-page'
 import { WalletContext } from 'contexts/wallet-context'
@@ -29,12 +30,13 @@ import ItemCard from './item-card'
 import Banner from './banner'
 import { DISPUTE_STATUS } from 'utils/item-status'
 import { CLASSIC_REGISTRY_ITEMS_QUERY } from 'utils/graphql'
-import { useGraphqlBatcher } from 'contexts/graphql-batcher'
 import RegistryInfoPanel from 'components/curate/registry-info-panel'
 import ETHAmount from 'components/eth-amount'
 import { NETWORKS_INFO } from 'config/networks'
+import { subgraphUrl } from 'config/tcr-addresses'
 import { getListOfListsAddresses } from 'config/list-of-lists'
 import humanizeDuration from 'humanize-duration'
+import { CurateIcon } from 'components/curate/icons'
 import {
   NSFW_FILTER_KEY,
   StyledLayoutContent,
@@ -49,6 +51,14 @@ import {
   ITEMS_PER_PAGE,
   pagingItem,
 } from 'pages/light-items'
+import {
+  ToolbarMeta,
+  ToolbarSearch,
+  ToolbarSearchInput,
+  V2RegistryViewMode,
+  ViewModeToggle,
+  itemMatchesSearch,
+} from 'components/curate/v2-registry-toolbar'
 
 const MAX_ENTITIES = 1000
 
@@ -78,10 +88,11 @@ const Items = () => {
   >()
   const queryOptions = searchStrToFilterObjLight(search)
   const [nsfwFilterOn, setNSFWFilter] = useState(true)
+  const [itemSearch, setItemSearch] = useState('')
+  const [viewMode, setViewMode] = useState<V2RegistryViewMode>('list')
   const [queryItemParams, setQueryItemParams] = useState<
     Record<string, unknown> | undefined
   >()
-  const { graphqlBatcher } = useGraphqlBatcher()
 
   const toggleNSFWFilter = useCallback((checked) => {
     setNSFWFilter(checked)
@@ -173,13 +184,11 @@ const Items = () => {
 
   const itemsQuery = useQuery({
     queryKey: ['classicItems', queryVariables],
-    queryFn: () =>
-      graphqlBatcher.fetch({
-        id: crypto.randomUUID(),
-        document: CLASSIC_REGISTRY_ITEMS_QUERY,
-        variables: queryVariables,
-        chainId: chainId!,
-      }),
+    queryFn: () => {
+      const url = subgraphUrl[chainId!]
+      if (!url) throw new Error(`No subgraph URL for chain ${chainId}`)
+      return request(url, CLASSIC_REGISTRY_ITEMS_QUERY, queryVariables)
+    },
     enabled: !!chainId,
     staleTime: STALE_TIME,
     refetchInterval: 30_000, // Poll subgraph every 30s for status changes
@@ -275,6 +284,20 @@ const Items = () => {
       }
     })
   }, [metaEvidence, tcrAddress, encodedItems])
+
+  const visibleItems = useMemo(() => {
+    if (!items) return
+
+    return [...items]
+      .filter((item) => itemMatchesSearch(item, itemSearch))
+      .sort(({ tcrData: tcrDataA }, { tcrData: tcrDataB }) => {
+        // Display items with pending requests first.
+        if (!tcrDataA || !tcrDataB) return 0 // Handle errored TCRs.
+        if (!tcrDataA.resolved && tcrDataB.resolved) return -1
+        if (tcrDataA.resolved && !tcrDataB.resolved) return 1
+        return 0
+      })
+  }, [itemSearch, items])
 
   // Check if there an action in the URL.
   useEffect(() => {
@@ -373,7 +396,7 @@ const Items = () => {
             label: 'Submission deposit',
             icon: 'submit',
             value: depositValue(submissionDeposit),
-            hint: 'Requester stake plus current arbitration cost.',
+            hint: 'Requester stake plus the current arbitration fee.',
           },
           {
             label: 'Challenge deposit',
@@ -397,9 +420,10 @@ const Items = () => {
             value: periodValue(challengePeriodDuration),
           },
           {
-            label: 'Arbitration cost',
+            label: 'Arbitration fee',
             icon: 'court',
             value: depositValue(arbitrationCost),
+            hint: 'Arbitration fees are paid up front to open or continue a dispute. They are reimbursed to the side that wins, so parties acting in good faith should not ultimately bear them.',
           },
           {
             label: 'Governor',
@@ -421,6 +445,15 @@ const Items = () => {
           <Spin spinning={itemsQuery.isLoading || !metadata}>
             <>
               <FiltersContainer id="items-filters">
+                <ToolbarSearch>
+                  <CurateIcon name="search" size={18} />
+                  <ToolbarSearchInput
+                    aria-label="Search registry entries"
+                    placeholder="Search entries"
+                    value={itemSearch}
+                    onChange={(event) => setItemSearch(event.target.value)}
+                  />
+                </ToolbarSearch>
                 <StyledFilters>
                   <StyledSwitch
                     checkedChildren="NSFW Filter: On"
@@ -457,6 +490,10 @@ const Items = () => {
                       ) : null,
                     )}
                 </StyledFilters>
+                <ToolbarMeta>
+                  {visibleItems?.length ?? 0}/{itemCount || 0} shown
+                </ToolbarMeta>
+                <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
                 <StyledSelect
                   defaultValue={oldestFirst ? 'oldestFirst' : 'newestFirst'}
                   onChange={(val) => {
@@ -474,28 +511,21 @@ const Items = () => {
                   <Select.Option value="oldestFirst">Oldest</Select.Option>
                 </StyledSelect>
               </FiltersContainer>
-              <StyledGrid id="items-grid-view">
-                {items
-                  ? items
-                      .sort(({ tcrData: tcrDataA }, { tcrData: tcrDataB }) => {
-                        // Display items with pending requests first.
-                        if (!tcrDataA || !tcrDataB) return 0 // Handle errored TCRs.
-                        if (!tcrDataA.resolved && tcrDataB.resolved) return -1
-                        if (tcrDataA.resolved && !tcrDataB.resolved) return 1
-                        return 0
-                      })
-                      .map((item, i) => (
-                        <ItemCard
-                          item={item}
-                          key={i}
-                          metaEvidence={metaEvidence}
-                          chainId={chainId}
-                          tcrAddress={tcrAddress}
-                          challengePeriodDuration={challengePeriodDuration}
-                          timestamp={timestamp}
-                          forceReveal={!nsfwFilterOn}
-                        />
-                      ))
+              <StyledGrid id="items-grid-view" $viewMode={viewMode}>
+                {visibleItems
+                  ? visibleItems.map((item, i) => (
+                      <ItemCard
+                        item={item}
+                        key={i}
+                        metaEvidence={metaEvidence}
+                        chainId={chainId}
+                        tcrAddress={tcrAddress}
+                        challengePeriodDuration={challengePeriodDuration}
+                        timestamp={timestamp}
+                        forceReveal={!nsfwFilterOn}
+                        viewMode={viewMode}
+                      />
+                    ))
                   : Array.from({ length: 8 }).map((_, i) => (
                       <Card key={i} style={{ height: '100%' }} loading />
                     ))}

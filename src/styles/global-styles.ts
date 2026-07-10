@@ -13,9 +13,7 @@ const GlobalStyle = createGlobalStyle`
   body {
     margin: 0;
     font-family:
-      Inter,
-      "SF Pro Text",
-      "SF Pro Display",
+      "Open Sans",
       ui-sans-serif,
       system-ui,
       -apple-system,
@@ -25,41 +23,84 @@ const GlobalStyle = createGlobalStyle`
     font-size: 14px;
     transition: background-color 0.3s ease, color 0.3s ease;
     --horizontal-padding: min(4.6875vw, 66px);
-    --curate-bg: ${({ theme }) => theme.curateBg};
-    --curate-bg-soft: ${({ theme }) => theme.curateBgSoft};
-    --curate-surface: ${({ theme }) => theme.curateSurface};
-    --curate-surface-strong: ${({ theme }) => theme.curateSurfaceStrong};
-    --curate-border: ${({ theme }) => theme.curateBorder};
-    --curate-border-strong: ${({ theme }) => theme.curateBorderStrong};
-    --curate-text: ${({ theme }) => theme.curateText};
-    --curate-muted: ${({ theme }) => theme.curateMuted};
-    --curate-faint: ${({ theme }) => theme.curateFaint};
-    --curate-live: ${({ theme }) => theme.curateLive};
-    --curate-violet: ${({ theme }) => theme.curateViolet};
-    --curate-success: ${({ theme }) => theme.curateSuccess};
-    --curate-warning: ${({ theme }) => theme.curateWarning};
-    --curate-danger: ${({ theme }) => theme.curateDanger};
-    --curate-shadow: ${({ theme }) => theme.curateShadow};
-    --curate-shadow-hover: ${({ theme }) => theme.curateShadowHover};
-    --curate-panel: linear-gradient(180deg, rgba(7, 18, 32, 0.9), rgba(3, 8, 16, 0.88));
-    --curate-card: linear-gradient(180deg, rgba(9, 23, 41, 0.88), rgba(4, 10, 20, 0.93));
-    --curate-stat: linear-gradient(180deg, rgba(8, 21, 38, 0.84), rgba(3, 8, 16, 0.92));
-    --curate-button: rgba(8, 19, 34, 0.86);
-    --curate-button-soft: rgba(5, 11, 21, 0.86);
-    --curate-chip-bg: rgba(7, 16, 30, 0.8);
-    --curate-field: rgba(2, 6, 12, 0.82);
-    --curate-icon-bg: linear-gradient(145deg, rgba(0, 163, 255, 0.18), rgba(108, 161, 255, 0.08));
-    --curate-icon-shadow: inset 0 1px rgba(255, 255, 255, 0.07), 0 18px 44px rgba(0, 163, 255, 0.12);
-    --curate-under-glow: rgba(0, 163, 255, 0.14);
-    --curate-radius: 24px;
-    --curate-radius-sm: 14px;
-    color: var(--curate-text);
+    --v2-bg: ${({ theme }) => theme.curateBg};
+    --v2-bg-soft: ${({ theme }) => theme.curateBgSoft};
+    --v2-card: ${({ theme }) => theme.componentBackground};
+    --v2-soft: ${({ theme }) => theme.elevatedBackground};
+    --v2-text: ${({ theme }) => theme.textPrimary};
+    --v2-muted: ${({ theme }) => theme.textSecondary};
+    --v2-faint: ${({ theme }) => theme.textTertiary};
+    --v2-stroke: ${({ theme }) => theme.borderColor};
+    --v2-stroke-strong: ${({ theme }) => theme.curateBorderStrong};
+    --v2-purple: ${({ theme }) => theme.secondaryColor};
+    --v2-purple-soft: ${({ theme }) => theme.curateVioletSoft};
+    --v2-blue: ${({ theme }) => theme.primaryColor};
+    --v2-blue-hover: ${({ theme }) => theme.primaryColorHover};
+    --v2-blue-soft: ${({ theme }) => theme.curateLiveSoft};
+    --v2-success: ${({ theme }) => theme.successColor};
+    --v2-success-soft: ${({ theme }) => theme.curateSuccessSoft};
+    --v2-warning: ${({ theme }) => theme.warningColor};
+    --v2-warning-soft: ${({ theme }) => theme.curateWarningSoft};
+    --v2-error: ${({ theme }) => theme.errorColor};
+    --v2-error-soft: ${({ theme }) => theme.curateDangerSoft};
+    --v2-shadow: ${({ theme }) => theme.cardShadow};
+    --v2-shadow-hover: ${({ theme }) => theme.curateShadowHover};
+    --klerosUIComponentsWhiteBackground: ${({ theme }) =>
+      theme.componentBackground};
+    --klerosUIComponentsLightBackground: ${({ theme }) => theme.curateBg};
+    --klerosUIComponentsLightBlue: ${({ theme }) => theme.curateBg};
+    --klerosUIComponentsMediumBlue: ${({ theme }) => theme.curateLiveSoft};
+    --klerosUIComponentsPrimaryBlue: ${({ theme }) => theme.primaryColor};
+    --klerosUIComponentsSecondaryBlue: ${({ theme }) =>
+      theme.primaryColorHover};
+    --klerosUIComponentsPrimaryPurple: ${({ theme }) => theme.gradientStart};
+    --klerosUIComponentsSecondaryPurple: ${({ theme }) => theme.secondaryColor};
+    --klerosUIComponentsMediumPurple: ${({ theme }) => theme.curateVioletSoft};
+    --klerosUIComponentsPrimaryText: ${({ theme }) => theme.textPrimary};
+    --klerosUIComponentsSecondaryText: ${({ theme }) => theme.textSecondary};
+    --klerosUIComponentsStroke: ${({ theme }) => theme.borderColor};
+    --klerosUIComponentsLightGrey: ${({ theme }) => theme.elevatedBackground};
+    --klerosUIComponentsSuccess: ${({ theme }) => theme.successColor};
+    --klerosUIComponentsSuccessLight: ${({ theme }) => theme.curateSuccessSoft};
+    --klerosUIComponentsError: ${({ theme }) => theme.errorColor};
+    --klerosUIComponentsErrorLight: ${({ theme }) => theme.curateDangerSoft};
+    --klerosUIComponentsWarning: ${({ theme }) => theme.warningColor};
+    --klerosUIComponentsWarningLight: ${({ theme }) => theme.curateWarningSoft};
+    --klerosUIComponentsTransitionSpeed: 150ms;
+    --curate-bg: var(--v2-bg);
+    --curate-bg-soft: var(--v2-bg-soft);
+    --curate-surface: var(--v2-card);
+    --curate-surface-strong: var(--v2-card);
+    --curate-border: var(--v2-stroke);
+    --curate-border-strong: var(--v2-stroke-strong);
+    --curate-text: var(--v2-text);
+    --curate-muted: var(--v2-muted);
+    --curate-faint: var(--v2-faint);
+    --curate-live: var(--v2-blue);
+    --curate-violet: var(--v2-purple);
+    --curate-success: var(--v2-success);
+    --curate-warning: var(--v2-warning);
+    --curate-danger: var(--v2-error);
+    --curate-shadow: var(--v2-shadow);
+    --curate-shadow-hover: var(--v2-shadow-hover);
+    --curate-panel: var(--v2-card);
+    --curate-card: var(--v2-card);
+    --curate-stat: var(--v2-card);
+    --curate-button: var(--v2-blue);
+    --curate-button-soft: var(--v2-soft);
+    --curate-chip-bg: var(--v2-soft);
+    --curate-field: var(--v2-card);
+    --curate-icon-bg: var(--v2-soft);
+    --curate-icon-shadow: none;
+    --curate-under-glow: transparent;
+    --curate-radius: 3px;
+    --curate-radius-sm: 3px;
+    color: var(--v2-text);
     background:
-      radial-gradient(circle at 10% -7%, ${({ theme }) => theme.curateGlowA}, transparent 34%),
-      radial-gradient(circle at 88% 8%, ${({ theme }) => theme.curateGlowB}, transparent 28%),
-      radial-gradient(circle at 55% 110%, rgba(49, 78, 140, 0.18), transparent 35%),
-      linear-gradient(180deg, var(--curate-bg) 0%, var(--curate-bg-soft) 45%, #02050c 100%);
-    background-attachment: fixed;
+      radial-gradient(circle at 70% 12%, rgba(72, 185, 255, 0.16), transparent 30vw),
+      radial-gradient(circle at 36% 30%, rgba(255, 79, 216, 0.14), transparent 32vw),
+      radial-gradient(circle at 95% 80%, rgba(143, 92, 255, 0.16), transparent 34vw),
+      var(--v2-bg);
     font-variant-ligatures: contextual;
     text-rendering: geometricPrecision;
 
@@ -87,32 +128,15 @@ const GlobalStyle = createGlobalStyle`
     --toastify-color-error: ${({ theme }) => theme.errorColor};
     --toastify-color-progress-light: ${({ theme }) => theme.primaryColor};
     --toastify-color-progress-dark: ${({ theme }) => theme.primaryColor};
-    --toastify-font-family: Inter, "Inter Tight", ui-sans-serif, system-ui, sans-serif;
+    --toastify-font-family: "Open Sans", ui-sans-serif, system-ui, sans-serif;
   }
 
   body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-    background:
-      linear-gradient(rgba(255, 255, 255, 0.024) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-    background-size: 48px 48px;
-    mask-image: linear-gradient(180deg, black 0%, transparent 74%);
-    opacity: 0.32;
+    content: none;
   }
 
   body::after {
-    content: '';
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-    background: linear-gradient(120deg, transparent 0 42%, rgba(255, 255, 255, 0.028) 49%, transparent 56%);
-    transform: translateX(-120%);
-    animation: curate-sheen 9s ease-in-out infinite;
+    content: none;
   }
 
   @keyframes curate-sheen {
@@ -140,13 +164,13 @@ const GlobalStyle = createGlobalStyle`
   }
 
   ::selection {
-    color: #031016;
-    background: var(--curate-live);
+    color: #ffffff;
+    background: var(--v2-purple);
   }
 
   * {
     scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+    scrollbar-color: var(--v2-purple) transparent;
   }
 
   ::-webkit-scrollbar {
@@ -160,7 +184,7 @@ const GlobalStyle = createGlobalStyle`
 
   ::-webkit-scrollbar-thumb {
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.18);
+    background: var(--v2-purple);
   }
 
   h1,
@@ -200,12 +224,12 @@ const GlobalStyle = createGlobalStyle`
   input,
   textarea,
   select {
-    color: var(--curate-text);
+    color: var(--v2-text);
   }
 
   input::placeholder,
   textarea::placeholder {
-    color: var(--curate-faint);
+    color: var(--v2-faint);
   }
 
   .ant-modal-content,
@@ -213,15 +237,15 @@ const GlobalStyle = createGlobalStyle`
   .ant-dropdown-menu,
   .ant-select-dropdown,
   .Toastify__toast {
-    border: 1px solid var(--curate-border) !important;
-    border-radius: var(--curate-radius-sm) !important;
-    background: var(--curate-card) !important;
-    box-shadow: var(--curate-shadow) !important;
+    border: 1px solid var(--v2-stroke) !important;
+    border-radius: 3px !important;
+    background: var(--v2-card) !important;
+    box-shadow: var(--v2-shadow) !important;
   }
 
   .ant-modal-header,
   .ant-modal-footer {
-    border-color: var(--curate-border) !important;
+    border-color: var(--v2-stroke) !important;
     background: transparent !important;
   }
 
@@ -233,11 +257,11 @@ const GlobalStyle = createGlobalStyle`
   input[type="number"],
   input[type="search"],
   textarea {
-    border-color: var(--curate-border) !important;
-    border-radius: var(--curate-radius-sm) !important;
-    background: var(--curate-field) !important;
-    color: var(--curate-text) !important;
-    box-shadow: inset 0 1px rgba(255, 255, 255, 0.045) !important;
+    border-color: var(--v2-stroke) !important;
+    border-radius: 3px !important;
+    background: var(--v2-card) !important;
+    color: var(--v2-text) !important;
+    box-shadow: none !important;
   }
 
   .ant-input:hover,
@@ -248,7 +272,7 @@ const GlobalStyle = createGlobalStyle`
   input[type="number"]:hover,
   input[type="search"]:hover,
   textarea:hover {
-    border-color: var(--curate-border-strong) !important;
+    border-color: var(--v2-blue) !important;
   }
 
   .ant-tag,

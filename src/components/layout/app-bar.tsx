@@ -31,11 +31,8 @@ const Container = styled.div`
   position: sticky;
   top: 0;
   z-index: 50;
-  background:
-    linear-gradient(180deg, rgba(3, 8, 15, 0.92), rgba(3, 8, 15, 0.76)),
-    ${({ theme }) => theme.navbarBackground};
-  border-bottom: 1px solid var(--curate-border);
-  backdrop-filter: blur(18px);
+  background: ${({ theme }) => theme.navbarBackground};
+  border-bottom: 0;
   transition:
     background-color 0.3s ease,
     border-color 0.3s ease;
@@ -44,24 +41,24 @@ const Container = styled.div`
 const ThemeToggleButton = styled.button`
   width: 38px;
   height: 38px;
-  background: var(--curate-button);
-  border: 1px solid var(--curate-border);
+  background: transparent;
+  border: 1px solid transparent;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-left: 6px;
-  border-radius: 14px;
-  color: var(--curate-muted);
+  border-radius: 3px;
+  color: rgba(255, 255, 255, 0.75);
   transition:
     background-color 0.2s ease,
     border-color 0.2s ease,
     color 0.2s ease;
 
   &:hover {
-    background-color: rgba(0, 163, 255, 0.1);
-    border-color: var(--curate-border-strong);
-    color: var(--curate-text);
+    background-color: rgba(255, 255, 255, 0.14);
+    border-color: transparent;
+    color: #ffffff;
   }
 `
 
@@ -91,21 +88,21 @@ const MobileMenuWrapper = styled.div`
 const HamburgerButton = styled.button`
   width: 38px;
   height: 38px;
-  background: var(--curate-button);
-  border: 1px solid var(--curate-border);
-  border-radius: 14px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--curate-text);
+  color: #ffffff;
   transition:
     border-color 160ms ease,
     background 160ms ease;
 
   &:hover {
-    border-color: var(--curate-border-strong);
-    background: rgba(0, 163, 255, 0.1);
+    border-color: transparent;
+    background: rgba(255, 255, 255, 0.14);
   }
 `
 
@@ -156,16 +153,16 @@ const StyledRouterLink = styled(Link)`
 `
 
 const StyledConnectButton = styled(Button)`
-  background: rgba(76, 201, 240, 0.12);
-  color: var(--curate-text);
-  border-color: rgba(76, 201, 240, 0.28);
-  font-weight: 800;
+  background: rgba(255, 255, 255, 0.13);
+  color: #ffffff;
+  border-color: transparent;
+  font-weight: 600;
 
   &:hover:not(:disabled),
   &:focus:not(:disabled) {
-    background: rgba(76, 201, 240, 0.2);
-    color: var(--curate-text);
-    border-color: rgba(76, 201, 240, 0.5);
+    background: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+    border-color: transparent;
   }
   margin-left: 8px;
 `
@@ -210,11 +207,11 @@ const ChainSelectorButton = styled.button`
   align-items: center;
   gap: 8px;
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--curate-border);
-  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 3px;
   padding: 0 13px;
   height: 38px;
-  color: var(--curate-text);
+  color: #ffffff;
   font-size: 13px;
   font-weight: 800;
   cursor: pointer;
@@ -225,7 +222,7 @@ const ChainSelectorButton = styled.button`
 
   &:hover {
     background: rgba(255, 255, 255, 0.1);
-    border-color: var(--curate-border-strong);
+    border-color: rgba(255, 255, 255, 0.32);
   }
 `
 
@@ -261,7 +258,7 @@ const ChainMenuItem = styled.button<{ $active?: boolean }>`
   min-height: 36px;
   padding: 0 10px;
   border: none;
-  border-radius: 10px;
+  border-radius: 3px;
   background: ${({ $active, theme }) =>
     $active
       ? theme.dropdownSelectedBg || 'rgba(0, 0, 0, 0.06)'
@@ -282,14 +279,14 @@ const HelpButton = styled.button`
   width: 38px;
   height: 38px;
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--curate-border);
+  border: 1px solid transparent;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-left: -2px;
-  border-radius: 12px;
-  color: var(--curate-muted);
+  border-radius: 3px;
+  color: rgba(255, 255, 255, 0.75);
   transition:
     background-color 0.2s ease,
     border-color 0.2s ease,
@@ -297,8 +294,8 @@ const HelpButton = styled.button`
 
   &:hover {
     background-color: rgba(255, 255, 255, 0.1);
-    border-color: var(--curate-border-strong);
-    color: var(--curate-text);
+    border-color: transparent;
+    color: #ffffff;
   }
 `
 

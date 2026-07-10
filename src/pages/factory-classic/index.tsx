@@ -1,4 +1,4 @@
-import { Steps, Button, Card, Modal } from 'components/ui'
+import { Button, Card, Modal } from 'components/ui'
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useDebounce } from 'use-debounce'
 import { useWeb3Context } from 'hooks/use-web3-context'
@@ -14,19 +14,22 @@ import {
   defaultArbitratorExtraData as defaultArbitratorExtraDataObj,
   defaultGovernor as defaultGovernorAddresses,
 } from 'config/tcr-addresses'
-import {
-  CurrentStep,
-  StyledGrid,
-  formIds,
-  StyledStepper,
-  StyledContainer,
-  StyledBanner,
-  StyledButtonGroup,
-  StyledTitle,
-} from 'pages/factory'
+import { CurrentStep, formIds, LIGHT_FACTORY_STEPS } from 'pages/factory'
 import { CurateIcon } from 'components/curate/icons'
+import {
+  FactoryActionGroup,
+  FactoryActions,
+  FactoryCreateLabel,
+  FactoryDeploymentGrid,
+  FactoryDeploymentsCard,
+  FactoryDeploymentsHeader,
+  FactoryHeroImage,
+  FactoryPageShell,
+  FactoryStepTimeline,
+  FactoryWizardGrid,
+  FactoryWorkArea,
+} from 'components/curate/v2-factory-shell'
 
-const { Step } = Steps
 const { confirm } = Modal
 
 const useCachedFactory = (version: string, networkId: number | undefined) => {
@@ -240,73 +243,80 @@ const FactoryClassicPage = () => {
 
   return (
     <>
-      <StyledBanner>
-        <StyledTitle>Create a List (Classic Curate)</StyledTitle>
-      </StyledBanner>
+      <FactoryHeroImage />
+      <FactoryCreateLabel>Create a List</FactoryCreateLabel>
       <StyledLayoutContent>
-        <Steps current={currStep - 1}>
-          <Step title="List" />
-          <Step title="Item" />
-          <Step title="Badges List" />
-          <Step title="Deploy" />
-        </Steps>
-        <StyledContainer>
-          <CurrentStep
-            key={factoryChainId}
-            postSubmit={() => nextStep()}
-            {...cachedFactory}
-          />
-        </StyledContainer>
-        <StyledStepper>
-          <Button
-            onClick={showConfirmReset}
-            icon={<CurateIcon name="remove" size={16} />}
-          >
-            Reset
-          </Button>
-          <StyledButtonGroup>
-            <Button
-              onClick={() => previousStep()}
-              type="primary"
-              disabled={currStep === 1}
-            >
-              <CurateIcon
-                name="chevron-down"
-                size={16}
-                style={{ transform: 'rotate(90deg)' }}
-              />
-              Previous
-            </Button>
-            <Button
-              form={formIds[currStep]}
-              htmlType="submit"
-              type="primary"
-              disabled={currStep === STEP_COUNT}
-            >
-              Next
-              <CurateIcon
-                name="chevron-down"
-                size={16}
-                style={{ transform: 'rotate(-90deg)' }}
-              />
-            </Button>
-          </StyledButtonGroup>
-        </StyledStepper>
-        {previousDeployments.length > 0 && (
-          <StyledContainer>
-            <Card title="Previous Deployments">
-              <StyledGrid>
-                {previousDeployments.map((contractAddress, i) => (
-                  <Card key={i}>
-                    <TCRCardContent
-                      tcrAddress={contractAddress}
-                      hideDetailsButton
+        <FactoryPageShell>
+          <FactoryWizardGrid>
+            <FactoryStepTimeline
+              currentStep={currStep}
+              steps={LIGHT_FACTORY_STEPS}
+            />
+            <div>
+              <FactoryWorkArea>
+                <CurrentStep
+                  key={factoryChainId}
+                  postSubmit={() => nextStep()}
+                  {...cachedFactory}
+                />
+              </FactoryWorkArea>
+              <FactoryActions>
+                <Button
+                  onClick={showConfirmReset}
+                  icon={<CurateIcon name="remove" size={16} />}
+                >
+                  Reset
+                </Button>
+                <FactoryActionGroup>
+                  <Button
+                    onClick={() => previousStep()}
+                    type="primary"
+                    disabled={currStep === 1}
+                  >
+                    <CurateIcon
+                      name="chevron-down"
+                      size={16}
+                      style={{ transform: 'rotate(90deg)' }}
                     />
-                  </Card>
-                ))}
-              </StyledGrid>
-            </Card>
-          </StyledContainer>
+                    Previous
+                  </Button>
+                  <Button
+                    form={formIds[currStep]}
+                    htmlType="submit"
+                    type="primary"
+                    disabled={currStep === STEP_COUNT}
+                  >
+                    Next
+                    <CurateIcon
+                      name="chevron-down"
+                      size={16}
+                      style={{ transform: 'rotate(-90deg)' }}
+                    />
+                  </Button>
+                </FactoryActionGroup>
+              </FactoryActions>
+            </div>
+          </FactoryWizardGrid>
+        </FactoryPageShell>
+        {previousDeployments.length > 0 && (
+          <FactoryDeploymentsCard>
+            <FactoryDeploymentsHeader>
+              <div>
+                <h2>Previous deployments</h2>
+                <span>Lists deployed from this browser and network.</span>
+              </div>
+            </FactoryDeploymentsHeader>
+            <FactoryDeploymentGrid>
+              {previousDeployments.map((contractAddress, i) => (
+                <Card key={i}>
+                  <TCRCardContent
+                    tcrAddress={contractAddress}
+                    hideDetailsButton
+                  />
+                </Card>
+              ))}
+            </FactoryDeploymentGrid>
+          </FactoryDeploymentsCard>
         )}
       </StyledLayoutContent>
     </>

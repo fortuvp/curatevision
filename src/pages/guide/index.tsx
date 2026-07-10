@@ -15,7 +15,7 @@ const Page = styled.main`
   max-width: 1180px;
   margin: 0 auto;
   padding: clamp(28px, 5vw, 58px) var(--horizontal-padding) 62px;
-  color: var(--curate-text);
+  color: var(--v2-text);
 `
 
 const ToggleWrap = styled.div`
@@ -27,7 +27,7 @@ const ModeToggle = styled.div`
   display: inline-flex;
   align-items: center;
   gap: 12px;
-  color: var(--curate-muted);
+  color: var(--v2-muted);
   font-size: 18px;
   font-weight: 500;
 `
@@ -37,22 +37,19 @@ const ModeButton = styled.button<{ $active?: boolean }>`
   min-height: 54px;
   padding: 0 20px;
   border: 1px solid
-    ${({ $active }) =>
-      $active ? 'rgba(83, 190, 255, 0.92)' : 'rgba(255, 255, 255, 0.14)'};
-  border-radius: 16px;
-  color: ${({ $active }) =>
-    $active ? 'var(--curate-text)' : 'var(--curate-muted)'};
+    ${({ $active }) => ($active ? 'var(--v2-blue)' : 'var(--v2-stroke)')};
+  border-radius: 7px;
+  color: ${({ $active }) => ($active ? 'var(--v2-text)' : 'var(--v2-muted)')};
   background: ${({ $active }) =>
-    $active ? 'rgba(0, 163, 255, 0.14)' : 'rgba(0, 0, 0, 0.18)'};
+    $active ? 'var(--v2-blue-soft)' : 'var(--v2-card)'};
   cursor: pointer;
   font-size: 18px;
   font-weight: 700;
-  box-shadow: ${({ $active }) =>
-    $active ? '0 0 36px rgba(0, 163, 255, 0.12)' : 'none'};
+  box-shadow: none;
 
   &:hover {
-    border-color: rgba(83, 190, 255, 0.72);
-    color: var(--curate-text);
+    border-color: var(--v2-blue);
+    color: var(--v2-text);
   }
 
   @media (max-width: 640px) {
@@ -65,10 +62,10 @@ const ModeButton = styled.button<{ $active?: boolean }>`
 const PromptPanel = styled.section`
   margin-top: clamp(30px, 5vw, 48px);
   padding: clamp(18px, 2.5vw, 30px);
-  border: 1px solid rgba(255, 255, 255, 0.13);
-  border-radius: 14px;
-  background: rgba(0, 0, 0, 0.36);
-  box-shadow: 0 26px 90px rgba(0, 0, 0, 0.42);
+  border: 1px solid var(--v2-stroke);
+  border-radius: 3px;
+  background: var(--v2-card);
+  box-shadow: var(--v2-shadow);
 `
 
 const PanelHead = styled.div`
@@ -76,7 +73,7 @@ const PanelHead = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  color: var(--curate-live);
+  color: var(--v2-blue);
   font-family:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
     monospace;
@@ -86,7 +83,7 @@ const PanelHead = styled.div`
   text-transform: uppercase;
 
   span:last-child {
-    color: var(--curate-muted);
+    color: var(--v2-muted);
     text-transform: none;
   }
 
@@ -103,9 +100,9 @@ const PromptLine = styled.div`
   align-items: center;
   margin-top: 24px;
   padding: clamp(16px, 2.2vw, 24px);
-  border: 1px solid rgba(255, 255, 255, 0.13);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--v2-stroke);
+  border-radius: 3px;
+  background: var(--v2-soft);
 
   @media (max-width: 860px) {
     grid-template-columns: 24px minmax(0, 1fr);
@@ -118,7 +115,7 @@ const PromptLine = styled.div`
 `
 
 const PromptPrefix = styled.div`
-  color: var(--curate-live);
+  color: var(--v2-blue);
   font-family:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
     monospace;
@@ -127,7 +124,7 @@ const PromptPrefix = styled.div`
 `
 
 const PromptText = styled.div`
-  color: var(--curate-text);
+  color: var(--v2-text);
   font-family:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
     monospace;
@@ -143,14 +140,14 @@ const LinkRow = styled.div`
   margin-top: 18px;
 
   a {
-    color: var(--curate-muted);
+    color: var(--v2-muted);
     font-size: 13px;
     font-weight: 800;
     text-decoration: none;
   }
 
   a:hover {
-    color: var(--curate-live);
+    color: var(--v2-blue);
   }
 `
 

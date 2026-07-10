@@ -19,35 +19,29 @@ Goal:
 
 const Page = styled.main`
   width: 100%;
-  max-width: 1460px;
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 28px var(--horizontal-padding) 70px;
-  color: var(--curate-text);
+  padding: 32px var(--horizontal-padding) 70px;
+  color: var(--v2-text);
 `
 
 const Surface = styled.section`
   overflow: hidden;
-  border: 1px solid var(--curate-border);
-  border-radius: var(--curate-radius);
-  background: var(--curate-panel);
-  box-shadow: var(--curate-shadow);
-  backdrop-filter: blur(24px);
+  border: 1px solid var(--v2-stroke);
+  border-radius: 3px;
+  background: var(--v2-card);
+  box-shadow: var(--v2-shadow);
 `
 
 const Hero = styled(Surface)`
-  min-height: 520px;
-  padding: clamp(26px, 5vw, 58px);
+  min-height: 0;
+  padding: clamp(24px, 4vw, 42px);
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 0.46fr);
   gap: clamp(22px, 4vw, 48px);
   align-items: end;
-  background:
-    radial-gradient(
-      circle at 82% 18%,
-      rgba(0, 163, 255, 0.16),
-      transparent 32%
-    ),
-    var(--curate-panel);
+  background: var(--v2-card);
+  border-top: 5px solid var(--v2-purple);
 
   @media (max-width: 980px) {
     grid-template-columns: 1fr;
@@ -62,30 +56,30 @@ const Eyebrow = styled.div`
   width: fit-content;
   min-height: 30px;
   padding: 0 11px;
-  border: 1px solid rgba(0, 163, 255, 0.26);
-  border-radius: 999px;
-  color: var(--curate-live);
-  background: rgba(0, 163, 255, 0.08);
+  border: 1px solid var(--v2-stroke);
+  border-radius: 3px;
+  color: var(--v2-blue);
+  background: var(--v2-blue-soft);
   font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
+  font-weight: 700;
+  letter-spacing: 0;
   text-transform: uppercase;
 `
 
 const Title = styled.h1`
   max-width: 920px;
   margin: 18px 0 14px;
-  color: var(--curate-text);
-  font-size: clamp(46px, 7vw, 90px);
-  line-height: 0.95;
-  font-weight: 950;
+  color: var(--v2-text);
+  font-size: clamp(32px, 5vw, 56px);
+  line-height: 1.08;
+  font-weight: 600;
   letter-spacing: 0;
 `
 
 const Copy = styled.p`
   max-width: 790px;
   margin: 0;
-  color: var(--curate-muted);
+  color: var(--v2-muted);
   font-size: clamp(16px, 1.7vw, 19px);
   line-height: 1.65;
 `
@@ -140,15 +134,15 @@ const SectionHeader = styled.div`
 
 const SectionTitle = styled.h2`
   margin: 0;
-  color: var(--curate-text);
+  color: var(--v2-text);
   font-size: clamp(24px, 3vw, 38px);
-  font-weight: 950;
+  font-weight: 600;
 `
 
 const SectionCopy = styled.p`
   max-width: 720px;
   margin: 8px 0 0;
-  color: var(--curate-muted);
+  color: var(--v2-muted);
   font-size: 15px;
   line-height: 1.6;
 `
@@ -170,12 +164,9 @@ const PlanCard = styled(Surface)<{ $featured?: boolean }>`
   flex-direction: column;
   gap: 18px;
   border-color: ${({ $featured }) =>
-    $featured ? 'rgba(0, 163, 255, 0.34)' : 'var(--curate-border)'};
+    $featured ? 'var(--v2-blue)' : 'var(--v2-stroke)'};
   background: ${({ $featured }) =>
-      $featured
-        ? 'linear-gradient(180deg, rgba(0, 163, 255, 0.11), rgba(255, 255, 255, 0.025)),'
-        : 'linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.02)),'}
-    rgba(7, 11, 18, 0.9);
+    $featured ? 'var(--v2-blue-soft)' : 'var(--v2-card)'};
 `
 
 const PlanTop = styled.div`
@@ -192,9 +183,9 @@ const IconBox = styled.div`
   width: 42px;
   height: 42px;
   border: 1px solid currentColor;
-  border-radius: 13px;
-  color: var(--curate-live);
-  background: rgba(0, 163, 255, 0.08);
+  border-radius: 3px;
+  color: var(--v2-blue);
+  background: var(--v2-card);
 `
 
 const Pill = styled.div`
@@ -202,30 +193,30 @@ const Pill = styled.div`
   align-items: center;
   min-height: 28px;
   padding: 0 10px;
-  border: 1px solid rgba(255, 255, 255, 0.11);
-  border-radius: 999px;
-  color: var(--curate-muted);
-  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--v2-stroke);
+  border-radius: 3px;
+  color: var(--v2-muted);
+  background: var(--v2-card);
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 600;
   text-transform: uppercase;
 `
 
 const PlanName = styled.h3`
   margin: 0;
-  color: var(--curate-text);
+  color: var(--v2-text);
   font-size: 22px;
-  font-weight: 950;
+  font-weight: 600;
 `
 
 const Price = styled.div`
-  color: var(--curate-text);
+  color: var(--v2-text);
   font-size: 38px;
-  font-weight: 950;
+  font-weight: 700;
   line-height: 1;
 
   span {
-    color: var(--curate-muted);
+    color: var(--v2-muted);
     font-size: 13px;
     font-weight: 800;
   }

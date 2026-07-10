@@ -1,13 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
-import {
-  Card,
-  Tooltip,
-  Form,
-  Switch,
-  Slider,
-  InputNumber,
-  Select,
-} from 'components/ui'
+import { Card, Tooltip, Form, Switch, Slider, InputNumber } from 'components/ui'
 import Icon from 'components/ui/Icon'
 import { toast } from 'react-toastify'
 import { withFormik } from 'formik'
@@ -44,6 +36,7 @@ import {
 } from 'pages/factory/tcr-params'
 import { StyledUpload, UploadButton } from 'components/input-selector'
 import EnsureAuth from 'components/ensure-auth'
+import FactoryTypeSelect from 'components/factory-type-select'
 
 interface TCRParamsProps {
   handleSubmit: (...args: unknown[]) => void
@@ -203,19 +196,11 @@ const TCRParams = ({
       extra={
         <StyledP>
           Factory Type:{' '}
-          <Select
-            defaultValue="classic"
-            style={{ width: 120, marginLeft: 8 }}
-            onChange={(value) => {
-              if (value === 'light') navigate(`/factory/${chainId}`)
-              else if (value === 'permanent')
-                navigate(`/factory-permanent/${chainId}`)
-            }}
-          >
-            <Select.Option value="classic">Classic</Select.Option>
-            <Select.Option value="light">Light</Select.Option>
-            <Select.Option value="permanent">Permanent</Select.Option>
-          </Select>
+          <FactoryTypeSelect
+            current="classic"
+            chainId={chainId}
+            navigate={navigate}
+          />
         </StyledP>
       }
     >
@@ -369,7 +354,7 @@ const TCRParams = ({
           <StyledDepositContainer>
             <label htmlFor="depositSlider">
               Deposit&nbsp;
-              <Tooltip title="These are the funds users will have to deposit in order to make a submission into the list, which are sufficient to cover both arbitration costs paid to jurors and the rewards that users earn for a successful challenge. If the deposit is too low, incorrect submissions may not be flagged for dispute which could result in incorrect items being accepted in the list. If the deposit is too high, challengers will be likely to catch most malicious submissions, but people will only rarely submit to your list (so you may end up having a list that is difficult to attack but largely empty).">
+              <Tooltip title="These are the funds users will have to deposit in order to make a submission into the list, which are sufficient to cover both arbitration fees paid to jurors and the rewards that users earn for a successful challenge. If the deposit is too low, incorrect submissions may not be flagged for dispute which could result in incorrect items being accepted in the list. If the deposit is too high, challengers will be likely to catch most malicious submissions, but people will only rarely submit to your list (so you may end up having a list that is difficult to attack but largely empty).">
                 <Icon type="question-circle-o" />
               </Tooltip>
               :{' '}
@@ -583,21 +568,21 @@ const TCRParams = ({
                   <br />
                   <br />
                   If you choose very large stake multipliers, the expected
-                  returns of crowdfunders will improve, but appeal costs may
-                  become so large as to be a barrier. If you choose very small
-                  stake multipliers, total appeal costs are reduced, but
-                  crowdfunders may not be sufficiently incentivized to
-                  participate. Different multipliers can be chosen for the sides
-                  that won and lost the previous appeal round. The more one of
-                  these multipliers is larger than the other, the more the side
-                  with the smaller multiplier is favoured.
+                  returns of crowdfunders will improve, but appeal fee
+                  requirements may become so large as to be a barrier. If you
+                  choose very small stake multipliers, total appeal fees are
+                  reduced, but crowdfunders may not be sufficiently incentivized
+                  to participate. Different multipliers can be chosen for the
+                  sides that won and lost the previous appeal round. The more
+                  one of these multipliers is larger than the other, the more
+                  the side with the smaller multiplier is favoured.
                 </div>
               }
               type="info"
               showIcon
             />
             <StyledAlert
-              message="The total cost to fully fund one side of an appeal is: Total Appeal Cost=Total Juror Fees+Total Juror Fees*Stake Multiplier"
+              message="The total fee required to fully fund one side of an appeal is: Total Appeal Fee = Total Juror Fees + Total Juror Fees * Stake Multiplier"
               type="info"
               showIcon
             />

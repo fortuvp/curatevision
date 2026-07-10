@@ -6,10 +6,8 @@ import icons from './social-icons'
 
 const Container = styled.footer`
   width: 100%;
-  background:
-    linear-gradient(180deg, rgba(2, 5, 12, 0), rgba(2, 5, 12, 0.82)),
-    ${({ theme }) => theme.footerBackground};
-  border-top: 1px solid var(--curate-border);
+  background: ${({ theme }) => theme.footerBackground};
+  border-top: 0;
   margin-top: auto;
 `
 
@@ -69,20 +67,21 @@ const FooterLink = styled(Link)`
   display: inline-flex;
   align-items: center;
   padding: 0 12px;
-  border: 1px solid var(--curate-border);
-  border-radius: 999px;
-  color: var(--curate-text);
-  background: var(--curate-button-soft);
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: rgba(255, 255, 255, 0.78);
+  background: transparent;
   font-size: 13px;
-  font-weight: 850;
+  font-weight: 600;
   text-decoration: none;
   transition:
     background 0.16s ease,
     border-color 0.16s ease;
 
   &:hover {
-    background: rgba(0, 163, 255, 0.1);
-    border-color: var(--curate-border-strong);
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.14);
+    border-color: transparent;
   }
 `
 
@@ -92,10 +91,10 @@ const StyledSocialButton = styled.a`
   justify-content: center;
   width: 38px;
   height: 38px;
-  background: var(--curate-button-soft);
+  background: transparent;
   padding: 8px;
-  border: 1px solid var(--curate-border);
-  border-radius: 14px;
+  border: 1px solid transparent;
+  border-radius: 7px;
   transition:
     background 0.16s ease,
     border-color 0.16s ease;
@@ -107,8 +106,8 @@ const StyledSocialButton = styled.a`
   }
 
   &:hover {
-    background-color: rgba(0, 163, 255, 0.1);
-    border-color: var(--curate-border-strong);
+    background-color: rgba(255, 255, 255, 0.14);
+    border-color: transparent;
 
     svg path {
       fill: ${({ theme }) => theme.white ?? '#ffffff'};

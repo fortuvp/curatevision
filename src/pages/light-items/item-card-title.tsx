@@ -61,12 +61,12 @@ export const CountdownContainer = styled.div`
 `
 
 export const StyledStakeTag = styled(StakeTag)`
-  height: 11px;
+  height: 16px;
   width: auto;
   flex-shrink: 0;
 
   @media (max-width: 500px) {
-    height: 10px;
+    height: 14px;
   }
 
   /* Dark mode: change background and text colors */

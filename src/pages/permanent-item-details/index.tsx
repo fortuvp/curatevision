@@ -309,6 +309,15 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
         </StyledBackLink>
       </StyledMargin>
       <StyledLayoutContent>
+        <ItemDetailsCard
+          columns={decodedItem?.columns}
+          item={decodedItem}
+          title={`${
+            itemName ? capitalizeFirstLetter(itemName) : 'Item'
+          } Details`}
+          loading={loading}
+          itemMetaEvidence={null}
+        />
         <ItemStatusCard
           item={decodedItem}
           registry={registry}
@@ -319,16 +328,6 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
           appealCost={appealCost}
           arbitrationCost={arbitrationCost.arbitrationCost}
           dark
-        />
-        <Divider />
-        <ItemDetailsCard
-          columns={decodedItem?.columns}
-          item={decodedItem}
-          title={`${
-            itemName ? capitalizeFirstLetter(itemName) : 'Item'
-          } Details`}
-          loading={loading}
-          itemMetaEvidence={null}
         />
         {/* Crowdfunding card is only rendered if the item has an appealable dispute. */}
         <CrowdfundingCard

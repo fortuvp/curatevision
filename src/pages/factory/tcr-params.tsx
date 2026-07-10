@@ -10,7 +10,6 @@ import {
   Alert,
   Slider,
   InputNumber,
-  Select,
 } from 'components/ui'
 import Icon from 'components/ui/Icon'
 import { toast } from 'react-toastify'
@@ -37,6 +36,7 @@ import { klerosAddresses } from 'config/tcr-addresses'
 import { parseIpfs } from 'utils/ipfs-parse'
 import { UploadButton, StyledUpload } from 'components/input-selector'
 import EnsureAuth from 'components/ensure-auth'
+import FactoryTypeSelect from 'components/factory-type-select'
 
 export const StyledAlert = styled(Alert)`
   margin-bottom: 32px;
@@ -136,9 +136,55 @@ export const UploadSection = styled.div`
   }
 `
 
+export type FactorySection =
+  | 'title'
+  | 'description'
+  | 'logo'
+  | 'policy'
+  | 'deposit'
+  | 'custom'
+
+const factorySectionTitles: Record<FactorySection, string> = {
+  title: 'Name',
+  description: 'Description',
+  logo: 'Logo',
+  policy: 'Policy',
+  deposit: 'Deposit',
+  custom: 'Custom item text',
+}
+
+const FactorySectionCard = styled(Card)<{ $factorySection?: FactorySection }>`
+  ${({ $factorySection }) =>
+    $factorySection &&
+    css`
+      [data-factory-section] {
+        display: none;
+      }
+
+      [data-factory-section~='${$factorySection}'] {
+        display: block;
+      }
+
+      ${StyledTCRParamContainer} {
+        display: block;
+      }
+
+      ${StyledUploadContainer} {
+        max-width: min(100%, 440px);
+        margin: 0 auto;
+      }
+
+      ${StyledTCRInfoContainer} {
+        border-left: 0;
+        padding-left: 0;
+      }
+    `}
+`
+
 interface TCRParamsProps {
   handleSubmit: (...args: unknown[]) => void
   formId: string
+  factorySection?: FactorySection
   errors: Record<string, unknown>
   setFieldValue: (field: string, value: unknown) => void
   touched: Record<string, unknown>
@@ -155,6 +201,7 @@ interface TCRParamsProps {
 const TCRParams = ({
   handleSubmit,
   formId,
+  factorySection,
   errors,
   setFieldValue,
   touched,
@@ -289,31 +336,28 @@ const TCRParams = ({
   }, [arbitrationCost, depositVal])
 
   return (
-    <Card
-      title="Enter the list parameters"
+    <FactorySectionCard
+      $factorySection={factorySection}
+      title={
+        factorySection
+          ? factorySectionTitles[factorySection]
+          : 'Enter the list parameters'
+      }
       extra={
         <StyledP>
           Factory Type:{' '}
-          <Select
-            defaultValue="light"
-            style={{ width: 120, marginLeft: 8 }}
-            onChange={(value) => {
-              if (value === 'classic') navigate(`/factory-classic/${chainId}`)
-              else if (value === 'permanent')
-                navigate(`/factory-permanent/${chainId}`)
-            }}
-          >
-            <Select.Option value="classic">Classic</Select.Option>
-            <Select.Option value="light">Light</Select.Option>
-            <Select.Option value="permanent">Permanent</Select.Option>
-          </Select>
+          <FactoryTypeSelect
+            current="light"
+            chainId={chainId}
+            navigate={navigate}
+          />
         </StyledP>
       }
     >
       <Form layout="vertical" id={formId} onSubmit={handleSubmit}>
         <StyledTCRParamContainer>
-          <StyledUploadContainer>
-            <div>
+          <StyledUploadContainer data-factory-section="logo policy">
+            <div data-factory-section="logo">
               <div className="ui-col ui-form-item-label">
                 <label htmlFor="tcr-logo">
                   <span>List Logo (transparent background): &nbsp;</span>
@@ -340,7 +384,7 @@ const TCRParams = ({
                 </StyledUpload>
               </EnsureAuth>
             </div>
-            <div>
+            <div data-factory-section="policy">
               <div className="ui-col ui-form-item-label">
                 <label htmlFor="primary-document">
                   <span>Acceptance Criteria (Primary Document)&nbsp;</span>
@@ -384,83 +428,89 @@ const TCRParams = ({
             </div>
           </StyledUploadContainer>
           <StyledTCRInfoContainer>
-            <CustomInput
-              name="tcrTitle"
-              placeholder="Red Socks"
-              label={
-                <span>
-                  Title&nbsp;
-                  <Tooltip title="This will be the title of your list. Try to keep it as short as possible for increased compatibility with mobile devices, Twitter bots and push notifications. For example: Red Socks.">
-                    <Icon type="question-circle-o" />
-                  </Tooltip>
-                </span>
-              }
-              error={errors.tcrTitle}
-              touched={touched.tcrTitle}
-              hasFeedback
-              {...rest}
-            />
-            <CustomInput
-              name="tcrDescription"
-              placeholder="A list of red socks"
-              hasFeedback
-              error={errors.tcrDescription}
-              touched={touched.tcrDescription}
-              label={
-                <span>
-                  Description&nbsp;
-                  <Tooltip title="Enter a short sentence to describe the type of item that will be displayed in the list and what the listing criteria are. For example: Images of red socks from various manufacturers.">
-                    <Icon type="question-circle-o" />
-                  </Tooltip>
-                </span>
-              }
-              {...rest}
-            />
-            <CustomInput
-              style={{ marginBottom: 0 }}
-              name="itemName"
-              placeholder="sock"
-              hasFeedback
-              error={errors.itemName}
-              touched={touched.itemName}
-              label={
-                <span>
-                  Item Name&nbsp;
-                  <Tooltip
-                    title={`Enter a noun that describes the item that will be listed. This will replace the word "item" in the list interface and notifications. For example: if you set this to the word "Socks", on the list interface you will see buttons such as "Submit Socks" and "Challenge Socks".`}
-                  >
-                    <Icon type="question-circle-o" />
-                  </Tooltip>
-                </span>
-              }
-              {...rest}
-            />
-            <CustomInput
-              style={{ marginBottom: 0 }}
-              name="itemNamePlural"
-              placeholder="socks"
-              hasFeedback
-              error={errors.itemNamePlural}
-              touched={touched.itemNamePlural}
-              label={
-                <span>
-                  Item Name Plural&nbsp;
-                  <Tooltip
-                    title={`This is the plural of the item name. In other words, if "Item Name" is "bus", this should be "buses"`}
-                  >
-                    <Icon type="question-circle-o" />
-                  </Tooltip>
-                </span>
-              }
-              {...rest}
-            />
+            <div data-factory-section="title">
+              <CustomInput
+                name="tcrTitle"
+                placeholder="Red Socks"
+                label={
+                  <span>
+                    Title&nbsp;
+                    <Tooltip title="This will be the title of your list. Try to keep it as short as possible for increased compatibility with mobile devices, Twitter bots and push notifications. For example: Red Socks.">
+                      <Icon type="question-circle-o" />
+                    </Tooltip>
+                  </span>
+                }
+                error={errors.tcrTitle}
+                touched={touched.tcrTitle}
+                hasFeedback
+                {...rest}
+              />
+            </div>
+            <div data-factory-section="description">
+              <CustomInput
+                name="tcrDescription"
+                placeholder="A list of red socks"
+                hasFeedback
+                error={errors.tcrDescription}
+                touched={touched.tcrDescription}
+                label={
+                  <span>
+                    Description&nbsp;
+                    <Tooltip title="Enter a short sentence to describe the type of item that will be displayed in the list and what the listing criteria are. For example: Images of red socks from various manufacturers.">
+                      <Icon type="question-circle-o" />
+                    </Tooltip>
+                  </span>
+                }
+                {...rest}
+              />
+            </div>
+            <div data-factory-section="custom">
+              <CustomInput
+                style={{ marginBottom: 16 }}
+                name="itemName"
+                placeholder="sock"
+                hasFeedback
+                error={errors.itemName}
+                touched={touched.itemName}
+                label={
+                  <span>
+                    Item Name&nbsp;
+                    <Tooltip
+                      title={`Enter a noun that describes the item that will be listed. This will replace the word "item" in the list interface and notifications. For example: if you set this to the word "Socks", on the list interface you will see buttons such as "Submit Socks" and "Challenge Socks".`}
+                    >
+                      <Icon type="question-circle-o" />
+                    </Tooltip>
+                  </span>
+                }
+                {...rest}
+              />
+              <CustomInput
+                style={{ marginBottom: 0 }}
+                name="itemNamePlural"
+                placeholder="socks"
+                hasFeedback
+                error={errors.itemNamePlural}
+                touched={touched.itemNamePlural}
+                label={
+                  <span>
+                    Item Name Plural&nbsp;
+                    <Tooltip
+                      title={`This is the plural of the item name. In other words, if "Item Name" is "bus", this should be "buses"`}
+                    >
+                      <Icon type="question-circle-o" />
+                    </Tooltip>
+                  </span>
+                }
+                {...rest}
+              />
+            </div>
           </StyledTCRInfoContainer>
         </StyledTCRParamContainer>
         {!advancedOptions && (
-          <StyledDepositContainer>
+          <StyledDepositContainer data-factory-section="deposit">
             <label htmlFor="depositSlider">
               Deposit&nbsp;
-              <Tooltip title="These are the funds users will have to deposit in order to make a submission into the list, which are sufficient to cover both arbitration costs paid to jurors and the rewards that users earn for a successful challenge. If the deposit is too low, incorrect submissions may not be flagged for dispute which could result in incorrect items being accepted in the list. If the deposit is too high, challengers will be likely to catch most malicious submissions, but people will only rarely submit to your list (so you may end up having a list that is difficult to attack but largely empty).">
+              <Tooltip title="These are the funds users will have to deposit in order to make a submission into the list, which are sufficient to cover both arbitration fees paid to jurors and the rewards that users earn for a successful challenge. If the deposit is too low, incorrect submissions may not be flagged for dispute which could result in incorrect items being accepted in the list. If the deposit is too high, challengers will be likely to catch most malicious submissions, but people will only rarely submit to your list (so you may end up having a list that is difficult to attack but largely empty).">
                 <Icon type="question-circle-o" />
               </Tooltip>
               :{' '}
@@ -503,45 +553,47 @@ const TCRParams = ({
             </StyledSliderContainer>
           </StyledDepositContainer>
         )}
-        {isKlerosArbitrator === false ? (
-          <CustomInput
-            name="arbitratorExtraData"
-            placeholder="0x7331deadbeef..."
-            hasFeedback
-            error={errors.arbitratorExtraData}
-            touched={touched.arbitratorExtraData}
-            label={
-              <span>
-                Arbitrator Extra Data&nbsp;
-                <Tooltip
-                  title={`The extra data for the arbitrator. See ERC 792 for more information. Default: ${defaultArbDataLabel}`}
-                >
-                  <Icon type="question-circle-o" />
-                </Tooltip>
-              </span>
-            }
-            {...rest}
-          />
-        ) : (
-          <KlerosParams
-            arbitratorExtraData={values.arbitratorExtraData}
-            klerosAddress={debouncedArbitrator}
-            policyAddress={policyAddress}
-            setArbitratorExtraData={setArbitratorExtraData}
-            library={chainProvider}
-          />
-        )}
-        <Form.Item
-          label="Advanced options"
-          style={{ marginBottom: '12px', display: 'flex' }}
-        >
-          <Switch
-            onChange={() => setAdvancedOptions((toggle) => !toggle)}
-            style={{ marginLeft: '8px' }}
-          />
-        </Form.Item>
+        <div data-factory-section="deposit">
+          {isKlerosArbitrator === false ? (
+            <CustomInput
+              name="arbitratorExtraData"
+              placeholder="0x7331deadbeef..."
+              hasFeedback
+              error={errors.arbitratorExtraData}
+              touched={touched.arbitratorExtraData}
+              label={
+                <span>
+                  Arbitrator Extra Data&nbsp;
+                  <Tooltip
+                    title={`The extra data for the arbitrator. See ERC 792 for more information. Default: ${defaultArbDataLabel}`}
+                  >
+                    <Icon type="question-circle-o" />
+                  </Tooltip>
+                </span>
+              }
+              {...rest}
+            />
+          ) : (
+            <KlerosParams
+              arbitratorExtraData={values.arbitratorExtraData}
+              klerosAddress={debouncedArbitrator}
+              policyAddress={policyAddress}
+              setArbitratorExtraData={setArbitratorExtraData}
+              library={chainProvider}
+            />
+          )}
+          <Form.Item
+            label="Advanced options"
+            style={{ marginBottom: '12px', display: 'flex' }}
+          >
+            <Switch
+              onChange={() => setAdvancedOptions((toggle) => !toggle)}
+              style={{ marginLeft: '8px' }}
+            />
+          </Form.Item>
+        </div>
         {advancedOptions && (
-          <>
+          <div data-factory-section="deposit">
             <BaseDepositInput
               name="submissionBaseDeposit"
               error={errors.submissionBaseDeposit}
@@ -674,21 +726,21 @@ const TCRParams = ({
                   <br />
                   <br />
                   If you choose very large stake multipliers, the expected
-                  returns of crowdfunders will improve, but appeal costs may
-                  become so large as to be a barrier. If you choose very small
-                  stake multipliers, total appeal costs are reduced, but
-                  crowdfunders may not be sufficiently incentivized to
-                  participate. Different multipliers can be chosen for the sides
-                  that won and lost the previous appeal round. The more one of
-                  these multipliers is larger than the other, the more the side
-                  with the smaller multiplier is favoured.
+                  returns of crowdfunders will improve, but appeal fee
+                  requirements may become so large as to be a barrier. If you
+                  choose very small stake multipliers, total appeal fees are
+                  reduced, but crowdfunders may not be sufficiently incentivized
+                  to participate. Different multipliers can be chosen for the
+                  sides that won and lost the previous appeal round. The more
+                  one of these multipliers is larger than the other, the more
+                  the side with the smaller multiplier is favoured.
                 </div>
               }
               type="info"
               showIcon
             />
             <StyledAlert
-              message="The total cost to fully fund one side of an appeal is: Total Appeal Cost=Total Juror Fees+Total Juror Fees*Stake Multiplier"
+              message="The total fee required to fully fund one side of an appeal is: Total Appeal Fee = Total Juror Fees + Total Juror Fees * Stake Multiplier"
               type="info"
               showIcon
             />
@@ -743,10 +795,10 @@ const TCRParams = ({
               }
               {...rest}
             />
-          </>
+          </div>
         )}
       </Form>
-    </Card>
+    </FactorySectionCard>
   )
 }
 

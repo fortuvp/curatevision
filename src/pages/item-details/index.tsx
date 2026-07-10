@@ -16,13 +16,13 @@ import { capitalizeFirstLetter, ZERO_ADDRESS } from 'utils/string'
 import Badges from './badges'
 import { CLASSIC_ITEM_DETAILS_QUERY } from 'utils/graphql'
 import { useQuery } from '@tanstack/react-query'
+import { request } from 'graphql-request'
 import { STALE_TIME } from 'consts'
-import { useGraphqlBatcher } from 'contexts/graphql-batcher'
 import { ethers } from 'ethers'
 import useTcrMetaEvidence from 'hooks/use-tcr-meta-evidence'
 import { parseIpfs } from 'utils/ipfs-parse'
+import { subgraphUrl } from 'config/tcr-addresses'
 import {
-  Divider,
   StyledBanner,
   StyledBreadcrumbItem,
   StyledLink,
@@ -52,16 +52,13 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
 
   // subgraph item entities have id "<itemID>@<listaddress>"
   const compoundId = `${itemID}@${tcrAddress.toLowerCase()}`
-  const { graphqlBatcher } = useGraphqlBatcher()
   const detailsViewQuery = useQuery({
     queryKey: ['classicItemDetails', compoundId],
-    queryFn: () =>
-      graphqlBatcher.fetch({
-        id: crypto.randomUUID(),
-        document: CLASSIC_ITEM_DETAILS_QUERY,
-        variables: { id: compoundId },
-        chainId: chainId!,
-      }),
+    queryFn: () => {
+      const url = subgraphUrl[chainId!]
+      if (!url) throw new Error(`No subgraph URL for chain ${chainId}`)
+      return request(url, CLASSIC_ITEM_DETAILS_QUERY, { id: compoundId })
+    },
     enabled: !!chainId,
     staleTime: STALE_TIME,
   })
@@ -188,16 +185,6 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
         </StyledBackLink>
       </StyledMargin>
       <StyledLayoutContent>
-        <ItemStatusCard
-          item={decodedItem}
-          timestamp={timestamp}
-          request={decodedItem?.requests[0] && { ...decodedItem.requests[0] }}
-          modalOpen={modalOpen}
-          setModalOpen={setModalOpen}
-          appealCost={appealCost}
-          dark
-        />
-        <Divider />
         <ItemDetailsCard
           columns={columns}
           item={decodedItem}
@@ -206,6 +193,15 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
           } Details`}
           loading={loading}
           itemMetaEvidence={itemMetaEvidence}
+        />
+        <ItemStatusCard
+          item={decodedItem}
+          timestamp={timestamp}
+          request={decodedItem?.requests[0] && { ...decodedItem.requests[0] }}
+          modalOpen={modalOpen}
+          setModalOpen={setModalOpen}
+          appealCost={appealCost}
+          dark
         />
         {/* Crowdfunding card is only rendered if the item has an appealable dispute. */}
         <CrowdfundingCard

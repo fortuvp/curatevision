@@ -34,7 +34,7 @@ const ItemDetailsRouter = () => {
   const isAttachmentOpen = searchParams.has('attachment')
   useTcrNetwork()
   const search = window.location.search
-  const { isLightCurate, isClassicCurate, isPermanentCurate, checking } =
+  const { isLightCurate, isClassicCurate, isPermanentCurate, checking, error } =
     useCheckLightCurate()
   const { setIsPermanent } = useContext(StakeContext)
   const queryClient = useQueryClient()
@@ -81,6 +81,15 @@ const ItemDetailsRouter = () => {
   if (isAttachmentOpen) return <AttachmentDisplay />
 
   if (checking) return <Loading />
+
+  if (error)
+    return (
+      <ErrorPage
+        code="Error"
+        title="Subgraph unavailable"
+        message="Curate could not verify this registry type from the configured GTCR subgraphs. Please retry in a moment."
+      />
+    )
 
   if (isLightCurate)
     return (

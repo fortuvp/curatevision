@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import styled from 'styled-components'
 import { Modal, Typography, Button, Spin, Tooltip } from 'components/ui'
 import Icon from 'components/ui/Icon'
@@ -14,6 +14,8 @@ import { uploadEvidence } from 'utils/upload-evidence'
 import ListingCriteriaLink from 'components/listing-criteria-link'
 import useNativeCurrency from 'hooks/native-currency'
 import useTokenSymbol from 'hooks/token-symbol'
+import TokenAmount from 'components/token-amount'
+import { ArbitrationFeeLabel } from 'components/arbitration-fee-tooltip'
 import { wrapWithToast, errorToast } from 'utils/wrap-with-toast'
 import { parseWagmiError } from 'utils/parse-wagmi-error'
 import { wagmiConfig } from 'config/wagmi'
@@ -61,20 +63,30 @@ const ChallengeModal = ({
   const [balance, setBalance] = useState(0n)
   const [allowance, setAllowance] = useState(0n)
   const [nativeBalance, setNativeBalance] = useState<BigNumber | undefined>()
+  const [multiplierDivisor, setMultiplierDivisor] = useState<bigint>()
   const [checkingToken, setCheckingToken] = useState(false)
   const [isApproving, setIsApproving] = useState(false)
   const [isChallenging, setIsChallenging] = useState(false)
-  const { symbol: tokenSymbol } = useTokenSymbol(registry.token)
+  const { symbol: tokenSymbol, decimals: tokenDecimals } = useTokenSymbol(
+    registry.token,
+  )
 
-  const challengeStake =
-    (BigInt(item.stake) * BigInt(registry.challengeStakeMultiplier)) / 10_000n
+  const challengeStake = useMemo(() => {
+    const divisor = multiplierDivisor ?? 10_000n
+    if (divisor === 0n) return 0n
+    return (
+      (BigInt(item.stake || 0) *
+        BigInt(registry.challengeStakeMultiplier || 0)) /
+      divisor
+    )
+  }, [item.stake, multiplierDivisor, registry.challengeStakeMultiplier])
 
   const checkTokenStatus = useCallback(async () => {
     if (!account || !publicClient || !registry.token) return
 
     setCheckingToken(true)
     try {
-      const [bal, allow, nativeBal] = await Promise.all([
+      const [bal, allow, nativeBal, divisor] = await Promise.all([
         publicClient.readContract({
           address: registry.token,
           abi: erc20Abi,
@@ -88,10 +100,16 @@ const ChallengeModal = ({
           args: [account, registry.id],
         }),
         publicClient.getBalance({ address: account }),
+        publicClient.readContract({
+          address: registry.id,
+          abi: _gtcr,
+          functionName: 'MULTIPLIER_DIVISOR',
+        }),
       ])
       setBalance(bal)
       setAllowance(allow)
       setNativeBalance(nativeBal)
+      setMultiplierDivisor(BigInt(String(divisor)))
     } catch (err) {
       console.error('Error checking token status:', err)
     }
@@ -299,8 +317,8 @@ const ChallengeModal = ({
       </Typography.Paragraph>
       <EvidenceForm onSubmit={challengeRequest} formID={EVIDENCE_FORM_ID} />
       <Typography.Paragraph>
-        To challenge this item, deposits are required. These values will be
-        awarded to the party that wins the dispute.
+        To challenge this item, a token stake and arbitration fee are required.
+        The winning side is reimbursed after the dispute is resolved.
       </Typography.Paragraph>
       <DepositContainer>
         <DepositRow>
@@ -310,18 +328,16 @@ const ChallengeModal = ({
               <Icon type="question-circle-o" />
             </Tooltip>
           </DepositLabel>
-          <ETHAmount
-            decimals={3}
+          <TokenAmount
             amount={challengeStake.toString()}
+            tokenDecimals={tokenDecimals}
+            precision={3}
             displayUnit={` ${tokenSymbol}`}
           />
         </DepositRow>
         <DepositRow>
           <DepositLabel>
-            Arbitration Cost
-            <Tooltip title="The arbitration cost paid in native currency to cover potential disputes.">
-              <Icon type="question-circle-o" />
-            </Tooltip>
+            <ArbitrationFeeLabel />
           </DepositLabel>
           <ETHAmount
             decimals={3}
@@ -331,11 +347,12 @@ const ChallengeModal = ({
         </DepositRow>
       </DepositContainer>
       <DepositRow style={{ marginTop: 8 }}>
-        <DepositLabel>Total deposit</DepositLabel>
+        <DepositLabel>Total required</DepositLabel>
         <span style={{ display: 'flex', alignItems: 'center' }}>
-          <ETHAmount
-            decimals={3}
+          <TokenAmount
             amount={challengeStake.toString()}
+            tokenDecimals={tokenDecimals}
+            precision={3}
             displayUnit={` ${tokenSymbol}`}
           />
           <span style={{ margin: '0 6px' }}>+</span>

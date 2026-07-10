@@ -378,16 +378,6 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
         <SearchBar />
       </StyledMargin>
       <StyledLayoutContent>
-        <ItemStatusCard
-          item={decodedItem}
-          timestamp={timestamp}
-          request={item?.requests && { ...item.requests[0] }}
-          modalOpen={modalOpen}
-          setModalOpen={setModalOpen}
-          appealCost={appealCost}
-          dark
-        />
-        <Divider />
         <ItemDetailsCard
           columns={decodedItem?.columns}
           item={decodedItem}
@@ -396,6 +386,15 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
           } Details`}
           loading={loading}
           itemMetaEvidence={itemMetaEvidence}
+        />
+        <ItemStatusCard
+          item={decodedItem}
+          timestamp={timestamp}
+          request={item?.requests && { ...item.requests[0] }}
+          modalOpen={modalOpen}
+          setModalOpen={setModalOpen}
+          appealCost={appealCost}
+          dark
         />
         {/* Crowdfunding card is only rendered if the item has an appealable dispute. */}
         <CrowdfundingCard

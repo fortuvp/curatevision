@@ -1,7 +1,6 @@
 import React, { useContext, useMemo } from 'react'
 import { Descriptions, Skeleton, Card } from 'components/ui'
 import _gtcr from 'assets/abis/LightGeneralizedTCR.json'
-import ItemStatusBadge from 'components/item-status-badge'
 import styled from 'styled-components'
 import { useAccount, usePublicClient, useWalletClient, useChainId } from 'wagmi'
 import { simulateContract } from '@wagmi/core'
@@ -26,11 +25,53 @@ import { parseWagmiError } from 'utils/parse-wagmi-error'
 import { wagmiConfig } from 'config/wagmi'
 
 export const StyledDescriptions = styled(Descriptions)`
+  width: 100%;
   flex-wrap: wrap;
   justify-content: space-between;
   flex-direction: column;
-  margin-right: 16px;
-  max-width: 991px;
+  margin-right: 0;
+  max-width: none;
+
+  > div {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  > div > div {
+    min-width: 0;
+    min-height: 68px;
+    padding: 14px 16px;
+    border: 1px solid var(--v2-stroke);
+    border-radius: 3px;
+    background: var(--v2-soft);
+  }
+
+  > div > div > span:first-child {
+    display: block;
+    margin: 0 0 5px;
+    color: var(--v2-muted);
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 700;
+  }
+
+  > div > div > span:last-child {
+    display: block;
+    min-width: 0;
+    color: var(--v2-text);
+    overflow-wrap: anywhere;
+  }
+
+  @media (max-width: 640px) {
+    > div {
+      grid-template-columns: 1fr;
+    }
+  }
 `
 const SkeletonTitleProps = { width: 60 }
 
@@ -45,12 +86,17 @@ const StyledSkeleton = styled(Skeleton)`
 export const StyledItemStatusCard = styled(Card)`
   display: flex;
   flex-direction: column;
+  margin-top: -16px;
+  border: 1px solid var(--klerosUIComponentsStroke) !important;
+  border-top: 0;
+  border-radius: 0 0 3px 3px;
+  background: var(--v2-card);
+  box-shadow: var(--v2-shadow);
 
   .ui-card-head {
-    background: ${({ theme }) => theme.cardHeaderGradient};
-    color: white;
-    border-color: ${({ theme }) =>
-      theme.name === 'dark' ? theme.borderColor : 'transparent'};
+    background: var(--v2-card);
+    color: var(--v2-text);
+    border-color: var(--v2-stroke);
   }
 
   .ui-card-head-wrapper {
@@ -61,12 +107,49 @@ export const StyledItemStatusCard = styled(Card)`
     .ui-card-head-title {
       overflow: visible;
       padding: 0;
-      color: white;
+      color: var(--v2-text);
+      font-size: 14px;
+      line-height: 18px;
+      font-weight: 700;
     }
     .ui-card-extra {
       margin-left: 0;
       padding: 0;
-      color: white;
+      color: var(--v2-text);
+    }
+  }
+
+  & > .ui-card-body {
+    padding: 0 32px 24px;
+
+    @media (max-width: 760px) {
+      padding: 0 16px 18px;
+    }
+  }
+`
+
+export const RequestActionBar = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 18px 0 0;
+  border-top: 1px solid var(--v2-stroke);
+  background: transparent;
+
+  > * {
+    flex: 0 0 auto;
+  }
+
+  @media (max-width: 640px) {
+    padding-top: 14px;
+
+    > span,
+    button,
+    a {
+      width: 100%;
     }
   }
 `
@@ -206,28 +289,13 @@ const ItemStatusCard = ({
   const appealable =
     statusCode === STATUS_CODE.CROWDFUNDING_WINNER ||
     statusCode === STATUS_CODE.CROWDFUNDING
+  const hasRequestAction =
+    statusCode !== STATUS_CODE.CHALLENGED &&
+    statusCode !== STATUS_CODE.WAITING_ARBITRATOR
+
   return (
     <>
-      <StyledItemStatusCard
-        id="item-status-card"
-        title={
-          <ItemStatusBadge
-            item={item}
-            challengePeriodDuration={challengePeriodDuration}
-            timestamp={timestamp}
-            dark
-          />
-        }
-        extra={
-          <ItemActionButton
-            statusCode={statusCode}
-            itemName={itemName}
-            itemID={item && item.itemID}
-            onClick={onClick}
-            type="secondary"
-          />
-        }
-      >
+      <StyledItemStatusCard id="item-status-card" title="Request details">
         <StyledDescriptions
           column={{ xxl: 3, xl: 3, lg: 2, md: 2, sm: 1, xs: 1 }}
         >
@@ -303,6 +371,17 @@ const ItemStatusCard = ({
               </Descriptions.Item>
             )}
         </StyledDescriptions>
+        {hasRequestAction && (
+          <RequestActionBar>
+            <ItemActionButton
+              statusCode={statusCode}
+              itemName={itemName}
+              itemID={item && item.itemID}
+              onClick={onClick}
+              type="secondary"
+            />
+          </RequestActionBar>
+        )}
       </StyledItemStatusCard>
       {statusCode !== STATUS_CODE.PENDING_SUBMISSION &&
         statusCode !== STATUS_CODE.PENDING_REMOVAL &&

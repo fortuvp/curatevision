@@ -5,6 +5,7 @@ import Icon from 'components/ui/Icon'
 import { ethers } from 'ethers'
 import { abi as _IArbitrator } from '@kleros/erc-792/build/contracts/IArbitrator.json'
 import ETHAmount from 'components/eth-amount'
+import { ArbitrationFeeLabel } from 'components/arbitration-fee-tooltip'
 import { jurorsAndCourtIDFromExtraData } from 'utils/string'
 import useWindowDimensions from 'hooks/window-dimensions'
 import useNativeCurrency from 'hooks/native-currency'
@@ -81,7 +82,7 @@ const KlerosParams = ({
     setNumberOfJurors(Number(numberOfJurors))
   }, [arbitratorExtraData])
 
-  // Display predicted arbitration cost.
+  // Display predicted arbitration fee.
   useEffect(() => {
     ;(async () => {
       if (!arbitratorExtraData || !arbitrator || !library) return
@@ -178,7 +179,7 @@ const KlerosParams = ({
           </SliderContainer>
         </StyledInputContainer>
       </StyledContainer>
-      Arbitration Cost:{' '}
+      <ArbitrationFeeLabel />:{' '}
       <ETHAmount
         displayUnit={` ${nativeCurrency}`}
         decimals={4}

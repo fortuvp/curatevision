@@ -8,6 +8,7 @@ import { NETWORKS, NETWORKS_INFO } from 'config/networks'
 import { parseIpfs } from 'utils/ipfs-parse'
 import useDocumentHead from 'hooks/use-document-head'
 import { fetchDashboardData, formatAgo, formatCompact, formatWei } from './data'
+import StakeTag from 'assets/images/logo-stake-tag.svg'
 import {
   DashboardActivity,
   DashboardRegistry,
@@ -26,7 +27,7 @@ type ChainFilter = 'all' | number
 type RegistrySort = 'signal' | 'activity' | 'items' | 'recent'
 type TrustFilter = 'all' | TrustStatus
 type KindFilter = 'all' | RegistryKind
-type ViewMode = 'board' | 'cards'
+type ViewMode = 'list' | 'cards'
 const REGISTRY_PAGE_SIZE = 15
 
 const shimmer = keyframes`
@@ -41,10 +42,10 @@ const pulseGlow = keyframes`
 
 const DashboardPage = styled.main`
   width: 100%;
-  max-width: 1540px;
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 22px var(--horizontal-padding) 56px;
-  color: var(--curate-text);
+  padding: 32px var(--horizontal-padding) 60px;
+  color: var(--v2-text);
 `
 
 const HeaderGrid = styled.section`
@@ -61,43 +62,17 @@ const HeaderGrid = styled.section`
 const Surface = styled.div<{ $padded?: boolean }>`
   position: relative;
   overflow: hidden;
-  border: 1px solid var(--curate-border);
-  border-radius: var(--curate-radius);
-  background: var(--curate-panel);
-  box-shadow: var(--curate-shadow);
-  backdrop-filter: blur(24px);
+  border: 1px solid var(--v2-stroke);
+  border-radius: 3px;
+  background: var(--v2-card);
+  box-shadow: var(--v2-shadow);
 
   &::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      118deg,
-      rgba(255, 255, 255, 0.07),
-      transparent 28%,
-      transparent 73%,
-      rgba(255, 255, 255, 0.028)
-    );
-    opacity: 0.48;
-    pointer-events: none;
+    content: none;
   }
 
   &::after {
-    content: '';
-    position: absolute;
-    right: 18px;
-    bottom: -36px;
-    left: 18px;
-    height: 70px;
-    border-radius: 50%;
-    background: radial-gradient(
-      ellipse,
-      var(--curate-under-glow),
-      transparent 70%
-    );
-    filter: blur(18px);
-    opacity: 0.7;
-    pointer-events: none;
+    content: none;
   }
 
   & > * {
@@ -113,24 +88,27 @@ const Surface = styled.div<{ $padded?: boolean }>`
 `
 
 const HeaderPanel = styled(Surface)`
-  min-height: 294px;
-  padding: clamp(22px, 3.4vw, 38px);
+  min-height: 260px;
+  padding: clamp(22px, 3.4vw, 34px);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  background: var(--curate-panel);
+  background:
+    radial-gradient(
+      circle at 72% 20%,
+      rgba(72, 185, 255, 0.18),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 42% 55%,
+      rgba(255, 79, 216, 0.12),
+      transparent 34%
+    ),
+    linear-gradient(135deg, rgba(7, 9, 20, 0.98), rgba(2, 3, 10, 0.96));
+  border-top: 5px solid var(--v2-blue);
 
   &::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background-image:
-      linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-    background-size: 46px 46px;
-    mask-image: linear-gradient(90deg, black, transparent 82%);
-    opacity: 0.45;
-    pointer-events: none;
+    content: none;
   }
 `
 
@@ -146,13 +124,13 @@ const Kicker = styled.div`
   gap: 8px;
   min-height: 28px;
   padding: 0 10px;
-  border: 1px solid rgba(0, 163, 255, 0.24);
-  border-radius: 999px;
-  color: var(--curate-live);
-  background: rgba(0, 163, 255, 0.075);
+  border: 1px solid var(--v2-stroke);
+  border-radius: 3px;
+  color: var(--v2-blue);
+  background: var(--v2-blue-soft);
   font-size: 11px;
-  font-weight: 850;
-  letter-spacing: 0.08em;
+  font-weight: 700;
+  letter-spacing: 0;
   text-transform: uppercase;
 `
 
@@ -173,17 +151,17 @@ const Pulse = styled.span<{ $tone?: 'success' | 'warning' | 'danger' }>`
 
 const Title = styled.h1`
   margin: 18px 0 10px;
-  color: var(--curate-text);
-  font-size: clamp(42px, 6vw, 76px);
-  line-height: 0.96;
-  font-weight: 900;
+  color: var(--v2-text);
+  font-size: clamp(30px, 4.6vw, 48px);
+  line-height: 1.12;
+  font-weight: 600;
   letter-spacing: 0;
 `
 
 const Subtitle = styled.p`
   max-width: 760px;
   margin: 0;
-  color: var(--curate-muted);
+  color: var(--v2-muted);
   font-size: clamp(15px, 1.5vw, 18px);
   line-height: 1.64;
 `
@@ -204,18 +182,18 @@ const AutomationLink = styled(Link)`
   align-items: center;
   gap: 8px;
   padding: 0 15px;
-  border: 1px solid rgba(0, 163, 255, 0.32);
-  border-radius: 12px;
-  color: var(--curate-text);
-  background: rgba(0, 163, 255, 0.1);
+  border: 1px solid var(--v2-stroke);
+  border-radius: 7px;
+  color: var(--v2-blue);
+  background: var(--v2-card);
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 600;
   text-decoration: none;
   animation: ${pulseGlow} 2.4s ease-in-out infinite;
 
   &:hover {
-    border-color: rgba(0, 163, 255, 0.55);
-    background: rgba(0, 163, 255, 0.16);
+    border-color: var(--v2-blue);
+    background: var(--v2-blue-soft);
   }
 `
 
@@ -227,18 +205,18 @@ const SearchBox = styled.div`
   max-width: 560px;
   min-height: 48px;
   padding: 0 14px;
-  border: 1px solid var(--curate-border);
-  border-radius: 18px;
-  color: var(--curate-muted);
-  background: var(--curate-field);
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--v2-stroke);
+  border-radius: 3px;
+  color: var(--v2-muted);
+  background: var(--v2-card);
+  box-shadow: none;
   transition:
     border-color 160ms ease,
     background 160ms ease;
 
   &:focus-within {
-    border-color: var(--curate-border-strong);
-    background: rgba(2, 6, 12, 0.92);
+    border-color: var(--v2-blue);
+    background: var(--v2-card);
   }
 
   input {
@@ -246,14 +224,14 @@ const SearchBox = styled.div`
     min-width: 120px;
     border: 0;
     outline: 0;
-    color: var(--curate-text);
+    color: var(--v2-text);
     background: transparent;
     font-size: 14px;
     font-weight: 650;
   }
 
   input::placeholder {
-    color: var(--curate-faint);
+    color: var(--v2-faint);
   }
 `
 
@@ -261,7 +239,7 @@ const ExplorerSearch = styled(SearchBox)`
   max-width: 440px;
   min-height: 42px;
   flex: 1 1 300px;
-  border-radius: 14px;
+  border-radius: 3px;
 `
 
 const ClearSearchButton = styled.button`
@@ -271,16 +249,16 @@ const ClearSearchButton = styled.button`
   width: 28px;
   height: 28px;
   padding: 0;
-  border: 1px solid var(--curate-border);
-  border-radius: 10px;
-  color: var(--curate-muted);
-  background: var(--curate-button-soft);
+  border: 1px solid var(--v2-stroke);
+  border-radius: 3px;
+  color: var(--v2-muted);
+  background: var(--v2-card);
   cursor: pointer;
 
   &:hover {
-    color: var(--curate-text);
-    border-color: var(--curate-border-strong);
-    background: rgba(0, 163, 255, 0.1);
+    color: var(--v2-text);
+    border-color: var(--v2-blue);
+    background: var(--v2-blue-soft);
   }
 `
 
@@ -298,7 +276,7 @@ const ConsoleHeader = styled.div`
   justify-content: space-between;
   gap: 12px;
   padding-bottom: 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.075);
+  border-bottom: 1px solid var(--v2-stroke);
 `
 
 const ConsoleTitle = styled.h2`
@@ -306,13 +284,13 @@ const ConsoleTitle = styled.h2`
   align-items: center;
   gap: 9px;
   margin: 0;
-  color: var(--curate-text);
+  color: var(--v2-text);
   font-size: 15px;
-  font-weight: 850;
+  font-weight: 600;
 `
 
 const ConsoleHint = styled.span`
-  color: var(--curate-faint);
+  color: var(--v2-faint);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.06em;
@@ -328,16 +306,16 @@ const ConsoleGrid = styled.div`
 const ConsoleStat = styled.div`
   min-height: 86px;
   padding: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.075);
-  border-radius: 12px;
-  background: rgba(1, 4, 9, 0.54);
+  border: 1px solid var(--v2-stroke);
+  border-radius: 3px;
+  background: var(--v2-soft);
 `
 
 const ConsoleValue = styled.div`
   overflow: hidden;
-  color: var(--curate-text);
+  color: var(--v2-text);
   font-size: 24px;
-  font-weight: 900;
+  font-weight: 700;
   line-height: 1;
   text-overflow: ellipsis;
   font-variant-numeric: tabular-nums;
@@ -345,7 +323,7 @@ const ConsoleValue = styled.div`
 
 const ConsoleLabel = styled.div`
   margin-top: 8px;
-  color: var(--curate-faint);
+  color: var(--v2-faint);
   font-size: 10px;
   font-weight: 850;
   letter-spacing: 0.08em;
@@ -363,7 +341,7 @@ const ChainDepthRow = styled.div`
   grid-template-columns: 92px minmax(0, 1fr) 42px;
   gap: 10px;
   align-items: center;
-  color: var(--curate-muted);
+  color: var(--v2-muted);
   font-size: 12px;
   font-weight: 750;
 `
@@ -373,7 +351,7 @@ const DepthTrack = styled.div`
   overflow: hidden;
   height: 8px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--v2-stroke);
 `
 
 const DepthBar = styled.div<{ $width: number; $color?: string }>`
@@ -449,9 +427,9 @@ const MetricTrend = styled.span<{ $tone?: 'up' | 'flat' | 'warn' }>`
 const MetricValue = styled.div`
   overflow: hidden;
   margin-top: 16px;
-  color: var(--curate-text);
+  color: var(--v2-text);
   font-size: clamp(22px, 2.5vw, 31px);
-  font-weight: 900;
+  font-weight: 700;
   line-height: 1;
   text-overflow: ellipsis;
   font-variant-numeric: tabular-nums;
@@ -459,7 +437,7 @@ const MetricValue = styled.div`
 
 const MetricLabel = styled.div`
   margin-top: 7px;
-  color: var(--curate-faint);
+  color: var(--v2-faint);
   font-size: 11px;
   font-weight: 850;
   letter-spacing: 0.07em;
@@ -487,7 +465,7 @@ const PanelTop = styled.div`
   justify-content: space-between;
   gap: 16px;
   padding: 18px 18px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.075);
+  border-bottom: 1px solid var(--v2-stroke);
 
   @media (max-width: 860px) {
     flex-direction: column;
@@ -503,14 +481,14 @@ const PanelTitle = styled.h2`
   align-items: center;
   gap: 10px;
   margin: 0;
-  color: var(--curate-text);
+  color: var(--v2-text);
   font-size: 19px;
-  font-weight: 900;
+  font-weight: 600;
 `
 
 const PanelSub = styled.div`
   margin-top: 6px;
-  color: var(--curate-muted);
+  color: var(--v2-muted);
   font-size: 13px;
   line-height: 1.45;
 `
@@ -528,9 +506,9 @@ const Segmented = styled.div`
   align-items: center;
   min-height: 36px;
   padding: 3px;
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 12px;
-  background: rgba(1, 4, 9, 0.58);
+  border: 1px solid var(--v2-stroke);
+  border-radius: 3px;
+  background: var(--v2-card);
 `
 
 const Segment = styled.button<{ $active?: boolean }>`
@@ -542,20 +520,19 @@ const Segment = styled.button<{ $active?: boolean }>`
   padding: 0 10px;
   border: 0;
   border-radius: 9px;
-  color: ${({ $active }) =>
-    $active ? 'var(--curate-text)' : 'var(--curate-muted)'};
+  color: ${({ $active }) => ($active ? 'var(--v2-text)' : 'var(--v2-muted)')};
   background: ${({ $active }) =>
-    $active ? 'rgba(255, 255, 255, 0.105)' : 'transparent'};
+    $active ? 'var(--v2-blue-soft)' : 'transparent'};
   cursor: pointer;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
   transition:
     color 160ms ease,
     background 160ms ease;
 
   &:hover {
-    color: var(--curate-text);
-    background: rgba(255, 255, 255, 0.08);
+    color: var(--v2-text);
+    background: var(--v2-soft);
   }
 `
 
@@ -571,51 +548,28 @@ const FilterBar = styled.div`
 
 const BoardShell = styled.div`
   display: grid;
-  gap: 9px;
-  padding: 12px;
-  overflow-x: auto;
-`
-
-const BoardHeader = styled.div`
-  display: grid;
-  grid-template-columns:
-    minmax(290px, 1.5fr)
-    132px 104px 112px 96px 96px 98px 120px;
-  gap: 12px;
-  align-items: center;
-  min-width: 1040px;
-  min-height: 42px;
-  padding: 0 16px;
-  border: 1px solid var(--curate-border);
-  border-radius: 14px;
-  color: var(--curate-faint);
-  background: rgba(2, 6, 12, 0.66);
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  gap: 8px;
+  padding: 18px;
 `
 
 const BoardRow = styled(Link)<{ $verified?: boolean }>`
   display: grid;
   grid-template-columns:
-    minmax(290px, 1.5fr)
-    132px 104px 112px 96px 96px 98px 120px;
-  gap: 12px;
+    minmax(280px, 1fr)
+    minmax(100px, max-content)
+    minmax(110px, max-content)
+    minmax(216px, max-content)
+    max-content;
+  gap: clamp(12px, 2vw, 32px);
   align-items: center;
-  min-width: 1040px;
-  min-height: 78px;
-  padding: 12px 16px;
-  border: 1px solid rgba(117, 151, 197, 0.16);
-  border-radius: 18px;
+  min-height: 64px;
+  padding: 0 32px;
+  border: 1px solid var(--v2-stroke);
+  border-radius: 3px;
   color: inherit;
   text-decoration: none;
-  background: ${({ $verified }) =>
-      $verified
-        ? 'linear-gradient(90deg, rgba(22, 241, 149, 0.06), transparent 34%),'
-        : ''}
-    rgba(2, 8, 18, 0.52);
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.035);
+  background: var(--v2-card);
+  box-shadow: var(--v2-shadow);
   transition:
     background 160ms ease,
     border-color 160ms ease,
@@ -623,14 +577,20 @@ const BoardRow = styled(Link)<{ $verified?: boolean }>`
 
   &:hover {
     transform: translateY(-1px);
-    background: rgba(8, 21, 38, 0.72);
-    border-color: var(--curate-border-strong);
+    background: var(--v2-soft);
+    border-color: var(--v2-blue);
+  }
+
+  @media (max-width: 980px) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    padding: 16px;
   }
 `
 
 const RegistryCell = styled.div`
   display: grid;
-  grid-template-columns: 46px minmax(0, 1fr);
+  grid-template-columns: 40px minmax(0, 1fr);
   gap: 12px;
   align-items: center;
   min-width: 0;
@@ -640,19 +600,14 @@ const RegistryAvatar = styled.div<{ $color?: string; $image?: string | null }>`
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 46px;
-  height: 46px;
+  width: 40px;
+  height: 40px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
-  color: ${({ $color }) => $color || 'var(--curate-live)'};
-  background:
-    ${({ $image }) =>
-      $image
-        ? `url(${$image}) center / cover`
-        : 'linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))'},
-    rgba(1, 4, 9, 0.72);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--v2-stroke);
+  border-radius: 24px;
+  color: ${({ $color }) => $color || 'var(--v2-blue)'};
+  background: ${({ $image }) =>
+    $image ? `url(${$image}) center / contain no-repeat` : 'var(--v2-soft)'};
   flex: 0 0 auto;
 `
 
@@ -662,9 +617,9 @@ const RegistryName = styled.div`
 
 const RegistryTitle = styled.div`
   overflow: hidden;
-  color: var(--curate-text);
+  color: var(--v2-text);
   font-size: 14px;
-  font-weight: 850;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 `
@@ -672,7 +627,7 @@ const RegistryTitle = styled.div`
 const RegistryMeta = styled.div`
   overflow: hidden;
   margin-top: 4px;
-  color: var(--curate-muted);
+  color: var(--v2-muted);
   font-size: 12px;
   line-height: 1.3;
   text-overflow: ellipsis;
@@ -692,7 +647,7 @@ const Chip = styled.span<{
   min-height: 28px;
   padding: 0 10px;
   border: 1px solid currentColor;
-  border-radius: 999px;
+  border-radius: 3px;
   color: ${({ $tone, $color }) =>
     $color ||
     ($tone === 'success'
@@ -708,7 +663,7 @@ const Chip = styled.span<{
               : 'var(--curate-muted)')};
   background: color-mix(in srgb, currentColor 11%, transparent);
   font-size: 11px;
-  font-weight: 850;
+  font-weight: 600;
   white-space: nowrap;
 `
 
@@ -739,37 +694,25 @@ const Numeric = styled.div<{ $tone?: 'success' | 'warning' | 'danger' }>`
 
 const CardGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-  padding: 18px;
-
-  > a:first-child {
-    grid-column: span 2;
-  }
-
-  @media (max-width: 1280px) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 24px;
+  padding: 24px;
 
   @media (max-width: 720px) {
-    grid-template-columns: 1fr;
-
-    > a:first-child {
-      grid-column: span 1;
-    }
+    padding: 16px;
   }
 `
 
 const MarketCard = styled(Link)`
-  min-height: 348px;
+  height: 274px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid rgba(117, 151, 197, 0.16);
-  border-radius: 22px;
+  border: 1px solid var(--v2-stroke);
+  border-radius: 3px;
   color: inherit;
-  background: var(--curate-card);
-  box-shadow: 0 22px 66px rgba(0, 0, 0, 0.34);
+  background: var(--v2-card);
+  box-shadow: var(--v2-shadow);
   text-decoration: none;
   transition:
     border-color 160ms ease,
@@ -777,49 +720,46 @@ const MarketCard = styled(Link)`
     box-shadow 160ms ease;
 
   &:hover {
-    transform: translateY(-4px);
-    border-color: var(--curate-border-strong);
-    box-shadow: var(--curate-shadow-hover);
+    transform: translateY(-1px);
+    border-color: var(--v2-blue);
+    box-shadow: var(--v2-shadow-hover);
   }
 `
 
-const CardVisual = styled.div<{ $color?: string; $image?: string | null }>`
+const CardVisual = styled.div`
   position: relative;
-  min-height: 176px;
-  padding: 14px;
+  flex: 1;
+  min-height: 0;
+  padding: 14px 18px 18px;
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   overflow: hidden;
-  background: ${({ $color, $image }) =>
-    $image
-      ? `linear-gradient(180deg, rgba(2, 6, 12, 0.12), rgba(2, 6, 12, 0.82)), url(${$image}) center / cover`
-      : `radial-gradient(circle at 35% 30%, color-mix(in srgb, ${
-          $color || 'var(--curate-live)'
-        } 34%, transparent), transparent 34%),
-           radial-gradient(circle at 78% 74%, rgba(108, 161, 255, 0.18), transparent 34%),
-           linear-gradient(145deg, rgba(8, 25, 45, 0.96), rgba(3, 7, 14, 0.98))`};
+  background: var(--v2-card);
 
   &::after {
-    content: '';
-    position: absolute;
-    inset: auto 0 0;
-    height: 54px;
-    background: linear-gradient(180deg, transparent, rgba(4, 10, 20, 0.94));
-    pointer-events: none;
+    content: none;
   }
+`
+
+const CardImage = styled.img`
+  width: 125px;
+  height: 125px;
+  object-fit: contain;
+  border-radius: 62.5px;
 `
 
 const RegistryArtworkAvatar = styled(RegistryAvatar)`
   position: relative;
   z-index: 1;
-  width: 64px;
-  height: 64px;
-  border-radius: 18px;
-  color: var(--curate-text);
-  box-shadow:
-    inset 0 1px rgba(255, 255, 255, 0.08),
-    0 18px 44px rgba(0, 0, 0, 0.34);
+  width: 125px;
+  height: 125px;
+  border: 0;
+  border-radius: 62.5px;
+  color: var(--v2-text);
+  box-shadow: none;
 
   svg {
     width: 30px;
@@ -827,76 +767,60 @@ const RegistryArtworkAvatar = styled(RegistryAvatar)`
   }
 `
 
-const VisualBadgeStack = styled.div`
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-`
-
 const CardBody = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 16px;
+  display: contents;
 `
 
 const CardHead = styled.div`
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  max-width: 100%;
+  text-align: center;
+`
+
+const CardMetaRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 0;
 `
 
 const CardDescription = styled.p`
-  display: -webkit-box;
-  min-height: 42px;
-  margin: 12px 0 0;
-  overflow: hidden;
-  color: var(--curate-muted);
-  font-size: 13px;
-  line-height: 1.45;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  display: none;
 `
 
 const CardStats = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: auto;
-  padding-top: 16px;
+  display: none;
 `
 
 const CardChipRow = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 14px;
+  display: none;
 `
 
 const CardStat = styled.div`
   min-width: 0;
-  padding: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.075);
-  border-radius: 10px;
-  background: rgba(1, 4, 9, 0.5);
+  padding: 8px;
+  border: 1px solid var(--v2-stroke);
+  border-radius: 3px;
+  background: var(--v2-soft);
 `
 
 const CardStatValue = styled.div`
   overflow: hidden;
-  color: var(--curate-text);
+  color: var(--v2-text);
   font-size: 15px;
-  font-weight: 900;
+  font-weight: 700;
   text-overflow: ellipsis;
   font-variant-numeric: tabular-nums;
 `
 
 const CardStatLabel = styled.div`
   margin-top: 4px;
-  color: var(--curate-faint);
+  color: var(--v2-faint);
   font-size: 10px;
   font-weight: 850;
   letter-spacing: 0.06em;
@@ -1138,7 +1062,13 @@ const MobileMetaGrid = styled.div`
 `
 
 const ExternalArrow = styled.span`
-  color: var(--curate-faint);
+  display: inline-flex;
+  align-items: center;
+  flex-direction: row-reverse;
+  gap: 8px;
+  color: var(--klerosUIComponentsPrimaryBlue);
+  font-size: 14px;
+  font-weight: 400;
 `
 
 const LargePanelBody = styled.div`
@@ -1369,7 +1299,66 @@ const validSort = (value: string | null): RegistrySort =>
     : 'signal'
 
 const validView = (value: string | null): ViewMode =>
-  value === 'board' ? 'board' : 'cards'
+  value === 'list' ? 'list' : 'cards'
+
+const RegistryStatusStrip = styled.div<{
+  $status: DashboardRegistry['trustStatus']
+  $compact?: boolean
+  $reserveBadge?: boolean
+}>`
+  display: ${({ $compact, $reserveBadge }) =>
+    $compact && $reserveBadge ? 'inline-grid' : 'flex'};
+  grid-template-columns: ${({ $compact, $reserveBadge }) =>
+    $compact && $reserveBadge ? '96px max-content' : 'none'};
+  align-items: center;
+  justify-content: ${({ $compact }) =>
+    $compact ? 'flex-start' : 'space-between'};
+  gap: 12px;
+  min-width: ${({ $compact, $reserveBadge }) =>
+    $compact && $reserveBadge ? '196px' : '0'};
+  height: ${({ $compact }) => ($compact ? 'auto' : '44px')};
+  padding: ${({ $compact }) => ($compact ? '0' : '0 24px')};
+  border-top: ${({ $compact, $status }) =>
+    $compact
+      ? '0'
+      : `5px solid ${
+          $status === 'verified'
+            ? 'var(--klerosUIComponentsSuccess)'
+            : 'var(--klerosUIComponentsPrimaryBlue)'
+        }`};
+  border-radius: ${({ $compact }) => ($compact ? '0' : '3px 3px 0 0')};
+  background: ${({ $compact, $status }) =>
+    $compact
+      ? 'transparent'
+      : $status === 'verified'
+        ? 'var(--klerosUIComponentsSuccessLight)'
+        : 'var(--klerosUIComponentsMediumBlue)'};
+  color: ${({ $status }) =>
+    $status === 'verified'
+      ? 'var(--klerosUIComponentsSuccess)'
+      : 'var(--klerosUIComponentsPrimaryBlue)'};
+
+  label {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    margin: 0;
+    color: currentColor;
+    font-size: 14px;
+    line-height: 18px;
+    white-space: nowrap;
+  }
+
+  label::before {
+    content: '';
+    flex: 0 0 auto;
+    width: 8px;
+    height: 8px;
+    margin-right: 8px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+`
 
 const RegistryLogo = ({ registry }: { registry: DashboardRegistry }) => {
   const info = chainInfo(registry.chainId)
@@ -1380,6 +1369,32 @@ const RegistryLogo = ({ registry }: { registry: DashboardRegistry }) => {
     </RegistryAvatar>
   )
 }
+
+const StakeCurateTag = styled(StakeTag)`
+  display: inline-flex;
+  width: 96px;
+  height: 16px;
+  flex-shrink: 0;
+
+  ${({ theme }) =>
+    theme.name === 'dark' &&
+    `
+    path[fill="#EBD4FF"] {
+      fill: ${theme.stakeTagBg};
+    }
+    path[fill="#220050"] {
+      fill: ${theme.stakeTagText};
+    }
+  `}
+`
+
+const RegistryStatusBadgeSlot = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 96px;
+  min-width: 96px;
+`
 
 const RegistryIdentity = ({ registry }: { registry: DashboardRegistry }) => {
   const info = chainInfo(registry.chainId)
@@ -1399,7 +1414,6 @@ const RegistryIdentity = ({ registry }: { registry: DashboardRegistry }) => {
 
 const RegistryBoardRow = ({ registry }: { registry: DashboardRegistry }) => {
   const info = chainInfo(registry.chainId)
-  const pendingTone = registry.pendingCount > 0 ? 'warning' : 'neutral'
   return (
     <BoardRow
       to={registryHref(registry)}
@@ -1409,20 +1423,29 @@ const RegistryBoardRow = ({ registry }: { registry: DashboardRegistry }) => {
       <ChainChip $color={info?.color}>
         {info?.name || registry.chainId}
       </ChainChip>
-      <Chip $tone={kindTone(registry.kind)}>{kindLabel(registry.kind)}</Chip>
-      <Chip $tone={registry.trustStatus === 'verified' ? 'success' : 'neutral'}>
-        {registry.trustStatus === 'verified' ? 'Verified' : 'Unverified'}
-      </Chip>
-      <Numeric>{formatCompact(registry.itemCount)}</Numeric>
-      <Numeric $tone={registry.activeCount > 0 ? 'success' : undefined}>
-        {formatCompact(registry.activeCount)}
-      </Numeric>
-      <Numeric $tone={registry.disputeCount > 0 ? 'danger' : undefined}>
-        {formatCompact(registry.disputeCount)}
-      </Numeric>
-      <Numeric $tone={pendingTone === 'warning' ? 'warning' : undefined}>
-        {formatAgo(registry.lastActivityAt)}
-      </Numeric>
+      <Numeric>{formatCompact(registry.itemCount)} items</Numeric>
+      <RegistryStatusStrip
+        $status={registry.trustStatus}
+        $compact
+        $reserveBadge
+      >
+        <RegistryStatusBadgeSlot>
+          {registry.kind === 'permanent' && (
+            <StakeCurateTag aria-label="Stake Curate" />
+          )}
+        </RegistryStatusBadgeSlot>
+        <label>
+          {registry.trustStatus === 'verified' ? 'Included' : 'Indexed'}
+        </label>
+      </RegistryStatusStrip>
+      <ExternalArrow>
+        Open
+        <CurateIcon
+          name="chevron-down"
+          size={16}
+          style={{ transform: 'rotate(-90deg)' }}
+        />
+      </ExternalArrow>
     </BoardRow>
   )
 }
@@ -1432,33 +1455,40 @@ const RegistryCard = ({ registry }: { registry: DashboardRegistry }) => {
   const image = mediaUrl(registry.logoURI)
   return (
     <MarketCard to={registryHref(registry)}>
-      <CardVisual $color={info?.color} $image={image}>
-        <RegistryArtworkAvatar $color={info?.color} $image={image}>
-          {!image && <CurateIcon name="registry" size={28} />}
-        </RegistryArtworkAvatar>
-        <VisualBadgeStack>
-          <ChainChip $color={info?.color}>
-            {info?.name || registry.chainId}
-          </ChainChip>
-          <Chip
-            $tone={registry.trustStatus === 'verified' ? 'success' : 'neutral'}
-          >
-            {registry.trustStatus === 'verified' ? 'Verified' : 'Unverified'}
-          </Chip>
-        </VisualBadgeStack>
-      </CardVisual>
-      <CardBody>
+      <RegistryStatusStrip $status={registry.trustStatus}>
+        <label>
+          {registry.trustStatus === 'verified' ? 'Included' : 'Indexed'}
+        </label>
+        {registry.kind === 'permanent' && (
+          <StakeCurateTag aria-label="Stake Curate" />
+        )}
+      </RegistryStatusStrip>
+      <CardVisual>
+        {image ? (
+          <CardImage src={image} alt={`${registry.title} logo`} />
+        ) : (
+          <RegistryArtworkAvatar $color={info?.color}>
+            <CurateIcon name="registry" size={28} />
+          </RegistryArtworkAvatar>
+        )}
         <CardHead>
           <RegistryName>
             <RegistryTitle>{registry.title}</RegistryTitle>
             <RegistryMeta>
-              {kindLabel(registry.kind)} | {shortAddress(registry.address)}
+              {formatCompact(registry.itemCount)} items
             </RegistryMeta>
           </RegistryName>
-          <ExternalArrow>
-            <CurateIcon name="external" size={16} />
-          </ExternalArrow>
         </CardHead>
+        <CardMetaRow>
+          <ChainChip $color={info?.color}>
+            {info?.name || registry.chainId}
+          </ChainChip>
+          <Chip $tone={kindTone(registry.kind)}>
+            {kindLabel(registry.kind)}
+          </Chip>
+        </CardMetaRow>
+      </CardVisual>
+      <CardBody>
         <CardDescription>
           {registry.description ||
             `${kindLabel(registry.kind)} registry indexed on ${
@@ -1466,9 +1496,6 @@ const RegistryCard = ({ registry }: { registry: DashboardRegistry }) => {
             }.`}
         </CardDescription>
         <CardChipRow>
-          <Chip $tone={kindTone(registry.kind)}>
-            {kindLabel(registry.kind)}
-          </Chip>
           <Chip $tone={registry.pendingCount > 0 ? 'warning' : 'neutral'}>
             {registry.pendingCount > 0
               ? `${formatCompact(registry.pendingCount)} pending`
@@ -2046,21 +2073,29 @@ const Dashboard = () => {
             </PanelTitleBlock>
             <ControlCluster>
               <Segmented>
-                {(['board', 'cards'] as ViewMode[]).map((view) => (
-                  <Segment
-                    key={view}
-                    $active={viewMode === view}
-                    onClick={() =>
-                      updateParams({ view: view === 'cards' ? null : view })
-                    }
-                  >
-                    <CurateIcon
-                      name={view === 'board' ? 'list' : 'grid'}
-                      size={15}
-                    />
-                    {view}
-                  </Segment>
-                ))}
+                <Segment
+                  $active={viewMode === 'list'}
+                  aria-label={
+                    viewMode === 'list'
+                      ? 'Switch to grid view'
+                      : 'Switch to list view'
+                  }
+                  onClick={() =>
+                    updateParams({
+                      view: viewMode === 'list' ? null : 'list',
+                    })
+                  }
+                  title={
+                    viewMode === 'list'
+                      ? 'Switch to grid view'
+                      : 'Switch to list view'
+                  }
+                >
+                  <CurateIcon
+                    name={viewMode === 'list' ? 'grid' : 'list'}
+                    size={16}
+                  />
+                </Segment>
               </Segmented>
             </ControlCluster>
           </PanelTop>
@@ -2169,16 +2204,6 @@ const Dashboard = () => {
               <>
                 <DesktopBoard>
                   <BoardShell>
-                    <BoardHeader>
-                      <span>Registry</span>
-                      <span>Chain</span>
-                      <span>Type</span>
-                      <span>Status</span>
-                      <span>Items</span>
-                      <span>30d flow</span>
-                      <span>Disputes</span>
-                      <span>Last</span>
-                    </BoardHeader>
                     {visibleRegistries.map((registry) => (
                       <RegistryBoardRow key={registry.id} registry={registry} />
                     ))}
@@ -2202,6 +2227,9 @@ const Dashboard = () => {
                           <Chip $tone={kindTone(registry.kind)}>
                             {kindLabel(registry.kind)}
                           </Chip>
+                          {registry.kind === 'permanent' && (
+                            <StakeCurateTag aria-label="Stake Curate" />
+                          )}
                           <Chip
                             $tone={
                               registry.trustStatus === 'verified'

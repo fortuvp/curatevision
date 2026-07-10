@@ -7,6 +7,7 @@ import { abi as _gtcr } from '@kleros/tcr/build/contracts/GeneralizedTCR.json'
 import { TCRViewContext } from 'contexts/tcr-view-context'
 import EnsureAuth from 'components/ensure-auth'
 import EvidenceForm from 'components/evidence-form'
+import InlineEvidenceComposer from 'components/inline-evidence-composer'
 import { useAtlasProvider } from '@kleros/kleros-app'
 import { uploadEvidence } from 'utils/upload-evidence'
 import { wrapWithToast, errorToast } from 'utils/wrap-with-toast'
@@ -16,10 +17,20 @@ import { StyledModal } from 'pages/light-item-details/modals/challenge'
 
 interface EvidenceModalProps {
   item: SubgraphItem
+  inline?: boolean
+  composerId?: string
+  visible?: boolean
+  onCancel?: () => void
   [key: string]: unknown
 }
 
-const EvidenceModal = ({ item, ...rest }: EvidenceModalProps) => {
+const EvidenceModal = ({
+  item,
+  inline = false,
+  composerId = 'evidence-composer',
+  onCancel,
+  ...rest
+}: EvidenceModalProps) => {
   const { tcrAddress } = useContext(TCRViewContext)
   const { address: account } = useAccount()
   const chainId = useChainId()
@@ -27,6 +38,7 @@ const EvidenceModal = ({ item, ...rest }: EvidenceModalProps) => {
   const { data: walletClient } = useWalletClient()
   const { uploadFile } = useAtlasProvider()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [formKey, setFormKey] = useState(0)
   const submitEvidence = async ({ title, description, evidenceAttachment }) => {
     setIsSubmitting(true)
     try {
@@ -51,7 +63,8 @@ const EvidenceModal = ({ item, ...rest }: EvidenceModalProps) => {
       )
 
       if (result.status) {
-        rest.onCancel()
+        if (inline) setFormKey((key) => key + 1)
+        else onCancel?.()
 
         if (process.env.REACT_APP_NOTIFICATIONS_API_URL && !!chainId)
           fetch(
@@ -79,10 +92,21 @@ const EvidenceModal = ({ item, ...rest }: EvidenceModalProps) => {
 
   const EVIDENCE_FORM_ID = 'submitEvidenceForm'
 
+  if (inline)
+    return (
+      <InlineEvidenceComposer
+        id={composerId}
+        formID={EVIDENCE_FORM_ID}
+        formKey={formKey}
+        isSubmitting={isSubmitting}
+        onSubmit={submitEvidence}
+      />
+    )
+
   return (
     <StyledModal
       footer={[
-        <Button key="back" onClick={rest.onCancel}>
+        <Button key="back" onClick={onCancel}>
           Back
         </Button>,
         <EnsureAuth key="ensure-auth">
@@ -97,6 +121,7 @@ const EvidenceModal = ({ item, ...rest }: EvidenceModalProps) => {
           </Button>
         </EnsureAuth>,
       ]}
+      onCancel={onCancel}
       {...rest}
     >
       <Typography.Title level={4}>Evidence Submission</Typography.Title>

@@ -15,6 +15,9 @@ export interface DashboardRegistry {
   pendingCount: number
   disputeCount: number
   bountyWei?: string
+  token?: string
+  arbitratorExtraData?: string
+  metaEvidenceURI?: string
   createdAt?: number
   lastActivityAt?: number
   trustStatus: TrustStatus

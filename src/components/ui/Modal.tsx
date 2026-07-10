@@ -13,7 +13,7 @@ const Overlay = styled.div<{ $centered?: boolean }>`
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.62);
-  backdrop-filter: blur(12px);
+  backdrop-filter: none;
   z-index: 1000;
   display: flex;
   align-items: ${({ $centered }) => ($centered ? 'center' : 'flex-start')};
@@ -23,29 +23,23 @@ const Overlay = styled.div<{ $centered?: boolean }>`
 `
 
 const ModalContent = styled.div<{ $width?: string | number }>`
-  background:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.065),
-      rgba(255, 255, 255, 0.025)
-    ),
-    var(--curate-surface-strong);
-  border: 1px solid var(--curate-border);
-  border-radius: var(--curate-radius);
-  box-shadow: var(--curate-shadow-hover);
+  background: var(--klerosUIComponentsWhiteBackground);
+  border: 1px solid var(--klerosUIComponentsStroke);
+  border-radius: 3px;
+  box-shadow: var(--v2-shadow-hover);
   width: ${({ $width }) =>
     typeof $width === 'number' ? `${$width}px` : $width};
   max-width: calc(100vw - 32px);
   position: relative;
-  color: var(--curate-text);
+  color: var(--v2-text);
 `
 
 const ModalHeader = styled.div`
   padding: 20px 24px;
-  border-bottom: 1px solid var(--curate-border);
+  border-bottom: 1px solid var(--klerosUIComponentsStroke);
   font-size: 18px;
-  font-weight: 850;
-  color: var(--curate-text);
+  font-weight: 600;
+  color: var(--v2-text);
   letter-spacing: 0;
 `
 
@@ -53,12 +47,12 @@ const ModalBody = styled.div`
   padding: 24px;
   font-size: 14px;
   line-height: 1.6;
-  color: var(--curate-text);
+  color: var(--v2-text);
 `
 
 const ModalFooter = styled.div`
   padding: 16px 24px;
-  border-top: 1px solid var(--curate-border);
+  border-top: 1px solid var(--klerosUIComponentsStroke);
   text-align: right;
   display: flex;
   justify-content: flex-end;
@@ -69,11 +63,11 @@ const CloseButton = styled.button`
   position: absolute;
   top: 20px;
   right: 20px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--curate-border);
+  background: var(--klerosUIComponentsWhiteBackground);
+  border: 1px solid var(--klerosUIComponentsStroke);
   cursor: pointer;
   font-size: 16px;
-  color: var(--curate-muted);
+  color: var(--v2-muted);
   padding: 0;
   line-height: 1;
   display: flex;
@@ -81,42 +75,51 @@ const CloseButton = styled.button`
   justify-content: center;
   width: 22px;
   height: 22px;
-  border-radius: 10px;
+  border-radius: 3px;
   transition: color 0.3s;
 
   &:hover {
-    color: var(--curate-text);
-    border-color: var(--curate-border-strong);
+    color: var(--v2-text);
+    border-color: var(--v2-blue);
   }
 `
 
 const DefaultButton = styled.button`
-  padding: 4px 15px;
-  min-height: 38px;
-  border-radius: 12px;
-  border: 1px solid var(--curate-border);
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--curate-text);
+  padding: 10.5px 31px;
+  min-height: 46px;
+  border-radius: 3px;
+  border: 1px solid var(--klerosUIComponentsPrimaryBlue);
+  background: var(--klerosUIComponentsWhiteBackground);
+  color: var(--klerosUIComponentsPrimaryBlue);
   cursor: pointer;
-  transition: all 0.3s;
-  font-size: 14px;
-  font-weight: 800;
+  transition:
+    background var(--klerosUIComponentsTransitionSpeed),
+    transform var(--klerosUIComponentsTransitionSpeed);
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+  font-family: 'Open Sans', ui-sans-serif, system-ui, sans-serif;
 
   &:hover {
-    color: var(--curate-text);
-    border-color: var(--curate-border-strong);
+    color: var(--klerosUIComponentsPrimaryBlue);
+    border-color: var(--klerosUIComponentsPrimaryBlue);
+    background: var(--klerosUIComponentsMediumBlue);
+  }
+
+  &:active {
+    transform: scale(0.95);
   }
 `
 
 const PrimaryButton = styled(DefaultButton)`
-  background: ${({ theme }) => theme.buttonPrimaryBg};
-  color: ${({ theme }) => theme.buttonPrimaryText};
-  border-color: transparent;
+  background: var(--klerosUIComponentsPrimaryBlue);
+  color: var(--klerosUIComponentsWhiteBackground);
+  border-color: var(--klerosUIComponentsPrimaryBlue);
 
   &:hover {
-    background: ${({ theme }) => theme.buttonPrimaryHoverBg};
-    border-color: ${({ theme }) => theme.buttonPrimaryHoverBg};
-    color: ${({ theme }) => theme.buttonPrimaryText};
+    background: var(--klerosUIComponentsSecondaryBlue);
+    border-color: var(--klerosUIComponentsSecondaryBlue);
+    color: var(--klerosUIComponentsWhiteBackground);
   }
 `
 

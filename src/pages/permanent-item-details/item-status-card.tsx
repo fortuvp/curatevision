@@ -21,8 +21,8 @@ import ItemActionModal from './item-action-modal'
 import ItemActionButton from 'components/permanent-item-action-button'
 import useHumanizedCountdown from 'hooks/countdown'
 import useAppealTime from 'hooks/appeal-time'
-import ETHAmount from 'components/eth-amount'
 import useTokenSymbol from 'hooks/token-symbol'
+import TokenAmount from 'components/token-amount'
 import { klerosAddresses } from 'config/tcr-addresses'
 import { wrapWithToast, errorToast } from 'utils/wrap-with-toast'
 import { parseWagmiError } from 'utils/parse-wagmi-error'
@@ -30,11 +30,53 @@ import { wagmiConfig } from 'config/wagmi'
 import WithdrawModal from './modals/withdraw'
 
 export const StyledDescriptions = styled(Descriptions)`
+  width: 100%;
   flex-wrap: wrap;
   justify-content: space-between;
   flex-direction: column;
-  margin-right: 16px;
-  max-width: 991px;
+  margin-right: 0;
+  max-width: none;
+
+  > div {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  > div > div {
+    min-width: 0;
+    min-height: 68px;
+    padding: 14px 16px;
+    border: 1px solid var(--v2-stroke);
+    border-radius: 3px;
+    background: var(--v2-soft);
+  }
+
+  > div > div > span:first-child {
+    display: block;
+    margin: 0 0 5px;
+    color: var(--v2-muted);
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 700;
+  }
+
+  > div > div > span:last-child {
+    display: block;
+    min-width: 0;
+    color: var(--v2-text);
+    overflow-wrap: anywhere;
+  }
+
+  @media (max-width: 640px) {
+    > div {
+      grid-template-columns: 1fr;
+    }
+  }
 `
 const SkeletonTitleProps = { width: 60 }
 
@@ -49,12 +91,16 @@ const StyledSkeleton = styled(Skeleton)`
 export const StyledItemStatusCard = styled(Card)`
   display: flex;
   flex-direction: column;
+  border: 1px solid var(--klerosUIComponentsStroke) !important;
+  border-top: 5px solid var(--v2-purple);
+  border-radius: 3px;
+  background: var(--v2-card);
+  box-shadow: var(--v2-shadow);
 
   .ui-card-head {
-    background: ${({ theme }) => theme.cardHeaderGradient};
-    color: white;
-    border-color: ${({ theme }) =>
-      theme.name === 'dark' ? theme.borderColor : 'transparent'};
+    background: var(--v2-card);
+    color: var(--v2-text);
+    border-color: var(--v2-stroke);
   }
 
   .ui-card-head-wrapper {
@@ -65,12 +111,53 @@ export const StyledItemStatusCard = styled(Card)`
     .ui-card-head-title {
       overflow: visible;
       padding: 0;
-      color: white;
+      color: var(--v2-text);
     }
     .ui-card-extra {
       margin-left: 0;
       padding: 0;
-      color: white;
+      color: var(--v2-text);
+    }
+  }
+
+  & > .ui-card-body {
+    padding: 0 32px 24px;
+
+    @media (max-width: 760px) {
+      padding: 0 16px 18px;
+    }
+  }
+`
+
+const RequestTitle = styled.div`
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+`
+
+const RequestActionBar = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 18px 0 0;
+  border-top: 1px solid var(--v2-stroke);
+  background: transparent;
+
+  > * {
+    flex: 0 0 auto;
+  }
+
+  @media (max-width: 640px) {
+    padding-top: 14px;
+
+    > span,
+    button,
+    a {
+      width: 100%;
     }
   }
 `
@@ -123,7 +210,9 @@ const ItemStatusCard = ({
   const publicClient = usePublicClient()
   const { data: walletClient } = useWalletClient()
   const [withdrawModalOpen, setWithdrawModalOpen] = useState(false)
-  const { symbol: tokenSymbol } = useTokenSymbol(registry?.token)
+  const { symbol: tokenSymbol, decimals: tokenDecimals } = useTokenSymbol(
+    registry?.token,
+  )
 
   // Get remaining appeal time, if any and build countdown.
   const { appealRemainingTime, appealRemainingTimeLoser } = useAppealTime(
@@ -256,12 +345,18 @@ const ItemStatusCard = ({
   const appealable =
     statusCode === STATUS_CODE.CROWDFUNDING_WINNER ||
     statusCode === STATUS_CODE.CROWDFUNDING
+  const hasRequestAction =
+    (isWithdrawable && isSubmitter) ||
+    (statusCode !== STATUS_CODE.DISPUTED &&
+      statusCode !== STATUS_CODE.WAITING_ARBITRATOR)
+
   return (
     <>
       <StyledItemStatusCard
         id="item-status-card"
         title={
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <RequestTitle>
+            <span>Request details</span>
             <ItemStatusBadge
               item={item}
               statusCode={statusCode}
@@ -280,23 +375,7 @@ const ItemStatusCard = ({
                   <ItemStatusIcon statusCode={STATUS_CODE.PENDING_WITHDRAWAL} />
                 </ItemStatusBadgeWrap>
               )}
-          </div>
-        }
-        extra={
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            {isWithdrawable && isSubmitter && (
-              <Button type="default" onClick={() => setWithdrawModalOpen(true)}>
-                Withdraw
-              </Button>
-            )}
-            <ItemActionButton
-              statusCode={statusCode}
-              itemName={itemName}
-              itemID={item && item.itemID}
-              onClick={onClick}
-              type="secondary"
-            />
-          </div>
+          </RequestTitle>
         }
       >
         <StyledDescriptions
@@ -307,10 +386,11 @@ const ItemStatusCard = ({
             statusCode !== STATUS_CODE.WITHDRAWN && (
               <>
                 <Descriptions.Item label="Bounty">
-                  <ETHAmount
+                  <TokenAmount
                     amount={bounty}
-                    decimals={3}
-                    displayUnit={` ${tokenSymbol}`}
+                    tokenDecimals={tokenDecimals}
+                    precision={3}
+                    displayUnit={tokenSymbol ? ` ${tokenSymbol}` : ''}
                   />
                 </Descriptions.Item>
               </>
@@ -389,6 +469,25 @@ const ItemStatusCard = ({
               </Descriptions.Item>
             )}
         </StyledDescriptions>
+        {hasRequestAction && (
+          <RequestActionBar>
+            {isWithdrawable && isSubmitter && (
+              <Button type="default" onClick={() => setWithdrawModalOpen(true)}>
+                Withdraw
+              </Button>
+            )}
+            {statusCode !== STATUS_CODE.DISPUTED &&
+              statusCode !== STATUS_CODE.WAITING_ARBITRATOR && (
+                <ItemActionButton
+                  statusCode={statusCode}
+                  itemName={itemName}
+                  itemID={item && item.itemID}
+                  onClick={onClick}
+                  type="secondary"
+                />
+              )}
+          </RequestActionBar>
+        )}
       </StyledItemStatusCard>
       {statusCode !== STATUS_CODE.DISPUTED &&
         statusCode !== STATUS_CODE.WAITING_ARBITRATOR && (

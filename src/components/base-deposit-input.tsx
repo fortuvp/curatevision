@@ -8,6 +8,7 @@ const { parseEther } = ethers.utils
 import { Field } from 'formik'
 import ETHAmount from './eth-amount'
 import useNativeCurrency from '../hooks/native-currency'
+import { ARBITRATION_FEE_TOOLTIP } from './arbitration-fee-tooltip'
 
 const BasedDepositContainer = styled.div`
   display: flex;
@@ -73,8 +74,10 @@ const BaseDepositInput = ({
                 {...field}
               />
               <TotalCostContainer>
-                Total&nbsp;
-                <Tooltip title="The total cost is the sum of the base deposit and the arbitration cost.">
+                Total deposit&nbsp;
+                <Tooltip
+                  title={`The total deposit is the base deposit plus the current arbitration fee. ${ARBITRATION_FEE_TOOLTIP}`}
+                >
                   <Icon type="question-circle-o" />
                 </Tooltip>
                 :{' '}

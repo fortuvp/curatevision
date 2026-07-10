@@ -1,34 +1,33 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { PERMANENT_REGISTRY_QUERY } from 'utils/graphql'
-import { useGraphqlBatcher } from 'contexts/graphql-batcher'
+import { request } from 'graphql-request'
+import { PERMANENT_REGISTRY_EXISTENCE_TEST } from 'utils/graphql'
+import { subgraphUrlPermanent } from 'config/tcr-addresses'
+import { STALE_TIME } from 'consts'
 
 const useCheckPermanentList = (
   address: string | null,
-  chainId: number | null,
+  chainId: number | string | null,
   shouldCheck: boolean = true,
 ): { isPermanentList: boolean; checking: boolean; error: boolean } => {
-  const { graphqlBatcher } = useGraphqlBatcher()
-
-  // Use the full registry query instead of the lightweight existence test.
-  // This pre-populates the TanStack Query cache with the same key that
-  // the permanent-items page uses, eliminating a second roundtrip.
   const {
     isLoading: loading,
     data,
     error: queryError,
   } = useQuery({
-    queryKey: ['permanentRegistry', address, chainId],
-    queryFn: () =>
-      graphqlBatcher.fetch({
-        id: crypto.randomUUID(),
-        document: PERMANENT_REGISTRY_QUERY,
-        variables: { lowerCaseTCRAddress: (address || '').toLowerCase() },
-        chainId: chainId!,
-        isPermanent: true,
-      }),
+    queryKey: ['permanentRegistryExistence', address, chainId],
+    queryFn: () => {
+      const url = subgraphUrlPermanent[chainId!]
+      if (!url)
+        throw new Error(`No permanent subgraph URL for chain ${chainId}`)
+
+      return request(url, PERMANENT_REGISTRY_EXISTENCE_TEST, {
+        tcrAddress: (address || '').toLowerCase(),
+      })
+    },
     enabled: shouldCheck && !!address && !!chainId,
-    staleTime: Infinity,
+    retry: 2,
+    staleTime: STALE_TIME,
   })
 
   const isPermanentList = useMemo<boolean>(

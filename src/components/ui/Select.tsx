@@ -23,22 +23,22 @@ const SelectTrigger = styled.div<{ $focused?: boolean; $disabled?: boolean }>`
   font-size: 14px;
   line-height: 1.5;
   color: ${({ theme }) => theme.textPrimary};
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--curate-border);
-  border-radius: 12px;
+  background: var(--v2-card);
+  border: 1px solid var(--v2-stroke);
+  border-radius: 3px;
   cursor: pointer;
   transition: all 0.3s;
   box-sizing: border-box;
   user-select: none;
 
   &:hover {
-    border-color: var(--curate-border-strong);
+    border-color: var(--v2-blue);
   }
 
   ${({ $focused, theme }) =>
     $focused &&
     css`
-      border-color: var(--curate-border-strong);
+      border-color: var(--v2-blue);
       box-shadow: 0 0 0 2px ${theme.focusShadowColor};
     `}
 
@@ -77,10 +77,10 @@ const Arrow = styled.span<{ $open?: boolean }>`
 const DropdownStyled = styled.div`
   position: fixed;
   z-index: 1050;
-  background: var(--curate-surface-strong);
-  border: 1px solid var(--curate-border);
-  border-radius: 14px;
-  box-shadow: var(--curate-shadow-hover);
+  background: var(--v2-card);
+  border: 1px solid var(--v2-stroke);
+  border-radius: 3px;
+  box-shadow: var(--v2-shadow-hover);
   max-height: 256px;
   overflow-y: auto;
   padding: 4px 0;
@@ -91,7 +91,7 @@ const SearchInput = styled.input`
   padding: 5px 12px;
   margin-bottom: 4px;
   border: none;
-  border-bottom: 1px solid var(--curate-border);
+  border-bottom: 1px solid var(--v2-stroke);
   background: transparent;
   color: ${({ theme }) => theme.textPrimary};
   font-size: 14px;
@@ -106,7 +106,7 @@ const SearchInput = styled.input`
 const OptionItem = styled.div<{ $selected?: boolean; $disabled?: boolean }>`
   margin: 2px 6px;
   padding: 7px 10px;
-  border-radius: 10px;
+  border-radius: 3px;
   cursor: pointer;
   transition: background 0.3s;
   color: ${({ theme }) => theme.textPrimary};
@@ -117,7 +117,7 @@ const OptionItem = styled.div<{ $selected?: boolean; $disabled?: boolean }>`
     $selected &&
     css`
       background: ${theme.dropdownSelectedBg};
-      font-weight: 800;
+      font-weight: 600;
     `}
 
   ${({ $disabled, theme }) =>

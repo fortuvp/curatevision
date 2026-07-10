@@ -1,5 +1,5 @@
 import React, { useCallback, useState, useEffect } from 'react'
-import { Modal, Button, Form, Tooltip, Typography, Alert } from 'components/ui'
+import { Button, Form, Tooltip, Typography, Alert } from 'components/ui'
 import Icon from 'components/ui/Icon'
 import styled from 'styled-components'
 import _gtcr from 'assets/abis/PermanentGTCR.json'
@@ -13,8 +13,8 @@ import InputSelector from 'components/input-selector'
 import EnsureAuth from 'components/ensure-auth'
 import ETHAmount from 'components/eth-amount'
 import useFactory from 'hooks/factory'
-import { addPeriod, capitalizeFirstLetter, getArticleFor } from 'utils/string'
-import ListingCriteriaLink from 'components/listing-criteria-link'
+import { ArbitrationFeeLabel } from 'components/arbitration-fee-tooltip'
+import { addPeriod, capitalizeFirstLetter } from 'utils/string'
 import { useAtlasProvider } from '@kleros/kleros-app'
 import { resolveStashedFiles } from 'utils/resolve-stashed-files'
 import { JSON_UPLOAD_ROLE } from 'utils/atlas-roles'
@@ -25,24 +25,19 @@ import { parseWagmiError } from 'utils/parse-wagmi-error'
 import { wagmiConfig } from 'config/wagmi'
 import { Column } from 'pages/item-details/modals/submit'
 import { StyledSpin } from './challenge'
+import {
+  StyledModal,
+  SubmissionNavigation,
+  SubmissionFlowScaffold,
+} from 'pages/light-item-details/modals/submit'
 
 export const StyledAlert = styled(Alert)`
   margin-bottom: 16px;
 `
 
-export const StyledModal = styled(Modal)``
-
 export const StyledParagraph = styled(Typography.Paragraph)`
   font-size: 14px;
   line-height: 1.6;
-`
-
-const StyledListingCriteria = styled(Typography.Paragraph)`
-  font-size: 13px;
-  line-height: 1.6;
-  color: ${({ theme }) => theme.textSecondary};
-  margin-top: 4px;
-  margin-bottom: 16px;
 `
 
 export const DepositContainer = styled.div`
@@ -218,6 +213,7 @@ const SubmitModal: React.FC<{
   submissionPeriod: string | number | undefined
   withdrawingPeriod: string | number | undefined
   arbitrationCost: { toString: () => string } | undefined
+  embedded?: boolean
 }> = (props) => {
   const {
     onCancel,
@@ -231,6 +227,7 @@ const SubmitModal: React.FC<{
     withdrawingPeriod,
     arbitrationCost,
     columns,
+    embedded = false,
   } = props
 
   const nativeCurrency = useNativeCurrency()
@@ -475,6 +472,79 @@ const SubmitModal: React.FC<{
       </StyledModal>
     )
 
+  const submitContent = (
+    <SubmissionFlowScaffold
+      tcrTitle={title}
+      itemName={itemName}
+      nativeCurrency={tokenSymbol || nativeCurrency}
+      submissionDeposit={submissionDeposit}
+      fileURI={policyURI}
+      navigation={
+        embedded ? (
+          <SubmissionNavigation>
+            <Button
+              onClick={() => {
+                setIsApproving(false)
+                setIsSubmitting(false)
+                onCancel()
+              }}
+            >
+              Back
+            </Button>
+            <EnsureAuth>{renderSubmitButton()}</EnsureAuth>
+          </SubmissionNavigation>
+        ) : undefined
+      }
+    >
+      <SubmissionForm
+        columns={columns}
+        postSubmit={postSubmit}
+        initialValues={initialValues}
+        disabledFields={disabledFields}
+        deployedWithFactory={deployedWithFactory}
+        deployedWithLightFactory={deployedWithLightFactory}
+        deployedWithPermanentFactory={deployedWithPermanentFactory}
+        onFieldsComplete={setFieldsComplete}
+      />
+      <DepositContainer>
+        <DepositRow>
+          <DepositLabel>
+            <ArbitrationFeeLabel />
+          </DepositLabel>
+          <ETHAmount
+            decimals={3}
+            amount={arbitrationCost ? arbitrationCost.toString() : '0'}
+            displayUnit={` ${nativeCurrency}`}
+          />
+        </DepositRow>
+        {submissionPeriod && (
+          <DepositRow>
+            <DepositLabel>Submission period</DepositLabel>
+            <span>
+              {humanizeDuration(Number(submissionPeriod) * 1000, {
+                largest: 2,
+                round: true,
+              })}
+            </span>
+          </DepositRow>
+        )}
+        {withdrawingPeriod && (
+          <DepositRow>
+            <DepositLabel>Withdrawing period</DepositLabel>
+            <span>
+              {humanizeDuration(Number(withdrawingPeriod) * 1000, {
+                largest: 2,
+                round: true,
+              })}
+            </span>
+          </DepositRow>
+        )}
+      </DepositContainer>
+    </SubmissionFlowScaffold>
+  )
+
+  if (embedded) return submitContent
+
   return (
     // @ts-ignore
     <StyledModal
@@ -496,90 +566,7 @@ const SubmitModal: React.FC<{
       ]}
       {...props}
     >
-      <StyledParagraph>
-        Submit{' '}
-        {itemName
-          ? `${getArticleFor(itemName)} ${itemName.toLowerCase()}`
-          : 'an item'}{' '}
-        to {title || 'this list'} so other users can find it.
-      </StyledParagraph>
-      <SubmissionForm
-        columns={columns}
-        postSubmit={postSubmit}
-        initialValues={initialValues}
-        disabledFields={disabledFields}
-        deployedWithFactory={deployedWithFactory}
-        deployedWithLightFactory={deployedWithLightFactory}
-        deployedWithPermanentFactory={deployedWithPermanentFactory}
-        onFieldsComplete={setFieldsComplete}
-      />
-      <StyledListingCriteria>
-        Make sure your submission complies with the{' '}
-        <ListingCriteriaLink fileURI={policyURI}>
-          listing criteria
-        </ListingCriteriaLink>{' '}
-        to avoid challenges.
-      </StyledListingCriteria>
-      <StyledAlert
-        message={`Note that this is a deposit, not a fee and it will be reimbursed if your withdraw the item. ${
-          submissionPeriod &&
-          `The submission period of ${humanizeDuration(
-            Number(submissionPeriod) * 1000,
-          )} is the time it takes for the item to be considered valid.`
-        }
-          ${
-            withdrawingPeriod &&
-            `Withdrawing an item takes ${humanizeDuration(
-              Number(withdrawingPeriod) * 1000,
-            )}.`
-          }`}
-        type="info"
-        showIcon
-      />
-      <DepositContainer>
-        <DepositRow>
-          <DepositLabel>
-            Item Deposit
-            <Tooltip title="The item deposit paid in tokens required to submit this item. This value is reimbursed at the end of the challenge period or, if there is a dispute, awarded to the party that wins.">
-              <Icon type="question-circle-o" />
-            </Tooltip>
-          </DepositLabel>
-          <ETHAmount
-            decimals={3}
-            amount={submissionDeposit.toString()}
-            displayUnit={` ${tokenSymbol}`}
-          />
-        </DepositRow>
-        <DepositRow>
-          <DepositLabel>
-            Arbitration Cost
-            <Tooltip title="The arbitration cost paid in native currency to cover potential disputes.">
-              <Icon type="question-circle-o" />
-            </Tooltip>
-          </DepositLabel>
-          <ETHAmount
-            decimals={3}
-            amount={arbitrationCost ? arbitrationCost.toString() : '0'}
-            displayUnit={` ${nativeCurrency}`}
-          />
-        </DepositRow>
-      </DepositContainer>
-      <DepositRow style={{ marginTop: 8 }}>
-        <DepositLabel>Total deposit</DepositLabel>
-        <span style={{ display: 'flex', alignItems: 'center' }}>
-          <ETHAmount
-            decimals={3}
-            amount={submissionDeposit.toString()}
-            displayUnit={` ${tokenSymbol}`}
-          />
-          <span style={{ margin: '0 6px' }}>+</span>
-          <ETHAmount
-            decimals={3}
-            amount={arbitrationCost ? arbitrationCost.toString() : '0'}
-            displayUnit={` ${nativeCurrency}`}
-          />
-        </span>
-      </DepositRow>
+      {submitContent}
     </StyledModal>
   )
 }
