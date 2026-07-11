@@ -6,7 +6,6 @@ import { useWeb3Context } from 'hooks/use-web3-context'
 import useUrlChainId from 'hooks/use-url-chain-id'
 import { SAVED_NETWORK_KEY } from 'utils/string'
 import { preloadFactory } from 'bootstrap/app-router'
-import { defaultTcrAddresses, type validChains } from 'config/tcr-addresses'
 
 const DesktopNav = styled.nav`
   display: flex;
@@ -78,27 +77,26 @@ const AppMenu = () => {
     const saved = localStorage.getItem(SAVED_NETWORK_KEY)
     return saved ? Number(saved) : networkId
   }, [urlChainId, networkId])
-  const registryAddress = defaultTcrAddresses[currentChainId as validChains]
-
   return (
     <DesktopNav>
       <StyledLink to="/" $active={isHome}>
         Dashboard
       </StyledLink>
-      {registryAddress && (
-        <StyledLink
-          to={`/tcr/${currentChainId}/${registryAddress}`}
-          $active={pathname.startsWith('/tcr/')}
-        >
-          Registries
-        </StyledLink>
-      )}
-      <StyledNavLink
-        to={`/factory/${currentChainId}`}
+      <StyledLink
+        to="/browse"
+        $active={pathname === '/browse' || pathname.startsWith('/tcr/')}
+      >
+        Browse
+      </StyledLink>
+      <StyledLink
+        to={`/launch/${currentChainId}`}
+        $active={
+          pathname.startsWith('/launch') || pathname.startsWith('/factory')
+        }
         onMouseEnter={() => preloadFactory()}
       >
-        Create
-      </StyledNavLink>
+        Launch a list
+      </StyledLink>
       <StyledNavLink to="/guide">Guide & Skills</StyledNavLink>
     </DesktopNav>
   )

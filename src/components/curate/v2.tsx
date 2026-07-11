@@ -403,15 +403,15 @@ const StatusBadgeSlot = styled.span`
   }
 `
 
-const ItemGridCard = styled(V2Card)`
-  min-height: 274px;
+const ItemGridCard = styled(V2Card)<{ $hasVisual?: boolean }>`
+  min-height: ${({ $hasVisual }) => ($hasVisual ? '274px' : '176px')};
   display: flex;
   flex-direction: column;
 `
 
-const ItemGridBody = styled.div`
+const ItemGridBody = styled.div<{ $hasVisual?: boolean }>`
   display: flex;
-  min-height: 172px;
+  min-height: ${({ $hasVisual }) => ($hasVisual ? '172px' : '76px')};
   flex: 1;
   flex-direction: column;
   align-items: center;
@@ -778,7 +778,7 @@ export const V2ItemRow = ({
       : getItemFallbackTitle(fields)
 
     return (
-      <ItemGridCard $hover>
+      <ItemGridCard $hover $hasVisual={!!visualField}>
         <V2StatusBanner $tone={tone}>
           <StatusBannerContent>
             <span>{statusLabel || 'Unknown'}</span>
@@ -787,21 +787,19 @@ export const V2ItemRow = ({
             )}
           </StatusBannerContent>
         </V2StatusBanner>
-        <ItemGridBody>
-          <ItemGridVisual>
-            {hasLinkedRegistryVisual ? (
-              <V2ListReferenceCard
-                address={String(visualField.value)}
-                showStakeBadge={false}
-              />
-            ) : visualField ? (
-              <V2FieldDisplay detailed field={visualField} />
-            ) : (
-              <ListReferenceFallbackLogo $detailed>
-                <CurateIcon name="registry" size={24} />
-              </ListReferenceFallbackLogo>
-            )}
-          </ItemGridVisual>
+        <ItemGridBody $hasVisual={!!visualField}>
+          {visualField && (
+            <ItemGridVisual>
+              {hasLinkedRegistryVisual ? (
+                <V2ListReferenceCard
+                  address={String(visualField.value)}
+                  showStakeBadge={false}
+                />
+              ) : (
+                <V2FieldDisplay detailed field={visualField} />
+              )}
+            </ItemGridVisual>
+          )}
           {!hasLinkedRegistryVisual && (
             <>
               <ItemGridTitle>

@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import styled, { css, keyframes } from 'styled-components'
-import { Button } from 'components/ui'
+import { Button, Pagination } from 'components/ui'
 import { CurateIcon, CurateIconName } from 'components/curate/icons'
 import { NETWORKS, NETWORKS_INFO } from 'config/networks'
 import { parseIpfs } from 'utils/ipfs-parse'
@@ -33,11 +33,6 @@ const REGISTRY_PAGE_SIZE = 15
 const shimmer = keyframes`
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
-`
-
-const pulseGlow = keyframes`
-  0%, 100% { box-shadow: 0 0 0 rgba(0, 163, 255, 0); }
-  50% { box-shadow: 0 0 24px rgba(0, 163, 255, 0.28); }
 `
 
 const DashboardPage = styled.main`
@@ -176,24 +171,21 @@ const HeaderActions = styled.div`
   margin-top: 28px;
 `
 
-const AutomationLink = styled(Link)`
-  min-height: 48px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 15px;
-  border: 1px solid var(--v2-stroke);
-  border-radius: 7px;
-  color: var(--v2-blue);
-  background: var(--v2-card);
+const CreatorSubline = styled.div`
+  width: 100%;
+  margin-top: 2px;
+  color: var(--v2-faint);
   font-size: 13px;
-  font-weight: 600;
-  text-decoration: none;
-  animation: ${pulseGlow} 2.4s ease-in-out infinite;
+  line-height: 1.5;
 
-  &:hover {
-    border-color: var(--v2-blue);
-    background: var(--v2-blue-soft);
+  a {
+    color: var(--v2-blue);
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  a:hover {
+    text-decoration: underline;
   }
 `
 
@@ -1435,7 +1427,7 @@ const RegistryBoardRow = ({ registry }: { registry: DashboardRegistry }) => {
           )}
         </RegistryStatusBadgeSlot>
         <label>
-          {registry.trustStatus === 'verified' ? 'Included' : 'Indexed'}
+          {registry.trustStatus === 'verified' ? 'Verified' : 'Unverified'}
         </label>
       </RegistryStatusStrip>
       <ExternalArrow>
@@ -1457,7 +1449,7 @@ const RegistryCard = ({ registry }: { registry: DashboardRegistry }) => {
     <MarketCard to={registryHref(registry)}>
       <RegistryStatusStrip $status={registry.trustStatus}>
         <label>
-          {registry.trustStatus === 'verified' ? 'Included' : 'Indexed'}
+          {registry.trustStatus === 'verified' ? 'Verified' : 'Unverified'}
         </label>
         {registry.kind === 'permanent' && (
           <StakeCurateTag aria-label="Stake Curate" />
@@ -1491,7 +1483,7 @@ const RegistryCard = ({ registry }: { registry: DashboardRegistry }) => {
       <CardBody>
         <CardDescription>
           {registry.description ||
-            `${kindLabel(registry.kind)} registry indexed on ${
+            `${kindLabel(registry.kind)} registry on ${
               info?.name || 'Curate'
             }.`}
         </CardDescription>
@@ -1632,7 +1624,7 @@ const UsersPanel = ({ users }: { users: DashboardUser[] }) => (
 )
 
 const LiveTapePanel = ({ activities }: { activities: DashboardActivity[] }) => (
-  <MarketPanel>
+  <MarketPanel id="live-entry-tape">
     <PanelTop>
       <PanelTitleBlock>
         <PanelTitle>
@@ -1640,8 +1632,8 @@ const LiveTapePanel = ({ activities }: { activities: DashboardActivity[] }) => (
           Live Entry Tape
         </PanelTitle>
         <PanelSub>
-          Fresh entries across every indexed registry, with the registry, chain,
-          actor, and key item fields visible at a glance.
+          Fresh entries across every registry, with the registry, chain, actor,
+          and key item fields visible at a glance.
         </PanelSub>
       </PanelTitleBlock>
     </PanelTop>
@@ -1739,7 +1731,7 @@ const UnverifiedPanel = ({
             <CurateIcon name="verified" size={21} />
           </EmptyIcon>
           <EmptyTitle>No unverified registries</EmptyTitle>
-          New indexed registries will surface here.
+          New unverified registries will surface here.
         </div>
       </EmptyState>
     )}
@@ -1747,7 +1739,6 @@ const UnverifiedPanel = ({
 )
 
 const Dashboard = () => {
-  const navigate = useNavigate()
   useDocumentHead(
     'The verification layer | Kleros Curate',
     'Discover Kleros Curate registries, live entries, disputes, curators, and verification activity across Ethereum, Gnosis, and Sepolia.',
@@ -1763,8 +1754,7 @@ const Dashboard = () => {
   const sortMode = validSort(searchParams.get('sort'))
   const viewMode = validView(searchParams.get('view'))
   const search = searchParams.get('q') || ''
-  const [visibleRegistryCount, setVisibleRegistryCount] =
-    useState(REGISTRY_PAGE_SIZE)
+  const [registryPage, setRegistryPage] = useState(1)
 
   const dashboardQuery = useQuery({
     queryKey: ['curateDashboard'],
@@ -1858,11 +1848,18 @@ const Dashboard = () => {
   }, [data, search])
 
   useEffect(() => {
-    setVisibleRegistryCount(REGISTRY_PAGE_SIZE)
+    setRegistryPage(1)
   }, [chainFilter, kindFilter, search, sortMode, trustFilter, viewMode])
 
-  const visibleRegistries = filteredRegistries.slice(0, visibleRegistryCount)
-  const hasMoreRegistries = visibleRegistryCount < filteredRegistries.length
+  const registryPageCount = Math.max(
+    1,
+    Math.ceil(filteredRegistries.length / REGISTRY_PAGE_SIZE),
+  )
+  const currentRegistryPage = Math.min(registryPage, registryPageCount)
+  const visibleRegistries = filteredRegistries.slice(
+    (currentRegistryPage - 1) * REGISTRY_PAGE_SIZE,
+    currentRegistryPage * REGISTRY_PAGE_SIZE,
+  )
 
   const unverifiedRegistries = useMemo(
     () =>
@@ -1884,6 +1881,13 @@ const Dashboard = () => {
     setSearchParams(patchParams(searchParams, updates), { replace: true })
   }
 
+  const scrollToSection = (id: string) => {
+    document.querySelector(`#${id}`)?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    })
+  }
+
   return (
     <DashboardPage>
       <HeaderGrid>
@@ -1893,46 +1897,32 @@ const Dashboard = () => {
               <Pulse />
               Live registry verification
             </Kicker>
-            <Title>The verification layer</Title>
+            <Title>Submit. Verify. Earn.</Title>
             <Subtitle>
-              Track verified lists, emerging registries, submissions, disputes,
-              bounties, and curator activity across Ethereum, Gnosis, and
-              Sepolia.
+              Gain credibility by submitting. Earn rewards when you successfully
+              challenge incorrect or malicious entries.
             </Subtitle>
           </HeaderContent>
           <HeaderActions>
-            <SearchBox>
-              <CurateIcon name="search" size={18} />
-              <input
-                aria-label="Search registries"
-                placeholder="Search registry, address, chain, type..."
-                value={search}
-                onChange={(event) =>
-                  updateParams({ q: event.currentTarget.value || null })
-                }
-              />
-              {search && (
-                <ClearSearchButton
-                  type="button"
-                  aria-label="Clear dashboard search"
-                  onClick={() => updateParams({ q: null })}
-                >
-                  <CurateIcon name="close" size={14} />
-                </ClearSearchButton>
-              )}
-            </SearchBox>
             <Button
               type="primary"
               size="large"
-              onClick={() => navigate(`/factory/${createChainId}`)}
+              onClick={() => scrollToSection('registry-explorer')}
             >
-              <CurateIcon name="factory" size={18} />
-              Create registry
+              <CurateIcon name="registry" size={18} />
+              Browse registries
             </Button>
-            <AutomationLink to="/guide">
-              <CurateIcon name="spark" size={17} />
-              Automate your flow
-            </AutomationLink>
+            <Button
+              size="large"
+              onClick={() => scrollToSection('live-entry-tape')}
+            >
+              <CurateIcon name="activity" size={18} />
+              View recent entries
+            </Button>
+            <CreatorSubline>
+              Secure your own dataset with open verification.{' '}
+              <Link to={`/launch/${createChainId}`}>Launch a list.</Link>
+            </CreatorSubline>
           </HeaderActions>
         </HeaderPanel>
 
@@ -2057,7 +2047,7 @@ const Dashboard = () => {
       </DashboardGrid>
 
       <DashboardGrid>
-        <MarketPanel>
+        <MarketPanel id="registry-explorer">
           <PanelTop>
             <PanelTitleBlock>
               <PanelTitle>
@@ -2066,9 +2056,16 @@ const Dashboard = () => {
               </PanelTitle>
               <PanelSub>
                 Showing{' '}
-                {Math.min(visibleRegistryCount, filteredRegistries.length)} of{' '}
-                {filteredRegistries.length} matching registries. Default ranking
-                balances classic, light, and permanent registries.
+                {filteredRegistries.length === 0
+                  ? 0
+                  : (currentRegistryPage - 1) * REGISTRY_PAGE_SIZE + 1}
+                -
+                {Math.min(
+                  currentRegistryPage * REGISTRY_PAGE_SIZE,
+                  filteredRegistries.length,
+                )}{' '}
+                of {filteredRegistries.length} matching registries. Default
+                ranking balances classic, light, and permanent registries.
               </PanelSub>
             </PanelTitleBlock>
             <ControlCluster>
@@ -2186,17 +2183,14 @@ const Dashboard = () => {
                     <RegistryCard key={registry.id} registry={registry} />
                   ))}
                 </CardGrid>
-                {hasMoreRegistries && (
+                {filteredRegistries.length > REGISTRY_PAGE_SIZE && (
                   <LoadMoreBar>
-                    <Button
-                      onClick={() =>
-                        setVisibleRegistryCount(
-                          (count) => count + REGISTRY_PAGE_SIZE,
-                        )
-                      }
-                    >
-                      Load more
-                    </Button>
+                    <Pagination
+                      current={currentRegistryPage}
+                      pageSize={REGISTRY_PAGE_SIZE}
+                      total={filteredRegistries.length}
+                      onChange={setRegistryPage}
+                    />
                   </LoadMoreBar>
                 )}
               </>
@@ -2266,17 +2260,14 @@ const Dashboard = () => {
                     )
                   })}
                 </MobileBoard>
-                {hasMoreRegistries && (
+                {filteredRegistries.length > REGISTRY_PAGE_SIZE && (
                   <LoadMoreBar>
-                    <Button
-                      onClick={() =>
-                        setVisibleRegistryCount(
-                          (count) => count + REGISTRY_PAGE_SIZE,
-                        )
-                      }
-                    >
-                      Load more
-                    </Button>
+                    <Pagination
+                      current={currentRegistryPage}
+                      pageSize={REGISTRY_PAGE_SIZE}
+                      total={filteredRegistries.length}
+                      onChange={setRegistryPage}
+                    />
                   </LoadMoreBar>
                 )}
               </>

@@ -25,6 +25,7 @@ import { StakeContext } from 'contexts/stake-context'
 import useUrlChainId from 'hooks/use-url-chain-id'
 import { preloadFactory } from 'bootstrap/app-router'
 import { CurateIcon } from 'components/curate/icons'
+import ChainLogo from 'components/chain-logo'
 
 const Container = styled.div`
   padding: 0;
@@ -226,14 +227,6 @@ const ChainSelectorButton = styled.button`
   }
 `
 
-const ChainDot = styled.span<{ $color: string }>`
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: ${({ $color }) => $color};
-  flex-shrink: 0;
-`
-
 const ChainDropdownWrapper = styled.div`
   ${smallScreenStyle(
     () => css`
@@ -344,13 +337,51 @@ const AppBar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [helpDropdownOpen, setHelpDropdownOpen] = useState(false)
 
+  const isBrowse = location.pathname === '/browse'
+  const browseChainIds = useMemo(
+    () =>
+      new URLSearchParams(location.search)
+        .get('chain')
+        ?.split(',')
+        .map(Number)
+        .filter((chainId) =>
+          SUPPORTED_CHAINS.some((chain) => Number(chain.id) === chainId),
+        ) ?? [],
+    [location.search],
+  )
+  const browseChainId = browseChainIds.length === 1 ? browseChainIds[0] : null
   const currentChainInfo =
-    NETWORKS_INFO[displayedChainId as keyof typeof NETWORKS_INFO]
-  const defaultRegistryAddress =
-    defaultTcrAddresses[displayedChainId as validChains]
+    NETWORKS_INFO[
+      (isBrowse
+        ? browseChainId
+        : displayedChainId) as keyof typeof NETWORKS_INFO
+    ]
+  const browseChainLabel =
+    browseChainIds.length === 0
+      ? 'All chains'
+      : browseChainIds.length === 1
+        ? currentChainInfo?.name || 'Select chain'
+        : `${browseChainIds.length} chains`
+
+  const handleBrowseChainSelect = useCallback(
+    (chainId: number | null) => {
+      const next = new URLSearchParams(location.search)
+      if (chainId) next.set('chain', String(chainId))
+      else next.delete('chain')
+      next.delete('page')
+      const search = next.toString()
+      navigate(`/browse${search ? `?${search}` : ''}`)
+      setChainDropdownOpen(false)
+    },
+    [location.search, navigate],
+  )
 
   const handleChainSelect = useCallback(
     (chainId: number) => {
+      if (isBrowse) {
+        handleBrowseChainSelect(chainId)
+        return
+      }
       if (chainId === displayedChainId) {
         setChainDropdownOpen(false)
         return
@@ -362,7 +393,7 @@ const AppBar = () => {
       // Only navigate — useTcrNetwork handles the wallet switch when the
       // new page mounts, avoiding a double switchChain prompt.
       const factoryMatch = location.pathname.match(
-        /^\/(factory(?:-classic|-permanent)?)\//,
+        /^\/(factory(?:-classic|-permanent)?|launch)\//,
       )
       if (factoryMatch) navigate(`/${factoryMatch[1]}/${chainId}`)
       else if (location.pathname === '/') navigate(`/?chain=${chainId}`)
@@ -370,7 +401,13 @@ const AppBar = () => {
 
       setChainDropdownOpen(false)
     },
-    [navigate, displayedChainId, location.pathname],
+    [
+      navigate,
+      displayedChainId,
+      handleBrowseChainSelect,
+      isBrowse,
+      location.pathname,
+    ],
   )
 
   const mobileMenuOverlay = (
@@ -382,22 +419,26 @@ const AppBar = () => {
       >
         Dashboard
       </MobileMenuLink>
-      {defaultRegistryAddress && (
-        <MobileMenuLink
-          to={`/tcr/${displayedChainId}/${defaultRegistryAddress}`}
-          $active={location.pathname.startsWith('/tcr/')}
-          onClick={() => setMobileMenuOpen(false)}
-        >
-          Registries
-        </MobileMenuLink>
-      )}
       <MobileMenuLink
-        to={`/factory/${displayedChainId}`}
-        $active={location.pathname.startsWith('/factory')}
+        to="/browse"
+        $active={
+          location.pathname === '/browse' ||
+          location.pathname.startsWith('/tcr/')
+        }
+        onClick={() => setMobileMenuOpen(false)}
+      >
+        Browse
+      </MobileMenuLink>
+      <MobileMenuLink
+        to={`/launch/${displayedChainId}`}
+        $active={
+          location.pathname.startsWith('/launch') ||
+          location.pathname.startsWith('/factory')
+        }
         onClick={() => setMobileMenuOpen(false)}
         onMouseEnter={() => preloadFactory()}
       >
-        Create
+        Launch a list
       </MobileMenuLink>
       <MobileMenuLink
         to="/guide"
@@ -446,6 +487,15 @@ const AppBar = () => {
               placement="bottomRight"
               overlay={
                 <ChainMenu>
+                  {isBrowse && (
+                    <ChainMenuItem
+                      $active={browseChainIds.length === 0}
+                      onClick={() => handleBrowseChainSelect(null)}
+                    >
+                      <CurateIcon name="chain" size={15} />
+                      All chains
+                    </ChainMenuItem>
+                  )}
                   {SUPPORTED_CHAINS.map((chain) => {
                     const info =
                       NETWORKS_INFO[chain.id as keyof typeof NETWORKS_INFO]
@@ -453,10 +503,14 @@ const AppBar = () => {
                     return (
                       <ChainMenuItem
                         key={chain.id}
-                        $active={chain.id === displayedChainId}
+                        $active={
+                          isBrowse
+                            ? Number(chain.id) === browseChainId
+                            : chain.id === displayedChainId
+                        }
                         onClick={() => handleChainSelect(Number(chain.id))}
                       >
-                        <ChainDot $color={info.color} />
+                        <ChainLogo chainId={Number(chain.id)} size={18} />
                         {info.name}
                       </ChainMenuItem>
                     )
@@ -464,9 +518,21 @@ const AppBar = () => {
                 </ChainMenu>
               }
             >
-              <ChainSelectorButton>
-                <ChainDot $color={currentChainInfo?.color || '#ccc'} />
-                {currentChainInfo?.name || 'Select Chain'}
+              <ChainSelectorButton
+                title={isBrowse ? 'Filter registries by chain' : undefined}
+              >
+                {currentChainInfo ? (
+                  <ChainLogo
+                    chainId={Number(currentChainInfo.chainId)}
+                    size={18}
+                  />
+                ) : (
+                  <CurateIcon name="chain" size={15} />
+                )}
+                {isBrowse
+                  ? browseChainLabel
+                  : currentChainInfo?.name || 'Select Chain'}
+                <CurateIcon name="chevron-down" size={13} />
               </ChainSelectorButton>
             </Dropdown>
           </ChainDropdownWrapper>

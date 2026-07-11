@@ -5,9 +5,11 @@ import Loading from 'components/loading'
 import usePathValidation from 'hooks/use-path-validation'
 
 const Dashboard = lazy(() => import('pages/dashboard'))
+const Browse = lazy(() => import('pages/browse'))
 const AddressPage = lazy(() => import('pages/address'))
 const CuratePro = lazy(() => import('pages/curate-pro'))
 const Guide = lazy(() => import('pages/guide'))
+const LaunchList = lazy(() => import('pages/launch-list'))
 const ItemsRouter = lazy(() => import('pages/items-router'))
 const ItemDetailsRouter = lazy(() => import('pages/item-details-router'))
 const SubmitItem = lazy(() => import('pages/submit-item'))
@@ -69,6 +71,8 @@ const AppRouter = () => {
           element={<PermanentFactory />}
         />
         <Route path="/" element={<Dashboard />} />
+        <Route path="/browse" element={<Browse />} />
+        <Route path="/launch/:chainId" element={<LaunchList />} />
         <Route path="/guide" element={<Guide />} />
         <Route path="/address/:address" element={<AddressPage />} />
         <Route path="/pro" element={<CuratePro />} />

@@ -49,6 +49,9 @@ const ENVIO_DASHBOARD_QUERY = gql`
       registrationMetaEvidence {
         uri
       }
+      requests(limit: 1, order_by: [{ submissionTime: asc }]) {
+        submissionTime
+      }
     }
     registries: Registry(
       limit: 160
@@ -60,6 +63,9 @@ const ENVIO_DASHBOARD_QUERY = gql`
       numberOfItems
       registrationMetaEvidence {
         uri
+      }
+      requests(limit: 1, order_by: [{ submissionTime: asc }]) {
+        submissionTime
       }
     }
     latestLightItems: LItem(
@@ -553,7 +559,16 @@ const enrichRegistryMetadata = async (
           !registry.description ||
           !registry.logoURI),
     )
-    .slice(0, 48)
+    .sort(
+      (a, b) =>
+        Number(b.trustStatus === 'verified') -
+          Number(a.trustStatus === 'verified') ||
+        (b.lastActivityAt || 0) - (a.lastActivityAt || 0) ||
+        b.itemCount - a.itemCount,
+    )
+    // Always resolve every verified registry first, then fill the discovery
+    // view with a bounded set of the most relevant unverified metadata.
+    .slice(0, 120)
 
   const candidateIds = new Set(candidates.map((registry) => registry.id))
   const cache = new Map<
@@ -802,6 +817,7 @@ const normalizeEnvio = (
   disputes: DashboardActivity[]
   users: Map<string, DashboardUser>
   bountyWei: string
+  verifiedRegistryAddresses: string[]
 } => {
   const verifiedAddresses = new Set<string>()
   for (const address of getListOfListsAddresses(chainId))
@@ -840,6 +856,9 @@ const normalizeEnvio = (
       disputeCount:
         toNumber(registry.numberOfChallengedRegistrations) +
         toNumber(registry.numberOfChallengedClearing),
+      // Envio does not expose registry deployment time. The first request is
+      // the closest indexed creation signal available for legacy registries.
+      createdAt: toNumber(registry.requests?.[0]?.submissionTime),
       lastActivityAt: 0,
       trustStatus: verifiedAddresses.has(address) ? 'verified' : 'unverified',
     })
@@ -858,6 +877,9 @@ const normalizeEnvio = (
       activeCount: 0,
       pendingCount: 0,
       disputeCount: 0,
+      // Envio does not expose registry deployment time. The first request is
+      // the closest indexed creation signal available for legacy registries.
+      createdAt: toNumber(registry.requests?.[0]?.submissionTime),
       lastActivityAt: 0,
       trustStatus: verifiedAddresses.has(address) ? 'verified' : 'unverified',
     })
@@ -934,19 +956,28 @@ const normalizeEnvio = (
     ),
   ]
 
-  return { registries, activities, disputes, users, bountyWei }
+  return {
+    registries,
+    activities,
+    disputes,
+    users,
+    bountyWei,
+    verifiedRegistryAddresses: [...verifiedAddresses],
+  }
 }
 
 const normalizePermanent = (
   payload: any,
   chainId: number,
   since: number,
+  verifiedRegistryAddresses: Set<string>,
 ): {
   registries: DashboardRegistry[]
   activities: DashboardActivity[]
   disputes: DashboardActivity[]
   users: Map<string, DashboardUser>
   bountyWei: string
+  verifiedRegistryAddresses: string[]
 } => {
   const registries: DashboardRegistry[] = (payload.registries ?? []).map(
     (registry) => {
@@ -973,7 +1004,9 @@ const normalizePermanent = (
         metaEvidenceURI: registry.arbitrationSettings?.[0]?.metaEvidenceURI,
         createdAt: toNumber(registry.createdAt),
         lastActivityAt: toNumber(registry.createdAt),
-        trustStatus: 'unverified' as TrustStatus,
+        trustStatus: verifiedRegistryAddresses.has(address)
+          ? ('verified' as TrustStatus)
+          : ('unverified' as TrustStatus),
       }
     },
   )
@@ -1032,7 +1065,14 @@ const normalizePermanent = (
       '0',
     )
 
-  return { registries, activities, disputes, users, bountyWei }
+  return {
+    registries,
+    activities,
+    disputes,
+    users,
+    bountyWei,
+    verifiedRegistryAddresses: [...verifiedRegistryAddresses],
+  }
 }
 
 const mergeUsers = (maps: Map<string, DashboardUser>[]): DashboardUser[] => {
@@ -1301,12 +1341,18 @@ export const fetchDashboardData = async (): Promise<DashboardData> => {
   )
 
   const permanentResults = await Promise.all(
-    SUPPORTED_CHAIN_IDS.map(async (chainId) => {
+    SUPPORTED_CHAIN_IDS.map(async (chainId, index) => {
       const payload = await safeRequest<any>(
         subgraphUrlPermanent[chainId],
         PERMANENT_DASHBOARD_QUERY,
       )
-      return payload ? normalizePermanent(payload, chainId, since) : null
+      const verifiedRegistryAddresses = new Set(
+        envioResults[index]?.verifiedRegistryAddresses ??
+          getListOfListsAddresses(chainId),
+      )
+      return payload
+        ? normalizePermanent(payload, chainId, since, verifiedRegistryAddresses)
+        : null
     }),
   )
 
