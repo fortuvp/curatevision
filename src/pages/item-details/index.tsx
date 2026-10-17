@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react'
+import type { BigNumber } from 'ethers'
 import { Breadcrumb } from 'components/ui'
 import { useParams } from 'react-router-dom'
 import useUrlChainId from 'hooks/use-url-chain-id'

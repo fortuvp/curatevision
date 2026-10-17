@@ -182,7 +182,7 @@ const TCRLogo = ({ logoURI = null }: TCRLogoProps) =>
   )
 
 interface BannerProps {
-  metaEvidence?: MetaEvidence
+  metaEvidence?: MetaEvidence | null
   setSubmissionFormOpen: (open: boolean) => void
   connectedTCRAddr?: string | null
   tcrAddress?: string | null
@@ -240,10 +240,12 @@ const Banner = ({
                     </ChainChip>
                   )}
                   <StatusPill $tone="live">Live registry</StatusPill>
-                  <ContractExplorerUrl
-                    networkId={networkId}
-                    contractAddress={tcrAddress}
-                  />
+                  {networkId && tcrAddress && (
+                    <ContractExplorerUrl
+                      networkId={networkId}
+                      contractAddress={tcrAddress}
+                    />
+                  )}
                 </TitleContainer>
                 <StyledDescription>
                   {capitalizeFirstLetter(normalizedDescription)}
@@ -281,7 +283,7 @@ const Banner = ({
             id="submit-item-button"
           >
             <CurateIcon name="submit" size={18} />
-            {`Submit ${capitalizeFirstLetter(itemName) || 'Item'}`}
+            {`Submit ${capitalizeFirstLetter(itemName ?? '') || 'Item'}`}
           </StyledButton>
           <StyledPolicyAnchor
             as="button"

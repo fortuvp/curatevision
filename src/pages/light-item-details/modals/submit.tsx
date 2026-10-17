@@ -577,12 +577,12 @@ const SubmissionForm: React.ComponentType<Record<string, unknown>> = withFormik(
 const SubmitModal: React.FC<{
   onCancel: () => void
   visible?: boolean
-  tcrAddress: string
-  initialValues: string[]
-  submissionDeposit: ethers.BigNumber
+  tcrAddress?: string
+  initialValues?: string[]
+  submissionDeposit?: ethers.BigNumber
   metaEvidence?: MetaEvidence
   disabledFields?: boolean[]
-  challengePeriodDuration: ethers.BigNumber
+  challengePeriodDuration?: ethers.BigNumber
   embedded?: boolean
 }> = (props) => {
   const {

@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import type { BigNumber } from 'ethers'
 import { Card } from 'components/ui'
 import { V2Field, V2ItemRow } from 'components/curate/v2'
 import {

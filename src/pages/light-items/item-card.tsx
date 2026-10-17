@@ -1,16 +1,27 @@
 import React, { useMemo, useState } from 'react'
+import type { BigNumber } from 'ethers'
 import { Card } from 'components/ui'
 import { V2Field, V2ItemRow } from 'components/curate/v2'
 import { itemToStatusCode, STATUS_CODE, STATUS_TEXT } from 'utils/item-status'
 
+/**
+ * A subgraph item enriched by the registry page: the raw subgraph row is kept
+ * under `tcrData` and the decoded fields are exposed as `columns`.
+ */
+export interface EnrichedItem extends SubgraphItem {
+  tcrData: SubgraphItem & { mergedData?: V2Field[] }
+  columns: V2Field[]
+  props?: V2Field[]
+}
+
 interface ItemCardProps {
-  item: SubgraphItem
-  challengePeriodDuration: BigNumber
-  timestamp: BigNumber
+  item: EnrichedItem
+  challengePeriodDuration?: BigNumber
+  timestamp?: BigNumber
   forceReveal?: boolean | null
-  metaEvidence: MetaEvidence
+  metaEvidence?: MetaEvidence
   chainId?: string | number
-  tcrAddress: string
+  tcrAddress?: string
   viewMode?: 'list' | 'grid'
   [key: string]: unknown
 }
@@ -50,18 +61,28 @@ const ItemCard = ({
   const fields: V2Field[] =
     item.tcrData?.mergedData || item.columns || item.props || []
   const isTCRofTCRs = Boolean(metaEvidence?.metadata?.isTCRofTCRs)
-  const childTcrAddress = isTCRofTCRs ? item.columns?.[0]?.value : null
+  const firstColumnValue = item.columns?.[0]?.value
+  const childTcrAddress =
+    isTCRofTCRs && typeof firstColumnValue === 'string'
+      ? firstColumnValue
+      : null
   const detailsTo = `/tcr/${chainId}/${tcrAddress}/${item.tcrData?.ID || item.itemID}`
   const openListTo = childTcrAddress
     ? `/tcr/${chainId}/${childTcrAddress}`
     : undefined
   const shouldHide =
-    !forceReveal && !revealed && hiddenStatuses.has(statusCode as number)
+    !forceReveal &&
+    !revealed &&
+    statusCode !== undefined &&
+    hiddenStatuses.has(statusCode)
 
   return (
     <V2ItemRow
       fields={fields}
-      statusLabel={STATUS_TEXT[statusCode] || 'Unknown'}
+      statusLabel={
+        (statusCode !== undefined ? STATUS_TEXT[statusCode] : undefined) ||
+        'Unknown'
+      }
       to={detailsTo}
       openListTo={openListTo}
       warning={shouldHide ? 'Warning: potentially offensive content' : null}

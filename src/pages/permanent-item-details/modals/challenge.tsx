@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import type { BigNumber } from 'ethers'
 import styled from 'styled-components'
 import { Modal, Typography, Button, Spin, Tooltip } from 'components/ui'
 import Icon from 'components/ui/Icon'

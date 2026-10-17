@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react'
+import type { BigNumber } from 'ethers'
 import styled from 'styled-components'
 import { MAX_WIDTH_CONTENT } from 'styles/small-screen-style'
 import { Layout, Breadcrumb } from 'components/ui'
