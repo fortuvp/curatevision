@@ -17,14 +17,6 @@ interface ItemActionModalProps {
   arbitrationCost?: BigNumber | undefined
 }
 
-interface SubmitRegistry {
-  id: string
-  token: string
-  submissionMinDeposit: string
-  submissionPeriod: string
-  withdrawingPeriod: string
-}
-
 const ItemActionModal = ({
   statusCode,
   isOpen,
@@ -42,7 +34,7 @@ const ItemActionModal = ({
     title: getActionLabel({ statusCode, itemName }),
     onCancel: onClose,
   }
-  const r = useMemo(() => item?.registry as SubmitRegistry, [item])
+  const r = useMemo(() => item?.registry, [item])
   const submitMetadata = metaEvidence?.metadata
     ? {
         title: String(metaEvidence.metadata.title ?? ''),
@@ -70,12 +62,12 @@ const ItemActionModal = ({
       return (
         <SubmitModal
           initialValues={item.decodedData}
-          submissionDeposit={r.submissionMinDeposit}
-          submissionPeriod={r.submissionPeriod}
+          submissionDeposit={r?.submissionMinDeposit}
+          submissionPeriod={r?.submissionPeriod}
           arbitrationCost={arbitrationCost}
-          withdrawingPeriod={r.withdrawingPeriod}
-          tcrAddress={r.id}
-          tokenAddress={r.token}
+          withdrawingPeriod={r?.withdrawingPeriod}
+          tcrAddress={r?.id}
+          tokenAddress={r?.token}
           metadata={submitMetadata}
           columns={metaEvidence?.metadata?.columns ?? []}
           {...rest}
