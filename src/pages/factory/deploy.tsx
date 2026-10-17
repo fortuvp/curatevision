@@ -280,7 +280,7 @@ const getTcrMetaEvidence = async (
   }
 }
 
-type DeployProps = StepProps
+type DeployProps = Omit<StepProps, 'postSubmit'> & { postSubmit?: () => void }
 
 const Deploy = ({ setTxState, tcrState, setTcrState }: DeployProps) => {
   const chainId = useChainId()
