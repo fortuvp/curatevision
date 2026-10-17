@@ -24,10 +24,14 @@ const ClassicSubmitPage = () => {
   const navigate = useNavigate()
   const chainId = useUrlChainId()
   const { tcrAddress } = useParams<{ tcrAddress: string }>()
-  const { metaEvidence, submissionDeposit, challengePeriodDuration, tcrError } =
-    useContext(TCRViewContext)
+  const tcrViewContext = useContext(TCRViewContext)
+  const metaEvidence = tcrViewContext?.metaEvidence
+  const submissionDeposit = tcrViewContext?.submissionDeposit
+  const challengePeriodDuration = tcrViewContext?.challengePeriodDuration
+  const tcrError = tcrViewContext?.tcrError
 
-  if (tcrError) return <ErrorPage code="400" message={tcrError} />
+  if (typeof tcrError === 'string')
+    return <ErrorPage code="400" message={tcrError} />
   if (!tcrAddress || !metaEvidence || !submissionDeposit) return <Loading />
 
   return (
@@ -48,10 +52,14 @@ const LightSubmitPage = () => {
   const navigate = useNavigate()
   const chainId = useUrlChainId()
   const { tcrAddress } = useParams<{ tcrAddress: string }>()
-  const { metaEvidence, submissionDeposit, challengePeriodDuration, tcrError } =
-    useContext(LightTCRViewContext)
+  const tcrViewContext = useContext(LightTCRViewContext)
+  const metaEvidence = tcrViewContext?.metaEvidence
+  const submissionDeposit = tcrViewContext?.submissionDeposit
+  const challengePeriodDuration = tcrViewContext?.challengePeriodDuration
+  const tcrError = tcrViewContext?.tcrError
 
-  if (tcrError) return <ErrorPage code="400" message={tcrError} />
+  if (typeof tcrError === 'string')
+    return <ErrorPage code="400" message={tcrError} />
   if (!tcrAddress || !metaEvidence || !submissionDeposit) return <Loading />
 
   return (
@@ -177,6 +185,15 @@ const SubmitItem = () => {
         code="Error"
         title="Subgraph unavailable"
         message="Curate could not verify this registry type from the configured GTCR subgraphs. Please retry in a moment."
+      />
+    )
+
+  if (!tcrAddress)
+    return (
+      <ErrorPage
+        code="Error"
+        title="Registry Not Found"
+        message="This registry could not be found on any subgraph. The subgraph endpoint may be down or the registry address may be invalid."
       />
     )
 

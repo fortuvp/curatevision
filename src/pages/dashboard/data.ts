@@ -417,6 +417,51 @@ const PERMANENT_CURATOR_PAGE_QUERY = gql`
   }
 `
 
+/** A classic/light request row as the dashboard queries select it. */
+interface DashboardRequestRow {
+  id?: string
+  registry_id?: string
+  submissionTime?: string | number
+  requestType?: string
+  requester?: string
+  challenger?: string
+  challengeTime?: string | number
+  disputed?: boolean
+  [key: string]: unknown
+}
+
+/** A classic/light item row as the dashboard queries select it. */
+interface DashboardItemRow {
+  id?: string
+  registry_id?: string
+  requests?: DashboardRequestRow[]
+  [key: string]: unknown
+}
+
+/** A permanent registry row, which the dashboard reads deposits off. */
+interface PermanentRegistryRow extends SubgraphRegistry {
+  submissionMinDeposit?: string
+  createdAt?: string | number
+}
+
+/** A permanent submission row. */
+interface PermanentSubmissionRow {
+  createdAt?: string | number
+  submitter?: string
+  item?: { registry?: { id?: string } }
+  [key: string]: unknown
+}
+
+/** A permanent challenge row. */
+interface PermanentChallengeRow {
+  createdAt?: string | number
+  challenger?: string
+  challengerStake?: string
+  disputeOutcome?: string
+  item?: { registry?: { id?: string } }
+  [key: string]: unknown
+}
+
 const toNumber = (value: unknown): number => {
   const parsed = Number(value ?? 0)
   return Number.isFinite(parsed) ? parsed : 0
@@ -504,9 +549,8 @@ const isFallbackRegistryTitle = (registry: DashboardRegistry): boolean =>
 
 const readMetaEvidence = async (
   uri?: string,
-): Promise<Pick<
-  DashboardRegistry,
-  'title' | 'description' | 'logoURI'
+): Promise<Partial<
+  Pick<DashboardRegistry, 'title' | 'description' | 'logoURI'>
 > | null> => {
   if (!uri) return null
 
@@ -573,7 +617,9 @@ const enrichRegistryMetadata = async (
   const candidateIds = new Set(candidates.map((registry) => registry.id))
   const cache = new Map<
     string,
-    Promise<Pick<DashboardRegistry, 'title' | 'description' | 'logoURI'> | null>
+    Promise<Partial<
+      Pick<DashboardRegistry, 'title' | 'description' | 'logoURI'>
+    > | null>
   >()
 
   return Promise.all(
@@ -888,9 +934,11 @@ const normalizeEnvio = (
   const registryByAddress = new Map(registries.map((r) => [r.address, r]))
   const users = new Map<string, DashboardUser>()
   const activityRequests = [
-    ...(payload.lightRequests ?? []).map((item) => [item, 'light'] as const),
+    ...(payload.lightRequests ?? []).map(
+      (item: DashboardRequestRow) => [item, 'light'] as const,
+    ),
     ...(payload.classicRequests ?? []).map(
-      (item) => [item, 'classic'] as const,
+      (item: DashboardRequestRow) => [item, 'classic'] as const,
     ),
   ]
 
@@ -939,19 +987,19 @@ const normalizeEnvio = (
   }
 
   const activities = [
-    ...(payload.latestLightItems ?? []).map((item) =>
+    ...(payload.latestLightItems ?? []).map((item: DashboardItemRow) =>
       itemToActivity(item, 'light'),
     ),
-    ...(payload.latestClassicItems ?? []).map((item) =>
+    ...(payload.latestClassicItems ?? []).map((item: DashboardItemRow) =>
       itemToActivity(item, 'classic'),
     ),
   ]
 
   const disputes = [
-    ...(payload.lightDisputes ?? []).map((item) =>
+    ...(payload.lightDisputes ?? []).map((item: DashboardRequestRow) =>
       requestToActivity(item, 'light'),
     ),
-    ...(payload.classicDisputes ?? []).map((item) =>
+    ...(payload.classicDisputes ?? []).map((item: DashboardRequestRow) =>
       requestToActivity(item, 'classic'),
     ),
   ]
@@ -980,7 +1028,7 @@ const normalizePermanent = (
   verifiedRegistryAddresses: string[]
 } => {
   const registries: DashboardRegistry[] = (payload.registries ?? []).map(
-    (registry) => {
+    (registry: PermanentRegistryRow) => {
       const address = normalizeAddress(registry.id)
       const metadata = registry.arbitrationSettings?.[0]?.metadata
       return {
@@ -1014,54 +1062,62 @@ const normalizePermanent = (
   const registryMap = new Map(registries.map((r) => [r.address, r]))
   const users = new Map<string, DashboardUser>()
 
-  const activities = (payload.submissions ?? []).map((submission) => {
-    const timestamp = toNumber(submission.createdAt)
-    accumulateUser(
-      users,
-      chainId,
-      submission.submitter,
-      'submissions',
-      timestamp,
-    )
-    const registry = registryMap.get(
-      normalizeAddress(submission.item?.registry?.id),
-    )
-    if (registry)
-      registry.lastActivityAt = Math.max(
-        registry.lastActivityAt || 0,
+  const activities = (payload.submissions ?? []).map(
+    (submission: PermanentSubmissionRow) => {
+      const timestamp = toNumber(submission.createdAt)
+      accumulateUser(
+        users,
+        chainId,
+        submission.submitter,
+        'submissions',
         timestamp,
       )
-    if (registry && timestamp >= since) registry.activeCount += 1
-    return permanentSubmissionToActivity(submission, chainId, registryMap)
-  })
+      const registry = registryMap.get(
+        normalizeAddress(submission.item?.registry?.id),
+      )
+      if (registry)
+        registry.lastActivityAt = Math.max(
+          registry.lastActivityAt || 0,
+          timestamp,
+        )
+      if (registry && timestamp >= since) registry.activeCount += 1
+      return permanentSubmissionToActivity(submission, chainId, registryMap)
+    },
+  )
 
-  const disputes = (payload.challenges ?? []).map((challenge) => {
-    const timestamp = toNumber(challenge.createdAt)
-    accumulateUser(
-      users,
-      chainId,
-      challenge.challenger,
-      'challenges',
-      timestamp,
-    )
-    const registry = registryMap.get(
-      normalizeAddress(challenge.item?.registry?.id),
-    )
-    if (registry) {
-      registry.disputeCount += 1
-      registry.lastActivityAt = Math.max(
-        registry.lastActivityAt || 0,
+  const disputes = (payload.challenges ?? []).map(
+    (challenge: PermanentChallengeRow) => {
+      const timestamp = toNumber(challenge.createdAt)
+      accumulateUser(
+        users,
+        chainId,
+        challenge.challenger,
+        'challenges',
         timestamp,
       )
-      if (timestamp >= since) registry.activeCount += 1
-    }
-    return permanentChallengeToActivity(challenge, chainId, registryMap)
-  })
+      const registry = registryMap.get(
+        normalizeAddress(challenge.item?.registry?.id),
+      )
+      if (registry) {
+        registry.disputeCount += 1
+        registry.lastActivityAt = Math.max(
+          registry.lastActivityAt || 0,
+          timestamp,
+        )
+        if (timestamp >= since) registry.activeCount += 1
+      }
+      return permanentChallengeToActivity(challenge, chainId, registryMap)
+    },
+  )
 
   const bountyWei = (payload.challenges ?? [])
-    .filter((challenge) => challenge.disputeOutcome === 'Reject')
+    .filter(
+      (challenge: PermanentChallengeRow) =>
+        challenge.disputeOutcome === 'Reject',
+    )
     .reduce(
-      (sum, challenge) => addBigIntStrings(sum, challenge.challengerStake),
+      (sum: string, challenge: PermanentChallengeRow) =>
+        addBigIntStrings(sum, challenge.challengerStake),
       '0',
     )
 

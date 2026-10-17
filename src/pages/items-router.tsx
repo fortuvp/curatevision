@@ -73,13 +73,13 @@ const ItemsRouter = () => {
   const { isLightCurate, isClassicCurate, isPermanentCurate, checking, error } =
     useCheckLightCurate()
   useTcrNetwork()
-  const { setIsPermanent } = useContext(StakeContext)
+  const setIsPermanent = useContext(StakeContext)?.setIsPermanent
   const queryClient = useQueryClient()
   const { graphqlBatcher } = useGraphqlBatcher()
 
   useEffect(() => {
-    setIsPermanent(isPermanentCurate)
-    return () => setIsPermanent(false)
+    setIsPermanent?.(isPermanentCurate)
+    return () => setIsPermanent?.(false)
   }, [isPermanentCurate, setIsPermanent])
 
   // Prefetch the latest policy timestamp so the "(updated X ago)" badge
@@ -146,6 +146,15 @@ const ItemsRouter = () => {
         code="Error"
         title="Subgraph unavailable"
         message="Curate could not verify this registry type from the configured GTCR subgraphs. Please retry in a moment."
+      />
+    )
+
+  if (!tcrAddress)
+    return (
+      <ErrorPage
+        code="Error"
+        title="Registry Not Found"
+        message="This registry could not be found on any subgraph. The subgraph endpoint may be down or the registry address may be invalid."
       />
     )
 
