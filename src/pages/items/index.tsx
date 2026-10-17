@@ -27,6 +27,7 @@ import {
   updateLightFilter,
 } from 'utils/filters'
 import ItemCard from './item-card'
+import { type EnrichedItem } from 'pages/light-items/item-card'
 import Banner from './banner'
 import { DISPUTE_STATUS } from 'utils/item-status'
 import { CLASSIC_REGISTRY_ITEMS_QUERY } from 'utils/graphql'
@@ -62,27 +63,54 @@ import {
 
 const MAX_ENTITIES = 1000
 
+/** A dispute round exactly as the subgraph returns it (numbers as strings). */
+interface RawRound {
+  appealPeriodStart: string
+  appealPeriodEnd: string
+  ruling: string
+  hasPaidRequester: boolean
+  hasPaidChallenger: boolean
+  amountPaidRequester: string
+  amountPaidChallenger: string
+}
+
+/** A request exactly as the subgraph returns it. */
+interface RawRequest {
+  disputed: boolean
+  disputeID: string
+  submissionTime: string
+  resolved: boolean
+  deposit: string
+  rounds: RawRound[]
+}
+
+/** A classic item exactly as the subgraph returns it. */
+interface RawItem {
+  itemID: string
+  requests: RawRequest[]
+  [key: string]: unknown
+}
+
 const Items = () => {
   const navigate = useNavigate()
   const search = window.location.search || ''
   const { tcrAddress } = useParams()
   const chainId = useUrlChainId()
-  const { timestamp } = useContext(WalletContext)
-  const {
-    metaEvidence,
-    challengePeriodDuration,
-    tcrError,
-    gtcrView,
-    connectedTCRAddr,
-    submissionDeposit,
-    submissionChallengeDeposit,
-    removalDeposit,
-    removalChallengeDeposit,
-    arbitrationCost,
-    arbitrator,
-    arbitratorExtraData,
-    governor,
-  } = useContext(TCRViewContext)
+  const timestamp = useContext(WalletContext)?.timestamp
+  const tcrViewContext = useContext(TCRViewContext)
+  const metaEvidence = tcrViewContext?.metaEvidence
+  const challengePeriodDuration = tcrViewContext?.challengePeriodDuration
+  const tcrError = tcrViewContext?.tcrError
+  const gtcrView = tcrViewContext?.gtcrView
+  const connectedTCRAddr = tcrViewContext?.connectedTCRAddr
+  const submissionDeposit = tcrViewContext?.submissionDeposit
+  const submissionChallengeDeposit = tcrViewContext?.submissionChallengeDeposit
+  const removalDeposit = tcrViewContext?.removalDeposit
+  const removalChallengeDeposit = tcrViewContext?.removalChallengeDeposit
+  const arbitrationCost = tcrViewContext?.arbitrationCost
+  const arbitrator = tcrViewContext?.arbitrator
+  const arbitratorExtraData = tcrViewContext?.arbitratorExtraData
+  const governor = tcrViewContext?.governor
   const [submissionFormOpen, setSubmissionFormOpen] = useState<
     boolean | undefined
   >()
@@ -90,11 +118,9 @@ const Items = () => {
   const [nsfwFilterOn, setNSFWFilter] = useState(true)
   const [itemSearch, setItemSearch] = useState('')
   const [viewMode, setViewMode] = useState<V2RegistryViewMode>('list')
-  const [queryItemParams, setQueryItemParams] = useState<
-    Record<string, unknown> | undefined
-  >()
+  const [queryItemParams, setQueryItemParams] = useState<string[] | undefined>()
 
-  const toggleNSFWFilter = useCallback((checked) => {
+  const toggleNSFWFilter = useCallback((checked: boolean) => {
     setNSFWFilter(checked)
     localforage.setItem(NSFW_FILTER_KEY, checked)
   }, [])
@@ -140,18 +166,18 @@ const Items = () => {
 
     // No filters selected - return all items
     if (conditions.length === 0)
-      return { registry_id: { _eq: tcrAddress.toLowerCase() } }
+      return { registry_id: { _eq: tcrAddress?.toLowerCase() } }
 
     // Single filter - no need for _or
     if (conditions.length === 1)
       return {
-        registry_id: { _eq: tcrAddress.toLowerCase() },
+        registry_id: { _eq: tcrAddress?.toLowerCase() },
         ...conditions[0],
       }
 
     // Multiple filters - use _or clause
     return {
-      registry_id: { _eq: tcrAddress.toLowerCase() },
+      registry_id: { _eq: tcrAddress?.toLowerCase() },
       _or: conditions,
     }
   }, [
@@ -201,7 +227,7 @@ const Items = () => {
     if (!itemsQuery.data || itemsQuery.isLoading) return null
     let items = itemsQuery.data.items
 
-    items = items.map((item) => {
+    items = items.map((item: RawItem) => {
       const { disputed, disputeID, submissionTime, rounds, resolved, deposit } =
         item.requests[0] ?? {}
 
@@ -254,10 +280,10 @@ const Items = () => {
     if (!metaEvidence || metaEvidence.address !== tcrAddress || !encodedItems)
       return
 
-    return encodedItems.map((item, i) => {
-      let decodedItem
-      const errors = []
-      const { columns } = metaEvidence.metadata
+    return encodedItems.map((item: SubgraphItem, i: number) => {
+      let decodedItem: ReturnType<typeof gtcrDecode> | undefined
+      const errors: string[] = []
+      const columns = metaEvidence.metadata?.columns || []
       try {
         decodedItem = gtcrDecode({ values: item.data, columns })
       } catch {
@@ -275,7 +301,7 @@ const Items = () => {
           ...item, // Spread to convert from array to object.
         },
         columns: columns.map(
-          (col, i) => ({
+          (col: Column, i: number) => ({
             value: decodedItem && decodedItem[i],
             ...col,
           }),
@@ -291,13 +317,18 @@ const Items = () => {
 
     return [...items]
       .filter((item) => itemMatchesSearch(item, itemSearch))
-      .sort(({ tcrData: tcrDataA }, { tcrData: tcrDataB }) => {
-        // Display items with pending requests first.
-        if (!tcrDataA || !tcrDataB) return 0 // Handle errored TCRs.
-        if (!tcrDataA.resolved && tcrDataB.resolved) return -1
-        if (tcrDataA.resolved && !tcrDataB.resolved) return 1
-        return 0
-      })
+      .sort(
+        (
+          { tcrData: tcrDataA }: EnrichedItem,
+          { tcrData: tcrDataB }: EnrichedItem,
+        ) => {
+          // Display items with pending requests first.
+          if (!tcrDataA || !tcrDataB) return 0 // Handle errored TCRs.
+          if (!tcrDataA.resolved && tcrDataB.resolved) return -1
+          if (tcrDataA.resolved && !tcrDataB.resolved) return 1
+          return 0
+        },
+      )
   }, [itemSearch, items])
 
   // Check if there an action in the URL.
@@ -324,7 +355,14 @@ const Items = () => {
     )
 
   if (tcrError)
-    return <ErrorPage code="400" message={tcrError || 'Decoding this item.'} />
+    return (
+      <ErrorPage
+        code="400"
+        message={
+          typeof tcrError === 'string' ? tcrError : 'Decoding this item.'
+        }
+      />
+    )
 
   const { metadata } = metaEvidence || {}
   const { isConnectedTCR } = metadata || {}
@@ -332,10 +370,12 @@ const Items = () => {
   const itemCount = Math.floor(itemsQuery.data?.items?.length) ?? 0
   const loadedItems = itemsQuery.data?.items ?? []
   const loadedRemovedCount = loadedItems.filter(
-    (item) => item.status === 'Absent',
+    (item: RawItem) => item.status === 'Absent',
   ).length
-  const loadedDisputeCount = loadedItems.filter((item) =>
-    item.requests?.some((request) => request.disputed || request.disputeID),
+  const loadedDisputeCount = loadedItems.filter((item: RawItem) =>
+    item.requests?.some(
+      (request: RawRequest) => request.disputed || request.disputeID,
+    ),
   ).length
   const nativeSymbol =
     chainId && NETWORKS_INFO[chainId as keyof typeof NETWORKS_INFO]
@@ -373,7 +413,7 @@ const Items = () => {
         tcrAddress={tcrAddress}
       />
       <RegistryInfoPanel
-        chainId={chainId}
+        chainId={chainId ?? undefined}
         address={tcrAddress}
         verified={verifiedSource}
         fields={[
@@ -474,7 +514,7 @@ const Items = () => {
                       filterLabelLight[key] ? (
                         <StyledTag
                           key={key}
-                          checked={queryOptions[key]}
+                          checked={!!queryOptions[key]}
                           onChange={(checked) => {
                             const newQueryStr = updateLightFilter({
                               prevQuery: search,
@@ -519,7 +559,7 @@ const Items = () => {
                         item={item}
                         key={i}
                         metaEvidence={metaEvidence}
-                        chainId={chainId}
+                        chainId={chainId ?? undefined}
                         tcrAddress={tcrAddress}
                         challengePeriodDuration={challengePeriodDuration}
                         timestamp={timestamp}
