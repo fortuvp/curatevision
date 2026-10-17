@@ -1,4 +1,6 @@
 import React, { useContext, useMemo } from 'react'
+import type { Address } from 'viem'
+import { BigNumber } from 'ethers'
 import { Descriptions, Skeleton, Card } from 'components/ui'
 import { abi as _gtcr } from '@kleros/tcr/build/contracts/GeneralizedTCR.json'
 import { useAccount, usePublicClient, useWalletClient, useChainId } from 'wagmi'
@@ -28,13 +30,19 @@ import {
   Ruling,
 } from 'pages/light-item-details/item-status-card'
 
+export interface ItemRequest extends SubgraphRequest {
+  deposit?: BigNumber
+  disputeID: string
+  arbitrator: string
+}
+
 interface ItemStatusCardProps {
-  item: SubgraphItem
-  timestamp: BigNumber
-  request: SubgraphRequest
-  modalOpen: boolean
+  item?: SubgraphItem
+  timestamp?: BigNumber
+  request?: ItemRequest
+  modalOpen?: boolean
   setModalOpen: (open: boolean) => void
-  appealCost: BigNumber
+  appealCost?: BigNumber
 }
 
 const ItemStatusCard = ({
@@ -55,7 +63,7 @@ const ItemStatusCard = ({
     tcrAddress,
     submissionDeposit,
     gtcrView,
-  } = useContext(TCRViewContext)
+  } = useContext(TCRViewContext) ?? {}
 
   // Get remaining appeal time, if any and build countdown.
   const { appealRemainingTime, appealRemainingTimeLoser } = useAppealTime(item)
@@ -64,20 +72,25 @@ const ItemStatusCard = ({
   const { arbitrator: klerosAddress, uiURL } = klerosAddresses[chainId] || {}
 
   // Get remaining challenge period, if applicable and build countdown.
+  // Only pending (unresolved, undisputed) requests are challengeable —
+  // resolved requests must not show a countdown even if the registry's
+  // challenge period duration was increased since they resolved.
   const challengeRemainingTime = useMemo(() => {
     if (
       !item ||
-      item.disputed ||
-      !item.submissionTime ||
+      !request ||
+      request.disputed ||
+      request.resolved ||
+      !request.submissionTime ||
       !challengePeriodDuration
     )
       return
 
-    const { submissionTime } = item
     const deadline =
-      submissionTime.add(challengePeriodDuration).toNumber() * 1000
+      (Number(request.submissionTime) + challengePeriodDuration.toNumber()) *
+      1000
     return deadline - Date.now()
-  }, [challengePeriodDuration, item])
+  }, [challengePeriodDuration, item, request])
   const challengeCountdown = useHumanizedCountdown(challengeRemainingTime)
   const nativeCurrency = useNativeCurrency()
 
@@ -87,16 +100,18 @@ const ItemStatusCard = ({
         <Skeleton active title={false} paragraph={{ rows: 2 }} />
       </Card>
     )
-  const currentRuling = item.requests[0].rounds[0].ruling
+  const currentRuling = item.requests?.[0]?.rounds?.[0]?.ruling ?? null
   const { disputed } = item
   const statusCode = itemToStatusCode(item, timestamp, challengePeriodDuration)
+  if (statusCode === undefined) return null
 
   const bounty = request.deposit
 
   const executeRequest = async () => {
+    if (!tcrAddress || !walletClient || !publicClient) return
     try {
       const { request: req } = await simulateContract(wagmiConfig, {
-        address: tcrAddress,
+        address: tcrAddress as Address,
         abi: _gtcr,
         functionName: 'executeRequest',
         args: [item.itemID],
@@ -133,7 +148,7 @@ const ItemStatusCard = ({
     }
   }
 
-  const { disputeID, arbitrator, resolved } = request || {}
+  const { disputeID, arbitrator, resolved } = request
   const { metadata, fileURI } = metaEvidence || {}
   const { itemName } = metadata || {}
 
@@ -171,7 +186,7 @@ const ItemStatusCard = ({
           <Descriptions.Item label="Requester">
             <ETHAddress address={request.requester} />
           </Descriptions.Item>
-          {disputed && disputeID.toNumber() !== 0 && (
+          {disputed && Number(disputeID) !== 0 && (
             <>
               <Descriptions.Item label="Challenger">
                 <ETHAddress address={request.challenger} />
@@ -200,7 +215,7 @@ const ItemStatusCard = ({
               <Ruling currentRuling={currentRuling} />
             </Descriptions.Item>
           )}
-          {!disputed && challengeRemainingTime > 0 && (
+          {!disputed && (challengeRemainingTime ?? 0) > 0 && (
             <Descriptions.Item label="Challenge period ends">
               {challengeCountdown}
             </Descriptions.Item>
@@ -242,8 +257,8 @@ const ItemStatusCard = ({
             statusCode={statusCode}
             itemName={itemName || 'item'}
             item={item}
-            fileURI={fileURI}
-            isOpen={modalOpen}
+            fileURI={fileURI || ''}
+            isOpen={!!modalOpen}
             onClose={() => setModalOpen(false)}
             submissionDeposit={submissionDeposit}
             tcrAddress={tcrAddress}

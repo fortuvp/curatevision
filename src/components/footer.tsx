@@ -42,12 +42,12 @@ const StyledSecuredByKleros = styled.a`
   min-height: 24px;
 
   svg path {
-    fill: ${({ theme }) => theme.white ?? '#ffffff'}BF;
+    fill: #ffffffbf;
     transition: 0.1s;
   }
 
   &:hover svg path {
-    fill: ${({ theme }) => theme.white ?? '#ffffff'};
+    fill: #ffffff;
   }
 `
 
@@ -101,7 +101,7 @@ const StyledSocialButton = styled.a`
   text-decoration: none;
 
   svg path {
-    fill: ${({ theme }) => theme.white ?? '#ffffff'}BF;
+    fill: #ffffffbf;
     transition: 0.1s;
   }
 
@@ -110,7 +110,7 @@ const StyledSocialButton = styled.a`
     border-color: transparent;
 
     svg path {
-      fill: ${({ theme }) => theme.white ?? '#ffffff'};
+      fill: #ffffff;
     }
   }
 `

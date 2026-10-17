@@ -230,6 +230,7 @@ const Items = () => {
         itemID: item.itemID,
         disputeStatus,
         disputed,
+        resolved,
         disputeID,
         deposit,
         submissionTime: BigNumber.from(submissionTime),

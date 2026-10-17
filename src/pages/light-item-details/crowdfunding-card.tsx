@@ -70,8 +70,8 @@ export const StyledIcon = styled(FontAwesomeIcon)`
 
 interface CrowdfundingCardProps {
   item: SubgraphItem
-  timestamp: BigNumber
-  appealCost: BigNumber
+  timestamp?: BigNumber
+  appealCost?: BigNumber
 }
 
 const CrowdfundingCard = ({
@@ -85,7 +85,7 @@ const CrowdfundingCard = ({
     winnerStakeMultiplier,
     loserStakeMultiplier,
     MULTIPLIER_DIVISOR,
-  } = useContext(LightTCRViewContext)
+  } = useContext(LightTCRViewContext) || {}
   const nativeCurrency = useNativeCurrency()
 
   const requesterFees = useRequiredFees({
@@ -93,7 +93,6 @@ const CrowdfundingCard = ({
     sharedStakeMultiplier,
     winnerStakeMultiplier,
     loserStakeMultiplier,
-    currentRuling: item && item.currentRuling,
     item,
     MULTIPLIER_DIVISOR,
     appealCost,
@@ -103,15 +102,15 @@ const CrowdfundingCard = ({
     sharedStakeMultiplier,
     winnerStakeMultiplier,
     loserStakeMultiplier,
-    currentRuling: item && item.currentRuling,
     item,
     MULTIPLIER_DIVISOR,
     appealCost,
   })
 
-  if (!item || !challengePeriodDuration) return null
-  const round = item.requests[0].rounds[0]
-  const { hasPaidRequester, hasPaidChallenger, currentRuling } = round
+  if (!item || !challengePeriodDuration || !MULTIPLIER_DIVISOR) return null
+  const round = item.requests?.[0]?.rounds?.[0]
+  if (!round) return null
+  const { hasPaidRequester, hasPaidChallenger, ruling: currentRuling } = round
 
   let { amountPaidRequester, amountPaidChallenger } = round
   amountPaidRequester = BigNumber.from(amountPaidRequester)

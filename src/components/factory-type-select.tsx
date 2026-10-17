@@ -3,14 +3,9 @@ import styled from 'styled-components'
 import { Select, Tooltip } from 'components/ui'
 import Icon from 'components/ui/Icon'
 
-type FactoryType = 'classic' | 'light' | 'permanent'
+type FactoryType = 'light' | 'permanent'
 
 const TYPE_COPY: Record<FactoryType, { label: string; tooltip: string }> = {
-  classic: {
-    label: 'Classic',
-    tooltip:
-      'Original Curate registry model. Submissions and removals use challenge periods and deposits in the native chain token.',
-  },
   light: {
     label: 'Traditional',
     tooltip:
@@ -43,7 +38,6 @@ const routeForType = (
   type: FactoryType,
   chainId: string | number | undefined,
 ) => {
-  if (type === 'classic') return `/factory-classic/${chainId}`
   if (type === 'permanent') return `/factory-permanent/${chainId}`
   return `/factory/${chainId}`
 }
@@ -66,9 +60,6 @@ const FactoryTypeSelect = ({
       if (nextType !== current) navigate(routeForType(nextType, chainId))
     }}
   >
-    <Select.Option value="classic">
-      <TypeOption type="classic" />
-    </Select.Option>
     <Select.Option value="light">
       <TypeOption type="light" />
     </Select.Option>

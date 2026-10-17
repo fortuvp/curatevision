@@ -1,4 +1,5 @@
 import React, { useContext, useMemo } from 'react'
+import { BigNumber } from 'ethers'
 import { Tooltip } from 'components/ui'
 import Icon from 'components/ui/Icon'
 import ItemStatusBadge from 'components/item-status-badge'
@@ -21,7 +22,7 @@ import {
 
 interface ItemCardTitleProps {
   statusCode?: number
-  tcrData?: Record<string, unknown>
+  tcrData?: SubgraphItem
   isPermanentList?: boolean
 }
 
@@ -30,26 +31,38 @@ const ItemCardTitle = ({
   tcrData,
   isPermanentList,
 }: ItemCardTitleProps) => {
-  const { challengePeriodDuration } = useContext(TCRViewContext)
-  const { timestamp } = useContext(WalletContext)
-  const { disputed, submissionTime } = tcrData || {}
+  const challengePeriodDuration =
+    useContext(TCRViewContext)?.challengePeriodDuration
+  const timestamp = useContext(WalletContext)?.timestamp
+  const disputed = tcrData?.disputed
+  const resolved = tcrData?.resolved
+  const submissionTime = tcrData?.submissionTime
   const nativeCurrency = useNativeCurrency()
 
   // Get remaining challenge period, if applicable and build countdown.
+  // Resolved requests are no longer challengeable, so changing the registry's
+  // challenge period duration must not resurrect their countdown.
   const challengeRemainingTime = useMemo(() => {
-    if (!tcrData || disputed || !submissionTime || !challengePeriodDuration)
+    if (
+      !tcrData ||
+      disputed ||
+      resolved ||
+      !submissionTime ||
+      !challengePeriodDuration
+    )
       return
 
     const deadline =
-      submissionTime.add(challengePeriodDuration).toNumber() * 1000
+      BigNumber.from(submissionTime).add(challengePeriodDuration).toNumber() *
+      1000
 
     return deadline - Date.now()
-  }, [challengePeriodDuration, disputed, submissionTime, tcrData])
+  }, [challengePeriodDuration, disputed, resolved, submissionTime, tcrData])
 
   const challengeCountdown = useHumanizedCountdown(challengeRemainingTime, 1)
-  const bounty = tcrData.deposit
+  const bounty = tcrData?.deposit
 
-  if (typeof statusCode !== 'number')
+  if (typeof statusCode !== 'number' && tcrData)
     statusCode = itemToStatusCode(tcrData, timestamp, challengePeriodDuration)
 
   return (
@@ -59,11 +72,15 @@ const ItemCardTitle = ({
           <ItemStatusBadge statusCode={statusCode} dark />
         </StatusGroup>
         <RightGroup>
-          {challengeRemainingTime > 0 && (
+          {(challengeRemainingTime ?? 0) > 0 && (
             <BountyContainer>
               <Tooltip title="This is the bounty on this item.">
                 <ETHAmount
-                  amount={bounty}
+                  amount={
+                    BigNumber.isBigNumber(bounty) || typeof bounty === 'string'
+                      ? bounty
+                      : undefined
+                  }
                   decimals={3}
                   displayUnit={` ${nativeCurrency}`}
                 />
@@ -74,7 +91,7 @@ const ItemCardTitle = ({
           {isPermanentList && <StyledStakeTag />}
         </RightGroup>
       </StatusAndBountyContainer>
-      {challengeRemainingTime > 0 && (
+      {(challengeRemainingTime ?? 0) > 0 && (
         <CountdownContainer>
           Ends {challengeCountdown}
           <Tooltip title="This is the challenge period before this item is accepted into the list.">

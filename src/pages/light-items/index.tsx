@@ -425,6 +425,7 @@ const Items = () => {
           itemID: item.itemID,
           disputeStatus,
           disputed,
+          resolved,
           data,
           decodedData: item.decodedData,
           mergedData: item.mergedData,

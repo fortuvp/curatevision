@@ -5,6 +5,8 @@
  * `/tx/`${txHash}`
  */
 
+import { gnosis } from 'config/chains'
+
 export type Reference = {
   id: string
   deprecated?: boolean
@@ -76,7 +78,7 @@ export const references: Reference[] = [
     namespaceId: 'eip155',
     name: 'Gnosis Chain',
     label: 'GNO',
-    explorer: 'gnosisscan.io',
+    explorer: new URL(gnosis.blockExplorers.default.url).host,
   },
   {
     id: '137',
@@ -224,7 +226,7 @@ export const references: Reference[] = [
     namespaceId: 'eip155',
     name: 'zkSync Mainnet',
     label: 'zkSync',
-    explorer: 'explorer.zksync.io',
+    explorer: 'zksync.blockscout.com',
   },
   {
     id: '146',
@@ -281,6 +283,20 @@ export const references: Reference[] = [
     name: 'World Chain',
     label: 'ETH',
     explorer: 'worldscan.org',
+  },
+  {
+    id: '4663',
+    namespaceId: 'eip155',
+    name: 'Robinhood Chain',
+    label: 'Robinhood',
+    explorer: 'robinhoodchain.blockscout.com',
+  },
+  {
+    id: '5042',
+    namespaceId: 'eip155',
+    name: 'Arc Mainnet',
+    label: 'Arc',
+    explorer: 'arc.etherscan.io',
   },
   {
     id: '-239',

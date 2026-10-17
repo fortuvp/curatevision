@@ -4,7 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import { WagmiProvider } from 'wagmi'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ErrorBoundary } from 'react-error-boundary'
-import Footer from '../components/footer.tsx'
+import Footer from '../components/footer'
 import Layout from 'components/ui/Layout'
 import { unregister } from './service-worker'
 import { WalletProvider } from 'contexts/wallet-context'
@@ -32,11 +32,11 @@ const queryClient = new QueryClient({
 })
 
 const ThemedToastContainer = () => {
-  const { isDarkMode } = useContext(ThemeContext)
+  const themeContext = useContext(ThemeContext)
   return (
     <ToastContainer
       position="top-center"
-      theme={isDarkMode ? 'dark' : 'light'}
+      theme={themeContext?.isDarkMode ? 'dark' : 'light'}
     />
   )
 }
@@ -98,7 +98,8 @@ const App = () => {
                       code="Error"
                       title="Something went wrong"
                       message={
-                        error?.message || 'An unexpected error occurred.'
+                        (error instanceof Error && error.message) ||
+                        'An unexpected error occurred.'
                       }
                       tip="Try refreshing the page."
                     />
@@ -115,7 +116,9 @@ const App = () => {
                         <StyledClickaway
                           isMenuClosed={isMenuClosed}
                           onClick={
-                            isMenuClosed ? null : () => setIsMenuClosed(true)
+                            isMenuClosed
+                              ? undefined
+                              : () => setIsMenuClosed(true)
                           }
                         />
                         <Footer />

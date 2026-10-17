@@ -212,7 +212,7 @@ const RelTCRParams = ({
 
   const onChangeDepositVal = useCallback(
     (value) => {
-      if (isNaN(value)) return
+      if (value === undefined || Number.isNaN(value)) return
 
       setDepositVal(value)
       setFieldValue('relSubmissionBaseDeposit', value)

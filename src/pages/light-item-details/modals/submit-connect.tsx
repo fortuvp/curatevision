@@ -135,7 +135,7 @@ const SubmitConnectModal = (props: SubmitConnectModalProps) => {
 
   const NONE = 'None'
   const handleChange = useCallback(
-    (i: number, j: number) => {
+    (i: number, j: string | number) => {
       if (!badgeTCRMetadata || !tcrMetaEvidence) return
       let newState
       if (!match)
@@ -143,14 +143,14 @@ const SubmitConnectModal = (props: SubmitConnectModalProps) => {
           parentTCR: debouncedTCRAddr,
           connectedTCR: relTCRAddress,
           badgeTCR: debouncedBadgeTCRAddr,
-          columns: badgeTCRMetadata.columns.map(() => null),
+          columns: (badgeTCRMetadata.columns ?? []).map(() => null),
         }
       else newState = { ...match }
 
       if (Number(j) === 0)
         // User did not select a column (i.e. selected None).
         newState.columns[i] = null
-      else newState.columns[i] = j - 1
+      else newState.columns[i] = Number(j) - 1
       setMatch(newState)
     },
     [
@@ -397,7 +397,12 @@ const SubmitConnectModal = (props: SubmitConnectModalProps) => {
                   <Select
                     defaultValue={NONE}
                     style={{ width: '100%' }}
-                    onChange={(_, { key }) => handleChange(i, key)}
+                    onChange={(value) =>
+                      handleChange(
+                        i,
+                        typeof value === 'object' ? value.key : value,
+                      )
+                    }
                     disabled={!column.isIdentifier}
                   >
                     {[{ label: NONE }, ...tcrMetaEvidence.metadata.columns].map(

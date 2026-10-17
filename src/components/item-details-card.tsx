@@ -292,7 +292,7 @@ const ItemDetailsCard = ({
     columns
       ?.map((column, index) => ({
         ...column,
-        value: item && item.decodedData[index],
+        value: item && item.decodedData?.[index],
       }))
       .filter((field) => {
         if (!itemMetaData) return true
@@ -388,13 +388,13 @@ const ItemDetailsCard = ({
         </>
       )}
       {tcrAddress !== undefined &&
-        urlChainId !== undefined &&
+        urlChainId !== null &&
         isSeerRegistry(tcrAddress, urlChainId) &&
         item && (
           <SeerExtraDetails
             chainId={urlChainId}
-            contractAddress={item.decodedData[0]}
-            imagesIpfsHash={item.decodedData[1]}
+            contractAddress={item.decodedData?.[0]}
+            imagesIpfsHash={item.decodedData?.[1]}
           />
         )}
     </V2ItemCard>

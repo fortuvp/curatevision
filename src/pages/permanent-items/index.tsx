@@ -317,6 +317,8 @@ const Items = () => {
     })()
   }, [])
 
+  // The graphql batcher resolves failed requests to {}, so guard against
+  // a truthy result that has no items field.
   const items = useMemo(() => itemsQuery.data?.items ?? [], [itemsQuery.data])
   const visibleItems = useMemo(
     () => items.filter((item) => itemMatchesSearch(item, itemSearch)),
