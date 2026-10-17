@@ -196,12 +196,18 @@ const StyledAlert = styled(Alert)`
   margin-bottom: 12px;
 `
 
+/** What the item-details pages resolve for a child registry's meta evidence. */
+interface ItemMetaEvidenceState {
+  file?: MetaEvidence
+  error?: unknown
+}
+
 interface ItemDetailsCardProps {
   title?: string | null
   columns?: Column[] | null
   loading?: boolean | null
   item?: SubgraphItem
-  itemMetaEvidence?: MetaEvidence | false
+  itemMetaEvidence?: ItemMetaEvidenceState | false | null
   disabled?: boolean
 }
 
@@ -217,7 +223,7 @@ const ItemDetailsCard = ({
   const publicClient = usePublicClient()
   const { data: walletClient } = useWalletClient()
   const tcrViewContext = useContext(TCRViewContext)
-  const [availableRewards, setAvailableRewards] = useState()
+  const [availableRewards, setAvailableRewards] = useState<BigNumber>()
   const BATCH_WITHDRAW_ADDRESS = batchWithdrawAddresses[chainId]
   const { tcrAddress } = useParams()
   const urlChainId = useUrlChainId()
@@ -239,11 +245,18 @@ const ItemDetailsCard = ({
   }, [account, item, tcrViewContext])
 
   const batchWithdrawClick = useCallback(async () => {
-    if (!tcrViewContext || !BATCH_WITHDRAW_ADDRESS || !item) return
+    if (
+      !tcrViewContext ||
+      !BATCH_WITHDRAW_ADDRESS ||
+      !item ||
+      !walletClient ||
+      !publicClient
+    )
+      return
 
     try {
       const { request } = await simulateContract(wagmiConfig, {
-        address: BATCH_WITHDRAW_ADDRESS,
+        address: BATCH_WITHDRAW_ADDRESS as `0x${string}`,
         abi: _batchWithdraw,
         functionName: 'batchRequestWithdraw',
         args: [tcrViewContext.tcrAddress, account, item.itemID, 0, 0, 0, 0],
@@ -255,7 +268,7 @@ const ItemDetailsCard = ({
         publicClient,
       )
 
-      if (result.status)
+      if (result.status && tcrViewContext.gtcrView)
         setAvailableRewards(
           await tcrViewContext.gtcrView.availableRewards(
             tcrViewContext.tcrAddress,
@@ -280,6 +293,10 @@ const ItemDetailsCard = ({
     itemMetaEvidence || {}
   const { metadata: itemMetaData, fileURI } = itemMetaEvidenceFile || {}
   const { tcrTitle, tcrDescription, logoURI } = itemMetaData || {}
+  const itemMetaEvidenceErrorMessage =
+    itemMetaEvidenceError instanceof Error
+      ? itemMetaEvidenceError.message
+      : String(itemMetaEvidenceError)
   const statusLabel = item?.disputed
     ? 'Disputed'
     : String(item?.status || 'Unknown').replace(/([a-z])([A-Z])/g, '$1 $2')
@@ -303,12 +320,12 @@ const ItemDetailsCard = ({
         )
       }) || []
 
-  if (!loading && item && item.errors.length > 0)
+  if (!loading && item && (item.errors?.length ?? 0) > 0)
     return (
       <Result
         id="item-details-card"
         status="warning"
-        subTitle={item.errors.map((e, i) => (
+        subTitle={item.errors?.map((e, i) => (
           <p key={i}>{e}</p>
         ))}
         style={{ width: '100%' }}
@@ -320,9 +337,9 @@ const ItemDetailsCard = ({
 
   return (
     <V2ItemCard id="item-details-card" aria-label={title || undefined}>
-      {itemMetaEvidenceError && (
+      {!!itemMetaEvidenceError && (
         <StyledAlert
-          message={`Warning: Malformed submission, cannot display TCR information. Error: ${itemMetaEvidenceError.message}`}
+          message={`Warning: Malformed submission, cannot display TCR information. Error: ${itemMetaEvidenceErrorMessage}`}
           type="warning"
           showIcon
           closable
@@ -390,11 +407,13 @@ const ItemDetailsCard = ({
       {tcrAddress !== undefined &&
         urlChainId !== null &&
         isSeerRegistry(tcrAddress, urlChainId) &&
-        item && (
+        item &&
+        typeof item.decodedData?.[0] === 'string' &&
+        typeof item.decodedData?.[1] === 'string' && (
           <SeerExtraDetails
             chainId={urlChainId}
-            contractAddress={item.decodedData?.[0]}
-            imagesIpfsHash={item.decodedData?.[1]}
+            contractAddress={item.decodedData[0]}
+            imagesIpfsHash={item.decodedData[1]}
           />
         )}
     </V2ItemCard>

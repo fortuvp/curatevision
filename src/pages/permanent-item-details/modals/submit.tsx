@@ -216,20 +216,17 @@ const SubmissionForm = withFormik<
 
 const SubmitModal: React.FC<{
   onCancel: () => void
-  tcrAddress: string
-  tokenAddress: string
-  initialValues: string[]
-  submissionDeposit: { toString: () => string }
-  metadata: {
-    title: string
-    itemName: string
-    policyURI: string
-  }
-  columns: Column[]
-  disabledFields: boolean[]
-  submissionPeriod: string | number | undefined
-  withdrawingPeriod: string | number | undefined
-  arbitrationCost: { toString: () => string } | undefined
+  visible?: boolean
+  tcrAddress?: string
+  tokenAddress?: string
+  initialValues?: string[]
+  submissionDeposit?: { toString: () => string }
+  metadata?: SubgraphArbitrationSettingMetadata
+  columns?: Column[]
+  disabledFields?: boolean[]
+  submissionPeriod?: string | number
+  withdrawingPeriod?: string | number
+  arbitrationCost?: { toString: () => string }
   embedded?: boolean
 }> = (props) => {
   const {
@@ -312,6 +309,7 @@ const SubmitModal: React.FC<{
   )
 
   const handleApprove = useCallback(async () => {
+    if (!submissionDeposit) return
     setIsApproving(true)
     try {
       const { request } = await simulateContract(wagmiConfig, {
@@ -362,6 +360,7 @@ const SubmitModal: React.FC<{
         shouldValidate?: boolean,
       ) => void,
     ) => {
+      if (!submissionDeposit) return
       setIsSubmitting(true)
       try {
         const resolvedValues = await resolveStashedFiles({
@@ -514,10 +513,10 @@ const SubmitModal: React.FC<{
       }
     >
       <SubmissionForm
-        columns={columns}
+        columns={columns ?? []}
         postSubmit={postSubmit}
         initialValues={initialValues}
-        disabledFields={disabledFields}
+        disabledFields={disabledFields ?? []}
         deployedWithFactory={deployedWithFactory}
         deployedWithLightFactory={deployedWithLightFactory}
         deployedWithPermanentFactory={deployedWithPermanentFactory}

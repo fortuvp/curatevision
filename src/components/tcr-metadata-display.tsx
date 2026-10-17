@@ -99,9 +99,9 @@ const InlineLinkButton = styled.button`
 
 interface TCRMetadataDisplayProps {
   logoURI?: string | null
-  tcrTitle: string
-  tcrDescription: string
-  fileURI: string
+  tcrTitle?: string
+  tcrDescription?: string
+  fileURI?: string
 }
 
 const TCRMetadataDisplay = ({
@@ -143,7 +143,7 @@ const TCRMetadataDisplay = ({
           <MetadataValue>
             <InlineLinkButton
               type="button"
-              onClick={() => openAttachment(parseIpfs(fileURI))}
+              onClick={() => fileURI && openAttachment(parseIpfs(fileURI))}
             >
               <CurateIcon name="external" size={16} />
               Open policy file

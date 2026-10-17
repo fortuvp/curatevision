@@ -187,7 +187,7 @@ const TCRLogo = ({ logoURI }: TCRLogoProps) =>
   )
 
 // Registry-specific terms and conditions URLs
-const TERMS_AND_CONDITIONS_URLS = {
+const TERMS_AND_CONDITIONS_URLS: Record<string, string | undefined> = {
   '0x7305c57b731876f452da8574a77d05957820e588':
     'https://cdn.kleros.link/ipfs/QmcZ53agYqpPhYijRFzduC3EC64coFGZkhbRN1sPDyW7di',
 }
@@ -204,7 +204,9 @@ const DescriptionWithTermsLink = ({
 }: DescriptionWithTermsLinkProps) => {
   if (!description) return null
 
-  const termsUrl = TERMS_AND_CONDITIONS_URLS[tcrAddress?.toLowerCase()]
+  const termsUrl = tcrAddress
+    ? TERMS_AND_CONDITIONS_URLS[tcrAddress.toLowerCase()]
+    : undefined
 
   // If no terms URL configured for this registry, return plain description
   if (!termsUrl) return <span>{description}</span>
@@ -258,7 +260,7 @@ const DescriptionWithTermsLink = ({
 }
 
 interface BannerProps {
-  metadata?: MetaEvidence
+  metadata?: SubgraphArbitrationSettingMetadata
   setSubmissionFormOpen: (open: boolean) => void
   tcrAddress?: string | null
 }
@@ -310,10 +312,12 @@ const Banner = ({
                     </ChainChip>
                   )}
                   <StatusPill $tone="live">Permanent</StatusPill>
-                  <ContractExplorerUrl
-                    networkId={networkId}
-                    contractAddress={tcrAddress}
-                  />
+                  {networkId && tcrAddress && (
+                    <ContractExplorerUrl
+                      networkId={networkId}
+                      contractAddress={tcrAddress}
+                    />
+                  )}
                 </TitleContainer>
                 <StyledDescription>
                   <DescriptionWithTermsLink
@@ -342,7 +346,7 @@ const Banner = ({
             id="submit-item-button"
           >
             <CurateIcon name="submit" size={18} />
-            {`Submit ${capitalizeFirstLetter(itemName) || 'Item'}`}
+            {`Submit ${capitalizeFirstLetter(itemName ?? '') || 'Item'}`}
           </StyledButton>
           <StyledPolicyAnchor
             as="button"

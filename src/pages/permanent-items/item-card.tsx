@@ -8,10 +8,19 @@ import {
   STATUS_TEXT,
 } from 'utils/permanent-item-status'
 
+/**
+ * A permanent subgraph item enriched by the registry page: decoded fields
+ * arrive either nested under `metadata` or flattened as `props`.
+ */
+export interface PermanentEnrichedItem extends SubgraphItem {
+  metadata?: { props?: V2Field[] } | null
+  props?: V2Field[]
+}
+
 interface ItemCardProps {
-  item: SubgraphItem
-  registry: SubgraphRegistry
-  timestamp: BigNumber
+  item: PermanentEnrichedItem
+  registry?: SubgraphRegistry
+  timestamp?: BigNumber
   forceReveal?: boolean | null
   chainId?: string | number
   tcrAddress?: string
@@ -53,12 +62,18 @@ const ItemCard = ({
   const fields: V2Field[] = item.metadata?.props || item.props || []
   const detailsTo = `/tcr/${chainId}/${tcrAddress}/${item.itemID}`
   const shouldHide =
-    !forceReveal && !revealed && hiddenStatuses.has(statusCode as number)
+    !forceReveal &&
+    !revealed &&
+    statusCode !== undefined &&
+    hiddenStatuses.has(statusCode)
 
   return (
     <V2ItemRow
       fields={fields}
-      statusLabel={STATUS_TEXT[statusCode] || 'Unknown'}
+      statusLabel={
+        (statusCode !== undefined ? STATUS_TEXT[statusCode] : undefined) ||
+        'Unknown'
+      }
       to={detailsTo}
       warning={shouldHide ? 'Warning: potentially offensive content' : null}
       onReveal={shouldHide ? () => setRevealed(true) : undefined}

@@ -4,7 +4,7 @@ import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
 import { simulateContract } from '@wagmi/core'
 import _gtcr from 'assets/abis/PermanentGTCR.json'
 import EnsureAuth from 'components/ensure-auth'
-import EvidenceForm from 'components/evidence-form'
+import EvidenceForm, { type EvidenceFormValues } from 'components/evidence-form'
 import InlineEvidenceComposer from 'components/inline-evidence-composer'
 import { useAtlasProvider } from '@kleros/kleros-app'
 import { uploadEvidence } from 'utils/upload-evidence'
@@ -37,13 +37,18 @@ const EvidenceModal = ({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formKey, setFormKey] = useState(0)
 
-  const submitEvidence = async ({ title, description, evidenceAttachment }) => {
+  const submitEvidence = async ({
+    title,
+    description,
+    evidenceAttachment,
+  }: EvidenceFormValues) => {
+    if (!account || !walletClient || !publicClient || !tcrAddress) return
     setIsSubmitting(true)
     try {
       const ipfsEvidencePath = await uploadEvidence({
-        title,
-        description,
-        attachment: evidenceAttachment as File | undefined,
+        title: title ?? '',
+        description: description ?? '',
+        attachment: evidenceAttachment,
         uploadFile,
       })
 

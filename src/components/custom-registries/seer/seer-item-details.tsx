@@ -5,7 +5,7 @@ import { smallScreenStyle } from 'styles/small-screen-style'
 
 interface ISeerExtraDetails {
   chainId: string | number
-  contractAddress: Address
+  contractAddress: string
   imagesIpfsHash: string
 }
 

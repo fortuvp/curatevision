@@ -195,10 +195,11 @@ interface StatusItem extends SubgraphItem {
   challenges: StatusChallenge[]
 }
 
+/** A registry row where the fields this card needs are known to be present. */
 interface StatusRegistry extends SubgraphRegistry {
   id: Address
-  token: string
-  arbitrator: { id: string }
+  token: Address
+  arbitrator: { id: Address }
 }
 
 interface ItemStatusCardProps {

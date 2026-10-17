@@ -9,7 +9,7 @@ import ETHAmount from 'components/eth-amount'
 import { useAccount, usePublicClient, useWalletClient, useChainId } from 'wagmi'
 import { simulateContract } from '@wagmi/core'
 import { erc20Abi, getAddress } from 'viem'
-import EvidenceForm from 'components/evidence-form'
+import EvidenceForm, { type EvidenceFormValues } from 'components/evidence-form'
 import { useAtlasProvider } from '@kleros/kleros-app'
 import { uploadEvidence } from 'utils/upload-evidence'
 import ListingCriteriaLink from 'components/listing-criteria-link'
@@ -47,13 +47,14 @@ interface ChallengeModalProps {
 
 const ChallengeModal = ({
   item,
-  _itemName,
   onCancel,
   arbitrationCost,
   ...rest
 }: ChallengeModalProps) => {
   const registry = item.registry
-  const fileURI = registry.arbitrationSettings[0].metadata.policyURI
+  const registryAddress = registry?.id
+  const tokenAddress = registry?.token
+  const fileURI = registry?.arbitrationSettings?.[0]?.metadata?.policyURI
   const { address: account } = useAccount()
   const chainId = useChainId()
   const publicClient = usePublicClient()
@@ -63,46 +64,45 @@ const ChallengeModal = ({
 
   const [balance, setBalance] = useState(0n)
   const [allowance, setAllowance] = useState(0n)
-  const [nativeBalance, setNativeBalance] = useState<BigNumber | undefined>()
+  const [nativeBalance, setNativeBalance] = useState<bigint>()
   const [multiplierDivisor, setMultiplierDivisor] = useState<bigint>()
   const [checkingToken, setCheckingToken] = useState(false)
   const [isApproving, setIsApproving] = useState(false)
   const [isChallenging, setIsChallenging] = useState(false)
-  const { symbol: tokenSymbol, decimals: tokenDecimals } = useTokenSymbol(
-    registry.token,
-  )
+  const { symbol: tokenSymbol, decimals: tokenDecimals } =
+    useTokenSymbol(tokenAddress)
 
   const challengeStake = useMemo(() => {
     const divisor = multiplierDivisor ?? 10_000n
     if (divisor === 0n) return 0n
     return (
       (BigInt(item.stake || 0) *
-        BigInt(registry.challengeStakeMultiplier || 0)) /
+        BigInt(registry?.challengeStakeMultiplier || 0)) /
       divisor
     )
-  }, [item.stake, multiplierDivisor, registry.challengeStakeMultiplier])
+  }, [item.stake, multiplierDivisor, registry?.challengeStakeMultiplier])
 
   const checkTokenStatus = useCallback(async () => {
-    if (!account || !publicClient || !registry.token) return
+    if (!account || !publicClient || !tokenAddress || !registryAddress) return
 
     setCheckingToken(true)
     try {
       const [bal, allow, nativeBal, divisor] = await Promise.all([
         publicClient.readContract({
-          address: registry.token,
+          address: tokenAddress,
           abi: erc20Abi,
           functionName: 'balanceOf',
           args: [account],
         }),
         publicClient.readContract({
-          address: registry.token,
+          address: tokenAddress,
           abi: erc20Abi,
           functionName: 'allowance',
-          args: [account, registry.id],
+          args: [account, registryAddress],
         }),
         publicClient.getBalance({ address: account }),
         publicClient.readContract({
-          address: registry.id,
+          address: registryAddress,
           abi: _gtcr,
           functionName: 'MULTIPLIER_DIVISOR',
         }),
@@ -115,7 +115,7 @@ const ChallengeModal = ({
       console.error('Error checking token status:', err)
     }
     setCheckingToken(false)
-  }, [account, publicClient, registry.token, registry.id])
+  }, [account, publicClient, tokenAddress, registryAddress])
 
   useEffect(() => {
     checkTokenStatus()
@@ -131,13 +131,21 @@ const ChallengeModal = ({
   )
 
   const handleApprove = useCallback(async () => {
+    if (
+      !account ||
+      !walletClient ||
+      !publicClient ||
+      !tokenAddress ||
+      !registryAddress
+    )
+      return
     setIsApproving(true)
     try {
       const { request } = await simulateContract(wagmiConfig, {
-        address: registry.token,
+        address: tokenAddress,
         abi: erc20Abi,
         functionName: 'approve',
-        args: [registry.id, challengeStake],
+        args: [registryAddress, challengeStake],
         account,
       })
 
@@ -158,8 +166,8 @@ const ChallengeModal = ({
     }
     setIsApproving(false)
   }, [
-    registry.token,
-    registry.id,
+    tokenAddress,
+    registryAddress,
     challengeStake,
     checkTokenStatus,
     account,
@@ -171,18 +179,19 @@ const ChallengeModal = ({
     title,
     description,
     evidenceAttachment,
-  }) => {
+  }: EvidenceFormValues) => {
+    if (!account || !walletClient || !publicClient || !registryAddress) return
     setIsChallenging(true)
     try {
       const ipfsEvidencePath = await uploadEvidence({
         title: title || 'Challenge Justification',
-        description,
-        attachment: evidenceAttachment as File | undefined,
+        description: description ?? '',
+        attachment: evidenceAttachment,
         uploadFile,
       })
 
       const { request } = await simulateContract(wagmiConfig, {
-        address: registry.id,
+        address: registryAddress,
         abi: _gtcr,
         functionName: 'challengeItem',
         args: [item.itemID, ipfsEvidencePath],
@@ -206,7 +215,7 @@ const ChallengeModal = ({
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 subscriberAddr: getAddress(account),
-                tcrAddr: getAddress(registry.id),
+                tcrAddr: getAddress(registryAddress),
                 itemID: item.itemID,
                 networkID: chainId,
               }),

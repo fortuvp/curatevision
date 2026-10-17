@@ -2,7 +2,7 @@ import React from 'react'
 import styled from 'styled-components'
 import { Button } from 'components/ui'
 import EnsureAuth from 'components/ensure-auth'
-import EvidenceForm from 'components/evidence-form'
+import EvidenceForm, { type EvidenceFormValues } from 'components/evidence-form'
 import { CurateIcon } from 'components/curate/icons'
 
 const ComposerShell = styled.section`
@@ -115,7 +115,7 @@ interface InlineEvidenceComposerProps {
   formID: string
   formKey?: number
   isSubmitting?: boolean
-  onSubmit: (values: Record<string, unknown>) => void
+  onSubmit: (values: EvidenceFormValues) => void
 }
 
 const InlineEvidenceComposer = ({

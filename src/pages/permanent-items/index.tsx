@@ -34,7 +34,7 @@ import {
   searchStrToFilterObjPermanent,
   updateLightFilter,
 } from 'utils/filters'
-import ItemCard from './item-card'
+import ItemCard, { type PermanentEnrichedItem } from './item-card'
 import Banner from './banner'
 import { PERMANENT_ITEMS_QUERY, PERMANENT_REGISTRY_QUERY } from 'utils/graphql'
 import { parseIpfs } from 'utils/ipfs-parse'
@@ -168,7 +168,7 @@ export const StyledPagination = styled(Pagination)`
   margin-top: 2em;
 `
 
-export const StyledGrid = styled.div`
+export const StyledGrid = styled.div<{ $viewMode?: V2RegistryViewMode }>`
   display: flex;
   flex-direction: column;
   margin: 24px 0;
@@ -185,7 +185,11 @@ export const StyledSwitch = styled(Switch)`
     margin-right: 8px;
   }
 `
-export const pagingItem = (_, type, originalElement) => {
+export const pagingItem = (
+  _: number,
+  type: string,
+  originalElement: React.ReactNode,
+) => {
   if (type === 'prev') return <span>Previous</span>
   if (type === 'next') return <span>Next</span>
   return originalElement
@@ -198,7 +202,7 @@ const Items = () => {
   const { tcrAddress } = useParams()
   const chainId = useUrlChainId()
   const search = window.location.search
-  const { timestamp } = useContext(WalletContext)
+  const timestamp = useContext(WalletContext)?.timestamp
   const [submissionFormOpen, setSubmissionFormOpen] = useState<
     boolean | undefined
   >()
@@ -209,9 +213,9 @@ const Items = () => {
   const [itemSearch, setItemSearch] = useState('')
   const [viewMode, setViewMode] = useState<V2RegistryViewMode>('list')
   const [queryItemParams, _setQueryItemParams] = useState<
-    Record<string, unknown> | undefined
+    string[] | undefined
   >()
-  const toggleNSFWFilter = useCallback((checked) => {
+  const toggleNSFWFilter = useCallback((checked: boolean) => {
     setNSFWFilter(checked)
     localforage.setItem(NSFW_FILTER_KEY, checked)
   }, [])
@@ -227,7 +231,7 @@ const Items = () => {
       graphqlBatcher.fetch({
         id: crypto.randomUUID(),
         document: PERMANENT_REGISTRY_QUERY,
-        variables: { lowerCaseTCRAddress: tcrAddress.toLowerCase() },
+        variables: { lowerCaseTCRAddress: tcrAddress?.toLowerCase() },
         chainId: chainId!,
         isPermanent: true,
       }),
@@ -249,11 +253,11 @@ const Items = () => {
     if (disputed) statuses.push('Disputed')
 
     // No filters selected - return all items
-    if (statuses.length === 0) return { registry: tcrAddress.toLowerCase() }
+    if (statuses.length === 0) return { registry: tcrAddress?.toLowerCase() }
 
     // Use status_in for filtering (handles both single and multi-select)
     return {
-      registry: tcrAddress.toLowerCase(),
+      registry: tcrAddress?.toLowerCase(),
       status_in: statuses,
     }
   }, [absent, registered, disputed, tcrAddress])
@@ -319,9 +323,15 @@ const Items = () => {
 
   // The graphql batcher resolves failed requests to {}, so guard against
   // a truthy result that has no items field.
-  const items = useMemo(() => itemsQuery.data?.items ?? [], [itemsQuery.data])
+  const items: PermanentEnrichedItem[] = useMemo(
+    () => itemsQuery.data?.items ?? [],
+    [itemsQuery.data],
+  )
   const visibleItems = useMemo(
-    () => items.filter((item) => itemMatchesSearch(item, itemSearch)),
+    () =>
+      items.filter((item: PermanentEnrichedItem) =>
+        itemMatchesSearch(item, itemSearch),
+      ),
     [itemSearch, items],
   )
 
@@ -404,7 +414,7 @@ const Items = () => {
         tcrAddress={tcrAddress}
       />
       <RegistryInfoPanel
-        chainId={chainId}
+        chainId={chainId ?? undefined}
         address={tcrAddress}
         verified={verifiedSource}
         fields={[
@@ -509,7 +519,7 @@ const Items = () => {
                       filterLabelPermanent[key] ? (
                         <StyledTag
                           key={key}
-                          checked={queryOptions[key]}
+                          checked={!!queryOptions[key]}
                           onChange={(checked) => {
                             const newQueryStr = updateLightFilter({
                               prevQuery: search,
@@ -552,13 +562,13 @@ const Items = () => {
                   ? Array.from({ length: 8 }).map((_, i) => (
                       <Card key={i} style={{ height: '100%' }} loading />
                     ))
-                  : visibleItems.map((item, _i) => (
+                  : visibleItems.map((item: PermanentEnrichedItem) => (
                       <ItemCard
                         item={item}
                         columns={columns}
                         key={item.itemID}
                         metadata={metadata}
-                        chainId={chainId}
+                        chainId={chainId ?? undefined}
                         tcrAddress={tcrAddress}
                         registry={r}
                         timestamp={timestamp}
