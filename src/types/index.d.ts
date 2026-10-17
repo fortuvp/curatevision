@@ -150,7 +150,7 @@ declare module '@kleros/gtcr-encoder' {
     values: Record<string, unknown> | unknown[]
   }): string
   export function searchableFields(columns: Column[]): number[]
-  export function typeDefaultValues(type: string): string | number | boolean
+  export const typeDefaultValues: Record<string, string | number | boolean>
 }
 
 // @kleros/tcr contract ABIs

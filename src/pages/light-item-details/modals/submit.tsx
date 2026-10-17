@@ -7,7 +7,7 @@ import _gtcr from 'assets/abis/LightGeneralizedTCR.json'
 import { useAccount, usePublicClient, useWalletClient, useChainId } from 'wagmi'
 import { simulateContract } from '@wagmi/core'
 import { getAddress, keccak256, encodePacked } from 'viem'
-import { withFormik } from 'formik'
+import { withFormik, type FormikProps } from 'formik'
 import humanizeDuration from 'humanize-duration'
 import { ItemTypes, typeDefaultValues } from '@kleros/gtcr-encoder'
 import InputSelector from 'components/input-selector'
@@ -24,7 +24,6 @@ import useNativeBalance from 'hooks/use-native-balance'
 import { wrapWithToast, errorToast } from 'utils/wrap-with-toast'
 import { parseWagmiError } from 'utils/parse-wagmi-error'
 import { wagmiConfig } from 'config/wagmi'
-import { Column } from 'pages/item-details/modals/submit'
 import { StyledSpin, InsufficientBalanceText } from './challenge'
 
 export const StyledModal = styled(Modal)`
@@ -333,7 +332,7 @@ export const SubmissionFlowScaffold = ({
   <SubmissionFlow>
     <SubmissionHeaderCard>
       <SubmissionTitle>
-        <span>Submit {capitalizeFirstLetter(itemName) || 'Item'} to</span>
+        <span>Submit {capitalizeFirstLetter(itemName ?? '') || 'Item'} to</span>
         <strong>{tcrTitle || 'this list'}</strong>
       </SubmissionTitle>
       <DepositPill>
@@ -400,19 +399,37 @@ export const SubmissionFlowScaffold = ({
 
 export const SUBMISSION_FORM_ID = 'submitItemForm'
 
-const _SubmissionForm: React.FC<{
-  style: React.CSSProperties
+/** A field value is a string, or a File while an upload is stashed. */
+type SubmissionFormValues = Record<string, string | File>
+
+type RegistryExistsCheck = (tcrAddress: string) => Promise<boolean>
+
+interface SubmissionFormOuterProps {
   columns: Column[]
+  initialValues?: string[]
   activeStage?: SubmissionStage
   activeFieldIndex?: number
-  setFieldValue: (fieldName: string, value: unknown) => void
-  handleSubmit: () => void
   disabledFields: boolean[]
-  values: Record<string, string | File>
-  errors: { [label: string]: string }
-  touched: { [label: string]: boolean }
+  postSubmit: (
+    values: SubmissionFormValues,
+    columns: Column[],
+    resetForm: (nextState?: Record<string, unknown>) => void,
+    setFieldValue: (
+      field: string,
+      value: unknown,
+      shouldValidate?: boolean,
+    ) => void,
+  ) => void
+  deployedWithFactory: RegistryExistsCheck
+  deployedWithLightFactory: RegistryExistsCheck
+  deployedWithPermanentFactory: RegistryExistsCheck
   onFieldsComplete?: (complete: boolean) => void
-}> = (p) => {
+  style?: React.CSSProperties
+}
+
+const _SubmissionForm: React.FC<
+  SubmissionFormOuterProps & FormikProps<SubmissionFormValues>
+> = (p) => {
   useEffect(() => {
     if (!p.onFieldsComplete || !p.columns) return
     const allFilled = p.columns.every((column) => {
@@ -497,82 +514,82 @@ const _SubmissionForm: React.FC<{
   )
 }
 
-const SubmissionForm: React.ComponentType<Record<string, unknown>> = withFormik(
-  {
-    mapPropsToValues: ({
-      columns,
-      initialValues,
-    }: {
-      columns: Column[]
-      initialValues?: string[]
-    }) =>
-      columns.reduce((acc: Record<string, string>, curr: Column, i: number) => {
-        const defaultValue = initialValues
-          ? initialValues[i]
-          : curr.type === 'number'
-            ? ''
-            : // @ts-ignore
-              typeDefaultValues[curr.type]
+const SubmissionForm = withFormik<
+  SubmissionFormOuterProps,
+  SubmissionFormValues
+>({
+  mapPropsToValues: ({ columns, initialValues }) =>
+    columns.reduce((acc: Record<string, string>, curr: Column, i: number) => {
+      const defaultValue = initialValues
+        ? initialValues[i]
+        : curr.type === 'number'
+          ? ''
+          : typeDefaultValues[curr.type]
 
-        return {
-          ...acc,
-          [curr.label]: String(defaultValue),
-        }
-      }, {}),
-    handleSubmit: (values, { props, resetForm, setFieldValue }) => {
-      props.postSubmit(values, props.columns, resetForm, setFieldValue)
+      return {
+        ...acc,
+        [curr.label]: String(defaultValue),
+      }
+    }, {}),
+  handleSubmit: (values, { props, resetForm, setFieldValue }) => {
+    props.postSubmit(values, props.columns, resetForm, setFieldValue)
+  },
+  validate: async (
+    values,
+    {
+      columns,
+      deployedWithFactory,
+      deployedWithLightFactory,
+      deployedWithPermanentFactory,
     },
-    validate: async (
-      values,
-      {
-        columns,
-        deployedWithFactory,
-        deployedWithLightFactory,
-        deployedWithPermanentFactory,
-      },
-    ) => {
-      const errors = (
-        await Promise.all(
-          columns
-            .filter(({ type }: Column) => type === ItemTypes.GTCR_ADDRESS)
-            .map(async ({ label }: Column) => ({
-              isEmpty: !values[label],
+  ) => {
+    const errors = (
+      await Promise.all(
+        columns
+          .filter(({ type }: Column) => type === ItemTypes.GTCR_ADDRESS)
+          .map(async ({ label }: Column) => {
+            const value = values[label]
+            // A GTCR address column always holds a string; a stashed File
+            // is never a registry address, so it reads as "not deployed".
+            const address = typeof value === 'string' ? value : ''
+            return {
+              isEmpty: !value,
               wasDeployedWithFactory:
-                !!values[label] &&
-                ((await deployedWithFactory(values[label])) ||
-                  (await deployedWithLightFactory(values[label])) ||
-                  (await deployedWithPermanentFactory(values[label]))),
+                !!value &&
+                ((await deployedWithFactory(address)) ||
+                  (await deployedWithLightFactory(address)) ||
+                  (await deployedWithPermanentFactory(address))),
               label: label,
-            })),
-        )
+            }
+          }),
       )
-        .filter(
-          (res: {
+    )
+      .filter(
+        (res: {
+          wasDeployedWithFactory: boolean
+          isEmpty: boolean
+          label: string
+        }) => !res.wasDeployedWithFactory || res.isEmpty,
+      )
+      .reduce(
+        (
+          acc: Record<string, string>,
+          curr: {
             wasDeployedWithFactory: boolean
             isEmpty: boolean
             label: string
-          }) => !res.wasDeployedWithFactory || res.isEmpty,
-        )
-        .reduce(
-          (
-            acc: Record<string, string>,
-            curr: {
-              wasDeployedWithFactory: boolean
-              isEmpty: boolean
-              label: string
-            },
-          ) => ({
-            ...acc,
-            [curr.label]: curr.isEmpty
-              ? `Enter a list address to proceed.`
-              : `This address was not deployed with the list creator.`,
-          }),
-          {},
-        )
-      if (Object.keys(errors as Record<string, string>).length > 0) throw errors
-    },
+          },
+        ) => ({
+          ...acc,
+          [curr.label]: curr.isEmpty
+            ? `Enter a list address to proceed.`
+            : `This address was not deployed with the list creator.`,
+        }),
+        {},
+      )
+    if (Object.keys(errors as Record<string, string>).length > 0) throw errors
   },
-)(_SubmissionForm as React.ComponentType<Record<string, unknown>>)
+})(_SubmissionForm)
 
 const SubmitModal: React.FC<{
   onCancel: () => void
@@ -663,6 +680,7 @@ const SubmitModal: React.FC<{
         shouldValidate?: boolean,
       ) => void,
     ) => {
+      if (!submissionDeposit) return
       setIsSubmitting(true)
       try {
         const resolvedValues = await resolveStashedFiles({
@@ -800,7 +818,7 @@ const SubmitModal: React.FC<{
       }
     >
       <SubmissionForm
-        columns={columns}
+        columns={columns ?? []}
         activeStage={activeStage}
         activeFieldIndex={activeFieldIndex}
         postSubmit={postSubmit}
