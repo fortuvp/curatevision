@@ -8,10 +8,12 @@ import { gtcrDecode } from '@kleros/gtcr-encoder'
 import { abi as _IArbitrator } from '@kleros/erc-792/build/contracts/IArbitrator.json'
 import ErrorPage from '../error-page'
 import ItemDetailsCard from 'components/item-details-card'
-import ItemStatusCard from './item-status-card'
+import ItemStatusCard, { type ItemRequest } from './item-status-card'
 import CrowdfundingCard from './crowdfunding-card'
 import { TCRViewContext } from 'contexts/tcr-view-context'
-import RequestTimelines from '../../components/request-timelines'
+import RequestTimelines, {
+  type TimelineRequest,
+} from '../../components/request-timelines'
 import { WalletContext } from 'contexts/wallet-context'
 import { capitalizeFirstLetter, ZERO_ADDRESS } from 'utils/string'
 import Badges from './badges'
@@ -38,21 +40,30 @@ interface ItemDetailsProps {
   search?: string
 }
 
+/** A subgraph item plus the fields decoded from its data blob. */
+type DecodedItem = SubgraphItem & {
+  errors: string[]
+  requests?: ItemRequest[]
+}
+
 const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
   const { tcrAddress } = useParams()
   const chainId = useUrlChainId()
   const library = useEthersProvider({
     chainId: chainId ?? undefined,
   })
-  const { timestamp } = useContext(WalletContext)
-  const [decodedItem, setDecodedItem] = useState<unknown[] | undefined>()
+  const timestamp = useContext(WalletContext)?.timestamp
+  const [decodedItem, setDecodedItem] = useState<DecodedItem | undefined>()
   const [modalOpen, setModalOpen] = useState<boolean | undefined>()
-  const { tcrError, connectedTCRAddr, metaEvidence } =
-    useContext(TCRViewContext)
-  const [appealCost, setAppealCost] = useState<BigNumber | undefined>()
+  const tcrViewContext = useContext(TCRViewContext)
+  const tcrError = tcrViewContext?.tcrError
+  const connectedTCRAddr = tcrViewContext?.connectedTCRAddr
+  const metaEvidence = tcrViewContext?.metaEvidence
+  // null means "resolved, but no appeal cost applies"; undefined means "not yet fetched".
+  const [appealCost, setAppealCost] = useState<BigNumber | null | undefined>()
 
   // subgraph item entities have id "<itemID>@<listaddress>"
-  const compoundId = `${itemID}@${tcrAddress.toLowerCase()}`
+  const compoundId = `${itemID}@${tcrAddress?.toLowerCase()}`
   const detailsViewQuery = useQuery({
     queryKey: ['classicItemDetails', compoundId],
     queryFn: () => {
@@ -77,8 +88,8 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
     const { columns } = metaEvidence.metadata || {}
     if (!columns) return
 
-    const errors = []
-    let decodedData
+    const errors: string[] = []
+    let decodedData: unknown[] | undefined
     try {
       decodedData = gtcrDecode({
         columns,
@@ -99,9 +110,11 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
   const { decodedData } = decodedItem || {}
 
   // If this is a TCR in a TCR of TCRs, fetch its metadata via cached hook.
-  const itemAddress = metadata?.isTCRofTCRs
-    ? decodedItem?.decodedData?.[0]
-    : undefined
+  const firstDecodedValue = decodedItem?.decodedData?.[0]
+  const itemAddress =
+    metadata?.isTCRofTCRs && typeof firstDecodedValue === 'string'
+      ? firstDecodedValue
+      : undefined
   const itemMetaQuery = useTcrMetaEvidence(itemAddress, chainId ?? undefined)
   const itemMetaEvidence = useMemo(() => {
     if (itemMetaQuery.error) return { error: itemMetaQuery.error }
@@ -138,8 +151,8 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
       )
       arbitrator
         .appealCost(request.disputeID, request.arbitratorExtraData)
-        .then((cost) => setAppealCost(cost))
-        .catch((err) => {
+        .then((cost: BigNumber) => setAppealCost(cost))
+        .catch((err: unknown) => {
           console.error(err)
           setAppealCost(null)
         })
@@ -155,7 +168,11 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
     return (
       <ErrorPage
         code="400"
-        message={tcrError || 'This item could not be found.'}
+        message={
+          typeof tcrError === 'string'
+            ? tcrError
+            : 'This item could not be found.'
+        }
         tip="Make sure your wallet is set to the correct network (is this on Gnosis Chain?)."
       />
     )
@@ -198,23 +215,25 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
         <ItemStatusCard
           item={decodedItem}
           timestamp={timestamp}
-          request={decodedItem?.requests[0] && { ...decodedItem.requests[0] }}
+          request={decodedItem?.requests?.[0] && { ...decodedItem.requests[0] }}
           modalOpen={modalOpen}
           setModalOpen={setModalOpen}
-          appealCost={appealCost}
+          appealCost={appealCost ?? undefined}
           dark
         />
         {/* Crowdfunding card is only rendered if the item has an appealable dispute. */}
         <CrowdfundingCard
           item={decodedItem || item}
           timestamp={timestamp}
-          appealCost={appealCost}
+          appealCost={appealCost ?? undefined}
         />
 
         {/* Spread the `requests` parameter to convert elements from array to an object */}
         <RequestTimelines
           item={item}
-          requests={item && item.requests.map((r) => ({ ...r }))}
+          requests={
+            item && item.requests.map((r: TimelineRequest) => ({ ...r }))
+          }
           kind="classic"
           metaEvidence={metaEvidence}
         />

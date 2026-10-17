@@ -114,7 +114,7 @@ interface TimelineEvidenceItem {
 }
 
 /** Request fields the subgraph returns beyond the shared SubgraphRequest. */
-interface TimelineRequest extends SubgraphRequest {
+export interface TimelineRequest extends SubgraphRequest {
   requestType: string
   creationTx: string
   resolutionTime?: string | null

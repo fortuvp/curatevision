@@ -43,6 +43,7 @@ interface ItemStatusCardProps {
   modalOpen?: boolean
   setModalOpen: (open: boolean) => void
   appealCost?: BigNumber
+  dark?: boolean
 }
 
 const ItemStatusCard = ({
