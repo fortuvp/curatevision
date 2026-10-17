@@ -1060,7 +1060,8 @@ const ArbitrationGovernanceField = ({
     (court) => String(court.courtID) === courtID,
   )
   const nativeSymbol =
-    NETWORKS_INFO[registry.chainId]?.nativeCurrency?.symbol || 'native token'
+    NETWORKS_INFO[registry.chainId as keyof typeof NETWORKS_INFO]
+      ?.nativeCurrency?.symbol || 'native token'
   const feePerJuror = selectedCourt?.feeForJuror
     ? Number(formatEther(BigInt(selectedCourt.feeForJuror))).toLocaleString(
         undefined,

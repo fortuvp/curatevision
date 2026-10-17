@@ -15,7 +15,11 @@ const EXAMPLES = [
   'trusted token list',
 ]
 
-const SUPPORTED_CHAINS = [NETWORKS.ethereum, NETWORKS.gnosis, NETWORKS.sepolia]
+const SUPPORTED_CHAINS: number[] = [
+  NETWORKS.ethereum,
+  NETWORKS.gnosis,
+  NETWORKS.sepolia,
+]
 
 const rotateIn = keyframes`
   from { opacity: 0; transform: translateY(10px); }

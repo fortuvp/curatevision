@@ -1,7 +1,7 @@
 import React from 'react'
 import styled from 'styled-components'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
+import type { IconProp } from '@fortawesome/fontawesome-svg-core'
 
 const variantMap: Record<string, 'primary' | 'secondary' | 'tertiary'> = {
   default: 'secondary',
@@ -285,7 +285,7 @@ const Button: React.FC<ButtonProps> & { Group: React.FC<ButtonGroupProps> } = ({
   const iconNode = icon ? (
     <IconWrap className="button-svg">
       {typeof icon === 'string' ? (
-        <FontAwesomeIcon icon={icon as IconDefinition} />
+        <FontAwesomeIcon icon={icon as IconProp} />
       ) : (
         icon
       )}

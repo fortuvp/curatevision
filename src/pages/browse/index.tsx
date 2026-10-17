@@ -32,7 +32,7 @@ type SortMode =
   | 'name'
 
 const PAGE_SIZE = 15
-const CHAINS = [NETWORKS.ethereum, NETWORKS.gnosis, NETWORKS.sepolia]
+const CHAINS: number[] = [NETWORKS.ethereum, NETWORKS.gnosis, NETWORKS.sepolia]
 
 const Page = styled.main`
   width: 100%;

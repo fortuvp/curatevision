@@ -20,7 +20,10 @@ export const FALLBACK_LIST_OF_LISTS_ADDRESSES = {
 } as const
 
 export const getListOfListsAddresses = (chainId: number): string[] => {
-  const canonical = VERIFIED_LIST_OF_LISTS_ADDRESSES[chainId]
+  const canonical =
+    VERIFIED_LIST_OF_LISTS_ADDRESSES[
+      chainId as keyof typeof VERIFIED_LIST_OF_LISTS_ADDRESSES
+    ]
   const fallbacks =
     FALLBACK_LIST_OF_LISTS_ADDRESSES[
       chainId as keyof typeof FALLBACK_LIST_OF_LISTS_ADDRESSES

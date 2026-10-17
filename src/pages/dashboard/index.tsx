@@ -17,7 +17,7 @@ import {
   TrustStatus,
 } from './types'
 
-const SUPPORTED_CHAIN_IDS = [
+const SUPPORTED_CHAIN_IDS: number[] = [
   NETWORKS.ethereum,
   NETWORKS.gnosis,
   NETWORKS.sepolia,

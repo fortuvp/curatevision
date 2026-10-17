@@ -323,6 +323,7 @@ const LinkLine = styled.a`
 const plans = [
   {
     icon: 'factory',
+    featured: false,
     name: 'Permissionless',
     price: '$0',
     meta: 'Open-source, self-operated',
@@ -350,6 +351,7 @@ const plans = [
   },
   {
     icon: 'policy',
+    featured: false,
     name: 'Curate Pro',
     price: '$199',
     meta: 'A supported path to production',

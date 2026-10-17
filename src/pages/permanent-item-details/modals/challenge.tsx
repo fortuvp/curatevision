@@ -41,7 +41,7 @@ interface ChallengeModalProps {
   item: SubgraphItem
   itemName?: string
   onCancel: () => void
-  arbitrationCost: BigNumber
+  arbitrationCost?: BigNumber
   [key: string]: unknown
 }
 
@@ -180,7 +180,14 @@ const ChallengeModal = ({
     description,
     evidenceAttachment,
   }: EvidenceFormValues) => {
-    if (!account || !walletClient || !publicClient || !registryAddress) return
+    if (
+      !account ||
+      !walletClient ||
+      !publicClient ||
+      !registryAddress ||
+      !arbitrationCost
+    )
+      return
     setIsChallenging(true)
     try {
       const ipfsEvidencePath = await uploadEvidence({

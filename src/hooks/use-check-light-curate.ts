@@ -31,7 +31,7 @@ const useCheckLightCurate = (): {
       if (!url) throw new Error(`No subgraph URL for chain ${chainId}`)
 
       return request(url, TCR_EXISTENCE_TEST, {
-        tcrAddress: tcrAddress.toLowerCase(),
+        tcrAddress: tcrAddress?.toLowerCase(),
       })
     },
     enabled: !!chainId && !!tcrAddress,
@@ -54,7 +54,7 @@ const useCheckLightCurate = (): {
     isPermanentList,
     checking: permanentChecking,
     error: permanentError,
-  } = useCheckPermanentList(tcrAddress, chainId, envioFoundNothing)
+  } = useCheckPermanentList(tcrAddress ?? null, chainId, envioFoundNothing)
 
   return {
     isLightCurate,

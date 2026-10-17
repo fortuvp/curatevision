@@ -406,7 +406,7 @@ type RegistryExistsCheck = (tcrAddress: string) => Promise<boolean>
 
 interface SubmissionFormOuterProps {
   columns: Column[]
-  initialValues?: string[]
+  initialValues?: unknown[]
   activeStage?: SubmissionStage
   activeFieldIndex?: number
   disabledFields: boolean[]
@@ -595,7 +595,7 @@ const SubmitModal: React.FC<{
   onCancel: () => void
   visible?: boolean
   tcrAddress?: string
-  initialValues?: string[]
+  initialValues?: unknown[]
   submissionDeposit?: ethers.BigNumber
   metaEvidence?: MetaEvidence
   disabledFields?: boolean[]

@@ -311,8 +311,10 @@ const StakeCurateLogo = styled(StakeCurateLogoRaw)`
 const AppBar = () => {
   const web3Context = useWeb3Context()
   const { open } = useAppKit()
-  const { isPermanent } = useContext(StakeContext)
-  const { isDarkMode, toggleTheme } = useContext(ThemeContext)
+  const isPermanent = useContext(StakeContext)?.isPermanent
+  const themeContext = useContext(ThemeContext)
+  const isDarkMode = themeContext?.isDarkMode
+  const toggleTheme = themeContext?.toggleTheme
   const navigate = useNavigate()
   const location = useLocation()
   const { networkId, account: _account } = web3Context

@@ -85,9 +85,9 @@ const SubmitConnectModal = (props: SubmitConnectModalProps) => {
   const [debouncedBadgeTCRAddr] = useDebounce(badgeTCRAddr, 300)
 
   const [match, setMatch] = useState<{
-    parentTCR: string
-    connectedTCR: string
-    badgeTCR: string
+    parentTCR?: string
+    connectedTCR?: string
+    badgeTCR?: string
     columns: (number | null)[]
   }>()
 
@@ -166,7 +166,15 @@ const SubmitConnectModal = (props: SubmitConnectModalProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = useCallback(async () => {
-    if (!relTCRMetaEvidence) return
+    if (
+      !relTCRMetaEvidence ||
+      !relTCRAddress ||
+      !relTCRSubmissionDeposit ||
+      !account ||
+      !walletClient ||
+      !publicClient
+    )
+      return
     setIsSubmitting(true)
     try {
       const matchFile = new File([JSON.stringify(match)], 'match-file.json', {
@@ -174,7 +182,7 @@ const SubmitConnectModal = (props: SubmitConnectModalProps) => {
       })
       const fileURI = await uploadFile(matchFile, JSON_UPLOAD_ROLE)
       if (!fileURI) throw new Error('Failed to upload match file to IPFS.')
-      const { columns } = relTCRMetaEvidence.metadata
+      const columns = relTCRMetaEvidence.metadata?.columns ?? []
 
       const values = {
         Address: badgeTCRAddr,
@@ -191,7 +199,7 @@ const SubmitConnectModal = (props: SubmitConnectModalProps) => {
         throw new Error('Failed to upload item metadata to IPFS.')
 
       const { request } = await simulateContract(wagmiConfig, {
-        address: relTCRAddress,
+        address: relTCRAddress as `0x${string}`,
         abi: _gtcr,
         functionName: 'addItem',
         args: [ipfsEvidencePath],
@@ -379,7 +387,7 @@ const SubmitConnectModal = (props: SubmitConnectModalProps) => {
           stricter the search.
         </Typography.Paragraph>
         {badgeTCRMetadata &&
-          badgeTCRMetadata.columns.map((column, i) => (
+          (badgeTCRMetadata.columns ?? []).map((column, i) => (
             <Row key={i} gutter={[8, 8]}>
               <Col span={12}>
                 <span>
@@ -393,7 +401,7 @@ const SubmitConnectModal = (props: SubmitConnectModalProps) => {
                 </span>
               </Col>
               <Col span={12}>
-                {tcrMetaEvidence.metadata ? (
+                {tcrMetaEvidence?.metadata ? (
                   <Select
                     defaultValue={NONE}
                     style={{ width: '100%' }}
@@ -405,13 +413,14 @@ const SubmitConnectModal = (props: SubmitConnectModalProps) => {
                     }
                     disabled={!column.isIdentifier}
                   >
-                    {[{ label: NONE }, ...tcrMetaEvidence.metadata.columns].map(
-                      (column, j) => (
-                        <Select.Option value={column.label} key={j}>
-                          {column.label}
-                        </Select.Option>
-                      ),
-                    )}
+                    {[
+                      { label: NONE },
+                      ...(tcrMetaEvidence.metadata.columns ?? []),
+                    ].map((column, j) => (
+                      <Select.Option value={column.label} key={j}>
+                        {column.label}
+                      </Select.Option>
+                    ))}
                   </Select>
                 ) : (
                   <StyledSkeleton

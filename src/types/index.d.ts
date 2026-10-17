@@ -121,9 +121,14 @@ declare global {
     metadata?: {
       tcrTitle?: string
       tcrDescription?: string
+      /** Some registries publish the plain `title`/`description` keys instead. */
+      title?: string
+      description?: string
       columns?: Column[]
       itemName?: string
+      itemNamePlural?: string
       logoURI?: string
+      policyURI?: string
       isTCRofTCRs?: boolean
       requireRemovalEvidence?: boolean
       [key: string]: unknown

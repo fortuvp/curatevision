@@ -74,7 +74,7 @@ type RegistryExistsCheck = (tcrAddress: string) => Promise<boolean>
 
 interface SubmissionFormOuterProps {
   columns: Column[]
-  initialValues?: string[]
+  initialValues?: unknown[]
   disabledFields: boolean[]
   postSubmit: (
     values: SubmissionFormValues,
@@ -219,7 +219,7 @@ const SubmitModal: React.FC<{
   visible?: boolean
   tcrAddress?: string
   tokenAddress?: string
-  initialValues?: string[]
+  initialValues?: unknown[]
   submissionDeposit?: { toString: () => string }
   metadata?: SubgraphArbitrationSettingMetadata
   columns?: Column[]

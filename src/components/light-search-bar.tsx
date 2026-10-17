@@ -141,7 +141,7 @@ interface SearchItemProp {
 
 interface SearchResultItem extends SubgraphItem {
   props: SearchItemProp[]
-  registry: { id: string }
+  registry: { id: `0x${string}` }
 }
 
 interface OptionItemProps {
