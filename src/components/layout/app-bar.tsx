@@ -14,8 +14,7 @@ import { useAppKit } from '@reown/appkit/react'
 import { NETWORKS_INFO } from 'config/networks'
 import { SUPPORTED_CHAINS } from 'config/chains'
 import Identicon from 'components/identicon'
-import Logo from 'assets/images/logo.svg'
-import StakeCurateLogoRaw from 'assets/images/logo-stake-curate.svg'
+import CurateWordmark from 'assets/images/curate-v2-wordmark.svg'
 import { SAVED_NETWORK_KEY } from 'utils/string'
 import AppMenu from 'components/layout/app-menu'
 import Help from 'components/layout/help'
@@ -41,10 +40,10 @@ const Container = styled.header`
   position: sticky;
   top: 0;
   z-index: 50;
-  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-bg) 72%, transparent);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border-bottom: 1px solid var(--glass-border);
   transition:
     background-color var(--motion),
     border-color var(--motion);
@@ -140,9 +139,21 @@ const LogoLink = styled(Link)`
 
   svg {
     display: block;
-    height: 28px;
+    height: 26px;
     width: auto;
   }
+`
+
+const StakeTag = styled.span`
+  margin-left: 8px;
+  padding: 2px 8px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
 `
 
 const ChainLabel = styled.span`
@@ -172,10 +183,10 @@ const ChainMenuItem = styled.button<{ $active?: boolean }>`
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: 36px;
-  padding: 0 10px;
+  min-height: 38px;
+  padding: 0 12px;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   background: ${({ $active }) =>
     $active ? 'var(--color-primary-soft)' : 'transparent'};
   color: ${({ $active }) =>
@@ -196,11 +207,12 @@ const AccountLink = styled(Link)`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
+  width: 38px;
+  height: 38px;
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--glass);
   transition:
     border-color var(--motion),
     background var(--motion);
@@ -209,21 +221,6 @@ const AccountLink = styled(Link)`
     border-color: var(--color-border-strong);
     background: var(--color-raised);
   }
-`
-
-const StakeCurateLogo = styled(StakeCurateLogoRaw)`
-  ${({ theme }) =>
-    theme.name !== 'light' &&
-    css`
-      /* Stake tag background (path with fill="#EBD4FF") */
-      path[fill='#EBD4FF'] {
-        fill: ${theme.stakeTagBg};
-      }
-      /* Stake tag text (path with fill="#220050") */
-      path[fill='#220050'] {
-        fill: ${theme.stakeTagText};
-      }
-    `}
 `
 
 const AppBar = () => {
@@ -396,7 +393,8 @@ const AppBar = () => {
             </Dropdown>
           </MobileMenuWrapper>
           <LogoLink to="/" aria-label="Kleros Curate, dashboard">
-            {isPermanent ? <StakeCurateLogo /> : <Logo />}
+            <CurateWordmark aria-hidden />
+            {isPermanent && <StakeTag>Stake</StakeTag>}
           </LogoLink>
         </LeftGroup>
         <AppMenu />

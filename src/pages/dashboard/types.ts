@@ -75,8 +75,21 @@ export interface DashboardMetrics {
   bountyByChain: Record<number, string>
 }
 
+/** One UTC day of request activity (last 30 days, all chains). */
+export interface DashboardDay {
+  /** Unix seconds at 00:00 UTC */
+  day: number
+  submissions: number
+  removals: number
+  challenges: number
+}
+
 export interface DashboardData {
   generatedAt: number
+  /** Daily requests over the last 30 days, oldest first. */
+  series: DashboardDay[]
+  /** True when the 30-day page budget was exhausted on some chain. */
+  seriesTruncated: boolean
   registries: DashboardRegistry[]
   activities: DashboardActivity[]
   disputes: DashboardActivity[]

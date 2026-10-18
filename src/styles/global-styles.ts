@@ -20,16 +20,20 @@ const GlobalStyle = createGlobalStyle`
     -moz-osx-font-smoothing: grayscale;
     transition: background-color 0.2s ease, color 0.2s ease;
 
-    /* Type */
-    --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-    --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    --font-serif: "IBM Plex Serif", Georgia, "Times New Roman", serif;
-    --fs-display: clamp(30px, 2.4vw + 18px, 38px);
-    --lh-display: 1.16;
+    /* Type: one grotesk + its mono, switchable (data-type on body). Big figures
+       are set light and large; headings tight; labels mono. */
+    --font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --font-display: "Urbanist", "Geist", -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-serif: var(--font-display);
+    --fs-hero: clamp(44px, 5.2vw + 12px, 84px);
+    --lh-hero: 0.98;
+    --fs-display: clamp(32px, 2.6vw + 16px, 48px);
+    --lh-display: 1.04;
     --fs-heading: 22px;
     --lh-heading: 28px;
-    --fs-subheading: 17px;
-    --lh-subheading: 24px;
+    --fs-subheading: 16px;
+    --lh-subheading: 22px;
     --fs-body-lg: 15px;
     --lh-body-lg: 22px;
     --fs-body: 14px;
@@ -40,9 +44,12 @@ const GlobalStyle = createGlobalStyle`
     --lh-data: 18px;
     --fs-label: 11px;
     --lh-label: 16px;
-    --fs-figure: 28px;
-    --lh-figure: 32px;
+    --fs-figure: clamp(28px, 1.6vw + 18px, 40px);
+    --lh-figure: 1.05;
     --tracking-label: 0.06em;
+    --font-label: var(--font-sans);
+    --tracking-tight: -0.03em;
+    --tracking-display: -0.045em;
 
     /* Legacy scale names still read by older pages, mapped onto the new scale */
     --font-size-page-title: 32px;
@@ -54,14 +61,16 @@ const GlobalStyle = createGlobalStyle`
     --font-size-xs: 12px;
 
     /* Shape and space */
-    --radius-sm: 4px;
-    --radius: 6px;
-    --radius-lg: 10px;
+    --radius-sm: 8px;
+    --radius: 12px;
+    --radius-lg: 18px;
+    --radius-xl: 24px;
     --radius-pill: 999px;
-    --horizontal-padding: min(4.6875vw, 66px);
-    --page-max-width: 1400px;
-    --app-bar-height: 56px;
-    --motion: 150ms ease;
+    --horizontal-padding: min(4.6875vw, 56px);
+    --page-max-width: 1360px;
+    --app-bar-height: 64px;
+    --motion: 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    --blur: 18px;
 
     /* Semantic color roles (from the theme) */
     --color-bg: ${({ theme }) => theme.curateBg};
@@ -88,6 +97,20 @@ const GlobalStyle = createGlobalStyle`
     --shadow-card-hover: ${({ theme }) => theme.curateShadowHover};
     --shadow-overlay: ${({ theme }) => theme.modalShadow};
     --glow: ${({ theme }) => theme.curateGlowA};
+    --glow-rim: ${({ theme }) => theme.curateGlowB};
+    --glass: ${({ theme }) => theme.glass};
+    --stage: ${({ theme }) => theme.stage};
+    --aurora-a: ${({ theme }) => theme.auroraA};
+    --aurora-b: ${({ theme }) => theme.auroraB};
+    --aurora-c: ${({ theme }) => theme.auroraC};
+    --frame-gap: clamp(12px, 2.2vw, 36px);
+    --frame-radius: 32px;
+    --glass-border: ${({ theme }) => theme.glassBorder};
+    --glass-highlight: ${({ theme }) => theme.glassHighlight};
+    --grid-line: ${({ theme }) =>
+      theme.name === 'light'
+        ? 'rgba(16, 24, 40, 0.045)'
+        : 'rgba(255, 255, 255, 0.035)'};
 
     /* Status roles: one meaning each (DESIGN.md, Colors) */
     --status-registered: var(--color-success);
@@ -177,14 +200,19 @@ const GlobalStyle = createGlobalStyle`
     --klerosUIComponentsTransitionSpeed: 150ms;
 
     color: var(--color-text);
-    /* The bloom: one radial glow of the accent behind the page (transparent in light). */
+    font-feature-settings: "ss01", "cv11";
+    /* The stage outside the app frame: an aurora in the theme's hues (YMax). */
     background:
-      radial-gradient(60vw 42vh at 50% -6vh, var(--glow), transparent 70%),
-      var(--color-bg);
+      radial-gradient(48vw 60vh at 4% 0%, var(--aurora-b), transparent 62%),
+      radial-gradient(56vw 70vh at 100% 36%, var(--aurora-a), transparent 64%),
+      radial-gradient(40vw 50vh at 30% 100%, var(--aurora-c), transparent 66%),
+      var(--stage);
     background-attachment: fixed;
 
     @media (max-width: ${BREAKPOINT_LANDSCAPE}px) {
       --horizontal-padding: 16px;
+      --frame-gap: 0px;
+      --frame-radius: 0px;
       background-attachment: scroll;
     }
 
@@ -201,10 +229,6 @@ const GlobalStyle = createGlobalStyle`
     --toastify-color-progress-dark: var(--color-primary);
     --toastify-font-family: var(--font-sans);
     --toastify-toast-bd-radius: var(--radius);
-  }
-
-  body::before {
-    content: none;
   }
 
   body::after {
@@ -226,7 +250,7 @@ const GlobalStyle = createGlobalStyle`
   }
 
   body:not([data-theme="light"]) {
-    background-color: ${({ theme }) => theme.curateBg} !important;
+    background-color: ${({ theme }) => theme.stage} !important;
     color: ${({ theme }) => theme.textPrimary} !important;
   }
 
@@ -385,6 +409,24 @@ const GlobalStyle = createGlobalStyle`
       color: ${({ theme }) => theme.primaryColor} !important;
     }
 
+  }
+
+  body[data-type='geist'] {
+    --font-display: "Geist", -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  body[data-type='plex'] {
+    --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --font-display: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 `
 

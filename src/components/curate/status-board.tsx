@@ -62,9 +62,28 @@ const ColumnHeader = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--color-border);
-  margin-bottom: 4px;
+  padding: 2px 2px 12px;
+  margin-bottom: 2px;
+`
+
+const Count = styled.span`
+  color: var(--color-text);
+  font-size: 28px;
+  line-height: 1;
+  font-weight: 300;
+  letter-spacing: var(--tracking-display);
+  font-variant-numeric: tabular-nums;
+`
+
+const IdValue = styled.span`
+  display: block;
+  overflow: hidden;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 `
 
 const ColumnTitle = styled.div`
@@ -77,10 +96,10 @@ const Card = styled(Link)`
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 10px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
+  padding: 12px 14px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: var(--color-raised);
   color: inherit;
   text-decoration: none;
   transition:
@@ -110,35 +129,6 @@ const Registry = styled.span`
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
-`
-
-const Identifier = styled.div`
-  display: flex;
-  gap: 8px;
-  min-width: 0;
-
-  dt {
-    flex: 0 0 auto;
-    color: var(--color-faint);
-    font-family: var(--font-mono);
-    font-size: var(--fs-label);
-    line-height: var(--lh-small);
-    letter-spacing: var(--tracking-label);
-    text-transform: uppercase;
-  }
-
-  dd {
-    flex: 1;
-    min-width: 0;
-    margin: 0;
-    overflow: hidden;
-    color: var(--color-text);
-    font-family: var(--font-mono);
-    font-size: var(--fs-data);
-    line-height: var(--lh-small);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
 `
 
 const Meta = styled.div`
@@ -173,9 +163,6 @@ const Empty = styled.div`
   text-align: center;
 `
 
-const shortAddress = (address?: string) =>
-  address ? `${address.slice(0, 6)}…${address.slice(-4)}` : null
-
 const BoardColumnView = ({
   column,
   limit,
@@ -193,31 +180,31 @@ const BoardColumnView = ({
           <StatusDot $tone={column.tone} aria-hidden />
           <Label $tone="text">{column.title}</Label>
         </ColumnTitle>
-        <Data $muted>{column.cards.length}</Data>
+        <Count>{column.cards.length}</Count>
       </ColumnHeader>
       {cards.length === 0 && <Empty>{column.empty}</Empty>}
       {cards.map((card) => (
-        <Card key={card.id} to={card.href}>
+        <Card
+          key={card.id}
+          to={card.href}
+          title={card.actor ? `by ${card.actor}` : undefined}
+        >
           <CardTop>
             <Registry title={card.registry}>{card.registry}</Registry>
             <ChainChip chainId={card.chainId} size="sm" />
           </CardTop>
-          {card.identifiers.length > 0 && (
-            <dl style={{ margin: 0, display: 'grid', gap: 2 }}>
-              {card.identifiers.map((field) => (
-                <Identifier key={field.label}>
-                  <dt>{field.label}</dt>
-                  <dd title={field.value}>{field.value}</dd>
-                </Identifier>
-              ))}
-            </dl>
+          {card.identifiers[0] && (
+            <IdValue
+              title={`${card.identifiers[0].label}: ${card.identifiers[0].value}`}
+            >
+              {card.identifiers[0].value}
+            </IdValue>
           )}
           <Meta>
-            <Small $muted>
-              {card.when}
-              {card.actor && <> · {shortAddress(card.actor)}</>}
-            </Small>
-            <Data $weight={500}>{card.detail}</Data>
+            <Small $faint>{card.when}</Small>
+            <Data $muted $weight={400}>
+              {card.detail}
+            </Data>
           </Meta>
         </Card>
       ))}

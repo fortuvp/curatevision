@@ -52,10 +52,25 @@ const StyledClickaway = styled.div<{ isMenuClosed: boolean }>`
     properties.isMenuClosed ? 'none' : 'auto'};
 `
 
+/*
+ * The app frame (roobinium's YMax): the whole product sits in one large
+ * rounded near-black container floating on the aurora stage. Restraint
+ * inside the frame, color outside it. Edge to edge on phones.
+ */
 const StyledLayout = styled(Layout)`
-  min-height: 100vh !important;
-  background: transparent !important;
-  overflow-x: hidden;
+  position: relative;
+  z-index: 1;
+  min-height: calc(100vh - 2 * var(--frame-gap)) !important;
+  margin: var(--frame-gap);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--frame-radius);
+  background:
+    radial-gradient(80% 38% at 50% 0%, var(--glow), transparent 70%),
+    var(--color-bg) !important;
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    0 40px 120px -40px rgba(0, 0, 0, 0.6);
+  overflow: clip;
 `
 
 const ContentContainer = styled.div`

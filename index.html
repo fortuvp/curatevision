@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="icon" type="image/svg+xml" href="/curate-app-icon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#000000" />
     <meta name="robots" content="index,follow,max-image-preview:large" />
@@ -60,7 +61,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,500;1,400&display=swap"
+      id="cv-font-kleros"
+      href="https://fonts.googleapis.com/css2?family=Urbanist:wght@300;400;500;600&family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
     <title>The verification layer | Kleros Curate</title>
@@ -70,7 +72,7 @@
       // Apply the saved theme before React mounts, so the page never flashes.
       // Modes: system (default) | light | dark | kleros. See DESIGN.md.
       ;(function () {
-        var backgrounds = { light: '#f4f6f9', dark: '#0a0e14', kleros: '#1b003f' }
+        var backgrounds = { light: '#dfe6f7', dark: '#02040b', kleros: '#07001a' }
         // Must match DEFAULT_THEME_MODE in src/contexts/theme-context.tsx.
         var DEFAULT_MODE = 'system'
         var mode = DEFAULT_MODE
@@ -86,6 +88,11 @@
           resolved = prefersDark ? 'dark' : 'light'
         }
         document.body.setAttribute('data-theme', resolved)
+        try {
+          var face = localStorage.getItem('curatevision-typeface')
+          if (face === 'kleros' || face === 'geist' || face === 'plex')
+            document.body.setAttribute('data-type', face)
+        } catch (e) {}
         document.body.style.backgroundColor = backgrounds[resolved]
         document.body.style.colorScheme = resolved === 'light' ? 'light' : 'dark'
         if (resolved !== 'light') document.documentElement.classList.add('dark')

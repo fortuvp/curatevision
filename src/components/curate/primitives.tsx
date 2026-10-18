@@ -15,14 +15,16 @@ import { NETWORKS_INFO } from 'config/networks'
 /* ---------- Layout ---------- */
 
 export const Page = styled.main`
+  position: relative;
+  z-index: 1;
   width: 100%;
   max-width: var(--page-max-width);
   margin: 0 auto;
-  padding: 32px var(--horizontal-padding) 64px;
+  padding: 40px var(--horizontal-padding) 96px;
 
   @media (max-width: 720px) {
-    padding-top: 20px;
-    padding-bottom: 40px;
+    padding-top: 24px;
+    padding-bottom: 64px;
   }
 `
 
@@ -59,19 +61,41 @@ export const Surface = styled.div<{
   $padding?: 'none' | 'compact' | 'standard'
   $interactive?: boolean
   $raised?: boolean
+  /** One panel per page may carry the iridescent rim (YMax's chart frame). */
+  $featured?: boolean
 }>`
   position: relative;
   min-width: 0;
   background: ${({ $raised }) =>
     $raised ? 'var(--color-raised)' : 'var(--color-surface)'};
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-card);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    var(--shadow-card);
   padding: ${({ $padding }) =>
-    $padding === 'none' ? 0 : $padding === 'compact' ? '16px' : '20px'};
+    $padding === 'none' ? 0 : $padding === 'compact' ? '18px' : '24px'};
   transition:
     border-color var(--motion),
-    box-shadow var(--motion);
+    box-shadow var(--motion),
+    transform var(--motion);
+
+  ${({ $featured }) =>
+    $featured &&
+    css`
+      border-color: transparent;
+      background:
+        linear-gradient(var(--color-surface), var(--color-surface)) padding-box,
+        linear-gradient(
+            120deg,
+            var(--aurora-b),
+            color-mix(in srgb, var(--color-warning) 70%, transparent) 38%,
+            var(--aurora-c) 68%,
+            var(--aurora-a)
+          )
+          border-box;
+      border-width: 1.5px;
+    `}
 
   ${({ $interactive }) =>
     $interactive &&
@@ -82,7 +106,10 @@ export const Surface = styled.div<{
 
       &:hover {
         border-color: var(--color-border-strong);
-        box-shadow: var(--shadow-card-hover);
+        box-shadow:
+          inset 0 1px 0 var(--glass-highlight),
+          var(--shadow-card-hover);
+        transform: translateY(-1px);
       }
     `}
 `
@@ -115,25 +142,44 @@ export const SplitGrid = styled.div<{ $rail?: number }>`
 
 /* ---------- Type ---------- */
 
-/** The page's one serif statement (DESIGN.md: display 38/44, clamps to 30/36). */
+/** The page's one statement: large, light, tight (no serif). */
 export const Statement = styled.h1`
   margin: 0;
-  max-width: 24ch;
+  max-width: 22ch;
   color: var(--color-text);
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: var(--fs-display);
   line-height: var(--lh-display);
-  font-weight: 400;
-  letter-spacing: -0.01em;
+  font-weight: 500;
+  letter-spacing: -0.03em;
   text-wrap: balance;
+`
+
+/** Oversized hero line for the landing moments (dashboard, launch). */
+export const HeroStatement = styled.h1`
+  margin: 0;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: var(--fs-hero);
+  line-height: var(--lh-hero);
+  font-weight: 500;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+
+  em {
+    font-style: normal;
+    color: var(--color-primary);
+  }
 `
 
 export const Heading = styled.h2`
   margin: 0;
+  font-family: var(--font-display);
   color: var(--color-text);
   font-size: var(--fs-heading);
   line-height: var(--lh-heading);
-  font-weight: 600;
+  font-weight: 500;
+  letter-spacing: var(--tracking-tight);
 `
 
 export const Subheading = styled.h3`
@@ -141,7 +187,8 @@ export const Subheading = styled.h3`
   color: var(--color-text);
   font-size: var(--fs-subheading);
   line-height: var(--lh-subheading);
-  font-weight: 600;
+  font-weight: 500;
+  letter-spacing: -0.01em;
 `
 
 export const Title = styled.h4`
@@ -174,7 +221,7 @@ export const Small = styled.span<{ $muted?: boolean; $faint?: boolean }>`
   line-height: var(--lh-small);
 `
 
-/** Mono uppercase label: eyebrows, column headers, chips (11/16, 0.06em). */
+/** Small uppercase label (eyebrows, column headers): sans, tracked, quiet. */
 export const Label = styled.span<{
   $tone?: 'muted' | 'faint' | 'text' | 'primary'
 }>`
@@ -187,7 +234,7 @@ export const Label = styled.span<{
         : $tone === 'primary'
           ? 'var(--color-primary)'
           : 'var(--color-muted)'};
-  font-family: var(--font-mono);
+  font-family: var(--font-label);
   font-size: var(--fs-label);
   line-height: var(--lh-label);
   font-weight: 500;
@@ -209,17 +256,17 @@ export const Data = styled.span<{
   font-variant-numeric: tabular-nums;
 `
 
-/** Big figure (hero counts, countdowns): mono 28/32 at 500. */
+/** Big figure (hero counts, countdowns): light, large, tabular. */
 export const Figure = styled.span<{ $size?: 'md' | 'lg' }>`
   display: block;
   color: var(--color-text);
-  font-family: var(--font-mono);
+  font-family: var(--font-display);
   font-size: ${({ $size }) =>
-    $size === 'lg' ? 'clamp(32px, 3vw + 12px, 44px)' : 'var(--fs-figure)'};
-  line-height: ${({ $size }) => ($size === 'lg' ? '1.1' : 'var(--lh-figure)')};
-  font-weight: 500;
+    $size === 'lg' ? 'clamp(40px, 3.4vw + 16px, 64px)' : 'var(--fs-figure)'};
+  line-height: var(--lh-figure);
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-display);
 `
 
 export const Mono = styled.span`
@@ -236,35 +283,45 @@ const buttonStyles = css<{
   $size?: 'sm' | 'md'
   $block?: boolean
 }>`
+  position: relative;
   display: ${({ $block }) => ($block ? 'flex' : 'inline-flex')};
   width: ${({ $block }) => ($block ? '100%' : 'auto')};
   align-items: center;
   justify-content: center;
   gap: 8px;
-  height: ${({ $size }) => ($size === 'sm' ? '32px' : '40px')};
-  padding: 0 ${({ $size }) => ($size === 'sm' ? '12px' : '16px')};
-  border-radius: var(--radius-sm);
+  height: ${({ $size }) => ($size === 'sm' ? '34px' : '44px')};
+  padding: 0 ${({ $size }) => ($size === 'sm' ? '14px' : '20px')};
+  border-radius: 10px;
   border: 1px solid transparent;
   font-size: var(--fs-body);
   line-height: var(--lh-body);
-  font-weight: 600;
+  font-weight: 500;
+  letter-spacing: -0.005em;
   white-space: nowrap;
   text-decoration: none;
   cursor: pointer;
   transition:
     background var(--motion),
     border-color var(--motion),
-    color var(--motion);
+    box-shadow var(--motion),
+    color var(--motion),
+    transform var(--motion);
+
+  &:active:not(:disabled) {
+    transform: translateY(1px);
+  }
 
   ${({ $variant }) =>
     $variant === 'secondary'
       ? css`
-          background: var(--color-surface);
-          border-color: var(--color-border-strong);
+          background: var(--color-raised);
+          border-color: var(--glass-border);
+          box-shadow: inset 0 1px 0 var(--glass-highlight);
           color: var(--color-text);
 
           &:hover:not(:disabled) {
-            background: var(--color-raised);
+            border-color: var(--color-border-strong);
+            color: var(--color-text);
           }
         `
       : $variant === 'ghost'
@@ -280,7 +337,7 @@ const buttonStyles = css<{
         : $variant === 'danger'
           ? css`
               background: var(--color-danger);
-              color: #ffffff;
+              color: var(--color-on-primary);
 
               &:hover:not(:disabled) {
                 filter: brightness(1.08);
@@ -289,16 +346,24 @@ const buttonStyles = css<{
           : css`
               background: var(--color-primary);
               color: var(--color-on-primary);
+              box-shadow:
+                inset 0 1px 0 color-mix(in srgb, white 24%, transparent),
+                0 10px 30px -12px var(--color-primary);
 
               &:hover:not(:disabled) {
                 background: var(--color-primary-hover);
+                color: var(--color-on-primary);
+                box-shadow:
+                  inset 0 1px 0 color-mix(in srgb, white 32%, transparent),
+                  0 12px 32px -10px var(--color-primary);
               }
             `}
 
   &:disabled,
   &[aria-disabled='true'] {
     cursor: not-allowed;
-    opacity: 0.55;
+    opacity: 0.5;
+    box-shadow: none;
   }
 `
 
@@ -330,14 +395,13 @@ export const IconButton = styled.button<{ $active?: boolean }>`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   padding: 0;
   border: 1px solid
-    ${({ $active }) => ($active ? 'var(--color-border-strong)' : 'transparent')};
-  border-radius: var(--radius-sm);
-  background: ${({ $active }) =>
-    $active ? 'var(--color-raised)' : 'transparent'};
+    ${({ $active }) => ($active ? 'var(--glass-border)' : 'transparent')};
+  border-radius: var(--radius-pill);
+  background: ${({ $active }) => ($active ? 'var(--glass)' : 'transparent')};
   color: ${({ $active }) =>
     $active ? 'var(--color-text)' : 'var(--color-muted)'};
   cursor: pointer;
@@ -351,24 +415,28 @@ export const IconButton = styled.button<{ $active?: boolean }>`
   }
 `
 
-/** 24px chip, mono label; selected = primary-soft fill and primary text. */
+/** 24px pill chip, mono label; selected = primary-soft fill and primary text. */
 const chipStyles = css<{ $selected?: boolean }>`
   display: inline-flex;
   align-items: center;
   gap: 6px;
   height: 24px;
-  padding: 0 8px;
-  border-radius: var(--radius-sm);
+  padding: 0 10px;
+  border: 1px solid
+    ${({ $selected }) =>
+      $selected
+        ? 'color-mix(in srgb, var(--color-primary) 40%, transparent)'
+        : 'var(--glass-border)'};
+  border-radius: var(--radius-pill);
   background: ${({ $selected }) =>
-    $selected ? 'var(--color-primary-soft)' : 'var(--color-raised)'};
+    $selected ? 'var(--color-primary-soft)' : 'var(--glass)'};
   color: ${({ $selected }) =>
     $selected ? 'var(--color-primary)' : 'var(--color-muted)'};
-  font-family: var(--font-mono);
-  font-size: var(--fs-label);
+  font-family: var(--font-label);
+  font-size: 11px;
   line-height: var(--lh-label);
   font-weight: 500;
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
   white-space: nowrap;
 `
 
@@ -378,7 +446,7 @@ export const Chip = styled.span<{ $selected?: boolean }>`
 
 export const ChipButton = styled.button<{ $selected?: boolean }>`
   ${chipStyles}
-  border: 0;
+  height: 28px;
   cursor: pointer;
   transition:
     background var(--motion),
@@ -410,23 +478,35 @@ export const ChainChip = ({
 export const Segmented = styled.div`
   display: inline-flex;
   align-items: center;
-  padding: 2px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  background: var(--color-raised);
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 `
 
-export const Segment = styled.button<{ $active?: boolean }>`
+export const Segment = styled.button<{
+  $active?: boolean
+  /** Inside a sliding track the pill draws the active state. */
+  $sliding?: boolean
+}>`
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  height: 28px;
-  padding: 0 10px;
+  height: 30px;
+  padding: 0 12px;
   border: 0;
-  border-radius: 3px;
-  background: ${({ $active }) =>
-    $active ? 'var(--color-raised)' : 'transparent'};
+  border-radius: 9px;
+  background: ${({ $active, $sliding }) =>
+    $active && !$sliding ? 'var(--color-primary-soft)' : 'transparent'};
   color: ${({ $active }) =>
     $active ? 'var(--color-text)' : 'var(--color-muted)'};
   font-size: var(--fs-small);
@@ -443,12 +523,37 @@ export const Segment = styled.button<{ $active?: boolean }>`
   }
 `
 
+const SlidingTrack = styled(Segmented)`
+  position: relative;
+  isolation: isolate;
+`
+
+const SlidingPill = styled.span`
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  z-index: -1;
+  border-radius: 9px;
+  background: var(--color-primary-soft);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--color-primary) 30%, transparent);
+  transition:
+    transform 380ms cubic-bezier(0.34, 1.4, 0.64, 1),
+    width 380ms cubic-bezier(0.34, 1.4, 0.64, 1);
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+`
+
 export type SegmentOption<T extends string> = {
   value: T
   label: string
   icon?: CurateIconName
 }
 
+/** Segmented control whose active pill slides between options. */
 export function SegmentedControl<T extends string>({
   value,
   options,
@@ -460,8 +565,22 @@ export function SegmentedControl<T extends string>({
   onChange: (value: T) => void
   ariaLabel: string
 }) {
+  const track = React.useRef<HTMLDivElement>(null)
+  const [pill, setPill] = React.useState<{ left: number; width: number }>()
+  React.useLayoutEffect(() => {
+    const node = track.current?.querySelector<HTMLButtonElement>(
+      '[aria-checked="true"]',
+    )
+    if (node) setPill({ left: node.offsetLeft, width: node.offsetWidth })
+  }, [value, options.length])
   return (
-    <Segmented role="radiogroup" aria-label={ariaLabel}>
+    <SlidingTrack ref={track} role="radiogroup" aria-label={ariaLabel}>
+      {pill && (
+        <SlidingPill
+          aria-hidden
+          style={{ transform: `translateX(${pill.left}px)`, width: pill.width }}
+        />
+      )}
       {options.map((option) => (
         <Segment
           key={option.value}
@@ -469,27 +588,30 @@ export function SegmentedControl<T extends string>({
           role="radio"
           aria-checked={option.value === value}
           $active={option.value === value}
+          $sliding
           onClick={() => onChange(option.value)}
         >
           {option.icon && <CurateIcon name={option.icon} size={14} />}
           {option.label}
         </Segment>
       ))}
-    </Segmented>
+    </SlidingTrack>
   )
 }
 
 export const TextInput = styled.input`
   width: 100%;
-  height: 40px;
-  padding: 0 12px;
-  border: 1px solid var(--color-border);
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius);
-  background: var(--color-surface);
+  background: var(--color-raised);
   color: var(--color-text);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
-  transition: border-color var(--motion);
+  transition:
+    border-color var(--motion),
+    box-shadow var(--motion);
 
   &::placeholder {
     color: var(--color-faint);
@@ -502,20 +624,23 @@ export const TextInput = styled.input`
   &:focus {
     outline: none;
     border-color: var(--color-primary);
+    box-shadow: 0 0 0 4px var(--color-primary-soft);
   }
 `
 
 export const SearchField = styled.label`
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 40px;
-  padding: 0 12px;
-  border: 1px solid var(--color-border);
+  gap: 10px;
+  height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius);
-  background: var(--color-surface);
+  background: var(--color-raised);
   color: var(--color-faint);
-  transition: border-color var(--motion);
+  transition:
+    border-color var(--motion),
+    box-shadow var(--motion);
 
   &:hover {
     border-color: var(--color-border-strong);
@@ -523,14 +648,16 @@ export const SearchField = styled.label`
 
   &:focus-within {
     border-color: var(--color-primary);
+    box-shadow: 0 0 0 4px var(--color-primary-soft);
   }
 
   input {
     flex: 1;
     min-width: 0;
-    border: 0;
+    border: 0 !important;
     outline: 0;
-    background: transparent;
+    background: transparent !important;
+    box-shadow: none !important;
     color: var(--color-text);
     font-size: var(--fs-body);
     line-height: var(--lh-body);
@@ -550,7 +677,7 @@ export type StatusTone =
   | 'off'
   | 'neutral'
 
-/** 8px dot in a status role color. Never alone: pair it with a label. */
+/** 8px dot in a status role color with a soft halo. Never alone: pair it with a label. */
 export const StatusDot = styled.span<{ $tone: StatusTone }>`
   display: inline-block;
   flex: 0 0 auto;
@@ -558,6 +685,8 @@ export const StatusDot = styled.span<{ $tone: StatusTone }>`
   height: 8px;
   border-radius: var(--radius-pill);
   background: var(--status-${({ $tone }) => $tone});
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--status-${({ $tone }) => $tone}) 22%, transparent);
 `
 
 const StatusWrap = styled.span<{ $wrap?: boolean }>`
@@ -615,12 +744,12 @@ export const LiveDot = styled(StatusDot).attrs({
   $tone: 'registered' as StatusTone,
 })``
 
-/** 4px progress rail; fill color follows the status tone. */
+/** Progress rail; fill color follows the status tone, with a soft glow. */
 export const Rail = styled.div<{ $value: number; $tone?: StatusTone }>`
   position: relative;
   width: 100%;
-  height: 4px;
-  border-radius: 2px;
+  height: 6px;
+  border-radius: var(--radius-pill);
   background: var(--color-raised);
   overflow: hidden;
 
@@ -630,9 +759,15 @@ export const Rail = styled.div<{ $value: number; $tone?: StatusTone }>`
     inset: 0 auto 0 0;
     width: ${({ $value }) =>
       Math.round(Math.min(1, Math.max(0, $value)) * 100)}%;
-    border-radius: 2px;
+    border-radius: var(--radius-pill);
     background: var(--status-${({ $tone }) => $tone ?? 'window'});
-    transition: width 300ms ease;
+    box-shadow: 0 0 12px
+      color-mix(
+        in srgb,
+        var(--status-${({ $tone }) => $tone ?? 'window'}) 60%,
+        transparent
+      );
+    transition: width 400ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 `
 
@@ -659,9 +794,10 @@ export const PanelHint = styled(Label)``
 export const TableScroller = styled.div`
   width: 100%;
   overflow-x: auto;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
 `
 
 export const Table = styled.table`
@@ -673,12 +809,12 @@ export const Table = styled.table`
     position: sticky;
     top: 0;
     z-index: 1;
-    height: 40px;
-    padding: 0 12px;
-    border-bottom: 1px solid var(--color-border);
-    background: var(--color-surface);
-    color: var(--color-muted);
-    font-family: var(--font-mono);
+    height: 44px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--glass-border);
+    background: transparent;
+    color: var(--color-faint);
+    font-family: var(--font-label);
     font-size: var(--fs-label);
     line-height: var(--lh-label);
     font-weight: 500;
@@ -697,9 +833,9 @@ export const Table = styled.table`
   }
 
   tbody td {
-    height: 44px;
-    padding: 0 12px;
-    border-bottom: 1px solid var(--color-border);
+    height: 56px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--glass-border);
     color: var(--color-text);
     font-size: var(--fs-body);
     line-height: var(--lh-body);
@@ -708,6 +844,10 @@ export const Table = styled.table`
 
   tbody tr:last-child td {
     border-bottom: 0;
+  }
+
+  tbody tr {
+    transition: background var(--motion);
   }
 
   tbody tr[data-href]:hover td {
@@ -721,8 +861,7 @@ export const Table = styled.table`
   }
 
   td.num {
-    font-family: var(--font-mono);
-    font-size: var(--fs-data);
+    font-size: var(--fs-body);
     font-weight: 500;
     font-variant-numeric: tabular-nums;
   }
@@ -840,7 +979,7 @@ export const KeyValueList = styled.dl`
 
   dt {
     color: var(--color-muted);
-    font-family: var(--font-mono);
+    font-family: var(--font-label);
     font-size: var(--fs-label);
     line-height: 20px;
     font-weight: 500;

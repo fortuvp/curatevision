@@ -5,6 +5,7 @@ import {
   ThemeContext,
   type ThemeMode,
   THEME_MODES,
+  TYPEFACES,
 } from 'contexts/theme-context'
 import { CurateIcon, type CurateIconName } from 'components/curate/icons'
 import { BarIconButton } from './app-bar-controls'
@@ -17,8 +18,14 @@ const MODE_ICON: Record<ThemeMode, CurateIconName> = {
 }
 
 const Menu = styled.div`
-  min-width: 220px;
+  min-width: 240px;
   padding: 6px;
+`
+
+const Divider = styled.div`
+  height: 1px;
+  margin: 6px 4px;
+  background: var(--glass-border);
 `
 
 const MenuTitle = styled.div`
@@ -41,7 +48,7 @@ const MenuItem = styled.button<{ $active?: boolean }>`
   min-height: 40px;
   padding: 4px 10px;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   background: ${({ $active }) =>
     $active ? 'var(--color-primary-soft)' : 'transparent'};
   color: ${({ $active }) =>
@@ -78,7 +85,7 @@ const ThemeMenu = () => {
   const themeContext = useContext(ThemeContext)
   const [open, setOpen] = useState(false)
   if (!themeContext) return null
-  const { mode, setMode } = themeContext
+  const { mode, setMode, typeface, setTypeface } = themeContext
 
   return (
     <Dropdown
@@ -109,6 +116,34 @@ const ThemeMenu = () => {
                 <ItemHint>{option.hint}</ItemHint>
               </span>
               {option.value === mode && <CurateIcon name="check" size={16} />}
+            </MenuItem>
+          ))}
+          <Divider />
+          <MenuTitle>Typeface</MenuTitle>
+          {TYPEFACES.map((option) => (
+            <MenuItem
+              key={option.value}
+              type="button"
+              role="menuitemradio"
+              aria-label={`${option.label}: ${option.hint}`}
+              aria-checked={option.value === typeface}
+              $active={option.value === typeface}
+              onClick={(event) => {
+                event.stopPropagation()
+                setTypeface(option.value)
+                setOpen(false)
+              }}
+            >
+              <span aria-hidden style={{ fontWeight: 500 }}>
+                Aa
+              </span>
+              <span>
+                <ItemLabel>{option.label}</ItemLabel>
+                <ItemHint>{option.hint}</ItemHint>
+              </span>
+              {option.value === typeface && (
+                <CurateIcon name="check" size={16} />
+              )}
             </MenuItem>
           ))}
         </Menu>

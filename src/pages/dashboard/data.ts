@@ -6,6 +6,7 @@ import { parseIpfs } from 'utils/ipfs-parse'
 import {
   DashboardActivity,
   DashboardData,
+  DashboardDay,
   DashboardMetrics,
   DashboardRegistry,
   DashboardUser,
@@ -1329,9 +1330,75 @@ const normalizePermanentLeaderboardPage = (
   return users
 }
 
+interface ActivityEvent {
+  at: number
+  kind: 'submissions' | 'removals' | 'challenges'
+}
+
+const envioPageEvents = (payload: any): ActivityEvent[] => {
+  const events: ActivityEvent[] = []
+  for (const requestEntity of [
+    ...(payload.lightRequests ?? []),
+    ...(payload.classicRequests ?? []),
+  ]) {
+    const at = toNumber(requestEntity.submissionTime)
+    if (at)
+      events.push({
+        at,
+        kind:
+          requestEntity.requestType === 'ClearingRequested'
+            ? 'removals'
+            : 'submissions',
+      })
+    if (requestEntity.disputed) {
+      const challengedAt = toNumber(requestEntity.challengeTime) || at
+      if (challengedAt) events.push({ at: challengedAt, kind: 'challenges' })
+    }
+  }
+  return events
+}
+
+const permanentPageEvents = (payload: any, since: number): ActivityEvent[] => [
+  ...(payload.submissions ?? [])
+    .map((submission: any) => toNumber(submission.createdAt))
+    .filter((at: number) => at >= since)
+    .map((at: number) => ({ at, kind: 'submissions' as const })),
+  ...(payload.challenges ?? [])
+    .map((challenge: any) => toNumber(challenge.createdAt))
+    .filter((at: number) => at >= since)
+    .map((at: number) => ({ at, kind: 'challenges' as const })),
+]
+
+const DAY = 24 * 60 * 60
+
+/** Buckets events into the last 30 UTC days, oldest first. */
+const buildSeries = (events: ActivityEvent[], now: number): DashboardDay[] => {
+  const today = Math.floor(now / DAY) * DAY
+  const days: DashboardDay[] = Array.from({ length: 30 }, (_, index) => ({
+    day: today - (29 - index) * DAY,
+    submissions: 0,
+    removals: 0,
+    challenges: 0,
+  }))
+  const first = days[0].day
+  for (const event of events) {
+    const index = Math.floor((event.at - first) / DAY)
+    if (index >= 0 && index < days.length) days[index][event.kind] += 1
+  }
+  return days
+}
+
+const pageRows = (payload: any, keys: string[]) =>
+  Math.max(0, ...keys.map((key) => (payload?.[key] ?? []).length))
+
 const fetchCuratorLeaderboard = async (
   since: number,
-): Promise<DashboardUser[]> => {
+): Promise<{
+  users: DashboardUser[]
+  series: DashboardDay[]
+  seriesTruncated: boolean
+}> => {
+  const lastPage = LEADERBOARD_MAX_PAGES - 1
   const pages = await Promise.all(
     SUPPORTED_CHAIN_IDS.flatMap((chainId) =>
       Array.from({ length: LEADERBOARD_MAX_PAGES }).flatMap((_, page) => [
@@ -1341,7 +1408,16 @@ const fetchCuratorLeaderboard = async (
           limit: LEADERBOARD_PAGE_SIZE,
           offset: page * LEADERBOARD_PAGE_SIZE,
         }).then((payload) =>
-          payload ? normalizeEnvioLeaderboardPage(payload, chainId) : null,
+          payload
+            ? {
+                users: normalizeEnvioLeaderboardPage(payload, chainId),
+                events: envioPageEvents(payload),
+                full:
+                  page === lastPage &&
+                  pageRows(payload, ['lightRequests', 'classicRequests']) >=
+                    LEADERBOARD_PAGE_SIZE,
+              }
+            : null,
         ),
         safeRequest<any>(
           subgraphUrlPermanent[chainId],
@@ -1352,16 +1428,34 @@ const fetchCuratorLeaderboard = async (
           },
         ).then((payload) =>
           payload
-            ? normalizePermanentLeaderboardPage(payload, chainId, since)
+            ? {
+                users: normalizePermanentLeaderboardPage(
+                  payload,
+                  chainId,
+                  since,
+                ),
+                events: permanentPageEvents(payload, since),
+                full: false,
+              }
             : null,
         ),
       ]),
     ),
   )
 
-  return mergeUsers(
-    pages.filter(Boolean) as Map<string, DashboardUser>[],
-  ).slice(0, 100)
+  const valid = pages.filter(Boolean) as {
+    users: Map<string, DashboardUser>
+    events: ActivityEvent[]
+    full: boolean
+  }[]
+  return {
+    users: mergeUsers(valid.map((page) => page.users)).slice(0, 100),
+    series: buildSeries(
+      valid.flatMap((page) => page.events),
+      Math.floor(Date.now() / 1000),
+    ),
+    seriesTruncated: valid.some((page) => page.full),
+  }
 }
 
 const dedupeRegistries = (
@@ -1502,7 +1596,8 @@ export const fetchDashboardData = async (): Promise<DashboardData> => {
     .sort((a, b) => b.timestamp - a.timestamp)
     .slice(0, 40)
 
-  const users = await fetchCuratorLeaderboard(since)
+  const { users, series, seriesTruncated } =
+    await fetchCuratorLeaderboard(since)
 
   const bountyByChain: Record<number, string> = {}
   let resultIndex = 0
@@ -1518,6 +1613,8 @@ export const fetchDashboardData = async (): Promise<DashboardData> => {
 
   return {
     generatedAt: Date.now(),
+    series,
+    seriesTruncated,
     registries,
     activities,
     disputes,

@@ -22,6 +22,49 @@ export type ThemeName = 'light' | 'dark' | 'kleros'
 
 export const THEME_STORAGE_KEY = 'kleros-curate-theme'
 
+/** Typeface pairing, switchable from the theme menu so the owner can compare live. */
+export type Typeface = 'kleros' | 'geist' | 'plex'
+export const TYPEFACE_STORAGE_KEY = 'curatevision-typeface'
+export const DEFAULT_TYPEFACE: Typeface = 'kleros'
+export const TYPEFACES: { value: Typeface; label: string; hint: string }[] = [
+  {
+    value: 'kleros',
+    label: 'Urbanist + Geist',
+    hint: 'Kleros brand display, Geist text',
+  },
+  { value: 'geist', label: 'Geist', hint: 'One grotesk throughout' },
+  { value: 'plex', label: 'IBM Plex', hint: 'Plex Sans + Plex Mono' },
+]
+const TYPEFACE_FONT_CSS: Record<Typeface, string> = {
+  kleros:
+    'https://fonts.googleapis.com/css2?family=Urbanist:wght@300;400;500;600&family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap',
+  geist:
+    'https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap',
+  plex: 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap',
+}
+const isTypeface = (value: unknown): value is Typeface =>
+  value === 'kleros' || value === 'geist' || value === 'plex'
+/** Loads a pairing's stylesheet once; the default is in index.html already. */
+const ensureTypefaceLoaded = (face: Typeface) => {
+  if (typeof document === 'undefined') return
+  const id = `cv-font-${face}`
+  if (document.querySelector(`#${id}`)) return
+  const link = document.createElement('link')
+  link.id = id
+  link.rel = 'stylesheet'
+  link.href = TYPEFACE_FONT_CSS[face]
+  document.head.append(link)
+}
+const readSavedTypeface = (): Typeface => {
+  try {
+    const saved = localStorage.getItem(TYPEFACE_STORAGE_KEY)
+    if (isTypeface(saved)) return saved
+  } catch {
+    // Storage can be blocked; fall through to the default.
+  }
+  return DEFAULT_TYPEFACE
+}
+
 interface Palette {
   name: ThemeName
   background: string
@@ -49,94 +92,130 @@ interface Palette {
   shadowHover: string
   overlayShadow: string
   glow: string
+  /** Second, fainter hue at the rim of the bloom (iridescent trace). */
+  glowRim: string
+  /** Translucent card fill, its hairline and its top highlight. */
+  glass: string
+  glassBorder: string
+  glassHighlight: string
+  /** Outside the app frame: the aurora's base and its three hues. */
+  stage: string
+  auroraA: string
+  auroraB: string
+  auroraC: string
 }
 
 const light: Palette = {
   name: 'light',
-  background: '#f4f6f9',
+  background: '#fbfcfe',
   surface: '#ffffff',
-  raised: '#eef1f5',
-  text: '#0f1419',
-  textMuted: '#4b5563',
-  textFaint: '#6b7686',
+  raised: '#f1f4fa',
+  text: '#0b1220',
+  textMuted: '#4d5a6e',
+  textFaint: '#7b8799',
   textInverted: '#ffffff',
-  border: '#e1e6ee',
-  borderStrong: '#c9d2de',
-  primary: '#1f6feb',
-  primaryHover: '#185fcc',
+  border: 'rgba(16, 24, 40, 0.08)',
+  borderStrong: 'rgba(16, 24, 40, 0.16)',
+  primary: '#2f6bff',
+  primaryHover: '#2459e0',
   onPrimary: '#ffffff',
-  primarySoft: '#e6f0fd',
+  primarySoft: 'rgba(47, 107, 255, 0.1)',
   indigo: '#5b61d6',
-  indigoSoft: '#ecedfb',
-  success: '#178a4c',
-  successSoft: '#e6f4ec',
+  indigoSoft: 'rgba(91, 97, 214, 0.1)',
+  success: '#148a4e',
+  successSoft: 'rgba(20, 138, 78, 0.1)',
   warning: '#9a5b00',
-  warningSoft: '#fbf1e0',
+  warningSoft: 'rgba(154, 91, 0, 0.1)',
   danger: '#c92a2a',
-  dangerSoft: '#fbe7e7',
-  shadow: '0 1px 2px rgba(16, 24, 40, 0.06)',
-  shadowHover: '0 2px 6px rgba(16, 24, 40, 0.1)',
-  overlayShadow: '0 12px 32px rgba(16, 24, 40, 0.12)',
-  glow: 'transparent',
+  dangerSoft: 'rgba(201, 42, 42, 0.1)',
+  shadow: '0 1px 2px rgba(16, 24, 40, 0.05), 0 8px 24px rgba(16, 24, 40, 0.05)',
+  shadowHover:
+    '0 2px 6px rgba(16, 24, 40, 0.08), 0 16px 40px rgba(16, 24, 40, 0.08)',
+  overlayShadow: '0 20px 60px rgba(16, 24, 40, 0.16)',
+  glow: 'rgba(47, 107, 255, 0.08)',
+  glowRim: 'rgba(124, 92, 255, 0.05)',
+  glass: '#ffffff',
+  glassBorder: 'rgba(16, 24, 40, 0.08)',
+  glassHighlight: 'rgba(255, 255, 255, 1)',
+  stage: '#dfe6f7',
+  auroraA: '#9db7ff',
+  auroraB: '#b8e3ff',
+  auroraC: '#c9b8ff',
 }
 
 const dark: Palette = {
   name: 'dark',
-  background: '#0a0e14',
-  surface: '#10161f',
-  raised: '#171f2b',
-  text: '#e9eef5',
-  textMuted: '#aeb8c6',
-  textFaint: '#7d8a9e',
-  textInverted: '#06101c',
-  border: 'rgba(148, 163, 184, 0.16)',
-  borderStrong: 'rgba(148, 163, 184, 0.34)',
-  primary: '#5da9ff',
-  primaryHover: '#7fbbff',
-  onPrimary: '#06101c',
-  primarySoft: 'rgba(93, 169, 255, 0.14)',
+  background: '#060912',
+  surface: '#0c111d',
+  raised: 'rgba(255, 255, 255, 0.045)',
+  text: '#f4f6fb',
+  textMuted: '#a1abc0',
+  textFaint: '#6b7590',
+  textInverted: '#04101f',
+  border: 'rgba(255, 255, 255, 0.07)',
+  borderStrong: 'rgba(255, 255, 255, 0.16)',
+  primary: '#3d7bff',
+  primaryHover: '#5a8fff',
+  onPrimary: '#ffffff',
+  primarySoft: 'rgba(61, 123, 255, 0.16)',
   indigo: '#8b93ff',
   indigoSoft: 'rgba(139, 147, 255, 0.14)',
-  success: '#3dd68c',
-  successSoft: 'rgba(61, 214, 140, 0.14)',
-  warning: '#f5b14c',
-  warningSoft: 'rgba(245, 177, 76, 0.14)',
-  danger: '#ff6b6b',
-  dangerSoft: 'rgba(255, 107, 107, 0.14)',
+  success: '#34d399',
+  successSoft: 'rgba(52, 211, 153, 0.14)',
+  warning: '#f5b04a',
+  warningSoft: 'rgba(245, 176, 74, 0.14)',
+  danger: '#ff6b7a',
+  dangerSoft: 'rgba(255, 107, 122, 0.14)',
   shadow: 'none',
-  shadowHover: 'none',
-  overlayShadow: '0 12px 32px rgba(0, 0, 0, 0.4)',
-  glow: 'rgba(93, 169, 255, 0.14)',
+  shadowHover: '0 12px 40px rgba(0, 0, 0, 0.35)',
+  overlayShadow: '0 24px 80px rgba(0, 0, 0, 0.6)',
+  glow: 'rgba(61, 123, 255, 0.16)',
+  glowRim: 'rgba(120, 90, 255, 0.10)',
+  glass: 'rgba(255, 255, 255, 0.03)',
+  glassBorder: 'rgba(255, 255, 255, 0.07)',
+  glassHighlight: 'rgba(255, 255, 255, 0.06)',
+  stage: '#02040b',
+  auroraA: '#1b2fff',
+  auroraB: '#0a7cff',
+  auroraC: '#5b2bff',
 }
 
 // Values from @kleros/ui-components-library theme.css (dark set), see DESIGN.md.
 const kleros: Palette = {
   name: 'kleros',
-  background: '#1b003f',
-  surface: '#220050',
-  raised: '#2a1260',
-  text: '#daf0ff',
-  textMuted: '#becce5',
-  textFaint: '#9a93c4',
-  textInverted: '#1b003f',
-  border: '#392c74',
-  borderStrong: '#4f4595',
+  background: '#10022a',
+  surface: '#1a073d',
+  raised: 'rgba(255, 255, 255, 0.05)',
+  text: '#eaf4ff',
+  textMuted: '#b9c6e0',
+  textFaint: '#8f87bd',
+  textInverted: '#14002f',
+  border: 'rgba(255, 255, 255, 0.1)',
+  borderStrong: 'rgba(255, 255, 255, 0.2)',
   primary: '#6cc5ff',
   primaryHover: '#a5dbff',
-  onPrimary: '#1b003f',
-  primarySoft: '#2e206c',
+  onPrimary: '#14002f',
+  primarySoft: 'rgba(108, 197, 255, 0.16)',
   indigo: '#b45fff',
-  indigoSoft: '#390f6c',
+  indigoSoft: 'rgba(180, 95, 255, 0.16)',
   success: '#65dc7f',
-  successSoft: '#32355b',
+  successSoft: 'rgba(101, 220, 127, 0.14)',
   warning: '#ffc46b',
-  warningSoft: '#451f54',
+  warningSoft: 'rgba(255, 196, 107, 0.14)',
   danger: '#ff5a78',
-  dangerSoft: '#360652',
+  dangerSoft: 'rgba(255, 90, 120, 0.14)',
   shadow: 'none',
-  shadowHover: 'none',
-  overlayShadow: '0 12px 32px rgba(0, 0, 0, 0.45)',
-  glow: 'rgba(144, 19, 254, 0.2)',
+  shadowHover: '0 12px 40px rgba(0, 0, 0, 0.4)',
+  overlayShadow: '0 24px 80px rgba(0, 0, 0, 0.6)',
+  glow: 'rgba(144, 19, 254, 0.18)',
+  glowRim: 'rgba(108, 197, 255, 0.10)',
+  glass: 'rgba(255, 255, 255, 0.035)',
+  glassBorder: 'rgba(255, 255, 255, 0.1)',
+  glassHighlight: 'rgba(255, 255, 255, 0.1)',
+  stage: '#07001a',
+  auroraA: '#7e1bd4',
+  auroraB: '#4d00b4',
+  auroraC: '#27cdfe',
 }
 
 /** Expands a palette into the full set of keys the app's styled components read. */
@@ -259,7 +338,14 @@ const buildTheme = (p: Palette) => ({
   curateShadow: p.shadow,
   curateShadowHover: p.shadowHover,
   curateGlowA: p.glow,
-  curateGlowB: 'transparent',
+  curateGlowB: p.glowRim,
+  glass: p.glass,
+  glassBorder: p.glassBorder,
+  glassHighlight: p.glassHighlight,
+  stage: p.stage,
+  auroraA: p.auroraA,
+  auroraB: p.auroraB,
+  auroraC: p.auroraC,
 })
 
 export const lightTheme = buildTheme(light)
@@ -322,6 +408,8 @@ interface ThemeContextValue {
   mode: ThemeMode
   setMode: (mode: ThemeMode) => void
   resolved: ThemeName
+  typeface: Typeface
+  setTypeface: (face: Typeface) => void
 }
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined)
@@ -329,6 +417,21 @@ const ThemeContext = createContext<ThemeContextValue | undefined>(undefined)
 const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
   const [mode, setModeState] = useState<ThemeMode>(readSavedMode)
   const [prefersDark, setPrefersDark] = useState<boolean>(systemPrefersDark)
+  const [typeface, setTypefaceState] = useState<Typeface>(readSavedTypeface)
+
+  const setTypeface = useCallback((next: Typeface) => {
+    setTypefaceState(next)
+    try {
+      localStorage.setItem(TYPEFACE_STORAGE_KEY, next)
+    } catch {
+      // Storage can be blocked; the choice then lasts for the session.
+    }
+  }, [])
+
+  useEffect(() => {
+    ensureTypefaceLoaded(typeface)
+    document.body.setAttribute('data-type', typeface)
+  }, [typeface])
 
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return
@@ -358,16 +461,34 @@ const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     document.body.setAttribute('data-theme', resolved)
-    document.body.style.backgroundColor = theme.curateBg
+    document.body.style.backgroundColor = theme.stage
     document.body.style.colorScheme = isDarkMode ? 'dark' : 'light'
     // Shared @kleros/ui-components-library components (e.g. FileViewer) read
     // their CSS variables from `:root.dark`, so keep that class in sync.
     document.documentElement.classList.toggle('dark', isDarkMode)
-  }, [resolved, isDarkMode, theme.curateBg])
+  }, [resolved, isDarkMode, theme.stage])
 
   const value = useMemo(
-    () => ({ isDarkMode, toggleTheme, theme, mode, setMode, resolved }),
-    [isDarkMode, toggleTheme, theme, mode, setMode, resolved],
+    () => ({
+      isDarkMode,
+      toggleTheme,
+      theme,
+      mode,
+      setMode,
+      resolved,
+      typeface,
+      setTypeface,
+    }),
+    [
+      isDarkMode,
+      toggleTheme,
+      theme,
+      mode,
+      setMode,
+      resolved,
+      typeface,
+      setTypeface,
+    ],
   )
 
   return (

@@ -10,18 +10,19 @@ import { Surface, Body, Label } from './primitives'
 
 const STORAGE_PREFIX = 'curatevision-explainer:'
 
+/** Collapsed unless the visitor opened it before: pages stay quiet by default. */
 const readHidden = (id: string): boolean => {
   try {
-    return localStorage.getItem(STORAGE_PREFIX + id) === 'hidden'
+    return localStorage.getItem(STORAGE_PREFIX + id) !== 'open'
   } catch {
-    return false
+    return true
   }
 }
 
 const writeHidden = (id: string, hidden: boolean) => {
   try {
-    if (hidden) localStorage.setItem(STORAGE_PREFIX + id, 'hidden')
-    else localStorage.removeItem(STORAGE_PREFIX + id)
+    if (hidden) localStorage.removeItem(STORAGE_PREFIX + id)
+    else localStorage.setItem(STORAGE_PREFIX + id, 'open')
   } catch {
     // Storage can be blocked; the choice then lasts for the session.
   }
@@ -54,17 +55,17 @@ const Shell = styled(Surface)`
 const Heading = styled.h2`
   margin: 0 0 6px;
   color: var(--color-text);
-  font-family: var(--font-serif);
-  font-size: 26px;
+  font-family: var(--font-display);
+  font-size: 28px;
   line-height: 32px;
   font-weight: 400;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-display);
 `
 
 const Steps = styled.ol`
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
   margin: 16px 0 0;
   padding: 0;
   list-style: none;
@@ -143,20 +144,38 @@ const Schematic = styled.div`
 const ShowAgain = styled.button`
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--color-faint);
-  font-family: var(--font-mono);
-  font-size: var(--fs-label);
-  line-height: var(--lh-label);
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
+  gap: 8px;
+  height: 32px;
+  padding: 0 14px 0 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--glass);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  font-weight: 500;
   cursor: pointer;
+  transition:
+    color var(--motion),
+    border-color var(--motion);
 
   &:hover {
-    color: var(--color-muted);
+    color: var(--color-text);
+    border-color: var(--color-border-strong);
+  }
+
+  span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: var(--radius-pill);
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+    font-family: var(--font-mono);
+    font-size: 11px;
   }
 `
 
@@ -186,8 +205,13 @@ export const Explainer = ({
 
   if (hidden)
     return (
-      <ShowAgain type="button" onClick={() => setHidden(false)}>
-        {heading} · show
+      <ShowAgain
+        type="button"
+        aria-expanded={false}
+        onClick={() => setHidden(false)}
+      >
+        <span aria-hidden>?</span>
+        {eyebrow ?? 'How it works'}
       </ShowAgain>
     )
 
@@ -210,7 +234,7 @@ export const Explainer = ({
         <Footer>
           {footer}
           <TextLink type="button" onClick={() => setHidden(true)}>
-            Hide this
+            Close
           </TextLink>
         </Footer>
       </div>

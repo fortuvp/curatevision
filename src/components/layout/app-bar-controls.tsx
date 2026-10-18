@@ -5,11 +5,11 @@ export const BarIconButton = styled.button`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   padding: 0;
   border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-pill);
   background: transparent;
   color: var(--color-muted);
   cursor: pointer;
@@ -35,11 +35,12 @@ export const BarChipButton = styled.button`
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  height: 36px;
-  padding: 0 10px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
+  height: 38px;
+  padding: 0 14px 0 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--glass);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
   color: var(--color-text);
   font-family: var(--font-mono);
   font-size: 12px;
@@ -66,15 +67,18 @@ export const BarPrimaryButton = styled.button`
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  height: 36px;
-  padding: 0 14px;
+  height: 38px;
+  padding: 0 16px;
   border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-pill);
   background: var(--color-primary);
   color: var(--color-on-primary);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 28%, transparent),
+    0 8px 24px -10px var(--color-primary);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
-  font-weight: 600;
+  font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
   transition: background var(--motion);

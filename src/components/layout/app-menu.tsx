@@ -11,6 +11,11 @@ const DesktopNav = styled.nav`
   display: flex;
   align-items: center;
   gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--glass);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
 
   ${smallScreenStyle(
     () => css`
@@ -24,12 +29,12 @@ const NavLink = styled(Link)<{ $active?: boolean }>`
   display: inline-flex;
   align-items: center;
   height: 32px;
-  padding: 0 10px;
-  border-radius: var(--radius-sm);
+  padding: 0 14px;
+  border-radius: var(--radius-pill);
   color: ${({ $active }) =>
-    $active ? 'var(--color-primary)' : 'var(--color-muted)'};
+    $active ? 'var(--color-bg)' : 'var(--color-muted)'};
   background: ${({ $active }) =>
-    $active ? 'var(--color-primary-soft)' : 'transparent'};
+    $active ? 'var(--color-text)' : 'transparent'};
   text-decoration: none;
   font-size: var(--fs-body);
   line-height: var(--lh-body);
@@ -41,9 +46,9 @@ const NavLink = styled(Link)<{ $active?: boolean }>`
 
   &:hover {
     color: ${({ $active }) =>
-      $active ? 'var(--color-primary)' : 'var(--color-text)'};
+      $active ? 'var(--color-bg)' : 'var(--color-text)'};
     background: ${({ $active }) =>
-      $active ? 'var(--color-primary-soft)' : 'var(--color-raised)'};
+      $active ? 'var(--color-text)' : 'var(--color-raised)'};
   }
 `
 
