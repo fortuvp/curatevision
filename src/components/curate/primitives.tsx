@@ -289,11 +289,11 @@ export const Data = styled.span<{
 export const Figure = styled.span<{ $size?: 'md' | 'lg' }>`
   display: block;
   color: var(--color-text);
-  font-family: var(--font-display);
+  font-family: var(--font-figure);
   font-size: ${({ $size }) =>
     $size === 'lg' ? 'clamp(40px, 3.4vw + 16px, 64px)' : 'var(--fs-figure)'};
   line-height: var(--lh-figure);
-  font-weight: 400;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
   letter-spacing: var(--tracking-display);
 `

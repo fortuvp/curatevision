@@ -25,6 +25,8 @@ const GlobalStyle = createGlobalStyle`
     --font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     --font-display: "Urbanist", "Geist", -apple-system, BlinkMacSystemFont, sans-serif;
+    /* Numbers that animate or align must use a face with tabular figures. */
+    --font-figure: "Geist", -apple-system, BlinkMacSystemFont, sans-serif;
     --font-serif: var(--font-display);
     --fs-hero: clamp(44px, 5.2vw + 12px, 84px);
     --lh-hero: 0.98;
@@ -71,6 +73,19 @@ const GlobalStyle = createGlobalStyle`
     --app-bar-height: 64px;
     --motion: 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
     --blur: 18px;
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+    --ease-spring: cubic-bezier(0.34, 1.3, 0.64, 1);
+    --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+    --dur-press: 90ms;
+    --dur-hover: 180ms;
+    --dur-control: 320ms;
+    --dur-panel: 480ms;
+    --dur-figure: 900ms;
+    --dur-draw: 1400ms;
+    --stagger: 70ms;
+    --stagger-row: 24ms;
+    --noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .6 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 
     /* Semantic color roles (from the theme) */
     --color-bg: ${({ theme }) => theme.curateBg};
@@ -104,8 +119,8 @@ const GlobalStyle = createGlobalStyle`
     --aurora-a: ${({ theme }) => theme.auroraA};
     --aurora-b: ${({ theme }) => theme.auroraB};
     --aurora-c: ${({ theme }) => theme.auroraC};
-    --frame-gap: clamp(12px, 2.2vw, 36px);
-    --frame-radius: 32px;
+    --frame-gap: clamp(8px, 3.2vw, 52px);
+    --frame-radius: clamp(20px, 2.8vw, 44px);
     --glass-border: ${({ theme }) => theme.glassBorder};
     --glass-highlight: ${({ theme }) => theme.glassHighlight};
     --grid-line: ${({ theme }) =>
@@ -202,13 +217,8 @@ const GlobalStyle = createGlobalStyle`
 
     color: var(--color-text);
     font-feature-settings: "ss01", "cv11";
-    /* The stage outside the app frame: an aurora in the theme's hues (YMax). */
-    background:
-      radial-gradient(48vw 60vh at 4% 0%, var(--aurora-b), transparent 62%),
-      radial-gradient(56vw 70vh at 100% 36%, var(--aurora-a), transparent 64%),
-      radial-gradient(40vw 50vh at 30% 100%, var(--aurora-c), transparent 66%),
-      var(--stage);
-    background-attachment: fixed;
+    /* The stage colour; the aurora layers live in bootstrap/app.tsx (Stage). */
+    background: var(--stage);
 
     @media (max-width: ${BREAKPOINT_LANDSCAPE}px) {
       --horizontal-padding: 16px;
@@ -420,6 +430,7 @@ const GlobalStyle = createGlobalStyle`
     --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     --font-display: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-figure: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
   }
 
 
@@ -442,6 +453,11 @@ const GlobalStyle = createGlobalStyle`
     10% { opacity: 1; }
     85% { opacity: 1; }
     100% { --cv-comet: 360deg; opacity: 0; }
+  }
+
+  /* Looping animations pause while the tab is hidden (set in bootstrap/app.tsx). */
+  [data-paused] * {
+    animation-play-state: paused !important;
   }
 `
 

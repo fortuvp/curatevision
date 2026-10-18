@@ -128,22 +128,38 @@ const Axis = styled.div`
   font-variant-numeric: tabular-nums;
 `
 
-/** Catmull-Rom spline through the points, as cubic Bézier segments. */
-const smoothPath = (points: [number, number][], floor: number) => {
-  if (points.length < 2) return ''
-  let d = `M ${points[0][0]} ${points[0][1]}`
-  for (let i = 0; i < points.length - 1; i++) {
-    const p0 = points[i - 1] ?? points[i]
-    const p1 = points[i]
-    const p2 = points[i + 1]
-    const p3 = points[i + 2] ?? p2
-    const t = 0.18
-    const c1x = p1[0] + (p2[0] - p0[0]) * t
-    const c1y = p1[1] + (p2[1] - p0[1]) * t
-    const c2x = p2[0] - (p3[0] - p1[0]) * t
-    const c2y = p2[1] - (p3[1] - p1[1]) * t
-    // Keep control points above the baseline so the curve never dips below zero.
-    d += ` C ${c1x} ${Math.min(floor, c1y)} ${c2x} ${Math.min(floor, c2y)} ${p2[0]} ${p2[1]}`
+/** Monotone cubic (Fritsch–Carlson): never overshoots the data. */
+const smoothPath = (pts: [number, number][]) => {
+  const n = pts.length
+  if (n < 2) return ''
+  const xs = pts.map((p) => p[0])
+  const ys = pts.map((p) => p[1])
+  const dx = Array.from({ length: n - 1 }, (_, i) => xs[i + 1] - xs[i])
+  const dy = Array.from({ length: n - 1 }, (_, i) => ys[i + 1] - ys[i])
+  const slope = dx.map((d, i) => (d === 0 ? 0 : dy[i] / d))
+  const m = new Array<number>(n).fill(0)
+  m[0] = slope[0]
+  m[n - 1] = slope[n - 2]
+  for (let i = 1; i < n - 1; i++)
+    m[i] = slope[i - 1] * slope[i] <= 0 ? 0 : (slope[i - 1] + slope[i]) / 2
+  for (let i = 0; i < n - 1; i++) {
+    if (slope[i] === 0) {
+      m[i] = 0
+      m[i + 1] = 0
+      continue
+    }
+    const a = m[i] / slope[i]
+    const b = m[i + 1] / slope[i]
+    const h = Math.hypot(a, b)
+    if (h > 3) {
+      m[i] = ((3 * a) / h) * slope[i]
+      m[i + 1] = ((3 * b) / h) * slope[i]
+    }
+  }
+  let d = `M ${xs[0]} ${ys[0]}`
+  for (let i = 0; i < n - 1; i++) {
+    const h = dx[i]
+    d += ` C ${xs[i] + h / 3} ${ys[i] + (m[i] * h) / 3} ${xs[i + 1] - h / 3} ${ys[i + 1] - (m[i + 1] * h) / 3} ${xs[i + 1]} ${ys[i + 1]}`
   }
   return d
 }
@@ -185,7 +201,7 @@ export const AreaChart = ({
     () =>
       series.map((s) => {
         const pts = s.values.map((v, i) => [x(i), y(v)] as [number, number])
-        const line = smoothPath(pts, height)
+        const line = smoothPath(pts)
         const area = `${line} L ${width} ${height} L 0 ${height} Z`
         return { ...s, line, area }
       }),
@@ -200,7 +216,7 @@ export const AreaChart = ({
     setHover(Math.max(0, Math.min(count - 1, Math.round(ratio * (count - 1)))))
   }
 
-  const guides = [0.25, 0.5, 0.75, 1]
+  const guides = [0.5, 1]
   const step = Math.max(1, Math.round(count / 6))
 
   return (
@@ -211,11 +227,7 @@ export const AreaChart = ({
       role="img"
       aria-label={ariaLabel}
     >
-      <Svg
-        viewBox={`0 0 ${width} ${height}`}
-        style={{ height }}
-        preserveAspectRatio="none"
-      >
+      <Svg viewBox={`0 0 ${width} ${height}`} style={{ height }}>
         <defs>
           {paths.map((p) => (
             <linearGradient
@@ -249,18 +261,6 @@ export const AreaChart = ({
           >
             {Math.round(niceMax * g)}
           </text>
-        ))}
-        {guides.map((g) => (
-          <line
-            key={g}
-            x1="0"
-            x2={width}
-            y1={y(niceMax * g)}
-            y2={y(niceMax * g)}
-            stroke="var(--glass-border)"
-            strokeDasharray="4 8"
-            vectorEffect="non-scaling-stroke"
-          />
         ))}
         {paths.map((p) => (
           <path

@@ -98,16 +98,38 @@ const Axis = styled.div`
   font-size: 11px;
 `
 
-const smooth = (pts: [number, number][], floor: number) => {
-  if (pts.length < 2) return ''
-  let d = `M ${pts[0][0]} ${pts[0][1]}`
-  for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = pts[i - 1] ?? pts[i]
-    const p1 = pts[i]
-    const p2 = pts[i + 1]
-    const p3 = pts[i + 2] ?? p2
-    const t = 0.18
-    d += ` C ${p1[0] + (p2[0] - p0[0]) * t} ${Math.min(floor, p1[1] + (p2[1] - p0[1]) * t)} ${p2[0] - (p3[0] - p1[0]) * t} ${Math.min(floor, p2[1] - (p3[1] - p1[1]) * t)} ${p2[0]} ${p2[1]}`
+/** Monotone cubic (Fritsch–Carlson): never overshoots the data. */
+const smoothPath = (pts: [number, number][]) => {
+  const n = pts.length
+  if (n < 2) return ''
+  const xs = pts.map((p) => p[0])
+  const ys = pts.map((p) => p[1])
+  const dx = Array.from({ length: n - 1 }, (_, i) => xs[i + 1] - xs[i])
+  const dy = Array.from({ length: n - 1 }, (_, i) => ys[i + 1] - ys[i])
+  const slope = dx.map((d, i) => (d === 0 ? 0 : dy[i] / d))
+  const m = new Array<number>(n).fill(0)
+  m[0] = slope[0]
+  m[n - 1] = slope[n - 2]
+  for (let i = 1; i < n - 1; i++)
+    m[i] = slope[i - 1] * slope[i] <= 0 ? 0 : (slope[i - 1] + slope[i]) / 2
+  for (let i = 0; i < n - 1; i++) {
+    if (slope[i] === 0) {
+      m[i] = 0
+      m[i + 1] = 0
+      continue
+    }
+    const a = m[i] / slope[i]
+    const b = m[i + 1] / slope[i]
+    const h = Math.hypot(a, b)
+    if (h > 3) {
+      m[i] = ((3 * a) / h) * slope[i]
+      m[i + 1] = ((3 * b) / h) * slope[i]
+    }
+  }
+  let d = `M ${xs[0]} ${ys[0]}`
+  for (let i = 0; i < n - 1; i++) {
+    const h = dx[i]
+    d += ` C ${xs[i] + h / 3} ${ys[i] + (m[i] * h) / 3} ${xs[i + 1] - h / 3} ${ys[i + 1] - (m[i + 1] * h) / 3} ${xs[i + 1]} ${ys[i + 1]}`
   }
   return d
 }
@@ -161,7 +183,7 @@ export const ActivityWave = ({
   const yUp = (v: number) => mid - (v / upMax) * (mid - 14)
   const yDown = (v: number) => mid + (v / downMax) * (height - mid - 6)
   const pts = up.map((v, i) => [x(i), yUp(v)] as [number, number])
-  const line = smooth(pts, mid)
+  const line = smoothPath(pts)
   const area = `${line} L ${width} ${mid} L 0 ${mid} Z`
   const barW = Math.max(3, Math.min(10, (width / Math.max(1, count)) * 0.42))
   const head = pts[pts.length - 1]

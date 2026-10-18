@@ -2,9 +2,10 @@ import React from 'react'
 import styled, { keyframes } from 'styled-components'
 
 /*
- * Ring chart for the dashboard hero: one arc per segment with small gaps,
- * rounded caps and a soft glow, the total set large and light in the middle.
- * Only real counts go in; the arcs are proportional to them.
+ * Ring chart: one arc per segment with small gaps and rounded caps, each
+ * sitting on a wide, faint halo of its own colour (no blur filters, so the
+ * edges stay crisp), the total set in the middle. Only real counts go in;
+ * the arcs are proportional to them.
  */
 
 const Wrap = styled.figure<{ $size?: number }>`
@@ -52,7 +53,7 @@ const Center = styled.figcaption`
 
 const Total = styled.span`
   color: var(--color-text);
-  font-family: var(--font-display);
+  font-family: var(--font-figure);
   font-size: 28px;
   line-height: 1;
   font-weight: 500;
@@ -124,15 +125,6 @@ export const OrbitChart = ({
   return (
     <Wrap $size={size} role="img" aria-label={ariaLabel}>
       <Svg viewBox={`0 0 ${box} ${box}`}>
-        <defs>
-          <filter id="orbit-glow" x="-30%" y="-30%" width="160%" height="160%">
-            <feGaussianBlur stdDeviation="6" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
         <circle
           cx={c}
           cy={c}
@@ -160,13 +152,28 @@ export const OrbitChart = ({
         />
         {arcs.map((arc, index) => (
           <ArcPath
+            key={`${arc.key}-halo`}
+            d={arcPath(c, c, r, arc.start, arc.end)}
+            fill="none"
+            stroke={arc.color}
+            strokeWidth="34"
+            strokeOpacity="0.16"
+            strokeLinecap="round"
+            pathLength={1000}
+            style={{
+              ['--len' as string]: '1000',
+              ['--delay' as string]: `${index * 180}ms`,
+            }}
+          />
+        ))}
+        {arcs.map((arc, index) => (
+          <ArcPath
             key={arc.key}
             d={arcPath(c, c, r, arc.start, arc.end)}
             fill="none"
             stroke={arc.color}
             strokeWidth="18"
             strokeLinecap="round"
-            filter="url(#orbit-glow)"
             pathLength={1000}
             style={{
               ['--len' as string]: '1000',

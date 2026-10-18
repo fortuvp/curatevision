@@ -71,9 +71,10 @@ const ColumnHeader = styled.div`
 
 const Count = styled.span`
   color: var(--color-text);
+  font-family: var(--font-figure);
   font-size: 28px;
   line-height: 1;
-  font-weight: 300;
+  font-weight: 500;
   letter-spacing: var(--tracking-display);
   font-variant-numeric: tabular-nums;
 `

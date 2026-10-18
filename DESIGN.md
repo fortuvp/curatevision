@@ -34,7 +34,7 @@ typography:
     fontWeight: 500
     lineHeight: 50px
   figure:
-    fontFamily: "Urbanist"
+    fontFamily: "Geist"
     fontSize: 64px
     fontWeight: 500
     lineHeight: 61px
@@ -127,10 +127,13 @@ between Light and Dark. `?cv-theme=light|dark|kleros` previews a theme without s
 
 # Frame and stage
 
-- The stage is the page background: three large radial gradients in `aurora-a/b/c` over `stage`.
-- The frame wraps the app bar, pages and footer: `frame` radius, `frame-gap` margin
-  (clamp 12–36px), 1px border, a top highlight, a soft inner bloom of the accent at its top edge.
-  On phones the frame goes edge to edge.
+- The stage is the page background: two slowly drifting aurora pools and one tilted band in
+  `aurora-a/b/c` over `stage`, with a faint grain. The dashboard gets the full aurora; inner routes
+  dim it to an underglow so the content leads. Hidden tabs pause the drift.
+- The frame wraps the app bar, pages and footer: `frame-radius` (clamp 20–44px), `frame-gap`
+  margin (clamp 8–52px), an inset 1px ring, a top highlight, light leaks where the band crosses it
+  and a floor light at its bottom edge. On phones the frame goes edge to edge.
+- The top bar is transparent at rest; after 24px of scroll it lifts into a floating glass pill.
 - Nothing inside the frame paints its own full-bleed background or grid.
 
 # Colors
@@ -156,7 +159,9 @@ open, amber contested, red off the list, grey neutral; always a haloed dot plus 
 
 - **Urbanist** (the Kleros brand face) for display: hero lines, page titles, section titles, big
   figures. Weight 500, tight tracking (-0.03 to -0.045em).
-- **Geist** for everything people read and operate. Labels are small uppercase Geist (11px, 0.06em).
+- **Geist** for everything people read and operate, and for every figure that animates or lines up
+  in a column (`--font-figure`, tabular figures; Urbanist has none). Labels are small uppercase
+  Geist (11px, 0.06em).
 - **Geist Mono** only for addresses, hashes and IDs.
 - A typeface switch in the theme menu compares pairings live (Urbanist + Geist, Geist, IBM Plex).
 
@@ -173,11 +178,13 @@ open, amber contested, red off the list, grey neutral; always a haloed dot plus 
 
 - `Odometer`: digits roll on their own columns, then settle into plain text.
 - `AnimatedNumber`: ease-out count-up.
-- `RingGauge`: gradient arc with a glow, tick marks, draws in from 12 o'clock, figure inside.
+- `RingGauge`: a 270° conic-gradient arc with the gap at the bottom; only the head glows, a crown
+  of ticks lights as it passes, the figure (Geist, tabular) sits inside. Expo ease, no overshoot.
 - `ActivityWave`: one series as a glowing area above a baseline with a live head at the newest
   point, a second series mirrored below as bars on its own labelled scale; scanner reveal; hover
   tooltip.
-- `AreaChart`, `OrbitChart` (multi-segment ring), `reveal` (staggered entrance).
+- `AreaChart`, `OrbitChart` (multi-segment ring on crisp halos, no blur), `reveal` (staggered
+  entrance). Curves are monotone cubic, so they never overshoot the data.
 - Easing `cubic-bezier(0.16, 1, 0.3, 1)` for entrances, `(0.2, 0.8, 0.2, 1)` for state changes,
   springs for indicators. All respect `prefers-reduced-motion`.
 

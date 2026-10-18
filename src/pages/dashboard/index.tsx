@@ -212,6 +212,7 @@ const InlineStat = styled.div`
 
   b {
     color: var(--color-text);
+    font-family: var(--font-figure);
     font-size: 18px;
     line-height: 22px;
     font-weight: 500;
@@ -244,7 +245,7 @@ const SeriesLegend = styled.ul`
 
 const Big = styled.span<{ $hero?: boolean }>`
   color: var(--color-text);
-  font-family: var(--font-display);
+  font-family: var(--font-figure);
   font-size: ${({ $hero }) =>
     $hero
       ? 'clamp(48px, 3.6vw + 24px, 80px)'
@@ -785,7 +786,7 @@ const Dashboard = () => {
                     `${seg.label} ${formatInt(seg.value)} (${breakdownTotal ? Math.round((seg.value / breakdownTotal) * 100) : 0}%)`,
                 )
                 .join(', ')}`}
-              size={148}
+              size={168}
             />
           )}
           <div style={{ minWidth: 0 }}>
@@ -815,7 +816,7 @@ const Dashboard = () => {
         <GaugeCard $padding="none" style={{ ['--i' as string]: 7 }}>
           <RingGauge
             key={`v-${chains.join('-')}`}
-            size={148}
+            size={168}
             ratio={
               figures?.registries ? figures.verified / figures.registries : 0
             }
@@ -836,7 +837,7 @@ const Dashboard = () => {
         <GaugeCard $padding="none" style={{ ['--i' as string]: 8 }}>
           <RingGauge
             key={`c-${chains.join('-')}`}
-            size={148}
+            size={168}
             ratio={figures?.challenges ? figures.won / figures.challenges : 0}
             from="var(--status-contested)"
             to="var(--color-danger)"

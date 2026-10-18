@@ -36,17 +36,43 @@ import ChainLogo from 'components/chain-logo'
  * hairline. Logo, primary navigation, chain chip, account chip or Connect, theme
  * menu, help. On phones the navigation moves under the menu button.
  */
-const Container = styled.header`
+/*
+ * Sticky bar; after 24px of scroll it lifts into a floating pill (the spec's
+ * top bar) so the content underneath reads through the blur.
+ */
+const Container = styled.header<{ $floating?: boolean }>`
   position: sticky;
   top: 0;
   z-index: 50;
-  background: color-mix(in srgb, var(--color-bg) 72%, transparent);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border-bottom: 1px solid var(--glass-border);
+  width: 100%;
+  margin: 0 auto;
+  max-width: ${({ $floating }) => ($floating ? 'calc(100% - 24px)' : '100%')};
+  background: ${({ $floating }) =>
+    $floating
+      ? 'color-mix(in srgb, var(--color-bg) 72%, transparent)'
+      : 'transparent'};
+  backdrop-filter: ${({ $floating }) =>
+    $floating ? 'blur(16px) saturate(160%)' : 'none'};
+  -webkit-backdrop-filter: ${({ $floating }) =>
+    $floating ? 'blur(16px) saturate(160%)' : 'none'};
+  border: 1px solid
+    ${({ $floating }) => ($floating ? 'var(--glass-border)' : 'transparent')};
+  border-bottom-color: ${({ $floating }) =>
+    $floating ? 'var(--glass-border)' : 'var(--glass-border)'};
+  border-radius: ${({ $floating }) => ($floating ? 'var(--radius-pill)' : '0')};
+  transform: translateY(${({ $floating }) => ($floating ? '8px' : '0')});
   transition:
-    background-color var(--motion),
-    border-color var(--motion);
+    max-width 200ms var(--ease-in-out),
+    background-color 200ms var(--ease-in-out),
+    border-color 200ms var(--ease-in-out),
+    border-radius 200ms var(--ease-in-out),
+    transform 200ms var(--ease-in-out);
+
+  @media (max-width: 600px) {
+    max-width: 100%;
+    border-radius: 0;
+    transform: none;
+  }
 `
 
 const Row = styled.div`
@@ -270,6 +296,13 @@ const AppBar = () => {
   }, [location.pathname])
 
   const displayedChainId = urlChainId ?? savedChainId ?? networkId
+  const [floating, setFloating] = useState(false)
+  useEffect(() => {
+    const onScroll = () => setFloating(window.scrollY > 24)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
   const [chainDropdownOpen, setChainDropdownOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [helpDropdownOpen, setHelpDropdownOpen] = useState(false)
@@ -395,7 +428,7 @@ const AppBar = () => {
   )
 
   return (
-    <Container>
+    <Container $floating={floating}>
       <Row>
         <LeftGroup>
           <MobileMenuWrapper>
