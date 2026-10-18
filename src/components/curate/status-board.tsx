@@ -11,6 +11,7 @@ import {
   type StatusTone,
 } from './primitives'
 import { CurateIcon } from './icons'
+import { parseRichAddress } from 'utils/rich-address'
 
 /*
  * Status columns board (DESIGN.md, Components): three columns with mono headers
@@ -179,6 +180,17 @@ const Empty = styled.div`
   text-align: center;
 `
 
+/** CAIP-10 values read as "0x94bA…8a2f · Robinhood Chain"; others pass through. */
+const readableIdentifier = (value: string): string => {
+  const rich = parseRichAddress(value)
+  if (!rich) return value
+  const short =
+    rich.address.length > 14
+      ? `${rich.address.slice(0, 6)}…${rich.address.slice(-4)}`
+      : rich.address
+  return `${short} · ${rich.reference.name}`
+}
+
 const BoardColumnView = ({
   column,
   limit,
@@ -214,7 +226,7 @@ const BoardColumnView = ({
             <IdValue
               title={`${card.identifiers[0].label}: ${card.identifiers[0].value}`}
             >
-              {card.identifiers[0].value}
+              {readableIdentifier(card.identifiers[0].value)}
             </IdValue>
           )}
           <Meta>
