@@ -428,6 +428,20 @@ const GlobalStyle = createGlobalStyle`
       transition-duration: 0.01ms !important;
     }
   }
+
+  /* A single comet of light travels the featured panel's rim on load. */
+  @property --cv-comet {
+    syntax: '<angle>';
+    inherits: false;
+    initial-value: 0deg;
+  }
+
+  @keyframes cv-comet {
+    0% { --cv-comet: 0deg; opacity: 0; }
+    10% { opacity: 1; }
+    85% { opacity: 1; }
+    100% { --cv-comet: 360deg; opacity: 0; }
+  }
 `
 
 export default GlobalStyle

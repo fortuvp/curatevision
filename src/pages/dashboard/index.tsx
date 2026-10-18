@@ -26,7 +26,8 @@ import {
 } from 'components/curate/primitives'
 import { StatusBoard } from 'components/curate/status-board'
 import { OrbitChart } from 'components/curate/orbit-chart'
-import { AreaChart } from 'components/curate/motion/area-chart'
+import { ActivityWave } from 'components/curate/motion/activity-wave'
+import { Odometer } from 'components/curate/motion/odometer'
 import { RingGauge } from 'components/curate/motion/ring-gauge'
 import { AnimatedNumber } from 'components/curate/motion/animated-number'
 import { reveal } from 'components/curate/motion/reveal'
@@ -703,7 +704,7 @@ const Dashboard = () => {
           <HeadlineFigure>
             <Label $tone="faint">Entries curated</Label>
             <Big $hero>
-              <AnimatedNumber value={figures?.entries} />
+              <Odometer value={figures?.entries} />
             </Big>
           </HeadlineFigure>
           <InlineStats>
@@ -741,24 +742,14 @@ const Dashboard = () => {
         {loading ? (
           <SkeletonBlock $height="240px" />
         ) : (
-          <AreaChart
+          <ActivityWave
             key={chains.join('-')}
-            height={240}
+            height={260}
             labels={chartLabels}
-            series={[
-              {
-                key: 'requests',
-                label: 'Requests',
-                color: 'var(--color-primary)',
-                values: series.map((d) => d.submissions + d.removals),
-              },
-              {
-                key: 'challenges',
-                label: 'Challenges',
-                color: 'var(--status-contested)',
-                values: series.map((d) => d.challenges),
-              },
-            ]}
+            up={series.map((d) => d.submissions + d.removals)}
+            down={series.map((d) => d.challenges)}
+            upLabel="Requests"
+            downLabel="Challenges"
             ariaLabel={`Requests and challenges per day over the last 30 days: ${formatInt(
               series.reduce((sum, d) => sum + d.submissions + d.removals, 0),
             )} requests, ${formatInt(

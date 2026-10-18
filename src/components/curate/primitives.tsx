@@ -95,6 +95,35 @@ export const Surface = styled.div<{
           )
           border-box;
       border-width: 1.5px;
+
+      &::after {
+        content: '';
+        position: absolute;
+        inset: -1.5px;
+        padding: 1.5px;
+        border-radius: inherit;
+        background: conic-gradient(
+          from var(--cv-comet),
+          transparent 0deg 290deg,
+          color-mix(in srgb, var(--color-primary) 80%, transparent) 340deg,
+          white 354deg,
+          transparent 360deg
+        );
+        -webkit-mask:
+          linear-gradient(#000 0 0) content-box,
+          linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor;
+        mask-composite: exclude;
+        pointer-events: none;
+        opacity: 0;
+        animation: cv-comet 2800ms cubic-bezier(0.45, 0, 0.2, 1) 500ms 1 both;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        &::after {
+          display: none;
+        }
+      }
     `}
 
   ${({ $interactive }) =>
