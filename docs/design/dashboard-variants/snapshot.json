@@ -1,0 +1,654 @@
+{
+ "snapshotAt": "2026-10-18T19:58:56.470Z",
+ "scope": "Ethereum + Gnosis (mainnets)",
+ "figures": {
+  "registries": 237,
+  "verified": 36,
+  "entries": 31228,
+  "requestsOpen": 206,
+  "inCourt": 7,
+  "curators30d": 12
+ },
+ "entriesByChain": [
+  {
+   "chain": "Ethereum",
+   "entries": 1300
+  },
+  {
+   "chain": "Gnosis",
+   "entries": 29928
+  }
+ ],
+ "series30d": [
+  {
+   "day": 1789776000,
+   "requests": 39,
+   "challenges": 0
+  },
+  {
+   "day": 1789862400,
+   "requests": 1,
+   "challenges": 1
+  },
+  {
+   "day": 1789948800,
+   "requests": 140,
+   "challenges": 0
+  },
+  {
+   "day": 1790035200,
+   "requests": 15,
+   "challenges": 2
+  },
+  {
+   "day": 1790121600,
+   "requests": 35,
+   "challenges": 0
+  },
+  {
+   "day": 1790208000,
+   "requests": 0,
+   "challenges": 0
+  },
+  {
+   "day": 1790294400,
+   "requests": 118,
+   "challenges": 0
+  },
+  {
+   "day": 1790380800,
+   "requests": 9,
+   "challenges": 0
+  },
+  {
+   "day": 1790467200,
+   "requests": 34,
+   "challenges": 1
+  },
+  {
+   "day": 1790553600,
+   "requests": 0,
+   "challenges": 0
+  },
+  {
+   "day": 1790640000,
+   "requests": 42,
+   "challenges": 2
+  },
+  {
+   "day": 1790726400,
+   "requests": 0,
+   "challenges": 0
+  },
+  {
+   "day": 1790812800,
+   "requests": 117,
+   "challenges": 1
+  },
+  {
+   "day": 1790899200,
+   "requests": 54,
+   "challenges": 0
+  },
+  {
+   "day": 1790985600,
+   "requests": 53,
+   "challenges": 0
+  },
+  {
+   "day": 1791072000,
+   "requests": 33,
+   "challenges": 0
+  },
+  {
+   "day": 1791158400,
+   "requests": 50,
+   "challenges": 1
+  },
+  {
+   "day": 1791244800,
+   "requests": 62,
+   "challenges": 0
+  },
+  {
+   "day": 1791331200,
+   "requests": 16,
+   "challenges": 0
+  },
+  {
+   "day": 1791417600,
+   "requests": 107,
+   "challenges": 1
+  },
+  {
+   "day": 1791504000,
+   "requests": 58,
+   "challenges": 1
+  },
+  {
+   "day": 1791590400,
+   "requests": 51,
+   "challenges": 0
+  },
+  {
+   "day": 1791676800,
+   "requests": 17,
+   "challenges": 2
+  },
+  {
+   "day": 1791763200,
+   "requests": 101,
+   "challenges": 3
+  },
+  {
+   "day": 1791849600,
+   "requests": 57,
+   "challenges": 2
+  },
+  {
+   "day": 1791936000,
+   "requests": 32,
+   "challenges": 0
+  },
+  {
+   "day": 1792022400,
+   "requests": 102,
+   "challenges": 0
+  },
+  {
+   "day": 1792108800,
+   "requests": 46,
+   "challenges": 0
+  },
+  {
+   "day": 1792195200,
+   "requests": 28,
+   "challenges": 0
+  },
+  {
+   "day": 1792281600,
+   "requests": 23,
+   "challenges": 0
+  }
+ ],
+ "topRegistries": [
+  {
+   "title": "Address Tags",
+   "kind": "Light",
+   "chain": "Gnosis",
+   "entries": 9101,
+   "open": 40,
+   "inCourt": 5,
+   "verified": true,
+   "created": "2023-05-29"
+  },
+  {
+   "title": "Ledger Contract Domain Name registry v2",
+   "kind": "Light",
+   "chain": "Gnosis",
+   "entries": 7874,
+   "open": 71,
+   "inCourt": 0,
+   "verified": true,
+   "created": "2023-01-05"
+  },
+  {
+   "title": "Kleros Tokens",
+   "kind": "Light",
+   "chain": "Gnosis",
+   "entries": 6946,
+   "open": 93,
+   "inCourt": 0,
+   "verified": true,
+   "created": "2023-09-29"
+  },
+  {
+   "title": "Address Tags",
+   "kind": "Light",
+   "chain": "Gnosis",
+   "entries": 1963,
+   "open": 0,
+   "inCourt": 0,
+   "verified": false,
+   "created": "2022-03-09"
+  },
+  {
+   "title": "Address Tags",
+   "kind": "Light",
+   "chain": "Gnosis",
+   "entries": 1734,
+   "open": 0,
+   "inCourt": 0,
+   "verified": false,
+   "created": "2023-05-28"
+  },
+  {
+   "title": "Kleros Tokens",
+   "kind": "Light",
+   "chain": "Gnosis",
+   "entries": 1264,
+   "open": 0,
+   "inCourt": 0,
+   "verified": false,
+   "created": "2023-05-24"
+  },
+  {
+   "title": "Kleros Storytelling - Standard Impact",
+   "kind": "Classic",
+   "chain": "Ethereum",
+   "entries": 651,
+   "open": 0,
+   "inCourt": 0,
+   "verified": true,
+   "created": "2020-06-11"
+  },
+  {
+   "title": "Seer Markets",
+   "kind": "Light",
+   "chain": "Gnosis",
+   "entries": 351,
+   "open": 0,
+   "inCourt": 0,
+   "verified": true,
+   "created": "2024-10-04"
+  },
+  {
+   "title": "Address Tags Query (ATQ) Registry",
+   "kind": "Light",
+   "chain": "Gnosis",
+   "entries": 344,
+   "open": 2,
+   "inCourt": 2,
+   "verified": true,
+   "created": "2024-04-28"
+  },
+  {
+   "title": "Kleros Storytelling - High Impact",
+   "kind": "Classic",
+   "chain": "Ethereum",
+   "entries": 260,
+   "open": 0,
+   "inCourt": 0,
+   "verified": true,
+   "created": "2020-06-11"
+  },
+  {
+   "title": "Omen Verified Market",
+   "kind": "Classic",
+   "chain": "Ethereum",
+   "entries": 79,
+   "open": 0,
+   "inCourt": 0,
+   "verified": true,
+   "created": "2020-07-09"
+  },
+  {
+   "title": "Address Tags (v2) - alpha version",
+   "kind": "Light",
+   "chain": "Gnosis",
+   "entries": 71,
+   "open": 0,
+   "inCourt": 0,
+   "verified": false,
+   "created": "2023-05-23"
+  },
+  {
+   "title": "DeversiFi Storytelling - Standard Impact",
+   "kind": "Classic",
+   "chain": "Ethereum",
+   "entries": 61,
+   "open": 0,
+   "inCourt": 0,
+   "verified": true,
+   "created": "2020-06-11"
+  },
+  {
+   "title": "Consensus Layer Withdrawal Protection",
+   "kind": "Light",
+   "chain": "Ethereum",
+   "entries": 52,
+   "open": 0,
+   "inCourt": 0,
+   "verified": true,
+   "created": "2023-02-01"
+  }
+ ],
+ "openToChallenge": [
+  {
+   "registry": "Ledger Contract Domain Name registry v2",
+   "chain": "Gnosis",
+   "status": "Registration requested",
+   "kind": "submission",
+   "at": 1792351355,
+   "actor": "0xde54…7129",
+   "id": "eip155:4663:0x94bAB9693Ba2f6358507eFfcbd372b0660AFfF9d",
+   "outcome": null
+  },
+  {
+   "registry": "Ledger Contract Domain Name registry v2",
+   "chain": "Gnosis",
+   "status": "Registration requested",
+   "kind": "submission",
+   "at": 1792350325,
+   "actor": "0xde54…7129",
+   "id": "eip155:999:0x0a0758d937d1059c356D4714e57F5df0239bce1A",
+   "outcome": null
+  },
+  {
+   "registry": "Ledger Contract Domain Name registry v2",
+   "chain": "Gnosis",
+   "status": "Registration requested",
+   "kind": "submission",
+   "at": 1792349995,
+   "actor": "0xde54…7129",
+   "id": "eip155:8453:0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
+   "outcome": null
+  },
+  {
+   "registry": "Ledger Contract Domain Name registry v2",
+   "chain": "Gnosis",
+   "status": "Registration requested",
+   "kind": "submission",
+   "at": 1792349750,
+   "actor": "0xde54…7129",
+   "id": "eip155:43114:0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
+   "outcome": null
+  },
+  {
+   "registry": "Ledger Contract Domain Name registry v2",
+   "chain": "Gnosis",
+   "status": "Registration requested",
+   "kind": "submission",
+   "at": 1792349630,
+   "actor": "0xde54…7129",
+   "id": "eip155:10:0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
+   "outcome": null
+  },
+  {
+   "registry": "Ledger Contract Domain Name registry v2",
+   "chain": "Gnosis",
+   "status": "Registration requested",
+   "kind": "submission",
+   "at": 1792349455,
+   "actor": "0xde54…7129",
+   "id": "eip155:42161:0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
+   "outcome": null
+  },
+  {
+   "registry": "Ledger Contract Domain Name registry v2",
+   "chain": "Gnosis",
+   "status": "Registration requested",
+   "kind": "submission",
+   "at": 1792349205,
+   "actor": "0xde54…7129",
+   "id": "eip155:137:0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
+   "outcome": null
+  },
+  {
+   "registry": "Ledger Contract Domain Name registry v2",
+   "chain": "Gnosis",
+   "status": "Registration requested",
+   "kind": "submission",
+   "at": 1792348970,
+   "actor": "0xde54…7129",
+   "id": "eip155:1:0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
+   "outcome": null
+  },
+  {
+   "registry": "Address Tags",
+   "chain": "Gnosis",
+   "status": "Registration requested",
+   "kind": "submission",
+   "at": 1792309790,
+   "actor": "0x2088…fef7",
+   "id": "eip155:100:0x49CECDF153cE9419a0D2B762Cfd1AFda5C5c6Efd",
+   "outcome": null
+  },
+  {
+   "registry": "Address Tags",
+   "chain": "Gnosis",
+   "status": "Registration requested",
+   "kind": "submission",
+   "at": 1792309405,
+   "actor": "0x2088…fef7",
+   "id": "eip155:42220:0x5dE7F44096612611E44E4dd687560581228F8C10",
+   "outcome": null
+  }
+ ],
+ "inCourt": [
+  {
+   "registry": "Address Tags Query (ATQ) Registry",
+   "chain": "Gnosis",
+   "status": "Dispute #1044",
+   "kind": "challenge",
+   "at": 1791885755,
+   "actor": "0x77e0…fbbd",
+   "id": null,
+   "outcome": null
+  },
+  {
+   "registry": "Address Tags Query (ATQ) Registry",
+   "chain": "Gnosis",
+   "status": "Dispute #1043",
+   "kind": "challenge",
+   "at": 1791885520,
+   "actor": "0x77e0…fbbd",
+   "id": null,
+   "outcome": null
+  },
+  {
+   "registry": "Address Tags",
+   "chain": "Gnosis",
+   "status": "Dispute #1042",
+   "kind": "challenge",
+   "at": 1791833645,
+   "actor": "0x2088…fef7",
+   "id": null,
+   "outcome": null
+  },
+  {
+   "registry": "Address Tags",
+   "chain": "Gnosis",
+   "status": "Dispute #1041",
+   "kind": "challenge",
+   "at": 1791833440,
+   "actor": "0x2088…fef7",
+   "id": null,
+   "outcome": null
+  },
+  {
+   "registry": "Address Tags",
+   "chain": "Gnosis",
+   "status": "Dispute #1040",
+   "kind": "challenge",
+   "at": 1791833010,
+   "actor": "0x2088…fef7",
+   "id": null,
+   "outcome": null
+  },
+  {
+   "registry": "Address Tags",
+   "chain": "Gnosis",
+   "status": "Dispute #1039",
+   "kind": "challenge",
+   "at": 1791737665,
+   "actor": "0x9f4f…6ca4",
+   "id": null,
+   "outcome": null
+  },
+  {
+   "registry": "Address Tags",
+   "chain": "Gnosis",
+   "status": "Dispute #1038",
+   "kind": "challenge",
+   "at": 1791698285,
+   "actor": "0x2088…fef7",
+   "id": null,
+   "outcome": null
+  }
+ ],
+ "decided": [
+  {
+   "registry": "Kleros Tokens",
+   "chain": "Gnosis",
+   "status": "Registered by ruling",
+   "kind": "resolution",
+   "at": 1792326620,
+   "actor": "0xd5b2…4b8e",
+   "id": null,
+   "outcome": "registered"
+  },
+  {
+   "registry": "Address Tags",
+   "chain": "Gnosis",
+   "status": "Rejected by ruling",
+   "kind": "resolution",
+   "at": 1792269615,
+   "actor": "0x84a3…7f4e",
+   "id": null,
+   "outcome": "rejected"
+  },
+  {
+   "registry": "Kleros Tokens",
+   "chain": "Gnosis",
+   "status": "Rejected by ruling",
+   "kind": "resolution",
+   "at": 1791995420,
+   "actor": "0xd5b2…4b8e",
+   "id": null,
+   "outcome": "rejected"
+  },
+  {
+   "registry": "Ledger Contract Domain Name registry v2",
+   "chain": "Gnosis",
+   "status": "Removed by ruling",
+   "kind": "resolution",
+   "at": 1791633615,
+   "actor": "0x9826…bb33",
+   "id": null,
+   "outcome": "removed"
+  },
+  {
+   "registry": "Address Tags",
+   "chain": "Gnosis",
+   "status": "Rejected by ruling",
+   "kind": "resolution",
+   "at": 1791472215,
+   "actor": "0xde54…7129",
+   "id": null,
+   "outcome": "rejected"
+  },
+  {
+   "registry": "Address Tags",
+   "chain": "Gnosis",
+   "status": "Rejected by ruling",
+   "kind": "resolution",
+   "at": 1791471615,
+   "actor": "0xde54…7129",
+   "id": null,
+   "outcome": "rejected"
+  },
+  {
+   "registry": "Kleros Tokens",
+   "chain": "Gnosis",
+   "status": "Rejected by ruling",
+   "kind": "resolution",
+   "at": 1791311415,
+   "actor": "0xd5b2…4b8e",
+   "id": null,
+   "outcome": "rejected"
+  },
+  {
+   "registry": "Address Tags",
+   "chain": "Gnosis",
+   "status": "Rejected by ruling",
+   "kind": "resolution",
+   "at": 1790857220,
+   "actor": "0x2088…fef7",
+   "id": null,
+   "outcome": "rejected"
+  },
+  {
+   "registry": "Kleros Tokens",
+   "chain": "Gnosis",
+   "status": "Rejected by ruling",
+   "kind": "resolution",
+   "at": 1790851820,
+   "actor": "0x1cfd…d788",
+   "id": null,
+   "outcome": "rejected"
+  },
+  {
+   "registry": "Kleros Tokens",
+   "chain": "Gnosis",
+   "status": "Registered by ruling",
+   "kind": "resolution",
+   "at": 1790694015,
+   "actor": "0xd5b2…4b8e",
+   "id": null,
+   "outcome": "registered"
+  }
+ ],
+ "curators": [
+  {
+   "address": "0x373a…dd19",
+   "submissions": 518,
+   "challenges": 6,
+   "won": 1
+  },
+  {
+   "address": "0x2088…fef7",
+   "submissions": 220,
+   "challenges": 0,
+   "won": 0
+  },
+  {
+   "address": "0x9826…bb33",
+   "submissions": 173,
+   "challenges": 1,
+   "won": 0
+  },
+  {
+   "address": "0x9f4f…6ca4",
+   "submissions": 148,
+   "challenges": 9,
+   "won": 6
+  },
+  {
+   "address": "0xd5b2…4b8e",
+   "submissions": 153,
+   "challenges": 0,
+   "won": 0
+  },
+  {
+   "address": "0xde54…7129",
+   "submissions": 110,
+   "challenges": 0,
+   "won": 0
+  },
+  {
+   "address": "0x51dd…a363",
+   "submissions": 79,
+   "challenges": 0,
+   "won": 0
+  },
+  {
+   "address": "0x77e0…fbbd",
+   "submissions": 5,
+   "challenges": 0,
+   "won": 0
+  },
+  {
+   "address": "0x84a3…7f4e",
+   "submissions": 4,
+   "challenges": 0,
+   "won": 0
+  },
+  {
+   "address": "0x1cfd…d788",
+   "submissions": 1,
+   "challenges": 0,
+   "won": 0
+  }
+ ]
+}
