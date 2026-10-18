@@ -71,7 +71,9 @@
       // Modes: system (default) | light | dark | kleros. See DESIGN.md.
       ;(function () {
         var backgrounds = { light: '#f4f6f9', dark: '#0a0e14', kleros: '#1b003f' }
-        var mode = 'system'
+        // Must match DEFAULT_THEME_MODE in src/contexts/theme-context.tsx.
+        var DEFAULT_MODE = 'dark'
+        var mode = DEFAULT_MODE
         try {
           var saved = localStorage.getItem('kleros-curate-theme')
           if (saved === 'light' || saved === 'dark' || saved === 'kleros' || saved === 'system')
