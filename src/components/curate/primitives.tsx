@@ -352,10 +352,7 @@ export const IconButton = styled.button<{ $active?: boolean }>`
 `
 
 /** 24px chip, mono label; selected = primary-soft fill and primary text. */
-export const Chip = styled.span<{
-  $selected?: boolean
-  $tone?: 'default' | 'status'
-}>`
+const chipStyles = css<{ $selected?: boolean }>`
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -375,7 +372,12 @@ export const Chip = styled.span<{
   white-space: nowrap;
 `
 
-export const ChipButton = styled(Chip).attrs({ as: 'button' })`
+export const Chip = styled.span<{ $selected?: boolean }>`
+  ${chipStyles}
+`
+
+export const ChipButton = styled.button<{ $selected?: boolean }>`
+  ${chipStyles}
   border: 0;
   cursor: pointer;
   transition:
