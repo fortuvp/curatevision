@@ -74,6 +74,10 @@ const signalScore = (registry: DashboardRegistry): number => {
   )
 }
 
+/* Stake Curate has no requests: its "submitted" state is not an open request. */
+const openRequests = (registry: DashboardRegistry) =>
+  registry.kind === 'permanent' ? 0 : registry.pendingCount
+
 export const sortRegistries = (
   registries: DashboardRegistry[],
   sort: RegistrySort,
@@ -88,7 +92,7 @@ export const sortRegistries = (
       )
     if (sort === 'activity')
       return (
-        b.pendingCount - a.pendingCount ||
+        openRequests(b) - openRequests(a) ||
         b.disputeCount - a.disputeCount ||
         signalScore(b) - signalScore(a)
       )
