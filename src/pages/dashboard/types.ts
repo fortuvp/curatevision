@@ -18,7 +18,10 @@ export interface DashboardRegistry {
   token?: string
   arbitratorExtraData?: string
   metaEvidenceURI?: string
+  /** Unix seconds. Exact when read from the factory event, see createdAtExact. */
   createdAt?: number
+  /** True when createdAt is the list's creation block, false when it is only its first request. */
+  createdAtExact?: boolean
   lastActivityAt?: number
   trustStatus: TrustStatus
 }

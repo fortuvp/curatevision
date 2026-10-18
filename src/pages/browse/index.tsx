@@ -41,6 +41,10 @@ import {
 } from 'components/curate/primitives'
 import { Pagination } from 'components/ui'
 import { fetchDashboardData } from 'pages/dashboard/data'
+import {
+  applyCreationTimes,
+  fetchRegistryCreationTimes,
+} from 'utils/registry-creation'
 import type { DashboardRegistry } from 'pages/dashboard/types'
 import {
   KIND_OPTIONS,
@@ -450,6 +454,14 @@ const BrowsePage = () => {
   })
   const data = query.data
 
+  // Real creation blocks (factory NewGTCR events), cached once read. Until
+  // they arrive the dashboard data already carries whatever was cached.
+  const creation = useQuery({
+    queryKey: ['registryCreationTimes'],
+    queryFn: () => fetchRegistryCreationTimes(SUPPORTED_CHAIN_IDS),
+    staleTime: 10 * 60_000,
+  })
+
   const setParam = (updates: Record<string, string | null>) => {
     const next = new URLSearchParams(searchParams)
     Object.entries(updates).forEach(([key, value]) => {
@@ -488,11 +500,16 @@ const BrowsePage = () => {
     () =>
       data
         ? sortRegistries(
-            filterRegistries(data.registries, { chains, trust, kinds, search }),
+            filterRegistries(
+              creation.data
+                ? applyCreationTimes(data.registries, creation.data)
+                : data.registries,
+              { chains, trust, kinds, search },
+            ),
             sort,
           )
         : [],
-    [data, chains, trust, kinds, search, sort],
+    [data, creation.data, chains, trust, kinds, search, sort],
   )
   const pageCount = Math.max(1, Math.ceil(registries.length / PAGE_SIZE))
   const currentPage = Math.min(requestedPage, pageCount)

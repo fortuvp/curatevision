@@ -4,6 +4,11 @@ import { subgraphUrl, subgraphUrlPermanent } from 'config/tcr-addresses'
 import { getListOfListsAddresses } from 'config/list-of-lists'
 import { parseIpfs } from 'utils/ipfs-parse'
 import {
+  applyCreationTimes,
+  fetchRegistryCreationTimes,
+  readCachedCreationTimes,
+} from 'utils/registry-creation'
+import {
   DashboardActivity,
   DashboardData,
   DashboardDay,
@@ -1101,12 +1106,14 @@ const normalizePermanent = (
         title: registryTitle(address, metadata?.title, 'permanent'),
         description: metadata?.description,
         logoURI: metadata?.logoURI,
+        // The Stake Curate subgraph can report negative counters on some
+        // lists; never show a count below zero.
         itemCount:
-          toNumber(registry.numberOfSubmitted) +
-          toNumber(registry.numberOfAbsent),
+          Math.max(0, toNumber(registry.numberOfSubmitted)) +
+          Math.max(0, toNumber(registry.numberOfAbsent)),
         activeCount: 0,
-        pendingCount: toNumber(registry.numberOfSubmitted),
-        disputeCount: toNumber(registry.numberOfDisputed),
+        pendingCount: Math.max(0, toNumber(registry.numberOfSubmitted)),
+        disputeCount: Math.max(0, toNumber(registry.numberOfDisputed)),
         bountyWei: registry.submissionMinDeposit,
         token: registry.token,
         arbitratorExtraData:
@@ -1536,6 +1543,10 @@ const safeRequest = async <T>(
 
 export const fetchDashboardData = async (): Promise<DashboardData> => {
   const since = Math.floor(Date.now() / 1000) - DAYS_30
+  // Creation blocks come from chain logs (cached once read). Use what is
+  // cached now and refresh in the background; never block the page on it.
+  const cachedCreation = readCachedCreationTimes(SUPPORTED_CHAIN_IDS)
+  void fetchRegistryCreationTimes(SUPPORTED_CHAIN_IDS).catch(() => undefined)
   const envioResults = await Promise.all(
     SUPPORTED_CHAIN_IDS.map(async (chainId) => {
       const payload = await safeRequest<any>(
@@ -1571,10 +1582,11 @@ export const fetchDashboardData = async (): Promise<DashboardData> => {
     Boolean,
   ) as ReturnType<typeof normalizeEnvio>[]
 
-  const registries = (
+  const registries = applyCreationTimes(
     await enrichRegistryMetadata(
       dedupeRegistries(allResults.flatMap((result) => result.registries)),
-    )
+    ),
+    cachedCreation,
   ).sort(
     (a, b) =>
       Number(b.trustStatus === 'verified') -
