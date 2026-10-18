@@ -29,7 +29,7 @@ import { StyledSpin, InsufficientBalanceText } from './challenge'
 export const StyledModal = styled(Modal)`
   width: min(1180px, calc(100vw - 32px)) !important;
   max-width: calc(100vw - 16px) !important;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--klerosUIComponentsLightBackground);
 
   .ui-modal-header {
@@ -87,7 +87,7 @@ const SubmissionHeaderCard = styled.div`
   margin: 60px 0 36px;
   padding: 24px clamp(24px, 3vw, 32px);
   border: 1px solid var(--klerosUIComponentsStroke);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--klerosUIComponentsWhiteBackground);
   box-shadow: var(--v2-shadow);
 `
@@ -230,7 +230,7 @@ const SubmissionFormCard = styled.div`
   overflow: visible;
   padding: clamp(24px, 4vw, 48px) clamp(24px, 3vw, 32px);
   border: 1px solid var(--klerosUIComponentsStroke);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--klerosUIComponentsWhiteBackground);
   box-shadow: var(--v2-shadow);
 `
@@ -242,7 +242,7 @@ const PolicyPanel = styled.div`
   flex-direction: column;
   gap: 12px;
   padding: 20px clamp(20px, 3vw, 28px);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--klerosUIComponentsMediumBlue);
   color: var(--klerosUIComponentsPrimaryBlue);
   line-height: 22px;

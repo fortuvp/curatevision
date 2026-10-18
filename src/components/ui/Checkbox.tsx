@@ -40,7 +40,7 @@ const Indicator = styled.span<{ $checked?: boolean }>`
     display: ${({ $checked }) => ($checked ? 'block' : 'none')};
     width: 5px;
     height: 9px;
-    border: solid #fff;
+    border: solid var(--color-on-primary);
     border-width: 0 2px 2px 0;
     transform: rotate(45deg) translate(-1px, -1px);
   }

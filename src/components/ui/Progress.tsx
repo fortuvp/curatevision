@@ -78,7 +78,7 @@ const Bar = styled.div<BarProps>`
         position: absolute;
         inset: 0;
         border-radius: inherit;
-        background: #fff;
+        background: var(--color-on-primary);
         animation: ${activeAnim} 2.4s cubic-bezier(0.23, 1, 0.32, 1) infinite;
       }
     `}

@@ -72,7 +72,7 @@ const Eyebrow = styled.div`
   gap: 8px;
   color: var(--v2-blue);
   font-size: 11px;
-  font-weight: 850;
+  font-weight: 600;
   text-transform: uppercase;
 `
 
@@ -133,13 +133,13 @@ const PanelHeading = styled.div`
     margin: 0;
     color: var(--v2-text);
     font-size: 15px;
-    font-weight: 700;
+    font-weight: 600;
   }
 
   small {
     color: var(--v2-success);
     font-size: 10px;
-    font-weight: 850;
+    font-weight: 600;
     text-transform: uppercase;
   }
 `
@@ -188,7 +188,7 @@ const ActivityCopy = styled.div`
   strong {
     color: var(--v2-text);
     font-size: 12px;
-    font-weight: 700;
+    font-weight: 600;
   }
 
   small {
@@ -204,7 +204,7 @@ const ChainName = styled.span<{ $color?: string }>`
   gap: 6px;
   color: ${({ $color }) => $color || 'var(--v2-muted)'};
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 600;
 `
 
 const Toolbar = styled.section`
@@ -275,7 +275,7 @@ const FilterTrigger = styled.button`
   background: var(--v2-bg);
   cursor: pointer;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
 
   &:hover,
   &:focus-visible {
@@ -306,7 +306,7 @@ const FilterLegend = styled.legend`
   border-bottom: 1px solid var(--v2-stroke);
   color: var(--v2-faint);
   font-size: 10px;
-  font-weight: 850;
+  font-weight: 600;
   text-transform: uppercase;
 `
 
@@ -318,7 +318,7 @@ const CheckOption = styled.label`
   padding: 0 9px;
   color: var(--v2-muted);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
 
@@ -347,7 +347,7 @@ const SortSelect = styled(Select)`
     min-height: 42px;
     background: var(--v2-bg);
     font-size: 12px;
-    font-weight: 700;
+    font-weight: 600;
   }
 `
 
@@ -432,7 +432,7 @@ const ModeSwitch = styled.button`
   background: transparent;
   cursor: pointer;
   font-size: 12px;
-  font-weight: 750;
+  font-weight: 600;
   text-decoration: underline;
   text-underline-offset: 3px;
 `
@@ -461,7 +461,7 @@ const SubmitRegistryLink = styled(Link)`
   color: var(--v2-bg);
   background: var(--v2-blue);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
   text-decoration: none;
 
   &:hover {
@@ -482,7 +482,7 @@ const SubmitRegistryButton = styled.button`
   background: var(--v2-blue);
   cursor: pointer;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
 
   &:hover {
     background: var(--v2-blue-hover);
@@ -504,7 +504,7 @@ const SubmitMenuLink = styled(Link)`
   padding: 0 10px;
   color: var(--v2-text);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   text-decoration: none;
 
   &:hover {
@@ -582,7 +582,7 @@ const RegistryTitle = styled.h3`
   margin: 0;
   color: var(--v2-text);
   font-size: 16px;
-  font-weight: 700;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 `
@@ -631,7 +631,7 @@ const Stats = styled.div`
   span {
     color: var(--v2-faint);
     font-size: 9px;
-    font-weight: 800;
+    font-weight: 600;
     text-transform: uppercase;
   }
 
@@ -712,7 +712,7 @@ const RowChain = styled.div`
 const RowCount = styled.div`
   color: var(--v2-text);
   font-size: 12px;
-  font-weight: 750;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   text-align: left;
 
@@ -731,7 +731,7 @@ const OpenLabel = styled.span`
   gap: 6px;
   color: var(--v2-blue);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
 `
 
 const Center = styled.div`

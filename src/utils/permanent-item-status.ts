@@ -36,18 +36,26 @@ export const STATUS_TEXT = {
   [STATUS_CODE.WITHDRAWN]: 'Withdrawn',
 }
 
-export const STATUS_COLOR = {
-  [STATUS_CODE.REJECTED]: '#ff4d4f',
-  [STATUS_CODE.PENDING]: '#4da6ff',
-  [STATUS_CODE.ACCEPTED]: '#52c41a',
-  [STATUS_CODE.DISPUTED]: '#fa8c16',
-  [STATUS_CODE.CROWDFUNDING]: '#b37feb',
-  [STATUS_CODE.CROWDFUNDING_WINNER]: '#9d52d6',
-  [STATUS_CODE.WAITING_ARBITRATOR]: '#eb2f96',
-  [STATUS_CODE.PENDING_WITHDRAWAL]: '#36cfc9',
-  [STATUS_CODE.REMOVED]: '#ff4d4f',
-  [STATUS_CODE.WITHDRAWN]: '#8c8c8c',
-}
+/** DESIGN.md status roles for Stake Curate items; see utils/item-status.ts. */
+export const STATUS_ROLE = {
+  [STATUS_CODE.REJECTED]: 'off',
+  [STATUS_CODE.PENDING]: 'window',
+  [STATUS_CODE.ACCEPTED]: 'registered',
+  [STATUS_CODE.DISPUTED]: 'contested',
+  [STATUS_CODE.CROWDFUNDING]: 'contested',
+  [STATUS_CODE.CROWDFUNDING_WINNER]: 'contested',
+  [STATUS_CODE.WAITING_ARBITRATOR]: 'contested',
+  [STATUS_CODE.PENDING_WITHDRAWAL]: 'neutral',
+  [STATUS_CODE.REMOVED]: 'off',
+  [STATUS_CODE.WITHDRAWN]: 'off',
+} as const
+
+export const STATUS_COLOR: Record<number, string> = Object.fromEntries(
+  Object.entries(STATUS_ROLE).map(([code, role]) => [
+    Number(code),
+    `var(--status-${role})`,
+  ]),
+)
 
 export const getActionLabel = ({
   statusCode,

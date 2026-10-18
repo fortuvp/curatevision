@@ -23,7 +23,7 @@ const AvatarWrapper = styled.span<AvatarWrapperProps>`
   justify-content: center;
   overflow: hidden;
   background: ${({ theme }) => theme.primaryColor};
-  color: #fff;
+  color: var(--color-on-primary);
   white-space: nowrap;
   vertical-align: middle;
 

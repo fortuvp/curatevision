@@ -29,7 +29,7 @@ const StyledCard = styled(Card)`
   cursor: default;
   background: var(--v2-card) !important;
   border-color: var(--v2-stroke) !important;
-  border-radius: 3px !important;
+  border-radius: var(--radius-sm) !important;
   box-shadow: var(--v2-shadow) !important;
 
   & > .ui-card-head {
@@ -559,7 +559,7 @@ const StyledLoadingCard = styled(Card)`
 const StyledCollapse = styled(Collapse)`
   background-color: ${({ theme }) => theme.componentBackground} !important;
   border: 1px solid ${({ theme }) => theme.borderColor};
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
 `
 
 const HistoryHeader = styled.div`

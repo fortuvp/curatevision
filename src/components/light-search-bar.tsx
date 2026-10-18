@@ -169,7 +169,9 @@ const OptionItem = ({ item }: OptionItemProps) => {
       <StyledStatus>
         <Badge
           color={
-            typeof statusCode === 'number' ? STATUS_COLOR[statusCode] : 'gray'
+            typeof statusCode === 'number'
+              ? STATUS_COLOR[statusCode]
+              : 'var(--status-neutral)'
           }
         />
       </StyledStatus>

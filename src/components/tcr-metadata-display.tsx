@@ -21,7 +21,7 @@ const LogoButton = styled.button`
   width: 125px;
   height: 125px;
   border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--v2-soft);
   display: inline-flex;
   align-items: center;
@@ -71,7 +71,7 @@ const MetadataField = styled.div`
 const MetadataLabel = styled.span`
   color: var(--v2-muted);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 `
@@ -90,7 +90,7 @@ const InlineLinkButton = styled.button`
   align-items: center;
   gap: 6px;
   color: ${({ theme }) => theme.linkColor};
-  font-weight: 700;
+  font-weight: 600;
 
   &:hover {
     color: ${({ theme }) => theme.primaryColorHover};

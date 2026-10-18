@@ -59,7 +59,7 @@ const Handle = styled.span<HandleStyledProps>`
   border-radius: 50%;
   background: ${({ theme }) => theme.switchHandleBg};
   transition: left 0.2s;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-card);
 `
 
 interface InnerTextStyledProps {
@@ -70,7 +70,7 @@ interface InnerTextStyledProps {
 const InnerText = styled.span<InnerTextStyledProps>`
   font-size: ${({ $size }) => ($size === 'small' ? '9px' : '12px')};
   color: ${({ $checked, theme }) =>
-    $checked ? theme.textOnPrimary || '#fff' : '#fff'};
+    $checked ? theme.textOnPrimary : theme.switchHandleBg};
   padding: ${({ $checked, $size }) => {
     const handleSpace = $size === 'small' ? '16px' : '24px'
     return $checked ? `0 ${handleSpace} 0 6px` : `0 6px 0 ${handleSpace}`

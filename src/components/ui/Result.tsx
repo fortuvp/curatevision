@@ -31,13 +31,13 @@ const IconWrapper = styled.div<{ $color: string }>`
 const Title = styled.div`
   font-size: 24px;
   font-weight: 500;
-  color: ${({ theme }) => theme.textPrimary || 'rgba(0, 0, 0, 0.85)'};
+  color: ${({ theme }) => theme.textPrimary};
   margin-bottom: 8px;
 `
 
 const SubTitle = styled.div`
   font-size: 14px;
-  color: ${({ theme }) => theme.textSecondary || 'rgba(0, 0, 0, 0.45)'};
+  color: ${({ theme }) => theme.textSecondary};
   margin-bottom: 24px;
 `
 

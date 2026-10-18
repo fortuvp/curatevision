@@ -139,7 +139,7 @@ export const StyledTag = styled(Tag.CheckableTag)`
       checked ? theme.primaryColor : theme.textSecondary} !important;
     height: 32px;
     line-height: 30px;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     font-weight: 600;
     cursor: pointer;
   }

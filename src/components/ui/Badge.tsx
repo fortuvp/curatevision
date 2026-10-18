@@ -19,7 +19,7 @@ const CountBadge = styled.sup<{ $dot?: boolean }>`
   line-height: 20px;
   text-align: center;
   white-space: nowrap;
-  color: #fff;
+  color: var(--color-on-primary);
   background: ${({ theme }) => theme.errorColor};
   border-radius: 10px;
   box-shadow: 0 0 0 1px ${({ theme }) => theme.componentBackground};

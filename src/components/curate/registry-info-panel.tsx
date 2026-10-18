@@ -3,7 +3,6 @@ import styled from 'styled-components'
 import { CurateIcon, CurateIconName } from './icons'
 import {
   ChainChip,
-  LiveDot,
   PanelHeader,
   PanelHint,
   PanelTitle,
@@ -70,7 +69,7 @@ const IconFrame = styled.div`
   height: 42px;
   border-radius: 14px;
   color: var(--curate-live);
-  background: rgba(76, 201, 240, 0.11);
+  background: var(--color-primary-soft);
 `
 
 const Content = styled.div`
@@ -97,7 +96,7 @@ const Field = styled.div`
   padding: 14px;
   border: 1px solid var(--curate-border);
   border-radius: 14px;
-  background: rgba(3, 6, 14, 0.34);
+  background: var(--color-raised);
 `
 
 const FieldLabel = styled.div`
@@ -106,7 +105,7 @@ const FieldLabel = styled.div`
   gap: 7px;
   color: var(--curate-faint);
   font-size: 11px;
-  font-weight: 850;
+  font-weight: 600;
   letter-spacing: 0.07em;
   text-transform: uppercase;
 `
@@ -115,7 +114,7 @@ const FieldValue = styled.div`
   margin-top: 10px;
   color: var(--curate-text);
   font-size: 14px;
-  font-weight: 750;
+  font-weight: 600;
   line-height: 1.45;
   overflow-wrap: anywhere;
   white-space: normal;
@@ -178,9 +177,8 @@ const RegistryInfoPanel = ({
           </PanelHeader>
         </SummaryLeft>
         <SummaryMeta>
-          {chain && <ChainChip $color={chain.color}>{chain.name}</ChainChip>}
-          <StatusPill $tone={verified ? 'verified' : 'unverified'}>
-            <LiveDot $tone={verified ? 'verified' : 'warning'} />
+          {chain && <ChainChip chainId={Number(chain.chainId)} />}
+          <StatusPill tone={verified ? 'registered' : 'neutral'}>
             {verified ? 'Verified' : 'Discovery'}
           </StatusPill>
           <CurateIcon name="chevron-down" size={18} />

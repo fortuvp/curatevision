@@ -8,7 +8,7 @@ const shimmer = keyframes`
 
 const StyledCard = styled.div<{ $bordered?: boolean; $hoverable?: boolean }>`
   background: var(--v2-card);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   border: ${({ $bordered, theme }) =>
     $bordered ? `1px solid ${theme.borderColor}` : 'none'};
   box-shadow: var(--v2-shadow);

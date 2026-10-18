@@ -61,7 +61,7 @@ const Eyebrow = styled.div`
   gap: 8px;
   color: var(--v2-blue);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
 `
 
@@ -86,7 +86,7 @@ const ValueLine = styled.p`
   margin: 18px 0 0;
   color: var(--v2-text);
   font-size: 15px;
-  font-weight: 700;
+  font-weight: 600;
 `
 
 const Actions = styled.div`
@@ -124,7 +124,7 @@ const ExampleSection = styled.section`
 const SectionLabel = styled.div`
   color: var(--v2-text);
   font-size: 14px;
-  font-weight: 900;
+  font-weight: 600;
 `
 
 const ExampleSentence = styled.div`
@@ -192,7 +192,7 @@ const Benefit = styled.div`
 const BenefitNumber = styled.span`
   color: var(--v2-blue);
   font-size: 13px;
-  font-weight: 850;
+  font-weight: 600;
   line-height: 24px;
 `
 
@@ -201,7 +201,7 @@ const BenefitCopy = styled.div`
     display: block;
     color: var(--v2-text);
     font-size: 16px;
-    font-weight: 700;
+    font-weight: 600;
   }
 
   p {
@@ -247,7 +247,7 @@ const OptionCard = styled.article<{ $custom?: boolean }>`
 const OptionEyebrow = styled.div<{ $custom?: boolean }>`
   color: ${({ $custom }) => ($custom ? 'var(--v2-purple)' : 'var(--v2-blue)')};
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 600;
   text-transform: uppercase;
 `
 
@@ -277,7 +277,7 @@ const SharedInfrastructure = styled.div`
   color: var(--v2-muted);
   background: var(--v2-soft);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
 
   svg {
     color: var(--v2-blue);

@@ -90,8 +90,8 @@ export const FiltersContainer = styled.div`
   background:
     linear-gradient(
       180deg,
-      rgba(255, 255, 255, 0.055),
-      rgba(255, 255, 255, 0.025)
+      var(--color-raised),
+      var(--color-raised)
     ),
     var(--curate-surface);
   box-shadow: var(--curate-shadow);
@@ -134,10 +134,10 @@ export const StyledTag = styled(Tag.CheckableTag)`
   &.ui-tag-checkable {
     background-color: ${({ theme, checked }) =>
       checked
-        ? 'rgba(76, 201, 240, 0.13)'
+        ? 'var(--color-primary-soft)'
         : theme.name === 'dark'
-          ? 'rgba(255, 255, 255, 0.05)'
-          : 'rgba(255, 255, 255, 0.62)'} !important;
+          ? 'var(--color-border)'
+          : 'var(--color-surface)'} !important;
     border: 1px solid
       ${({ theme, checked }) =>
         checked
@@ -148,13 +148,13 @@ export const StyledTag = styled(Tag.CheckableTag)`
     height: 32px;
     line-height: 30px;
     border-radius: 999px;
-    font-weight: 750;
+    font-weight: 600;
     cursor: pointer;
   }
 
   &.ui-tag-checkable:hover {
     color: ${({ theme, checked }) =>
-      checked ? theme.textOnPrimary || '#fff' : theme.textPrimary} !important;
+      checked ? theme.textOnPrimary : theme.textPrimary} !important;
     border-color: ${({ theme, checked }) =>
       checked ? theme.primaryColorHover : theme.textPrimary} !important;
     cursor: pointer;

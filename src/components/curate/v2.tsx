@@ -88,7 +88,7 @@ export const v2ToneFromLabel = (label?: string | null): Tone => {
 export const V2Card = styled.div<{ $hover?: boolean }>`
   overflow: hidden;
   border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--v2-card);
   box-shadow: var(--v2-shadow);
   color: var(--v2-text);

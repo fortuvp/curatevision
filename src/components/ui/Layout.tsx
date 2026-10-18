@@ -18,7 +18,7 @@ const HeaderWrapper = styled.div`
   height: 64px;
   display: flex;
   align-items: center;
-  color: ${({ theme }) => theme.textInverted || '#fff'};
+  color: ${({ theme }) => theme.textInverted};
   flex-shrink: 0;
 `
 
@@ -26,7 +26,7 @@ const FooterWrapper = styled.div`
   background: ${({ theme }) => theme.footerBackground};
   padding: 24px 50px;
   text-align: center;
-  color: ${({ theme }) => theme.textInverted || '#fff'};
+  color: ${({ theme }) => theme.textInverted};
   flex-shrink: 0;
 `
 

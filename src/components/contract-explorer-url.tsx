@@ -12,7 +12,7 @@ const StyledLink = styled.a`
   border: 1px solid var(--curate-border);
   border-radius: 10px;
   color: var(--curate-muted);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--color-raised);
   text-decoration: none;
   transition:
     border-color 160ms ease,
@@ -22,7 +22,7 @@ const StyledLink = styled.a`
   &:hover {
     color: var(--curate-text);
     border-color: var(--curate-border-strong);
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--color-raised);
   }
 `
 

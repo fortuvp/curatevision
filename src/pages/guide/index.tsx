@@ -44,7 +44,7 @@ const ModeButton = styled.button<{ $active?: boolean }>`
     $active ? 'var(--v2-blue-soft)' : 'var(--v2-card)'};
   cursor: pointer;
   font-size: 18px;
-  font-weight: 700;
+  font-weight: 600;
   box-shadow: none;
 
   &:hover {
@@ -63,7 +63,7 @@ const PromptPanel = styled.section`
   margin-top: clamp(30px, 5vw, 48px);
   padding: clamp(18px, 2.5vw, 30px);
   border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--v2-card);
   box-shadow: var(--v2-shadow);
 `
@@ -78,7 +78,7 @@ const PanelHead = styled.div`
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
     monospace;
   font-size: 15px;
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 
@@ -101,7 +101,7 @@ const PromptLine = styled.div`
   margin-top: 24px;
   padding: clamp(16px, 2.2vw, 24px);
   border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--v2-soft);
 
   @media (max-width: 860px) {
@@ -120,7 +120,7 @@ const PromptPrefix = styled.div`
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
     monospace;
   font-size: 24px;
-  font-weight: 900;
+  font-weight: 600;
 `
 
 const PromptText = styled.div`
@@ -129,7 +129,7 @@ const PromptText = styled.div`
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
     monospace;
   font-size: clamp(15px, 1.45vw, 20px);
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.5;
 `
 
@@ -142,7 +142,7 @@ const LinkRow = styled.div`
   a {
     color: var(--v2-muted);
     font-size: 13px;
-    font-weight: 800;
+    font-weight: 600;
     text-decoration: none;
   }
 

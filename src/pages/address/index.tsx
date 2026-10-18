@@ -48,7 +48,7 @@ const Page = styled.main`
 const Surface = styled.section`
   overflow: hidden;
   border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--v2-card);
   box-shadow: var(--v2-shadow);
 `
@@ -75,11 +75,11 @@ const Eyebrow = styled.div`
   min-height: 28px;
   padding: 0 10px;
   border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   color: var(--v2-blue);
   background: var(--v2-blue-soft);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0;
   text-transform: uppercase;
 `
@@ -105,7 +105,7 @@ const Subtitle = styled.p`
 const HeroCard = styled.div`
   padding: 16px;
   border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--v2-soft);
 `
 
@@ -175,7 +175,7 @@ const MetricValue = styled.div`
   margin-top: 12px;
   color: var(--curate-text);
   font-size: clamp(22px, 2.4vw, 30px);
-  font-weight: 900;
+  font-weight: 600;
   line-height: 1;
   font-variant-numeric: tabular-nums;
 `
@@ -184,7 +184,7 @@ const MetricLabel = styled.div`
   margin-top: 7px;
   color: var(--curate-faint);
   font-size: 10px;
-  font-weight: 850;
+  font-weight: 600;
   letter-spacing: 0.07em;
   text-transform: uppercase;
 `
@@ -195,7 +195,7 @@ const PanelTop = styled.div`
   justify-content: space-between;
   gap: 14px;
   padding: 18px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.075);
+  border-bottom: 1px solid var(--color-border);
 
   @media (max-width: 720px) {
     flex-direction: column;
@@ -209,7 +209,7 @@ const PanelTitle = styled.h2`
   margin: 0;
   color: var(--curate-text);
   font-size: 18px;
-  font-weight: 900;
+  font-weight: 600;
 `
 
 const PanelSub = styled.div`
@@ -231,7 +231,7 @@ const ActivityRow = styled(Link)`
   align-items: center;
   min-height: 72px;
   padding: 12px 18px;
-  border-top: 1px solid rgba(255, 255, 255, 0.065);
+  border-top: 1px solid var(--color-border);
   color: inherit;
   text-decoration: none;
 
@@ -240,7 +240,7 @@ const ActivityRow = styled(Link)`
   }
 
   &:hover {
-    background: rgba(255, 255, 255, 0.045);
+    background: var(--color-raised);
   }
 `
 
@@ -269,7 +269,7 @@ const RowTitle = styled.div`
   overflow: hidden;
   color: var(--curate-text);
   font-size: 13px;
-  font-weight: 850;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 `
@@ -309,7 +309,7 @@ const Chip = styled.span<{
             : 'var(--curate-muted)')};
   background: color-mix(in srgb, currentColor 11%, transparent);
   font-size: 11px;
-  font-weight: 850;
+  font-weight: 600;
   white-space: nowrap;
 `
 
@@ -333,10 +333,10 @@ const BadgeCard = styled.div<{ $earned?: boolean }>`
   padding: 13px;
   border: 1px solid
     ${({ $earned }) =>
-      $earned ? 'rgba(22, 241, 149, 0.28)' : 'rgba(255, 255, 255, 0.075)'};
+      $earned ? 'var(--color-success)' : 'var(--color-border)'};
   border-radius: 14px;
   background: ${({ $earned }) =>
-    $earned ? 'rgba(22, 241, 149, 0.075)' : 'rgba(1, 4, 9, 0.5)'};
+    $earned ? 'var(--color-success-soft)' : 'var(--color-raised)'};
 `
 
 const ProgressTrack = styled.div`
@@ -344,7 +344,7 @@ const ProgressTrack = styled.div`
   height: 7px;
   margin-top: 10px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.075);
+  background: var(--color-raised);
 `
 
 const ProgressBar = styled.div<{ $width: number }>`
@@ -371,7 +371,7 @@ const RegistryGovernanceCard = styled.div`
   display: flex;
   flex-direction: column;
   border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--v2-card);
   box-shadow: var(--v2-shadow);
 `
@@ -404,7 +404,7 @@ const RegistryMetaBox = styled.div`
   min-width: 0;
   padding: 10px;
   border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--v2-soft);
 `
 
@@ -421,7 +421,7 @@ const ProfileTabs = styled.div`
   margin-top: 18px;
   padding: 5px;
   border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--v2-card);
 
   @media (max-width: 620px) {
@@ -440,7 +440,7 @@ const ProfileTabButton = styled.button<{ $active?: boolean }>`
   padding: 0 16px;
   border: 1px solid
     ${({ $active }) => ($active ? 'var(--v2-blue)' : 'transparent')};
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   color: ${({ $active }) => ($active ? 'var(--v2-text)' : 'var(--v2-muted)')};
   background: ${({ $active }) =>
     $active ? 'var(--v2-blue-soft)' : 'transparent'};
@@ -479,7 +479,7 @@ const FieldRow = styled.div`
 const FieldLabel = styled.label`
   color: var(--curate-muted);
   font-size: 12px;
-  font-weight: 850;
+  font-weight: 600;
 `
 
 const Input = styled.input`
@@ -488,7 +488,7 @@ const Input = styled.input`
   min-height: 38px;
   padding: 0 12px;
   border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   color: var(--v2-text);
   background: var(--v2-card);
   font-size: 13px;
@@ -506,7 +506,7 @@ const SelectInput = styled.select`
   min-height: 38px;
   padding: 0 12px;
   border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   color: var(--v2-text);
   background: var(--v2-card);
   font-size: 13px;
@@ -537,7 +537,7 @@ const LabeledControl = styled.label`
 const ControlLabel = styled.span`
   color: var(--curate-muted);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 600;
 `
 
 const HelpTrigger = styled.span`
@@ -552,7 +552,7 @@ const HelpTrigger = styled.span`
   background: var(--v2-soft);
   cursor: help;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 600;
 `
 
 const CourtSummary = styled.div`
@@ -596,20 +596,20 @@ const UploadButtonLabel = styled.label<{ $disabled?: boolean }>`
   gap: 7px;
   padding: 0 10px;
   border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   color: ${({ $disabled }) =>
     $disabled ? 'var(--v2-faint)' : 'var(--v2-text)'};
   background: var(--v2-soft);
   cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
   font-size: 12px;
-  font-weight: 850;
+  font-weight: 600;
 `
 
 const SectionTitle = styled.div`
   margin: 10px 0 2px;
   color: var(--curate-text);
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 600;
 `
 
 const Empty = styled.div`
@@ -624,7 +624,7 @@ const Empty = styled.div`
 const Skeleton = styled.div<{ $height?: string }>`
   min-height: ${({ $height }) => $height || '120px'};
   border-radius: var(--curate-radius);
-  background: rgba(255, 255, 255, 0.055);
+  background: var(--color-raised);
 `
 
 type ParamKind = 'wei' | 'seconds' | 'raw' | 'address' | 'policy'

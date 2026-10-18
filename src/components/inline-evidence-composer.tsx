@@ -12,7 +12,7 @@ const ComposerShell = styled.section`
   margin-top: 18px;
   padding: 16px;
   border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--v2-card);
   box-shadow: var(--v2-shadow-hover);
 
@@ -47,7 +47,7 @@ const ComposerTitle = styled.div`
     color: var(--v2-text);
     font-size: 15px;
     line-height: 20px;
-    font-weight: 700;
+    font-weight: 600;
   }
 
   span {
@@ -67,7 +67,7 @@ const ComposerBody = styled.div`
 
   input,
   textarea {
-    border-radius: 3px !important;
+    border-radius: var(--radius-sm) !important;
     background: var(--v2-soft) !important;
     color: var(--v2-text) !important;
   }
@@ -78,7 +78,7 @@ const ComposerBody = styled.div`
   }
 
   .ui-upload.ui-upload-select-picture-card {
-    border-radius: 3px !important;
+    border-radius: var(--radius-sm) !important;
     background: var(--v2-soft) !important;
   }
 `

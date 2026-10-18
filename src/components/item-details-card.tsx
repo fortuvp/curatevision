@@ -28,7 +28,7 @@ const V2ItemCard = styled.div`
   margin-bottom: 16px;
   overflow: hidden;
   border: 1px solid var(--klerosUIComponentsStroke);
-  border-radius: 3px 3px 0 0;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
   border-bottom-color: transparent;
   background: var(--klerosUIComponentsWhiteBackground);
   box-shadow: var(--v2-shadow);
@@ -169,7 +169,7 @@ const OpenRegistryLink = styled(Link)`
   min-height: 38px;
   padding: 0 14px;
   border: 1px solid var(--klerosUIComponentsPrimaryBlue);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   color: var(--klerosUIComponentsPrimaryBlue);
   background: var(--klerosUIComponentsWhiteBackground);
   text-decoration: none;

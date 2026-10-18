@@ -26,7 +26,7 @@ export const ToolbarSearchInput = styled.input`
   width: 100%;
   height: 42px;
   border: 1px solid var(--klerosUIComponentsStroke);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--klerosUIComponentsWhiteBackground);
   color: var(--klerosUIComponentsPrimaryText);
   padding: 0 14px 0 42px;
@@ -71,7 +71,7 @@ const ViewModeButton = styled.button`
   height: 34px;
   padding: 0;
   border: 1px solid var(--klerosUIComponentsStroke);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--klerosUIComponentsWhiteBackground);
   color: var(--klerosUIComponentsPrimaryBlue);
   cursor: pointer;

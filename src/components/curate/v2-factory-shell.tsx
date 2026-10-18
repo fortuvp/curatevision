@@ -178,12 +178,12 @@ export const FactoryStepIndex = styled.span<{ $status: StepStatus }>`
   border-radius: 50%;
   border: 1px solid
     ${({ $status }) =>
-      $status === 'upcoming' ? 'var(--v2-stroke)' : 'rgba(72, 185, 255, 0.5)'};
+      $status === 'upcoming' ? 'var(--v2-stroke)' : 'var(--color-primary)'};
   background: ${({ $status }) =>
     $status === 'complete'
       ? 'var(--v2-blue)'
       : $status === 'active'
-        ? 'rgba(72, 185, 255, 0.16)'
+        ? 'var(--color-primary-soft)'
         : 'transparent'};
   color: ${({ $status }) =>
     $status === 'complete'
@@ -230,7 +230,7 @@ export const FactoryWorkArea = styled(V2Card)`
   > .ui-card,
   .ui-card {
     border: 1px solid var(--klerosUIComponentsStroke);
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     background: var(--klerosUIComponentsWhiteBackground);
     box-shadow: var(--v2-shadow);
   }
@@ -295,7 +295,7 @@ export const FactoryDeploymentsHeader = styled.div`
     margin: 0;
     color: var(--v2-text);
     font-size: 20px;
-    font-weight: 800;
+    font-weight: 600;
   }
 
   span {

@@ -155,7 +155,7 @@ const RadioButtonStyled = styled.label<{
     ($buttonStyle === 'solid'
       ? css`
           background: ${theme.primaryColor};
-          color: ${theme.textOnPrimary || '#fff'};
+          color: ${theme.textOnPrimary};
           border-color: ${theme.primaryColor};
           z-index: 1;
         `

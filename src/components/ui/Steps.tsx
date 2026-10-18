@@ -58,7 +58,7 @@ const StepCircle = styled.div<{ $status?: string }>`
     $status === 'process'
       ? css`
           background: ${theme.primaryColor};
-          color: ${theme.textOnPrimary || '#fff'};
+          color: ${theme.textOnPrimary};
         `
       : $status === 'finish'
         ? css`

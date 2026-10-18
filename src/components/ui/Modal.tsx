@@ -25,7 +25,7 @@ const Overlay = styled.div<{ $centered?: boolean }>`
 const ModalContent = styled.div<{ $width?: string | number }>`
   background: var(--klerosUIComponentsWhiteBackground);
   border: 1px solid var(--klerosUIComponentsStroke);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   box-shadow: var(--v2-shadow-hover);
   width: ${({ $width }) =>
     typeof $width === 'number' ? `${$width}px` : $width};
@@ -75,7 +75,7 @@ const CloseButton = styled.button`
   justify-content: center;
   width: 22px;
   height: 22px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   transition: color 0.3s;
 
   &:hover {
@@ -87,7 +87,7 @@ const CloseButton = styled.button`
 const DefaultButton = styled.button`
   padding: 10.5px 31px;
   min-height: 46px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--klerosUIComponentsPrimaryBlue);
   background: var(--klerosUIComponentsWhiteBackground);
   color: var(--klerosUIComponentsPrimaryBlue);

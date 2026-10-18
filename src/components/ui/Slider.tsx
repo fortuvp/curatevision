@@ -33,13 +33,13 @@ const StyledRange = styled.input<{ $percent: number }>`
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    background: #fff;
+    background: var(--color-surface);
     border: 2px solid ${({ theme }) => theme.primaryColor};
     cursor: ${({ disabled }) => (disabled ? 'not-allowed' : 'pointer')};
     transition:
       box-shadow 0.2s,
       border-color 0.2s;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--shadow-card);
 
     &:hover {
       box-shadow: 0 0 0 4px ${({ theme }) => theme.focusShadowColor};
@@ -50,13 +50,13 @@ const StyledRange = styled.input<{ $percent: number }>`
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    background: #fff;
+    background: var(--color-surface);
     border: 2px solid ${({ theme }) => theme.primaryColor};
     cursor: ${({ disabled }) => (disabled ? 'not-allowed' : 'pointer')};
     transition:
       box-shadow 0.2s,
       border-color 0.2s;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--shadow-card);
 
     &:hover {
       box-shadow: 0 0 0 4px ${({ theme }) => theme.focusShadowColor};

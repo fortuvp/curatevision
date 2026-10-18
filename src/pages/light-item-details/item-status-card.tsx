@@ -48,7 +48,7 @@ export const StyledDescriptions = styled(Descriptions)`
     min-height: 68px;
     padding: 14px 16px;
     border: 1px solid var(--v2-stroke);
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     background: var(--v2-soft);
   }
 
@@ -58,7 +58,7 @@ export const StyledDescriptions = styled(Descriptions)`
     color: var(--v2-muted);
     font-size: 12px;
     line-height: 16px;
-    font-weight: 700;
+    font-weight: 600;
   }
 
   > div > div > span:last-child {
@@ -111,7 +111,7 @@ export const StyledItemStatusCard = styled(Card)`
       color: var(--v2-text);
       font-size: 14px;
       line-height: 18px;
-      font-weight: 700;
+      font-weight: 600;
     }
     .ui-card-extra {
       margin-left: 0;

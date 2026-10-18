@@ -28,7 +28,7 @@ const Page = styled.main`
 const Surface = styled.section`
   overflow: hidden;
   border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--v2-card);
   box-shadow: var(--v2-shadow);
 `
@@ -57,11 +57,11 @@ const Eyebrow = styled.div`
   min-height: 30px;
   padding: 0 11px;
   border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   color: var(--v2-blue);
   background: var(--v2-blue-soft);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0;
   text-transform: uppercase;
 `
@@ -99,15 +99,15 @@ const HeroStats = styled.div`
 
 const SignalCard = styled.div`
   padding: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--color-border);
   border-radius: 16px;
-  background: rgba(1, 4, 9, 0.55);
+  background: var(--color-raised);
 `
 
 const SignalLabel = styled.div`
   color: var(--curate-faint);
   font-size: 10px;
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 `
@@ -183,7 +183,7 @@ const IconBox = styled.div`
   width: 42px;
   height: 42px;
   border: 1px solid currentColor;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   color: var(--v2-blue);
   background: var(--v2-card);
 `
@@ -194,7 +194,7 @@ const Pill = styled.div`
   min-height: 28px;
   padding: 0 10px;
   border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   color: var(--v2-muted);
   background: var(--v2-card);
   font-size: 11px;
@@ -212,13 +212,13 @@ const PlanName = styled.h3`
 const Price = styled.div`
   color: var(--v2-text);
   font-size: 38px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1;
 
   span {
     color: var(--v2-muted);
     font-size: 13px;
-    font-weight: 800;
+    font-weight: 600;
   }
 `
 
@@ -253,10 +253,10 @@ const CompareGrid = styled.div`
 const CompareCell = styled.div<{ $head?: boolean; $featured?: boolean }>`
   min-height: ${({ $head }) => ($head ? '86px' : '78px')};
   padding: 15px;
-  border-right: 1px solid rgba(255, 255, 255, 0.075);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.075);
+  border-right: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
   background: ${({ $featured }) =>
-    $featured ? 'rgba(0, 163, 255, 0.065)' : 'transparent'};
+    $featured ? 'var(--color-primary-soft)' : 'transparent'};
 
   &:nth-child(4n) {
     border-right: 0;
@@ -296,9 +296,9 @@ const SkillCode = styled.pre`
   margin: 0;
   padding: 18px;
   overflow: auto;
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
-  color: #d9f7ff;
-  background: rgba(1, 4, 9, 0.78);
+  border-left: 1px solid var(--color-border);
+  color: var(--color-text);
+  background: var(--color-raised);
   font-family:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
     monospace;
@@ -312,7 +312,7 @@ const LinkLine = styled.a`
   margin-top: 14px;
   color: var(--curate-live);
   font-size: 13px;
-  font-weight: 850;
+  font-weight: 600;
   text-decoration: none;
 
   &:hover {

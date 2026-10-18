@@ -1,595 +1,773 @@
 import React from 'react'
 import styled, { css, keyframes } from 'styled-components'
-import { CurateIcon, CurateIconName } from './icons'
+import { Link } from 'react-router-dom'
+import { CurateIcon, type CurateIconName } from './icons'
+import ChainLogo from 'components/chain-logo'
+import { NETWORKS_INFO } from 'config/networks'
 
-export const pageMaxWidth = '1440px'
+/*
+ * CurateVision primitives, built from DESIGN.md. Every page composes these:
+ * layout (Page, Section, Surface), type (Statement, Heading, Label, Data, Figure),
+ * controls (Button, Chip, Segmented), status (StatusDot, Status), tables and
+ * empty/skeleton states. Colors come only from the token roles in global-styles.
+ */
 
-const shimmer = keyframes`
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
-`
-
-export const AppSurface = styled.div`
-  min-height: 100%;
-  color: var(--curate-text);
-`
+/* ---------- Layout ---------- */
 
 export const Page = styled.main`
   width: 100%;
-  max-width: ${pageMaxWidth};
+  max-width: var(--page-max-width);
   margin: 0 auto;
-  padding: 28px var(--horizontal-padding) 56px;
+  padding: 32px var(--horizontal-padding) 64px;
 
   @media (max-width: 720px) {
-    padding-top: 18px;
-    padding-bottom: 36px;
+    padding-top: 20px;
+    padding-bottom: 40px;
   }
 `
 
-export const Section = styled.section<{ $compact?: boolean }>`
-  margin-top: ${({ $compact }) => ($compact ? '18px' : '28px')};
+export const Section = styled.section<{ $gap?: 'sm' | 'md' | 'lg' }>`
+  margin-top: ${({ $gap }) =>
+    $gap === 'sm' ? '16px' : $gap === 'lg' ? '48px' : '32px'};
+
+  &:first-child {
+    margin-top: 0;
+  }
+`
+
+export const Stack = styled.div<{ $gap?: number }>`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ $gap }) => $gap ?? 12}px;
+`
+
+export const Row = styled.div<{
+  $gap?: number
+  $wrap?: boolean
+  $align?: string
+  $justify?: string
+}>`
+  display: flex;
+  align-items: ${({ $align }) => $align ?? 'center'};
+  justify-content: ${({ $justify }) => $justify ?? 'flex-start'};
+  flex-wrap: ${({ $wrap }) => ($wrap ? 'wrap' : 'nowrap')};
+  gap: ${({ $gap }) => $gap ?? 8}px;
+  min-width: 0;
 `
 
 export const Surface = styled.div<{
+  $padding?: 'none' | 'compact' | 'standard'
   $interactive?: boolean
-  $tone?: 'soft' | 'strong'
+  $raised?: boolean
 }>`
   position: relative;
-  overflow: hidden;
-  background: ${({ $tone }) =>
-    $tone === 'strong' ? 'var(--curate-card)' : 'var(--curate-panel)'};
-  border: 1px solid var(--curate-border);
-  border-radius: var(--curate-radius);
-  box-shadow: var(--curate-shadow);
-  backdrop-filter: blur(24px);
+  min-width: 0;
+  background: ${({ $raised }) =>
+    $raised ? 'var(--color-raised)' : 'var(--color-surface)'};
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  padding: ${({ $padding }) =>
+    $padding === 'none' ? 0 : $padding === 'compact' ? '16px' : '20px'};
   transition:
-    border-color 160ms ease,
-    background 160ms ease,
-    transform 160ms ease,
-    box-shadow 160ms ease;
+    border-color var(--motion),
+    box-shadow var(--motion);
 
   ${({ $interactive }) =>
     $interactive &&
     css`
       cursor: pointer;
+      color: inherit;
+      text-decoration: none;
 
       &:hover {
-        border-color: var(--curate-border-strong);
-        transform: translateY(-2px);
-        box-shadow: var(--curate-shadow-hover);
+        border-color: var(--color-border-strong);
+        box-shadow: var(--shadow-card-hover);
       }
     `}
 `
 
-export const DashboardHero = styled(Surface)`
-  min-height: 310px;
-  padding: clamp(24px, 4vw, 44px);
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
-  gap: clamp(24px, 5vw, 52px);
-  align-items: stretch;
+export const SurfaceLink = styled(Surface).attrs({
+  as: Link,
+  $interactive: true,
+})``
 
-  &::before {
-    content: '';
-    position: absolute;
-    inset: -35% -15% auto auto;
-    width: 620px;
-    height: 620px;
-    background:
-      radial-gradient(circle, rgba(76, 201, 240, 0.16), transparent 55%),
-      radial-gradient(
-        circle at 35% 35%,
-        rgba(108, 161, 255, 0.18),
-        transparent 45%
-      );
-    pointer-events: none;
-  }
-
-  @media (max-width: 980px) {
-    grid-template-columns: 1fr;
-  }
-`
-
-export const Eyebrow = styled.div`
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 28px;
-  padding: 6px 10px;
-  border: 1px solid rgba(0, 163, 255, 0.24);
-  border-radius: 999px;
-  background: rgba(0, 163, 255, 0.08);
-  color: var(--curate-live);
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-`
-
-export const LiveDot = styled.span<{
-  $tone?: 'live' | 'verified' | 'warning' | 'danger'
-}>`
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: ${({ $tone }) =>
-    $tone === 'verified'
-      ? 'var(--curate-success)'
-      : $tone === 'warning'
-        ? 'var(--curate-warning)'
-        : $tone === 'danger'
-          ? 'var(--curate-danger)'
-          : 'var(--curate-live)'};
-  box-shadow: 0 0 18px currentColor;
-`
-
-export const HeroTitle = styled.h1`
-  margin: 18px 0 12px;
-  max-width: 880px;
-  color: var(--curate-text);
-  font-size: clamp(44px, 7vw, 82px);
-  line-height: 0.96;
-  font-weight: 900;
-  letter-spacing: 0;
-`
-
-export const HeroCopy = styled.p`
+export const Hairline = styled.hr`
   margin: 0;
-  max-width: 740px;
-  color: var(--curate-muted);
-  font-size: clamp(16px, 2vw, 19px);
-  line-height: 1.65;
+  border: 0;
+  border-top: 1px solid var(--color-border);
 `
 
-export const ActionRow = styled.div`
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 24px;
-`
-
-export const SearchShell = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 46px;
-  padding: 0 14px;
-  border: 1px solid var(--curate-border);
-  border-radius: 18px;
-  background: var(--curate-field);
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.045);
-  color: var(--curate-muted);
-  transition:
-    border-color 160ms ease,
-    background 160ms ease;
-
-  &:focus-within {
-    border-color: var(--curate-border-strong);
-    background: rgba(2, 6, 12, 0.92);
-  }
-
-  input {
-    width: 100%;
-    min-width: 160px;
-    border: 0;
-    outline: 0;
-    color: var(--curate-text);
-    background: transparent;
-    font-size: 14px;
-  }
-
-  input::placeholder {
-    color: var(--curate-faint);
-  }
-`
-
-export const MetricsGrid = styled.div`
+export const Grid = styled.div<{ $min?: number; $gap?: number }>`
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 14px;
-
-  @media (max-width: 1180px) {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  @media (max-width: 680px) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(${({ $min }) => $min ?? 280}px, 1fr)
+  );
+  gap: ${({ $gap }) => $gap ?? 16}px;
 `
 
-export const MetricTile = styled(Surface)`
-  min-height: 134px;
-  padding: 18px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-`
-
-export const MetricIcon = styled.div<{
-  $tone?: 'live' | 'success' | 'warning' | 'danger' | 'violet'
-}>`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  border: 1px solid currentColor;
-  border-radius: 13px;
-  color: ${({ $tone }) =>
-    $tone === 'success'
-      ? 'var(--curate-success)'
-      : $tone === 'warning'
-        ? 'var(--curate-warning)'
-        : $tone === 'danger'
-          ? 'var(--curate-danger)'
-          : $tone === 'violet'
-            ? 'var(--curate-violet)'
-            : 'var(--curate-live)'};
-  background: color-mix(in srgb, currentColor 12%, transparent);
-
-  svg {
-    color: currentColor;
-  }
-`
-
-export const MetricValue = styled.div`
-  margin-top: 18px;
-  color: var(--curate-text);
-  font-size: 30px;
-  line-height: 1;
-  font-weight: 900;
-  font-variant-numeric: tabular-nums;
-`
-
-export const MetricLabel = styled.div`
-  margin-top: 7px;
-  color: var(--curate-muted);
-  font-size: 12px;
-  font-weight: 850;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-`
-
-export const SplitGrid = styled.div`
+export const SplitGrid = styled.div<{ $rail?: number }>`
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 390px;
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) ${({ $rail }) => $rail ?? 360}px;
+  gap: 24px;
+  align-items: start;
 
   @media (max-width: 1100px) {
     grid-template-columns: 1fr;
   }
 `
 
-export const PanelHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 16px;
-`
+/* ---------- Type ---------- */
 
-export const PanelTitle = styled.h2`
-  display: flex;
-  align-items: center;
-  gap: 10px;
+/** The page's one serif statement (DESIGN.md: display 38/44, clamps to 30/36). */
+export const Statement = styled.h1`
   margin: 0;
-  color: var(--curate-text);
-  font-size: 18px;
-  font-weight: 800;
+  max-width: 24ch;
+  color: var(--color-text);
+  font-family: var(--font-serif);
+  font-size: var(--fs-display);
+  line-height: var(--lh-display);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
 `
 
-export const PanelHint = styled.span`
-  color: var(--curate-faint);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+export const Heading = styled.h2`
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--fs-heading);
+  line-height: var(--lh-heading);
+  font-weight: 600;
+`
+
+export const Subheading = styled.h3`
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--fs-subheading);
+  line-height: var(--lh-subheading);
+  font-weight: 600;
+`
+
+export const Title = styled.h4`
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--fs-body-lg);
+  line-height: var(--lh-body-lg);
+  font-weight: 600;
+`
+
+export const Body = styled.p<{ $muted?: boolean; $large?: boolean }>`
+  margin: 0;
+  max-width: 68ch;
+  color: ${({ $muted }) =>
+    $muted ? 'var(--color-muted)' : 'var(--color-text)'};
+  font-size: ${({ $large }) =>
+    $large ? 'var(--fs-body-lg)' : 'var(--fs-body)'};
+  line-height: ${({ $large }) =>
+    $large ? 'var(--lh-body-lg)' : 'var(--lh-body)'};
+`
+
+export const Small = styled.span<{ $muted?: boolean; $faint?: boolean }>`
+  color: ${({ $muted, $faint }) =>
+    $faint
+      ? 'var(--color-faint)'
+      : $muted
+        ? 'var(--color-muted)'
+        : 'var(--color-text)'};
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+`
+
+/** Mono uppercase label: eyebrows, column headers, chips (11/16, 0.06em). */
+export const Label = styled.span<{
+  $tone?: 'muted' | 'faint' | 'text' | 'primary'
+}>`
+  display: inline-block;
+  color: ${({ $tone }) =>
+    $tone === 'faint'
+      ? 'var(--color-faint)'
+      : $tone === 'text'
+        ? 'var(--color-text)'
+        : $tone === 'primary'
+          ? 'var(--color-primary)'
+          : 'var(--color-muted)'};
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: 500;
+  letter-spacing: var(--tracking-label);
   text-transform: uppercase;
 `
 
-export const Toolbar = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 16px;
+/** Mono data: addresses, amounts, timers, counts (13/18, tabular). */
+export const Data = styled.span<{
+  $muted?: boolean
+  $weight?: 400 | 500 | 600
+}>`
+  color: ${({ $muted }) =>
+    $muted ? 'var(--color-muted)' : 'var(--color-text)'};
+  font-family: var(--font-mono);
+  font-size: var(--fs-data);
+  line-height: var(--lh-data);
+  font-weight: ${({ $weight }) => $weight ?? 500};
+  font-variant-numeric: tabular-nums;
 `
 
-export const Segmented = styled.div`
-  display: inline-flex;
-  align-items: center;
-  min-height: 38px;
-  padding: 4px;
-  border: 1px solid var(--curate-border);
-  border-radius: 14px;
-  background: rgba(3, 6, 14, 0.58);
+/** Big figure (hero counts, countdowns): mono 28/32 at 500. */
+export const Figure = styled.span<{ $size?: 'md' | 'lg' }>`
+  display: block;
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: ${({ $size }) =>
+    $size === 'lg' ? 'clamp(32px, 3vw + 12px, 44px)' : 'var(--fs-figure)'};
+  line-height: ${({ $size }) => ($size === 'lg' ? '1.1' : 'var(--lh-figure)')};
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 `
 
-export const SegmentButton = styled.button<{ $active?: boolean }>`
-  display: inline-flex;
+export const Mono = styled.span`
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+`
+
+/* ---------- Controls ---------- */
+
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger'
+
+const buttonStyles = css<{
+  $variant?: ButtonVariant
+  $size?: 'sm' | 'md'
+  $block?: boolean
+}>`
+  display: ${({ $block }) => ($block ? 'flex' : 'inline-flex')};
+  width: ${({ $block }) => ($block ? '100%' : 'auto')};
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  min-height: 30px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 10px;
-  color: ${({ $active }) =>
-    $active ? 'var(--curate-text)' : 'var(--curate-muted)'};
-  background: ${({ $active }) =>
-    $active ? 'rgba(255, 255, 255, 0.11)' : 'transparent'};
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 750;
-  transition:
-    background 160ms ease,
-    color 160ms ease;
-
-  &:hover {
-    color: var(--curate-text);
-    background: rgba(255, 255, 255, 0.08);
-  }
-`
-
-export const RegistryGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-
-  @media (max-width: 1200px) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  @media (max-width: 720px) {
-    grid-template-columns: 1fr;
-  }
-`
-
-export const RegistryCardShell = styled(Surface).attrs({ $interactive: true })`
-  min-height: 360px;
-  display: flex;
-  flex-direction: column;
-`
-
-export const CardMedia = styled.div<{ $image?: string | null }>`
-  position: relative;
-  min-height: 154px;
-  background:
-    linear-gradient(180deg, transparent 0%, rgba(3, 6, 14, 0.72) 100%),
-    ${({ $image }) =>
-      $image
-        ? `url(${$image}) center / cover`
-        : 'radial-gradient(circle at 30% 20%, rgba(76, 201, 240, 0.22), transparent 42%), radial-gradient(circle at 78% 40%, rgba(124, 92, 255, 0.28), transparent 38%), #101622'};
-`
-
-export const CardBody = styled.div`
-  padding: 18px;
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-`
-
-export const CardTitle = styled.h3`
-  margin: 0;
-  color: var(--curate-text);
-  font-size: 18px;
-  line-height: 1.25;
-  font-weight: 800;
-`
-
-export const CardDescription = styled.p`
-  margin: 9px 0 0;
-  color: var(--curate-muted);
-  font-size: 13px;
-  line-height: 1.55;
-`
-
-export const CardStats = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  margin-top: auto;
-  padding-top: 18px;
-`
-
-export const StatBox = styled.div`
-  min-width: 0;
-  padding: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
-  background: rgba(3, 6, 14, 0.48);
-`
-
-export const StatValue = styled.div`
-  color: var(--curate-text);
-  font-size: 16px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  overflow: hidden;
-  text-overflow: ellipsis;
-`
-
-export const StatLabel = styled.div`
-  margin-top: 4px;
-  color: var(--curate-faint);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-`
-
-export const ListPanel = styled(Surface)`
-  padding: 18px;
-`
-
-export const ActivityList = styled.div`
-  display: flex;
-  flex-direction: column;
-`
-
-export const ActivityRow = styled.a`
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: center;
-  min-height: 62px;
-  padding: 12px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  color: inherit;
+  height: ${({ $size }) => ($size === 'sm' ? '32px' : '40px')};
+  padding: 0 ${({ $size }) => ($size === 'sm' ? '12px' : '16px')};
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: 600;
+  white-space: nowrap;
   text-decoration: none;
+  cursor: pointer;
+  transition:
+    background var(--motion),
+    border-color var(--motion),
+    color var(--motion);
 
-  &:last-child {
-    border-bottom: 0;
+  ${({ $variant }) =>
+    $variant === 'secondary'
+      ? css`
+          background: var(--color-surface);
+          border-color: var(--color-border-strong);
+          color: var(--color-text);
+
+          &:hover:not(:disabled) {
+            background: var(--color-raised);
+          }
+        `
+      : $variant === 'ghost'
+        ? css`
+            background: transparent;
+            color: var(--color-muted);
+
+            &:hover:not(:disabled) {
+              color: var(--color-text);
+              background: var(--color-raised);
+            }
+          `
+        : $variant === 'danger'
+          ? css`
+              background: var(--color-danger);
+              color: #ffffff;
+
+              &:hover:not(:disabled) {
+                filter: brightness(1.08);
+              }
+            `
+          : css`
+              background: var(--color-primary);
+              color: var(--color-on-primary);
+
+              &:hover:not(:disabled) {
+                background: var(--color-primary-hover);
+              }
+            `}
+
+  &:disabled,
+  &[aria-disabled='true'] {
+    cursor: not-allowed;
+    opacity: 0.55;
   }
-
-  &:hover {
-    color: var(--curate-text);
-  }
 `
 
-export const RowTitle = styled.div`
-  color: var(--curate-text);
-  font-size: 14px;
-  font-weight: 750;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`
-
-export const RowMeta = styled.div`
-  margin-top: 4px;
-  color: var(--curate-muted);
-  font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`
-
-export const StatusPill = styled.span<{
-  $tone?: 'verified' | 'unverified' | 'pending' | 'danger' | 'live' | 'neutral'
+export const Button = styled.button<{
+  $variant?: ButtonVariant
+  $size?: 'sm' | 'md'
+  $block?: boolean
 }>`
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 26px;
-  padding: 0 9px;
-  border-radius: 999px;
-  border: 1px solid;
-  white-space: nowrap;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: ${({ $tone }) =>
-    $tone === 'verified'
-      ? 'var(--curate-success)'
-      : $tone === 'pending'
-        ? 'var(--curate-warning)'
-        : $tone === 'danger'
-          ? 'var(--curate-danger)'
-          : $tone === 'live'
-            ? 'var(--curate-live)'
-            : $tone === 'unverified'
-              ? 'var(--curate-muted)'
-              : 'var(--curate-text)'};
-  background: currentColor;
-  border-color: currentColor;
-  box-shadow: inset 0 0 0 999px rgba(3, 6, 14, 0.88);
+  ${buttonStyles}
 `
 
-export const ChainChip = styled.span<{ $color?: string }>`
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  min-height: 30px;
-  padding: 0 10px;
-  border: 1px solid var(--curate-border);
-  border-radius: 999px;
-  color: var(--curate-text);
-  background: rgba(255, 255, 255, 0.04);
-  font-size: 12px;
-  font-weight: 750;
+export const ButtonLink = styled(Link)<{
+  $variant?: ButtonVariant
+  $size?: 'sm' | 'md'
+  $block?: boolean
+}>`
+  ${buttonStyles}
+`
 
-  &::before {
-    content: '';
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: ${({ $color }) => $color || 'var(--curate-live)'};
-    box-shadow: 0 0 14px ${({ $color }) => $color || 'var(--curate-live)'};
-  }
+export const ButtonAnchor = styled.a<{
+  $variant?: ButtonVariant
+  $size?: 'sm' | 'md'
+  $block?: boolean
+}>`
+  ${buttonStyles}
 `
 
 export const IconButton = styled.button<{ $active?: boolean }>`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
-  border: 1px solid var(--curate-border);
-  border-radius: 12px;
-  color: ${({ $active }) =>
-    $active ? 'var(--curate-text)' : 'var(--curate-muted)'};
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid
+    ${({ $active }) => ($active ? 'var(--color-border-strong)' : 'transparent')};
+  border-radius: var(--radius-sm);
   background: ${({ $active }) =>
-    $active ? 'rgba(255, 255, 255, 0.11)' : 'rgba(255, 255, 255, 0.04)'};
+    $active ? 'var(--color-raised)' : 'transparent'};
+  color: ${({ $active }) =>
+    $active ? 'var(--color-text)' : 'var(--color-muted)'};
   cursor: pointer;
-  transition: all 160ms ease;
+  transition:
+    background var(--motion),
+    color var(--motion);
 
   &:hover {
-    color: var(--curate-text);
-    border-color: var(--curate-border-strong);
-    background: rgba(255, 255, 255, 0.1);
+    color: var(--color-text);
+    background: var(--color-raised);
   }
 `
 
-export const DataTable = styled.div`
-  overflow: hidden;
-  border: 1px solid var(--curate-border);
-  border-radius: var(--curate-radius);
-  background: rgba(3, 6, 14, 0.44);
+/** 24px chip, mono label; selected = primary-soft fill and primary text. */
+export const Chip = styled.span<{
+  $selected?: boolean
+  $tone?: 'default' | 'status'
+}>`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  background: ${({ $selected }) =>
+    $selected ? 'var(--color-primary-soft)' : 'var(--color-raised)'};
+  color: ${({ $selected }) =>
+    $selected ? 'var(--color-primary)' : 'var(--color-muted)'};
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: 500;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  white-space: nowrap;
 `
 
-export const TableRow = styled.a<{ $header?: boolean }>`
-  display: grid;
-  grid-template-columns: minmax(230px, 1fr) 104px 104px 112px 120px;
-  gap: 12px;
+export const ChipButton = styled(Chip).attrs({ as: 'button' })`
+  border: 0;
+  cursor: pointer;
+  transition:
+    background var(--motion),
+    color var(--motion);
+
+  &:hover {
+    color: ${({ $selected }) =>
+      $selected ? 'var(--color-primary)' : 'var(--color-text)'};
+  }
+`
+
+export const ChainChip = ({
+  chainId,
+  size = 'md',
+}: {
+  chainId: number
+  size?: 'sm' | 'md'
+}) => {
+  const info = NETWORKS_INFO[chainId as keyof typeof NETWORKS_INFO]
+  return (
+    <Chip title={info ? `${info.name} (chain ${chainId})` : `Chain ${chainId}`}>
+      <ChainLogo chainId={chainId} size={size === 'sm' ? 12 : 14} />
+      {info?.name ?? `Chain ${chainId}`}
+    </Chip>
+  )
+}
+
+/** Segmented control (table / cards / rows, filters). */
+export const Segmented = styled.div`
+  display: inline-flex;
   align-items: center;
-  min-height: ${({ $header }) => ($header ? '42px' : '66px')};
-  padding: 0 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  color: ${({ $header }) =>
-    $header ? 'var(--curate-faint)' : 'var(--curate-text)'};
+  padding: 2px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+`
+
+export const Segment = styled.button<{ $active?: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 3px;
+  background: ${({ $active }) =>
+    $active ? 'var(--color-raised)' : 'transparent'};
+  color: ${({ $active }) =>
+    $active ? 'var(--color-text)' : 'var(--color-muted)'};
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--motion),
+    color var(--motion);
+
+  &:hover {
+    color: var(--color-text);
+  }
+`
+
+export type SegmentOption<T extends string> = {
+  value: T
+  label: string
+  icon?: CurateIconName
+}
+
+export function SegmentedControl<T extends string>({
+  value,
+  options,
+  onChange,
+  ariaLabel,
+}: {
+  value: T
+  options: SegmentOption<T>[]
+  onChange: (value: T) => void
+  ariaLabel: string
+}) {
+  return (
+    <Segmented role="radiogroup" aria-label={ariaLabel}>
+      {options.map((option) => (
+        <Segment
+          key={option.value}
+          type="button"
+          role="radio"
+          aria-checked={option.value === value}
+          $active={option.value === value}
+          onClick={() => onChange(option.value)}
+        >
+          {option.icon && <CurateIcon name={option.icon} size={14} />}
+          {option.label}
+        </Segment>
+      ))}
+    </Segmented>
+  )
+}
+
+export const TextInput = styled.input`
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  transition: border-color var(--motion);
+
+  &::placeholder {
+    color: var(--color-faint);
+  }
+
+  &:hover {
+    border-color: var(--color-border-strong);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-primary);
+  }
+`
+
+export const SearchField = styled.label`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-faint);
+  transition: border-color var(--motion);
+
+  &:hover {
+    border-color: var(--color-border-strong);
+  }
+
+  &:focus-within {
+    border-color: var(--color-primary);
+  }
+
+  input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--color-text);
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+  }
+
+  input::placeholder {
+    color: var(--color-faint);
+  }
+`
+
+/* ---------- Status ---------- */
+
+export type StatusTone =
+  | 'registered'
+  | 'window'
+  | 'contested'
+  | 'off'
+  | 'neutral'
+
+/** 8px dot in a status role color. Never alone: pair it with a label. */
+export const StatusDot = styled.span<{ $tone: StatusTone }>`
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--status-${({ $tone }) => $tone});
+`
+
+const StatusWrap = styled.span<{ $wrap?: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  white-space: ${({ $wrap }) => ($wrap ? 'normal' : 'nowrap')};
+`
+
+/**
+ * Dot + mono label, optional detail: "Submitted · 2d 4h to challenge".
+ * The dot carries the role color; the text stays in the text roles.
+ */
+export const Status = ({
+  tone,
+  label,
+  detail,
+  title,
+  className,
+}: {
+  tone: StatusTone
+  label: React.ReactNode
+  detail?: React.ReactNode
+  title?: string
+  className?: string
+}) => (
+  <StatusWrap className={className} title={title}>
+    <StatusDot $tone={tone} aria-hidden />
+    <Data $weight={500}>{label}</Data>
+    {detail && (
+      <Data $muted $weight={400}>
+        · {detail}
+      </Data>
+    )}
+  </StatusWrap>
+)
+
+/** Kept for the registry panels: a status label shown as a chip. */
+export const StatusPill = ({
+  tone,
+  children,
+}: {
+  tone: StatusTone
+  children: React.ReactNode
+}) => (
+  <Chip>
+    <StatusDot $tone={tone} aria-hidden />
+    {children}
+  </Chip>
+)
+
+/** An 8px indicator used next to "live" labels. */
+export const LiveDot = styled(StatusDot).attrs({
+  $tone: 'registered' as StatusTone,
+})``
+
+/** 4px progress rail; fill color follows the status tone. */
+export const Rail = styled.div<{ $value: number; $tone?: StatusTone }>`
+  position: relative;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-raised);
+  overflow: hidden;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: ${({ $value }) =>
+      Math.round(Math.min(1, Math.max(0, $value)) * 100)}%;
+    border-radius: 2px;
+    background: var(--status-${({ $tone }) => $tone ?? 'window'});
+    transition: width 300ms ease;
+  }
+`
+
+/* ---------- Panels ---------- */
+
+export const PanelHeader = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+`
+
+export const PanelTitle = styled(Subheading)`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`
+
+export const PanelHint = styled(Label)``
+
+/* ---------- Tables ---------- */
+
+export const TableScroller = styled.div`
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+`
+
+export const Table = styled.table`
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+
+  thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    height: 40px;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-muted);
+    font-family: var(--font-mono);
+    font-size: var(--fs-label);
+    line-height: var(--lh-label);
+    font-weight: 500;
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  thead th[data-sortable='true'] {
+    cursor: pointer;
+  }
+
+  thead th[data-sortable='true']:hover {
+    color: var(--color-text);
+  }
+
+  tbody td {
+    height: 44px;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-text);
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+    vertical-align: middle;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  tbody tr[data-href]:hover td {
+    background: var(--color-raised);
+    cursor: pointer;
+  }
+
+  td.num,
+  th.num {
+    text-align: right;
+  }
+
+  td.num {
+    font-family: var(--font-mono);
+    font-size: var(--fs-data);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+`
+
+/* ---------- Rows (comfortable list) ---------- */
+
+export const ListRow = styled(Link)`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  min-height: 56px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--color-border);
+  color: inherit;
   text-decoration: none;
-  font-size: ${({ $header }) => ($header ? '11px' : '13px')};
-  font-weight: ${({ $header }) => ($header ? 850 : 650)};
-  letter-spacing: ${({ $header }) => ($header ? '0.08em' : 0)};
-  text-transform: ${({ $header }) => ($header ? 'uppercase' : 'none')};
+  transition: background var(--motion);
 
   &:last-child {
     border-bottom: 0;
   }
 
-  &:not([aria-disabled='true']):hover {
-    background: rgba(255, 255, 255, 0.04);
-  }
-
-  @media (max-width: 920px) {
-    grid-template-columns: minmax(220px, 1fr) 92px 92px;
-
-    > :nth-child(4),
-    > :nth-child(5) {
-      display: none;
-    }
+  &:hover {
+    background: var(--color-raised);
   }
 `
 
-export const SkeletonBlock = styled.div<{ $height?: string }>`
+/* ---------- States ---------- */
+
+const shimmer = keyframes`
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+`
+
+export const SkeletonBlock = styled.div<{ $height?: string; $width?: string }>`
   position: relative;
   overflow: hidden;
-  min-height: ${({ $height }) => $height || '120px'};
-  border-radius: var(--curate-radius);
-  background: rgba(255, 255, 255, 0.06);
+  width: ${({ $width }) => $width || '100%'};
+  min-height: ${({ $height }) => $height || '20px'};
+  border-radius: var(--radius-sm);
+  background: var(--color-raised);
 
   &::after {
     content: '';
@@ -598,33 +776,93 @@ export const SkeletonBlock = styled.div<{ $height?: string }>`
     background: linear-gradient(
       90deg,
       transparent,
-      rgba(255, 255, 255, 0.08),
+      var(--color-surface),
       transparent
     );
+    opacity: 0.6;
     animation: ${shimmer} 1.4s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::after {
+      animation: none;
+    }
   }
 `
 
-export const EmptyState = styled(Surface)`
-  padding: 34px 24px;
+const EmptyWrap = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 40px 24px;
   text-align: center;
-  color: var(--curate-muted);
+  color: var(--color-muted);
 `
 
-export const EmptyTitle = styled.h3`
-  margin: 12px 0 6px;
-  color: var(--curate-text);
-  font-size: 18px;
+const EmptyIcon = styled.div`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-faint);
 `
 
-export const IconBadge = ({
-  icon,
-  tone = 'live',
+export const EmptyState = ({
+  icon = 'list',
+  title,
+  children,
+  action,
 }: {
-  icon: CurateIconName
-  tone?: 'live' | 'success' | 'warning' | 'danger' | 'violet'
+  icon?: CurateIconName
+  title: React.ReactNode
+  children?: React.ReactNode
+  action?: React.ReactNode
 }) => (
-  <MetricIcon $tone={tone}>
-    <CurateIcon name={icon} size={19} />
-  </MetricIcon>
+  <EmptyWrap>
+    <EmptyIcon>
+      <CurateIcon name={icon} size={18} />
+    </EmptyIcon>
+    <Title>{title}</Title>
+    {children && <Body $muted>{children}</Body>}
+    {action && <div style={{ marginTop: 10 }}>{action}</div>}
+  </EmptyWrap>
 )
+
+/* ---------- Key/value ---------- */
+
+export const KeyValueList = styled.dl`
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 8px 16px;
+  margin: 0;
+
+  dt {
+    color: var(--color-muted);
+    font-family: var(--font-mono);
+    font-size: var(--fs-label);
+    line-height: 20px;
+    font-weight: 500;
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+  }
+
+  dd {
+    margin: 0;
+    min-width: 0;
+    color: var(--color-text);
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+    overflow-wrap: anywhere;
+  }
+`
+
+/** Middle-truncated address in mono with a title holding the full value. */
+export const truncateMiddle = (value: string, head = 6, tail = 4): string =>
+  value.length > head + tail + 1
+    ? `${value.slice(0, head)}…${value.slice(-tail)}`
+    : value

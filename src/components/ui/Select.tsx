@@ -25,7 +25,7 @@ const SelectTrigger = styled.div<{ $focused?: boolean; $disabled?: boolean }>`
   color: ${({ theme }) => theme.textPrimary};
   background: var(--v2-card);
   border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.3s;
   box-sizing: border-box;
@@ -79,7 +79,7 @@ const DropdownStyled = styled.div`
   z-index: 1050;
   background: var(--v2-card);
   border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   box-shadow: var(--v2-shadow-hover);
   max-height: 256px;
   overflow-y: auto;
@@ -106,7 +106,7 @@ const SearchInput = styled.input`
 const OptionItem = styled.div<{ $selected?: boolean; $disabled?: boolean }>`
   margin: 2px 6px;
   padding: 7px 10px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background 0.3s;
   color: ${({ theme }) => theme.textPrimary};

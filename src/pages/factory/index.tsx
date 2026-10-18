@@ -144,7 +144,7 @@ export const StyledStepper = styled.div`
   gap: 12px;
   padding: 14px;
   border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--v2-card);
   box-shadow: var(--v2-shadow);
 `
@@ -161,7 +161,7 @@ export const StyledBanner = styled.div`
   background: var(--v2-card);
   border: 1px solid var(--v2-stroke);
   border-top: 5px solid var(--v2-purple);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   box-shadow: var(--v2-shadow);
   color: var(--v2-text);
   transition:

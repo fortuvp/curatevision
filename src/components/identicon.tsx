@@ -118,7 +118,7 @@ const StyledDisconnectButton = styled(Button)`
 
   &:hover,
   &:focus {
-    color: #fff !important;
+    color: var(--color-on-primary) !important;
     background-color: ${({ theme }) => theme.errorColor} !important;
     border-color: ${({ theme }) => theme.errorColor} !important;
   }

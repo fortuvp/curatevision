@@ -23,7 +23,7 @@ export const StyledBanner = styled.div`
   background: var(--v2-card);
   border: 1px solid var(--v2-stroke);
   border-top: 5px solid var(--v2-blue);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   box-shadow: var(--v2-shadow);
   color: var(--v2-text);
   justify-content: space-between;
@@ -73,7 +73,7 @@ export const StyledImage = styled.img`
   width: 125px;
   padding: 0;
   border: 0;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: transparent;
 `
 
@@ -84,7 +84,7 @@ export const LogoFallback = styled.div`
   height: 125px;
   width: 125px;
   border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--v2-soft);
   color: var(--v2-blue);
 
@@ -235,11 +235,9 @@ const Banner = ({
                 <TitleContainer>
                   <StyledTitle>{tcrTitle}</StyledTitle>
                   {networkInfo && (
-                    <ChainChip $color={networkInfo.color}>
-                      {networkInfo.name}
-                    </ChainChip>
+                    <ChainChip chainId={Number(networkInfo.chainId)} />
                   )}
-                  <StatusPill $tone="live">Live registry</StatusPill>
+                  <StatusPill tone="window">Live registry</StatusPill>
                   {networkId && tcrAddress && (
                     <ContractExplorerUrl
                       networkId={networkId}

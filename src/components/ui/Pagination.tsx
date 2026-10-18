@@ -40,7 +40,7 @@ const PageButton = styled.button`
   ${pageButtonBase}
 
   &.active {
-    color: ${({ theme }) => theme.textOnPrimary || '#fff'};
+    color: ${({ theme }) => theme.textOnPrimary};
     background: ${({ theme }) => theme.primaryColor};
     border-color: ${({ theme }) => theme.primaryColor};
     font-weight: 500;

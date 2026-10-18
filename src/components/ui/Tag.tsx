@@ -19,7 +19,7 @@ const StyledTag = styled.span<{ $color?: string }>`
       ? css`
           background: ${$color};
           border-color: ${$color};
-          color: #fff;
+          color: var(--color-on-primary);
         `
       : css`
           background: ${theme.elevatedBackground};
@@ -59,7 +59,7 @@ const CheckableTagStyled = styled.span<{ $checked?: boolean }>`
       ? css`
           background: ${theme.primaryColor};
           border-color: ${theme.primaryColor};
-          color: ${theme.textOnPrimary || '#fff'};
+          color: ${theme.textOnPrimary};
         `
       : css`
           background: ${theme.elevatedBackground};

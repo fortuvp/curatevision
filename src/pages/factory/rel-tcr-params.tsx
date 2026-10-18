@@ -53,7 +53,7 @@ const SkipBadgesPanel = styled.div`
   margin-bottom: 18px;
   padding: 18px;
   border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--v2-soft);
 
   strong {
@@ -89,12 +89,12 @@ const BadgeSettingsToggle = styled.button<{ $open?: boolean }>`
   margin-bottom: ${({ $open }) => ($open ? '20px' : '0')};
   padding: 0 16px;
   border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--v2-card);
   color: var(--v2-text);
   cursor: pointer;
   font: inherit;
-  font-weight: 700;
+  font-weight: 600;
 
   svg {
     transform: rotate(${({ $open }) => ($open ? '180deg' : '0deg')});
