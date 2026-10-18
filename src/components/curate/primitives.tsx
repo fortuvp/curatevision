@@ -87,11 +87,6 @@ export const Surface = styled.div<{
     `}
 `
 
-export const SurfaceLink = styled(Surface).attrs({
-  as: Link,
-  $interactive: true,
-})``
-
 export const Hairline = styled.hr`
   margin: 0;
   border: 0;

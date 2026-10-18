@@ -297,12 +297,11 @@ const resolveMode = (mode: ThemeMode, prefersDark: boolean): ThemeName =>
   mode === 'system' ? (prefersDark ? 'dark' : 'light') : mode
 
 /**
- * Default mode for visitors who never picked one. DESIGN.md targets 'system', but several
- * pages still hard-code dark surfaces (e.g. the dashboard hero), which makes light mode
- * unreadable there. Keep 'dark' (the previous behavior) until those are fixed, then switch
- * this and DEFAULT_MODE in index.html to 'system' together.
+ * Default mode for visitors who never picked one: follow the operating system
+ * (DESIGN.md). Must match DEFAULT_MODE in index.html, which applies the saved
+ * mode before React mounts.
  */
-export const DEFAULT_THEME_MODE: ThemeMode = 'dark'
+export const DEFAULT_THEME_MODE: ThemeMode = 'system'
 
 const readSavedMode = (): ThemeMode => {
   try {

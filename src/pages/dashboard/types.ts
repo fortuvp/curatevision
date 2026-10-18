@@ -33,6 +33,11 @@ export interface DashboardActivity {
   actor?: string
   secondaryActor?: string
   kind: 'submission' | 'removal' | 'challenge' | 'resolution'
+  /** Which request the activity belongs to; drives the outcome wording. */
+  requestType?: 'submission' | 'removal'
+  /** Court outcome once a dispute is resolved (kind 'resolution'). */
+  outcome?: 'kept' | 'registered' | 'removed' | 'rejected' | 'no-ruling'
+  disputeID?: string
   status: string
   timestamp: number
   href: string

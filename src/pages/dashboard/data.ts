@@ -675,6 +675,33 @@ const previewProps = (props?: any[]): { label: string; value: string }[] =>
     .filter((prop) => prop.value)
     .slice(0, 2)
 
+/**
+ * Court outcome of a resolved dispute. Ruling Accept favors the requester,
+ * Reject the challenger, None means the court refused to rule (the request
+ * fails: a submission stays off the list, a removal keeps the item).
+ */
+const disputeOutcomeOf = (
+  requestEntity: any,
+): DashboardActivity['outcome'] | undefined => {
+  if (!requestEntity?.disputed || !requestEntity?.resolved) return undefined
+  const isRemoval = requestEntity.requestType === 'ClearingRequested'
+  const ruling = String(requestEntity.disputeOutcome ?? 'None')
+  if (ruling === 'Accept') return isRemoval ? 'removed' : 'registered'
+  if (ruling === 'Reject') return isRemoval ? 'kept' : 'rejected'
+  return 'no-ruling'
+}
+
+const outcomeLabel = (outcome: NonNullable<DashboardActivity['outcome']>) =>
+  outcome === 'registered'
+    ? 'Registered by ruling'
+    : outcome === 'rejected'
+      ? 'Rejected by ruling'
+      : outcome === 'removed'
+        ? 'Removed by ruling'
+        : outcome === 'kept'
+          ? 'Kept by ruling'
+          : 'Court refused to rule'
+
 const requestToActivity = (
   requestEntity: any,
   kindHint: RegistryKind,
@@ -686,10 +713,13 @@ const requestToActivity = (
   const isChallenge =
     requestEntity.disputed &&
     normalizeAddress(requestEntity.challenger) !== ZERO_ADDRESS
-  const timestamp =
-    toNumber(requestEntity.challengeTime) ||
-    toNumber(requestEntity.submissionTime) ||
-    toNumber(requestEntity.resolutionTime)
+  const outcome = isChallenge ? disputeOutcomeOf(requestEntity) : undefined
+  const timestamp = outcome
+    ? toNumber(requestEntity.resolutionTime) ||
+      toNumber(requestEntity.challengeTime)
+    : toNumber(requestEntity.challengeTime) ||
+      toNumber(requestEntity.submissionTime) ||
+      toNumber(requestEntity.resolutionTime)
 
   return {
     id: `${kindHint}-${requestEntity.id}`,
@@ -703,12 +733,25 @@ const requestToActivity = (
     itemID,
     actor: normalizeAddress(requestEntity.requester),
     secondaryActor: normalizeAddress(requestEntity.challenger),
-    kind: isChallenge ? 'challenge' : isRemoval ? 'removal' : 'submission',
-    status: isChallenge
-      ? `Dispute #${requestEntity.disputeID || 'pending'}`
-      : isRemoval
-        ? 'Removal requested'
-        : 'Registration requested',
+    kind: outcome
+      ? 'resolution'
+      : isChallenge
+        ? 'challenge'
+        : isRemoval
+          ? 'removal'
+          : 'submission',
+    requestType: isRemoval ? 'removal' : 'submission',
+    outcome,
+    disputeID: requestEntity.disputeID
+      ? String(requestEntity.disputeID)
+      : undefined,
+    status: outcome
+      ? outcomeLabel(outcome)
+      : isChallenge
+        ? `Dispute #${requestEntity.disputeID || 'pending'}`
+        : isRemoval
+          ? 'Removal requested'
+          : 'Registration requested',
     timestamp,
     href: buildActivityHref(chainId, registryAddress, itemID),
   }
@@ -746,6 +789,10 @@ const itemToActivity = (
       : isRemoval
         ? 'removal'
         : 'submission',
+    requestType: isRemoval ? 'removal' : 'submission',
+    disputeID: requestEntity.disputeID
+      ? String(requestEntity.disputeID)
+      : undefined,
     status: requestEntity.disputed
       ? `Dispute #${requestEntity.disputeID || 'pending'}`
       : isRemoval
