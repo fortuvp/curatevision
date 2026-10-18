@@ -389,7 +389,18 @@ const resolveMode = (mode: ThemeMode, prefersDark: boolean): ThemeName =>
  */
 export const DEFAULT_THEME_MODE: ThemeMode = 'system'
 
+/** ?cv-theme=light|dark|kleros previews a theme for one visit without saving it. */
+const forcedMode = (): ThemeMode | null => {
+  if (typeof window === 'undefined') return null
+  const value = new URLSearchParams(window.location.search).get('cv-theme')
+  return value === 'light' || value === 'dark' || value === 'kleros'
+    ? value
+    : null
+}
+
 const readSavedMode = (): ThemeMode => {
+  const forced = forcedMode()
+  if (forced) return forced
   try {
     const saved = localStorage.getItem(THEME_STORAGE_KEY)
     if (isThemeMode(saved)) return saved

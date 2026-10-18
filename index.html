@@ -81,6 +81,9 @@
           if (saved === 'light' || saved === 'dark' || saved === 'kleros' || saved === 'system')
             mode = saved
         } catch (e) {}
+        // ?cv-theme=light|dark|kleros previews a theme without saving it.
+        var forced = new URLSearchParams(location.search).get('cv-theme')
+        if (forced === 'light' || forced === 'dark' || forced === 'kleros') mode = forced
         var resolved = mode
         if (mode === 'system') {
           var prefersDark =
