@@ -59,11 +59,9 @@ const Figure = styled.span<{ $size: number }>`
 const Caption = styled.span`
   max-width: 70%;
   color: var(--color-faint);
-  font-size: 11px;
-  line-height: 14px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: 12px;
+  line-height: 15px;
+  font-weight: 400;
 `
 
 export const RingGauge = ({

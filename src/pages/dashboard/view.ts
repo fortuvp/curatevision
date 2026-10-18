@@ -18,6 +18,16 @@ export const SUPPORTED_CHAIN_IDS = Object.values(NETWORKS_INFO).map((info) =>
   Number(info.chainId),
 )
 
+/** Sepolia is a testnet: it is selectable, but never part of "all". */
+export const TESTNET_CHAIN_IDS = [11155111]
+export const MAINNET_CHAIN_IDS = SUPPORTED_CHAIN_IDS.filter(
+  (chainId) => !TESTNET_CHAIN_IDS.includes(chainId),
+)
+
+/** Chains a filter value covers: 'all' means every mainnet. */
+export const scopeChains = (chain: ChainFilter): number[] =>
+  chain === 'all' ? MAINNET_CHAIN_IDS : [chain]
+
 export const chainInfo = (chainId: number) =>
   NETWORKS_INFO[chainId as keyof typeof NETWORKS_INFO]
 
@@ -151,11 +161,12 @@ const toCard = (
 export const buildBoard = (
   activities: DashboardActivity[],
   disputes: DashboardActivity[],
+  openDisputes: DashboardActivity[],
   now: number,
-  chain: ChainFilter,
+  chains: number[],
 ) => {
-  const onChain = (activity: DashboardActivity) =>
-    chain === 'all' || activity.chainId === chain
+  const inScope = (activity: DashboardActivity) =>
+    chains.includes(activity.chainId)
   const seen = new Set<string>()
   const unique = (activity: DashboardActivity) => {
     const key = activity.href
@@ -164,7 +175,7 @@ export const buildBoard = (
     return true
   }
   const windowOpen = activities
-    .filter(onChain)
+    .filter(inScope)
     .filter(
       (activity) =>
         (activity.kind === 'submission' || activity.kind === 'removal') &&
@@ -184,13 +195,13 @@ export const buildBoard = (
         activity.kind === 'removal' ? 'removal asked' : 'submitted',
       ),
     )
-  const inCourt = disputes
-    .filter(onChain)
-    .filter((activity) => activity.kind === 'challenge')
+  // Every dispute that is open right now, not only the latest ones.
+  const inCourt = openDisputes
+    .filter(inScope)
     .filter(unique)
     .map((activity) => toCard(activity, now, 'challenged'))
   const decided = disputes
-    .filter(onChain)
+    .filter(inScope)
     .filter((activity) => activity.kind === 'resolution')
     .sort((a, b) => b.timestamp - a.timestamp)
     .filter(unique)

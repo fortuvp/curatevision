@@ -20,6 +20,8 @@ import { CurateIcon } from './icons'
 
 export interface BoardCard {
   id: string
+  /** Registry logo (IPFS or http URL), shown as the row avatar. */
+  logo?: string | null
   href: string
   registry: string
   identifiers: { label: string; value: string }[]
@@ -93,9 +95,11 @@ const ColumnTitle = styled.div`
 `
 
 const Card = styled(Link)`
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  column-gap: 12px;
+  row-gap: 4px;
+  align-items: center;
   padding: 12px 14px;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius);
@@ -110,6 +114,18 @@ const Card = styled(Link)`
     border-color: var(--color-border-strong);
     background: var(--color-raised);
   }
+`
+
+const Avatar = styled.span<{ $image?: string | null }>`
+  grid-row: span 3;
+  align-self: start;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  background: ${({ $image }) =>
+    $image ? `url(${$image}) center / cover` : 'var(--color-raised)'};
+  box-shadow: 0 0 0 3px var(--color-surface);
 `
 
 const CardTop = styled.div`
@@ -189,6 +205,7 @@ const BoardColumnView = ({
           to={card.href}
           title={card.actor ? `by ${card.actor}` : undefined}
         >
+          <Avatar $image={card.logo} aria-hidden />
           <CardTop>
             <Registry title={card.registry}>{card.registry}</Registry>
             <ChainChip chainId={card.chainId} size="sm" />

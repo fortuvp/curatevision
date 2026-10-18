@@ -239,6 +239,18 @@ export const AreaChart = ({
           </filter>
         </defs>
         {guides.map((g) => (
+          <text
+            key={`t-${g}`}
+            x={width - 2}
+            y={y(niceMax * g) - 6}
+            textAnchor="end"
+            fill="var(--color-faint)"
+            fontSize="11"
+          >
+            {Math.round(niceMax * g)}
+          </text>
+        ))}
+        {guides.map((g) => (
           <line
             key={g}
             x1="0"

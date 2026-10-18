@@ -32,9 +32,13 @@ const NavLink = styled(Link)<{ $active?: boolean }>`
   padding: 0 14px;
   border-radius: var(--radius-pill);
   color: ${({ $active }) =>
-    $active ? 'var(--color-bg)' : 'var(--color-muted)'};
+    $active ? 'var(--color-text)' : 'var(--color-muted)'};
   background: ${({ $active }) =>
-    $active ? 'var(--color-text)' : 'transparent'};
+    $active ? 'var(--color-primary-soft)' : 'transparent'};
+  box-shadow: ${({ $active }) =>
+    $active
+      ? 'inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 28%, transparent)'
+      : 'none'};
   text-decoration: none;
   font-size: var(--fs-body);
   line-height: var(--lh-body);
@@ -45,10 +49,9 @@ const NavLink = styled(Link)<{ $active?: boolean }>`
     background var(--motion);
 
   &:hover {
-    color: ${({ $active }) =>
-      $active ? 'var(--color-bg)' : 'var(--color-text)'};
+    color: var(--color-text);
     background: ${({ $active }) =>
-      $active ? 'var(--color-text)' : 'var(--color-raised)'};
+      $active ? 'var(--color-primary-soft)' : 'var(--color-raised)'};
   }
 `
 

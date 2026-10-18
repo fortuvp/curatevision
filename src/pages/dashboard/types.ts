@@ -91,11 +91,16 @@ export interface DashboardData {
   generatedAt: number
   /** Daily requests over the last 30 days, oldest first. */
   series: DashboardDay[]
+  /** The same series per chain id. */
+  seriesByChain: Record<number, DashboardDay[]>
   /** True when the 30-day page budget was exhausted on some chain. */
   seriesTruncated: boolean
   registries: DashboardRegistry[]
   activities: DashboardActivity[]
+  /** Latest disputes, open or resolved (for the "decided" column). */
   disputes: DashboardActivity[]
+  /** Every dispute open right now (disputed and not yet resolved). */
+  openDisputes: DashboardActivity[]
   users: DashboardUser[]
   metrics: DashboardMetrics
 }

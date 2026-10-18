@@ -226,6 +226,70 @@ const ENVIO_DASHBOARD_QUERY = gql`
       submissionTime
       resolutionTime
     }
+    openLightRequests: LRequest(
+      limit: 1000
+      where: { chainId: { _eq: $chainId }, resolved: { _eq: false } }
+    ) {
+      id
+      registry_id
+    }
+    openClassicRequests: Request(
+      limit: 1000
+      where: { chainId: { _eq: $chainId }, resolved: { _eq: false } }
+    ) {
+      id
+      registry_id
+    }
+    openLightDisputes: LRequest(
+      limit: 400
+      where: {
+        chainId: { _eq: $chainId }
+        disputed: { _eq: true }
+        resolved: { _eq: false }
+      }
+      order_by: [{ challengeTime: desc }]
+    ) {
+      id
+      chainId
+      registry_id
+      requestType
+      requester
+      challenger
+      deposit
+      disputeID
+      disputed
+      resolved
+      disputeOutcome
+      submissionTime
+      challengeTime
+      resolutionTime
+      registry {
+        title
+      }
+    }
+    openClassicDisputes: Request(
+      limit: 400
+      where: {
+        chainId: { _eq: $chainId }
+        disputed: { _eq: true }
+        resolved: { _eq: false }
+      }
+      order_by: [{ submissionTime: desc }]
+    ) {
+      id
+      chainId
+      registry_id
+      requestType
+      requester
+      challenger
+      deposit
+      disputeID
+      disputed
+      resolved
+      disputeOutcome
+      submissionTime
+      resolutionTime
+    }
     resolvedLightBounties: LRequest(
       limit: 240
       where: {
@@ -331,6 +395,32 @@ const PERMANENT_DASHBOARD_QUERY = gql`
       }
     }
     challenges(first: 90, orderBy: createdAt, orderDirection: desc) {
+      id
+      createdAt
+      challenger
+      disputeID
+      disputeOutcome
+      challengerStake
+      item {
+        itemID
+        metadata {
+          props {
+            label
+            value
+            isIdentifier
+          }
+        }
+        registry {
+          id
+        }
+      }
+    }
+    openChallenges: challenges(
+      first: 400
+      where: { resolutionTime: null }
+      orderBy: createdAt
+      orderDirection: desc
+    ) {
       id
       createdAt
       challenger
@@ -928,6 +1018,7 @@ const normalizeEnvio = (
   registries: DashboardRegistry[]
   activities: DashboardActivity[]
   disputes: DashboardActivity[]
+  openDisputes: DashboardActivity[]
   users: Map<string, DashboardUser>
   bountyWei: string
   verifiedRegistryAddresses: string[]
@@ -1071,10 +1162,45 @@ const normalizeEnvio = (
     ),
   ]
 
+  const openRequestRows = [
+    ...(payload.openLightRequests ?? []),
+    ...(payload.openClassicRequests ?? []),
+  ] as { registry_id?: string }[]
+  const openRequestsByRegistry = new Map<string, number>()
+  for (const row of openRequestRows) {
+    const address = normalizeAddress(row.registry_id)
+    openRequestsByRegistry.set(
+      address,
+      (openRequestsByRegistry.get(address) ?? 0) + 1,
+    )
+  }
+  const openRequestsCapped =
+    (payload.openLightRequests ?? []).length >= 1000 ||
+    (payload.openClassicRequests ?? []).length >= 1000
+
+  const openDisputes = [
+    ...(payload.openLightDisputes ?? []).map((item: DashboardRequestRow) =>
+      requestToActivity(item, 'light'),
+    ),
+    ...(payload.openClassicDisputes ?? []).map((item: DashboardRequestRow) =>
+      requestToActivity(item, 'classic'),
+    ),
+  ]
+
+  // Requests open per list = its unresolved requests right now (the
+  // per-list status counters drift on some deployments).
+  if (!openRequestsCapped)
+    for (const registry of registries) {
+      const open = openRequestsByRegistry.get(registry.address) ?? 0
+      registry.pendingCount = open
+      registry.activeCount = open
+    }
+
   return {
     registries,
     activities,
     disputes,
+    openDisputes,
     users,
     bountyWei,
     verifiedRegistryAddresses: [...verifiedAddresses],
@@ -1090,6 +1216,7 @@ const normalizePermanent = (
   registries: DashboardRegistry[]
   activities: DashboardActivity[]
   disputes: DashboardActivity[]
+  openDisputes: DashboardActivity[]
   users: Map<string, DashboardUser>
   bountyWei: string
   verifiedRegistryAddresses: string[]
@@ -1190,10 +1317,16 @@ const normalizePermanent = (
       '0',
     )
 
+  const openDisputes = (payload.openChallenges ?? []).map(
+    (challenge: PermanentChallengeRow) =>
+      permanentChallengeToActivity(challenge, chainId, registryMap),
+  )
+
   return {
     registries,
     activities,
     disputes,
+    openDisputes,
     users,
     bountyWei,
     verifiedRegistryAddresses: [...verifiedRegistryAddresses],
@@ -1339,10 +1472,11 @@ const normalizePermanentLeaderboardPage = (
 
 interface ActivityEvent {
   at: number
+  chainId: number
   kind: 'submissions' | 'removals' | 'challenges'
 }
 
-const envioPageEvents = (payload: any): ActivityEvent[] => {
+const envioPageEvents = (payload: any, chainId: number): ActivityEvent[] => {
   const events: ActivityEvent[] = []
   for (const requestEntity of [
     ...(payload.lightRequests ?? []),
@@ -1352,6 +1486,7 @@ const envioPageEvents = (payload: any): ActivityEvent[] => {
     if (at)
       events.push({
         at,
+        chainId,
         kind:
           requestEntity.requestType === 'ClearingRequested'
             ? 'removals'
@@ -1359,21 +1494,26 @@ const envioPageEvents = (payload: any): ActivityEvent[] => {
       })
     if (requestEntity.disputed) {
       const challengedAt = toNumber(requestEntity.challengeTime) || at
-      if (challengedAt) events.push({ at: challengedAt, kind: 'challenges' })
+      if (challengedAt)
+        events.push({ at: challengedAt, chainId, kind: 'challenges' })
     }
   }
   return events
 }
 
-const permanentPageEvents = (payload: any, since: number): ActivityEvent[] => [
+const permanentPageEvents = (
+  payload: any,
+  since: number,
+  chainId: number,
+): ActivityEvent[] => [
   ...(payload.submissions ?? [])
     .map((submission: any) => toNumber(submission.createdAt))
     .filter((at: number) => at >= since)
-    .map((at: number) => ({ at, kind: 'submissions' as const })),
+    .map((at: number) => ({ at, chainId, kind: 'submissions' as const })),
   ...(payload.challenges ?? [])
     .map((challenge: any) => toNumber(challenge.createdAt))
     .filter((at: number) => at >= since)
-    .map((at: number) => ({ at, kind: 'challenges' as const })),
+    .map((at: number) => ({ at, chainId, kind: 'challenges' as const })),
 ]
 
 const DAY = 24 * 60 * 60
@@ -1403,6 +1543,7 @@ const fetchCuratorLeaderboard = async (
 ): Promise<{
   users: DashboardUser[]
   series: DashboardDay[]
+  seriesByChain: Record<number, DashboardDay[]>
   seriesTruncated: boolean
 }> => {
   const lastPage = LEADERBOARD_MAX_PAGES - 1
@@ -1418,7 +1559,7 @@ const fetchCuratorLeaderboard = async (
           payload
             ? {
                 users: normalizeEnvioLeaderboardPage(payload, chainId),
-                events: envioPageEvents(payload),
+                events: envioPageEvents(payload, chainId),
                 full:
                   page === lastPage &&
                   pageRows(payload, ['lightRequests', 'classicRequests']) >=
@@ -1441,7 +1582,7 @@ const fetchCuratorLeaderboard = async (
                   chainId,
                   since,
                 ),
-                events: permanentPageEvents(payload, since),
+                events: permanentPageEvents(payload, since, chainId),
                 full: false,
               }
             : null,
@@ -1455,11 +1596,19 @@ const fetchCuratorLeaderboard = async (
     events: ActivityEvent[]
     full: boolean
   }[]
+  const nowSeconds = Math.floor(Date.now() / 1000)
+  const events = valid.flatMap((page) => page.events)
   return {
     users: mergeUsers(valid.map((page) => page.users)).slice(0, 100),
-    series: buildSeries(
-      valid.flatMap((page) => page.events),
-      Math.floor(Date.now() / 1000),
+    series: buildSeries(events, nowSeconds),
+    seriesByChain: Object.fromEntries(
+      SUPPORTED_CHAIN_IDS.map((chainId) => [
+        chainId,
+        buildSeries(
+          events.filter((event) => event.chainId === chainId),
+          nowSeconds,
+        ),
+      ]),
     ),
     seriesTruncated: valid.some((page) => page.full),
   }
@@ -1602,13 +1751,28 @@ export const fetchDashboardData = async (): Promise<DashboardData> => {
     .sort((a, b) => b.timestamp - a.timestamp)
     .slice(0, 80)
 
+  const openDisputes = allResults
+    .flatMap((result) => result.openDisputes ?? [])
+    .filter((activity) => activity.timestamp > 0)
+    .sort((a, b) => b.timestamp - a.timestamp)
+  // "In court" per list = its disputes that are open right now (the per-list
+  // counters drift on some deployments and were double counted before).
+  const openByRegistry = new Map<string, number>()
+  for (const activity of openDisputes) {
+    const key = `${activity.chainId}:${activity.registryAddress}`
+    openByRegistry.set(key, (openByRegistry.get(key) ?? 0) + 1)
+  }
+  for (const registry of registries)
+    registry.disputeCount =
+      openByRegistry.get(`${registry.chainId}:${registry.address}`) ?? 0
+
   const disputes = allResults
     .flatMap((result) => result.disputes)
     .filter((activity) => activity.timestamp > 0)
     .sort((a, b) => b.timestamp - a.timestamp)
     .slice(0, 40)
 
-  const { users, series, seriesTruncated } =
+  const { users, series, seriesByChain, seriesTruncated } =
     await fetchCuratorLeaderboard(since)
 
   const bountyByChain: Record<number, string> = {}
@@ -1626,10 +1790,12 @@ export const fetchDashboardData = async (): Promise<DashboardData> => {
   return {
     generatedAt: Date.now(),
     series,
+    seriesByChain,
     seriesTruncated,
     registries,
     activities,
     disputes,
+    openDisputes,
     users,
     metrics: buildMetrics(registries, users, bountyByChain),
   }

@@ -34,7 +34,9 @@ import { fetchDashboardData } from './data'
 import type { DashboardRegistry } from './types'
 import {
   SUPPORTED_CHAIN_IDS,
+  TESTNET_CHAIN_IDS,
   buildBoard,
+  scopeChains,
   chainInfo,
   kindLabel,
   registryHref,
@@ -166,6 +168,17 @@ const Featured = styled(Surface)`
   @media (max-width: 720px) {
     padding: 20px 16px 16px;
   }
+`
+
+const ScopeBar = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 22px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--glass-border);
 `
 
 const FeaturedTop = styled.div`
@@ -451,72 +464,177 @@ const Dashboard = () => {
     setSearchParams(next, { replace: true })
   }
 
-  const board = useMemo(
-    () =>
-      data
-        ? buildBoard(data.activities, data.disputes, now, chain)
-        : { windowOpen: [], inCourt: [], decided: [] },
-    [data, now, chain],
+  const chains = useMemo(() => scopeChains(chain), [chain])
+  const scoped = useMemo(
+    () => (data?.registries ?? []).filter((r) => chains.includes(r.chainId)),
+    [data, chains],
   )
 
-  const segments = useMemo(
-    () =>
-      SUPPORTED_CHAIN_IDS.map((chainId) => {
-        const info = NETWORKS_INFO[chainId as keyof typeof NETWORKS_INFO]
-        return {
-          key: String(chainId),
-          label: info?.name ?? String(chainId),
-          color: info?.color ?? 'var(--color-primary)',
-          value: (data?.registries ?? [])
-            .filter((registry) => registry.chainId === chainId)
-            .reduce((sum, registry) => sum + registry.itemCount, 0),
+  const board = useMemo(() => {
+    if (!data) return { windowOpen: [], inCourt: [], decided: [] }
+    const logos = new Map(
+      data.registries.map((registry) => [
+        `${registry.chainId}:${registry.address}`,
+        mediaUrl(registry.logoURI),
+      ]),
+    )
+    const withLogo = (cards: ReturnType<typeof buildBoard>['windowOpen']) =>
+      cards.map((card) => ({
+        ...card,
+        logo: logos.get(
+          `${card.chainId}:${card.href.split('/')[3]?.toLowerCase()}`,
+        ),
+      }))
+    const built = buildBoard(
+      data.activities,
+      data.disputes,
+      data.openDisputes,
+      now,
+      chains,
+    )
+    return {
+      windowOpen: withLogo(built.windowOpen),
+      inCourt: withLogo(built.inCourt),
+      decided: withLogo(built.decided),
+    }
+  }, [data, now, chains])
+
+  /** Every figure on the page describes the same scope. */
+  const figures = useMemo(() => {
+    if (!data) return undefined
+    const users = data.users.filter((user) =>
+      Object.keys(user.chains).some((id) => chains.includes(Number(id))),
+    )
+    let challenges = 0
+    let won = 0
+    for (const user of data.users)
+      for (const [id, stats] of Object.entries(user.chains))
+        if (chains.includes(Number(id))) {
+          challenges += stats.challenges
+          won += stats.successfulChallenges
         }
-      }),
-    [data],
-  )
+    return {
+      registries: scoped.length,
+      verified: scoped.filter((r) => r.trustStatus === 'verified').length,
+      entries: scoped.reduce((sum, r) => sum + r.itemCount, 0),
+      // Stake Curate has no requests (its counter is listed items).
+      requestsOpen: scoped
+        .filter((r) => r.kind !== 'permanent')
+        .reduce((sum, r) => sum + r.pendingCount, 0),
+      inCourt: data.openDisputes.filter((a) => chains.includes(a.chainId))
+        .length,
+      curators: users.length,
+      challenges,
+      won,
+    }
+  }, [data, scoped, chains])
+
+  const series = useMemo(() => {
+    if (!data) return []
+    return data.series.map((day, index) => {
+      const sum = { ...day, submissions: 0, removals: 0, challenges: 0 }
+      for (const chainId of chains) {
+        const other = data.seriesByChain[chainId]?.[index]
+        if (!other) continue
+        sum.submissions += other.submissions
+        sum.removals += other.removals
+        sum.challenges += other.challenges
+      }
+      return sum
+    })
+  }, [data, chains])
+
+  /**
+   * The breakdown ring: across several chains it splits entries by chain;
+   * on one chain it splits them by list (top four, then the rest).
+   */
+  const breakdown = useMemo(() => {
+    if (chains.length > 1)
+      return {
+        title: 'Entries by chain',
+        segments: chains.map((chainId) => {
+          const info = NETWORKS_INFO[chainId as keyof typeof NETWORKS_INFO]
+          return {
+            key: String(chainId),
+            label: info?.name ?? String(chainId),
+            color: info?.color ?? 'var(--color-primary)',
+            value: scoped
+              .filter((r) => r.chainId === chainId)
+              .reduce((sum, r) => sum + r.itemCount, 0),
+          }
+        }),
+      }
+    const ranked = [...scoped].sort((a, b) => b.itemCount - a.itemCount)
+    const palette = [
+      'var(--color-primary)',
+      'var(--aurora-b)',
+      'var(--status-registered)',
+      'var(--status-contested)',
+    ]
+    const top = ranked.slice(0, 4).map((r, index) => ({
+      key: r.id,
+      label: r.title,
+      color: palette[index],
+      value: r.itemCount,
+    }))
+    const rest = ranked.slice(4).reduce((sum, r) => sum + r.itemCount, 0)
+    return {
+      title: 'Entries by list',
+      segments: rest
+        ? [
+            ...top,
+            {
+              key: 'rest',
+              label: `${ranked.length - 4} other lists`,
+              color: 'var(--color-faint)',
+              value: rest,
+            },
+          ]
+        : top,
+    }
+  }, [chains, scoped])
 
   const topRegistries = useMemo(
-    () =>
-      data
-        ? sortRegistries(
-            data.registries.filter(
-              (registry) => chain === 'all' || registry.chainId === chain,
-            ),
-            'activity',
-          ).slice(0, 8)
-        : [],
-    [data, chain],
+    () => sortRegistries(scoped, 'activity').slice(0, 8),
+    [scoped],
   )
 
   const curators = useMemo(
     () =>
       (data?.users ?? [])
-        .filter((user) => chain === 'all' || user.chains[chain])
+        .filter((user) =>
+          Object.keys(user.chains).some((id) => chains.includes(Number(id))),
+        )
         .slice(0, 6),
-    [data, chain],
+    [data, chains],
   )
 
   const chartLabels = useMemo(
     () =>
-      (data?.series ?? []).map((d) =>
+      series.map((d) =>
         new Intl.DateTimeFormat('en-GB', {
           day: 'numeric',
           month: 'short',
           timeZone: 'UTC',
         }).format(new Date(d.day * 1000)),
       ),
-    [data],
+    [series],
   )
 
-  const challengeStats = useMemo(() => {
-    const users = data?.users ?? []
-    const challenges = users.reduce((sum, user) => sum + user.challenges, 0)
-    const won = users.reduce((sum, user) => sum + user.successfulChallenges, 0)
-    return { challenges, won, ratio: challenges ? won / challenges : 0 }
-  }, [data])
-
   const launchChain = chain === 'all' ? NETWORKS.gnosis : chain
-  const totalEntries = segments.reduce((sum, seg) => sum + seg.value, 0)
+  const breakdownTotal = breakdown.segments.reduce(
+    (sum, seg) => sum + seg.value,
+    0,
+  )
+  // The ring's arcs are shares, so the centre names the biggest one.
+  const leading = breakdownTotal
+    ? [...breakdown.segments]
+        .sort((a, b) => b.value - a.value)
+        .map((seg) => ({
+          label: seg.label,
+          share: seg.value / breakdownTotal,
+        }))[0]
+    : undefined
 
   return (
     <Page>
@@ -562,22 +680,38 @@ const Dashboard = () => {
         aria-label="Live figures"
         style={{ ['--i' as string]: 5 }}
       >
+        <ScopeBar>
+          <Label $tone="faint">
+            {chain === 'all'
+              ? 'Ethereum and Gnosis'
+              : `${chainInfo(chain)?.name ?? chain}${TESTNET_CHAIN_IDS.includes(chain) ? ' · test network' : ''}`}
+          </Label>
+          <SegmentedControl
+            ariaLabel="Scope"
+            value={chain === 'all' ? 'all' : String(chain)}
+            onChange={setChain}
+            options={[
+              { value: 'all', label: 'Mainnets' },
+              ...SUPPORTED_CHAIN_IDS.map((chainId) => ({
+                value: String(chainId),
+                label: chainInfo(chainId)?.name ?? String(chainId),
+              })),
+            ]}
+          />
+        </ScopeBar>
         <FeaturedTop>
           <HeadlineFigure>
             <Label $tone="faint">Entries curated</Label>
             <Big $hero>
-              <AnimatedNumber value={loading ? undefined : totalEntries} />
+              <AnimatedNumber value={figures?.entries} />
             </Big>
           </HeadlineFigure>
           <InlineStats>
             {[
-              { label: 'Registries', value: data?.metrics.registries },
-              {
-                label: 'Requests open',
-                value: data?.metrics.activeVerification,
-              },
-              { label: 'In court now', value: data?.metrics.disputes },
-              { label: 'Curators · 30 days', value: data?.metrics.curators },
+              { label: 'Registries', value: figures?.registries },
+              { label: 'Requests open', value: figures?.requestsOpen },
+              { label: 'In court now', value: figures?.inCourt },
+              { label: 'Curators · 30 days', value: figures?.curators },
             ].map((figure) => (
               <InlineStat key={figure.label}>
                 <Label $tone="faint">{figure.label}</Label>
@@ -588,6 +722,9 @@ const Dashboard = () => {
             ))}
           </InlineStats>
           <SeriesLegend aria-label="Chart series">
+            <li>
+              <Label $tone="faint">Per day · last 30 days</Label>
+            </li>
             <li style={{ color: 'var(--color-primary)' }}>
               <i style={{ background: 'var(--color-primary)' }} aria-hidden />
               <span style={{ color: 'var(--color-muted)' }}>Requests</span>
@@ -605,6 +742,7 @@ const Dashboard = () => {
           <SkeletonBlock $height="240px" />
         ) : (
           <AreaChart
+            key={chains.join('-')}
             height={240}
             labels={chartLabels}
             series={[
@@ -612,22 +750,19 @@ const Dashboard = () => {
                 key: 'requests',
                 label: 'Requests',
                 color: 'var(--color-primary)',
-                values: data.series.map((d) => d.submissions + d.removals),
+                values: series.map((d) => d.submissions + d.removals),
               },
               {
                 key: 'challenges',
                 label: 'Challenges',
                 color: 'var(--status-contested)',
-                values: data.series.map((d) => d.challenges),
+                values: series.map((d) => d.challenges),
               },
             ]}
             ariaLabel={`Requests and challenges per day over the last 30 days: ${formatInt(
-              data.series.reduce(
-                (sum, d) => sum + d.submissions + d.removals,
-                0,
-              ),
+              series.reduce((sum, d) => sum + d.submissions + d.removals, 0),
             )} requests, ${formatInt(
-              data.series.reduce((sum, d) => sum + d.challenges, 0),
+              series.reduce((sum, d) => sum + d.challenges, 0),
             )} challenges`}
           />
         )}
@@ -649,22 +784,35 @@ const Dashboard = () => {
             />
           ) : (
             <OrbitChart
-              segments={segments}
-              total={`${segments.filter((seg) => seg.value > 0).length}`}
-              caption="Chains"
-              ariaLabel={`Entries per chain: ${segments
-                .map((seg) => `${seg.label} ${formatInt(seg.value)}`)
+              key={chains.join('-')}
+              segments={breakdown.segments}
+              total={leading ? `${Math.round(leading.share * 100)}%` : '—'}
+              caption={leading ? `in ${leading.label}` : 'No entries'}
+              ariaLabel={`${breakdown.title}: ${breakdown.segments
+                .map(
+                  (seg) =>
+                    `${seg.label} ${formatInt(seg.value)} (${breakdownTotal ? Math.round((seg.value / breakdownTotal) * 100) : 0}%)`,
+                )
                 .join(', ')}`}
               size={148}
             />
           )}
-          <div>
-            <h3>Where entries live</h3>
-            <Legend aria-label="Entries per chain">
-              {segments.map((seg) => (
+          <div style={{ minWidth: 0 }}>
+            <h3>{breakdown.title}</h3>
+            <Legend aria-label={breakdown.title}>
+              {breakdown.segments.map((seg) => (
                 <li key={seg.key}>
                   <i style={{ background: seg.color }} aria-hidden />
-                  {seg.label}
+                  <span
+                    style={{
+                      minWidth: 0,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {seg.label}
+                  </span>
                   <Data $muted $weight={400}>
                     {loading ? '—' : formatInt(seg.value)}
                   </Data>
@@ -675,40 +823,42 @@ const Dashboard = () => {
         </GaugeCard>
         <GaugeCard $padding="none" style={{ ['--i' as string]: 7 }}>
           <RingGauge
+            key={`v-${chains.join('-')}`}
             size={148}
             ratio={
-              data?.metrics.registries
-                ? data.metrics.verifiedRegistries / data.metrics.registries
-                : 0
+              figures?.registries ? figures.verified / figures.registries : 0
             }
             from="var(--status-registered)"
             to="var(--aurora-b)"
-            label={`Verified registries: ${data?.metrics.verifiedRegistries ?? 0} of ${data?.metrics.registries ?? 0}`}
-            caption="Verified"
+            label={`Verified registries: ${figures?.verified ?? 0} of ${figures?.registries ?? 0}`}
+            caption="of lists verified"
           />
           <div>
             <h3>Verified registries</h3>
             <Small $muted>
-              {data
-                ? `${formatInt(data.metrics.verifiedRegistries)} of ${formatInt(data.metrics.registries)} are on the Kleros Verified list of lists.`
+              {figures
+                ? `${formatInt(figures.verified)} of ${formatInt(figures.registries)} are on the Kleros Verified list of lists.`
                 : '—'}
             </Small>
           </div>
         </GaugeCard>
         <GaugeCard $padding="none" style={{ ['--i' as string]: 8 }}>
           <RingGauge
+            key={`c-${chains.join('-')}`}
             size={148}
-            ratio={challengeStats.ratio}
+            ratio={figures?.challenges ? figures.won / figures.challenges : 0}
             from="var(--status-contested)"
             to="var(--color-danger)"
-            label={`Challenges won in 30 days: ${challengeStats.won} of ${challengeStats.challenges}`}
-            caption="Won"
+            label={`Challenges won in 30 days: ${figures?.won ?? 0} of ${figures?.challenges ?? 0}`}
+            caption="of challenges won"
           />
           <div>
             <h3>Challenges that won</h3>
             <Small $muted>
-              {data
-                ? `${formatInt(challengeStats.won)} of ${formatInt(challengeStats.challenges)} challenges in the last 30 days took the entry off the list.`
+              {figures
+                ? figures.challenges
+                  ? `${formatInt(figures.won)} of ${formatInt(figures.challenges)} challenges in the last 30 days took the entry off the list.`
+                  : 'No challenges in the last 30 days.'
                 : '—'}
             </Small>
           </div>
@@ -717,18 +867,6 @@ const Dashboard = () => {
 
       <SectionHead>
         <SectionTitle>Happening now</SectionTitle>
-        <SegmentedControl
-          ariaLabel="Chain"
-          value={chain === 'all' ? 'all' : String(chain)}
-          onChange={setChain}
-          options={[
-            { value: 'all', label: 'All chains' },
-            ...SUPPORTED_CHAIN_IDS.map((chainId) => ({
-              value: String(chainId),
-              label: chainInfo(chainId)?.name ?? String(chainId),
-            })),
-          ]}
-        />
       </SectionHead>
       {loading ? (
         <Split style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
@@ -815,7 +953,11 @@ const Dashboard = () => {
                       <ChainChip chainId={registry.chainId} size="sm" />
                     </td>
                     <td className="num">{formatInt(registry.itemCount)}</td>
-                    <td className="num">{formatInt(registry.pendingCount)}</td>
+                    <td className="num">
+                      {registry.kind === 'permanent'
+                        ? '—'
+                        : formatInt(registry.pendingCount)}
+                    </td>
                     <td className="num">{formatInt(registry.disputeCount)}</td>
                   </tr>
                 ))}
