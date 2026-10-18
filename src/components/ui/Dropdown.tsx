@@ -45,10 +45,10 @@ const Overlay = styled.div<{ $visible?: boolean; $placement?: string }>`
   position: absolute;
   z-index: 1050;
   min-width: 120px;
-  background: var(--v2-card);
-  border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
-  box-shadow: var(--v2-shadow-hover);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-overlay);
   opacity: ${({ $visible }) => ($visible ? 1 : 0)};
   visibility: ${({ $visible }) => ($visible ? 'visible' : 'hidden')};
   transition:

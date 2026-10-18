@@ -98,7 +98,7 @@ const DefaultButton = styled.button`
   font-size: 16px;
   line-height: 22px;
   font-weight: 600;
-  font-family: 'Open Sans', ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-sans);
 
   &:hover {
     color: var(--klerosUIComponentsPrimaryBlue);

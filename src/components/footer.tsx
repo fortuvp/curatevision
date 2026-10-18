@@ -6,8 +6,8 @@ import icons from './social-icons'
 
 const Container = styled.footer`
   width: 100%;
-  background: ${({ theme }) => theme.footerBackground};
-  border-top: 0;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
   margin-top: auto;
 `
 
@@ -19,7 +19,7 @@ const FooterInner = styled.div`
   padding: 0 var(--horizontal-padding);
   height: 64px;
   gap: 16px;
-  max-width: 1440px;
+  max-width: var(--page-max-width);
   margin: 0 auto;
   width: 100%;
 
@@ -42,12 +42,12 @@ const StyledSecuredByKleros = styled.a`
   min-height: 24px;
 
   svg path {
-    fill: #ffffffbf;
-    transition: 0.1s;
+    fill: var(--color-muted);
+    transition: fill var(--motion);
   }
 
   &:hover svg path {
-    fill: #ffffff;
+    fill: var(--color-text);
   }
 `
 
@@ -68,20 +68,19 @@ const FooterLink = styled(Link)`
   align-items: center;
   padding: 0 12px;
   border: 1px solid transparent;
-  border-radius: 7px;
-  color: rgba(255, 255, 255, 0.78);
+  border-radius: var(--radius-sm);
+  color: var(--color-muted);
   background: transparent;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--fs-small);
+  font-weight: 500;
   text-decoration: none;
   transition:
-    background 0.16s ease,
-    border-color 0.16s ease;
+    color var(--motion),
+    background var(--motion);
 
   &:hover {
-    color: #ffffff;
-    background: rgba(255, 255, 255, 0.14);
-    border-color: transparent;
+    color: var(--color-text);
+    background: var(--color-raised);
   }
 `
 
@@ -94,23 +93,20 @@ const StyledSocialButton = styled.a`
   background: transparent;
   padding: 8px;
   border: 1px solid transparent;
-  border-radius: 7px;
-  transition:
-    background 0.16s ease,
-    border-color 0.16s ease;
+  border-radius: var(--radius-sm);
+  transition: background var(--motion);
   text-decoration: none;
 
   svg path {
-    fill: #ffffffbf;
-    transition: 0.1s;
+    fill: var(--color-muted);
+    transition: fill var(--motion);
   }
 
   &:hover {
-    background-color: rgba(255, 255, 255, 0.14);
-    border-color: transparent;
+    background-color: var(--color-raised);
 
     svg path {
-      fill: #ffffff;
+      fill: var(--color-text);
     }
   }
 `

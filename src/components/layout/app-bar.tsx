@@ -9,9 +9,8 @@ import styled, { css } from 'styled-components'
 import { smallScreenStyle } from 'styles/small-screen-style'
 import { useWeb3Context } from 'hooks/use-web3-context'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { Button, Dropdown } from 'components/ui'
+import { Dropdown } from 'components/ui'
 import { useAppKit } from '@reown/appkit/react'
-import { ThemeContext } from 'contexts/theme-context'
 import { NETWORKS_INFO } from 'config/networks'
 import { SUPPORTED_CHAINS } from 'config/chains'
 import Identicon from 'components/identicon'
@@ -20,6 +19,12 @@ import StakeCurateLogoRaw from 'assets/images/logo-stake-curate.svg'
 import { SAVED_NETWORK_KEY } from 'utils/string'
 import AppMenu from 'components/layout/app-menu'
 import Help from 'components/layout/help'
+import ThemeMenu from 'components/layout/theme-menu'
+import {
+  BarChipButton,
+  BarIconButton,
+  BarPrimaryButton,
+} from 'components/layout/app-bar-controls'
 import { defaultTcrAddresses, type validChains } from 'config/tcr-addresses'
 import { StakeContext } from 'contexts/stake-context'
 import useUrlChainId from 'hooks/use-url-chain-id'
@@ -27,46 +32,46 @@ import { preloadFactory } from 'bootstrap/app-router'
 import { CurateIcon } from 'components/curate/icons'
 import ChainLogo from 'components/chain-logo'
 
-const Container = styled.div`
-  padding: 0;
+/*
+ * App bar (DESIGN.md, Layout): 56px, sticky, surface at 92% over the bloom with a
+ * hairline. Logo, primary navigation, chain chip, account chip or Connect, theme
+ * menu, help. On phones the navigation moves under the menu button.
+ */
+const Container = styled.header`
   position: sticky;
   top: 0;
   z-index: 50;
-  background: ${({ theme }) => theme.navbarBackground};
-  border-bottom: 0;
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--color-border);
   transition:
-    background-color 0.3s ease,
-    border-color 0.3s ease;
+    background-color var(--motion),
+    border-color var(--motion);
 `
 
-const ThemeToggleButton = styled.button`
-  width: 38px;
-  height: 38px;
-  background: transparent;
-  border: 1px solid transparent;
-  cursor: pointer;
+const Row = styled.div`
   display: flex;
   align-items: center;
-  justify-content: center;
-  margin-left: 6px;
-  border-radius: 3px;
-  color: rgba(255, 255, 255, 0.75);
-  transition:
-    background-color 0.2s ease,
-    border-color 0.2s ease,
-    color 0.2s ease;
+  gap: 16px;
+  height: var(--app-bar-height);
+  max-width: var(--page-max-width);
+  margin: 0 auto;
+  padding: 0 var(--horizontal-padding);
 
-  &:hover {
-    background-color: rgba(255, 255, 255, 0.14);
-    border-color: transparent;
-    color: #ffffff;
-  }
+  ${smallScreenStyle(
+    () => css`
+      gap: 8px;
+    `,
+  )}
 `
 
 const LeftGroup = styled.div`
   display: flex;
   align-items: center;
+  gap: 8px;
   flex: 1;
+  min-width: 0;
 
   ${smallScreenStyle(
     () => css`
@@ -81,149 +86,68 @@ const MobileMenuWrapper = styled.div`
   ${smallScreenStyle(
     () => css`
       display: block;
-      margin-right: 12px;
     `,
   )}
-`
-
-const HamburgerButton = styled.button`
-  width: 38px;
-  height: 38px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 3px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #ffffff;
-  transition:
-    border-color 160ms ease,
-    background 160ms ease;
-
-  &:hover {
-    border-color: transparent;
-    background: rgba(255, 255, 255, 0.14);
-  }
 `
 
 const RightGroup = styled.div`
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  gap: 6px;
   flex: 1;
-
-  ${smallScreenStyle(
-    () => css`
-      flex: 0 0 auto;
-      justify-content: flex-start;
-    `,
-  )}
+  min-width: 0;
 `
 
-const MobileNavMenu = styled.div`
-  padding: 4px 0;
-  min-width: 160px;
+const MobileNavMenu = styled.nav`
+  min-width: 200px;
+  padding: 6px;
 `
 
 const MobileMenuLink = styled(Link)<{ $active?: boolean }>`
-  display: block;
-  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
   color: ${({ $active }) =>
-    $active ? 'var(--curate-text)' : 'var(--curate-muted)'};
+    $active ? 'var(--color-primary)' : 'var(--color-text)'};
+  background: ${({ $active }) =>
+    $active ? 'var(--color-primary-soft)' : 'transparent'};
   text-decoration: none;
-  font-size: var(--font-size-base);
-  transition: all 0.2s;
+  font-size: var(--fs-body);
+  font-weight: 500;
   white-space: nowrap;
-  font-weight: ${({ $active }) => ($active ? '750' : '600')};
+  transition: background var(--motion);
 
   &:hover {
-    color: var(--curate-text);
-    background: ${({ theme }) => theme.dropdownHoverBg};
+    color: ${({ $active }) =>
+      $active ? 'var(--color-primary)' : 'var(--color-text)'};
+    background: ${({ $active }) =>
+      $active ? 'var(--color-primary-soft)' : 'var(--color-raised)'};
   }
 `
 
-const StyledRouterLink = styled(Link)`
-  color: var(--curate-text);
-  display: flex;
-  transition: opacity 0.2s ease;
-
-  &:hover {
-    opacity: 0.7;
-  }
-`
-
-const StyledConnectButton = styled(Button)`
-  background: rgba(255, 255, 255, 0.13);
-  color: #ffffff;
-  border-color: transparent;
-  font-weight: 600;
-
-  &:hover:not(:disabled),
-  &:focus:not(:disabled) {
-    background: rgba(255, 255, 255, 0.2);
-    color: #ffffff;
-    border-color: transparent;
-  }
-  margin-left: 8px;
-`
-
-const StyledIdenticonWrapper = styled.div`
-  margin-left: 8px;
-  border-radius: 50%;
-  padding: 4px;
-  cursor: pointer;
+const LogoLink = styled(Link)`
   display: flex;
   align-items: center;
-  justify-content: center;
-  transition: background-color 0.2s ease;
+  color: var(--color-text);
+  transition: opacity var(--motion);
 
   &:hover {
-    background-color: rgba(255, 255, 255, 0.15);
+    opacity: 0.8;
+  }
+
+  svg {
+    display: block;
+    height: 28px;
+    width: auto;
   }
 `
 
-const StyledAppBarRow = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 var(--horizontal-padding);
-  min-height: 72px;
-  max-width: 1440px;
-  margin: 0 auto;
-  width: 100%;
-
-  ${smallScreenStyle(
-    () => css`
-      padding-top: 8px;
-      padding-bottom: 8px;
-      flex-wrap: wrap;
-      row-gap: 8px;
-    `,
-  )}
-`
-
-const ChainSelectorButton = styled.button`
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 3px;
-  padding: 0 13px;
-  height: 38px;
-  color: #ffffff;
-  font-size: 13px;
-  font-weight: 800;
-  cursor: pointer;
-  transition:
-    background-color 0.2s ease,
-    border-color 0.2s ease;
-  white-space: nowrap;
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.32);
+const ChainLabel = styled.span`
+  @media (max-width: 600px) {
+    display: none;
   }
 `
 
@@ -231,93 +155,84 @@ const ChainDropdownWrapper = styled.div`
   ${smallScreenStyle(
     () => css`
       .ui-dropdown > div:last-child {
-        right: auto;
-        left: 0;
+        right: 0;
+        left: auto;
       }
     `,
   )}
 `
 
 const ChainMenu = styled.div`
-  min-width: 172px;
+  min-width: 180px;
   padding: 6px;
 `
 
 const ChainMenuItem = styled.button<{ $active?: boolean }>`
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
   min-height: 36px;
   padding: 0 10px;
-  border: none;
-  border-radius: 3px;
-  background: ${({ $active, theme }) =>
-    $active
-      ? theme.dropdownSelectedBg || 'rgba(0, 0, 0, 0.06)'
-      : 'transparent'};
-  color: ${({ theme }) => theme.textPrimary};
-  font-size: 13px;
-  cursor: pointer;
-  transition: background 0.15s;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: ${({ $active }) =>
+    $active ? 'var(--color-primary-soft)' : 'transparent'};
+  color: ${({ $active }) =>
+    $active ? 'var(--color-primary)' : 'var(--color-text)'};
+  font-size: var(--fs-body);
+  font-weight: 500;
   white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--motion);
 
   &:hover {
-    background: ${({ theme }) =>
-      theme.dropdownHoverBg || 'rgba(0, 0, 0, 0.04)'};
+    background: ${({ $active }) =>
+      $active ? 'var(--color-primary-soft)' : 'var(--color-raised)'};
   }
 `
 
-const HelpButton = styled.button`
-  width: 38px;
-  height: 38px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid transparent;
-  cursor: pointer;
-  display: flex;
+const AccountLink = styled(Link)`
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin-left: -2px;
-  border-radius: 3px;
-  color: rgba(255, 255, 255, 0.75);
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
   transition:
-    background-color 0.2s ease,
-    border-color 0.2s ease,
-    color 0.2s ease;
+    border-color var(--motion),
+    background var(--motion);
 
   &:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-    border-color: transparent;
-    color: #ffffff;
+    border-color: var(--color-border-strong);
+    background: var(--color-raised);
   }
 `
 
 const StakeCurateLogo = styled(StakeCurateLogoRaw)`
-  /* Dark mode: change stake tag background and text colors */
   ${({ theme }) =>
-    theme.name === 'dark' &&
-    `
-    /* Stake tag background (path with fill="#EBD4FF") */
-    path[fill="#EBD4FF"] {
-      fill: ${theme.stakeTagBg};
-    }
-    /* Stake tag text (path with fill="#220050") */
-    path[fill="#220050"] {
-      fill: ${theme.stakeTagText};
-    }
-  `}
+    theme.name !== 'light' &&
+    css`
+      /* Stake tag background (path with fill="#EBD4FF") */
+      path[fill='#EBD4FF'] {
+        fill: ${theme.stakeTagBg};
+      }
+      /* Stake tag text (path with fill="#220050") */
+      path[fill='#220050'] {
+        fill: ${theme.stakeTagText};
+      }
+    `}
 `
 
 const AppBar = () => {
   const web3Context = useWeb3Context()
   const { open } = useAppKit()
   const isPermanent = useContext(StakeContext)?.isPermanent
-  const themeContext = useContext(ThemeContext)
-  const isDarkMode = themeContext?.isDarkMode
-  const toggleTheme = themeContext?.toggleTheme
   const navigate = useNavigate()
   const location = useLocation()
-  const { networkId, account: _account } = web3Context
+  const { networkId } = web3Context
 
   const urlChainId = useUrlChainId()
 
@@ -413,7 +328,7 @@ const AppBar = () => {
   )
 
   const mobileMenuOverlay = (
-    <MobileNavMenu>
+    <MobileNavMenu aria-label="Main">
       <MobileMenuLink
         to="/"
         $active={location.pathname === '/'}
@@ -447,14 +362,21 @@ const AppBar = () => {
         $active={location.pathname === '/guide'}
         onClick={() => setMobileMenuOpen(false)}
       >
-        Guide & Skills
+        Guide
+      </MobileMenuLink>
+      <MobileMenuLink
+        to="/pro"
+        $active={location.pathname === '/pro'}
+        onClick={() => setMobileMenuOpen(false)}
+      >
+        Curate Pro
       </MobileMenuLink>
     </MobileNavMenu>
   )
 
   return (
     <Container>
-      <StyledAppBarRow>
+      <Row>
         <LeftGroup>
           <MobileMenuWrapper>
             <Dropdown
@@ -464,20 +386,18 @@ const AppBar = () => {
               visible={mobileMenuOpen}
               onVisibleChange={setMobileMenuOpen}
             >
-              <HamburgerButton type="button" aria-label="Open menu">
+              <BarIconButton
+                type="button"
+                aria-label="Open menu"
+                aria-expanded={mobileMenuOpen}
+              >
                 <CurateIcon name="menu" size={20} />
-              </HamburgerButton>
+              </BarIconButton>
             </Dropdown>
           </MobileMenuWrapper>
-          <StyledRouterLink to="/">
-            {isPermanent ? (
-              <StakeCurateLogo
-                style={{ maxHeight: '50px', maxWidth: '120px' }}
-              />
-            ) : (
-              <Logo style={{ maxHeight: '50px', maxWidth: '120px' }} />
-            )}
-          </StyledRouterLink>
+          <LogoLink to="/" aria-label="Kleros Curate, dashboard">
+            {isPermanent ? <StakeCurateLogo /> : <Logo />}
+          </LogoLink>
         </LeftGroup>
         <AppMenu />
         <RightGroup>
@@ -488,13 +408,16 @@ const AppBar = () => {
               onVisibleChange={setChainDropdownOpen}
               placement="bottomRight"
               overlay={
-                <ChainMenu>
+                <ChainMenu role="menu" aria-label="Chain">
                   {isBrowse && (
                     <ChainMenuItem
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={browseChainIds.length === 0}
                       $active={browseChainIds.length === 0}
                       onClick={() => handleBrowseChainSelect(null)}
                     >
-                      <CurateIcon name="chain" size={15} />
+                      <CurateIcon name="chain" size={16} />
                       All chains
                     </ChainMenuItem>
                   )}
@@ -502,14 +425,16 @@ const AppBar = () => {
                     const info =
                       NETWORKS_INFO[chain.id as keyof typeof NETWORKS_INFO]
                     if (!info) return null
+                    const active = isBrowse
+                      ? Number(chain.id) === browseChainId
+                      : chain.id === displayedChainId
                     return (
                       <ChainMenuItem
                         key={chain.id}
-                        $active={
-                          isBrowse
-                            ? Number(chain.id) === browseChainId
-                            : chain.id === displayedChainId
-                        }
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={active}
+                        $active={active}
                         onClick={() => handleChainSelect(Number(chain.id))}
                       >
                         <ChainLogo chainId={Number(chain.id)} size={18} />
@@ -520,8 +445,11 @@ const AppBar = () => {
                 </ChainMenu>
               }
             >
-              <ChainSelectorButton
-                title={isBrowse ? 'Filter registries by chain' : undefined}
+              <BarChipButton
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded={chainDropdownOpen}
+                title={isBrowse ? 'Filter registries by chain' : 'Chain'}
               >
                 {currentChainInfo ? (
                   <ChainLogo
@@ -529,38 +457,34 @@ const AppBar = () => {
                     size={18}
                   />
                 ) : (
-                  <CurateIcon name="chain" size={15} />
+                  <CurateIcon name="chain" size={16} />
                 )}
-                {isBrowse
-                  ? browseChainLabel
-                  : currentChainInfo?.name || 'Select Chain'}
+                <ChainLabel>
+                  {isBrowse
+                    ? browseChainLabel
+                    : currentChainInfo?.name || 'Select chain'}
+                </ChainLabel>
                 <CurateIcon name="chevron-down" size={13} />
-              </ChainSelectorButton>
+              </BarChipButton>
             </Dropdown>
           </ChainDropdownWrapper>
           {web3Context.active && web3Context.account ? (
-            <StyledIdenticonWrapper
-              as={Link as any}
+            <AccountLink
               to={`/address/${web3Context.account}`}
               title="Open profile"
             >
               <Identicon />
-            </StyledIdenticonWrapper>
+            </AccountLink>
           ) : (
-            <StyledConnectButton
-              ghost
-              shape="round"
+            <BarPrimaryButton
+              type="button"
               onClick={() => open({ view: 'Connect' })}
             >
+              <CurateIcon name="wallet" size={16} />
               Connect
-            </StyledConnectButton>
+            </BarPrimaryButton>
           )}
-          <ThemeToggleButton
-            onClick={toggleTheme}
-            title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            <CurateIcon name={isDarkMode ? 'sun' : 'moon'} size={19} />
-          </ThemeToggleButton>
+          <ThemeMenu />
           <Dropdown
             trigger={['click']}
             visible={helpDropdownOpen}
@@ -568,12 +492,18 @@ const AppBar = () => {
             placement="bottomRight"
             overlay={<Help />}
           >
-            <HelpButton type="button" title="Help">
+            <BarIconButton
+              type="button"
+              aria-label="Help"
+              aria-haspopup="menu"
+              aria-expanded={helpDropdownOpen}
+              title="Help"
+            >
               <CurateIcon name="help" size={19} />
-            </HelpButton>
+            </BarIconButton>
           </Dropdown>
         </RightGroup>
-      </StyledAppBarRow>
+      </Row>
     </Container>
   )
 }

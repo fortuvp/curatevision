@@ -10,6 +10,7 @@ export type CurateIconName =
   | 'bounty'
   | 'chain'
   | 'challenge'
+  | 'check'
   | 'chevron-down'
   | 'close'
   | 'copy'
@@ -20,8 +21,10 @@ export type CurateIconName =
   | 'filter'
   | 'grid'
   | 'help'
+  | 'layers'
   | 'list'
   | 'menu'
+  | 'monitor'
   | 'moon'
   | 'policy'
   | 'registry'
@@ -201,6 +204,25 @@ const icons: Record<CurateIconName, (props: IconProps) => JSX.Element> = {
       <path d="M7 6.5 8 20h8l1-13.5" />
       <path d="M10 11v5" />
       <path d="M14 11v5" />
+    </StrokeIcon>
+  ),
+  check: (props) => (
+    <StrokeIcon {...props}>
+      <path d="m5 12.5 4.2 4.2L19 7" />
+    </StrokeIcon>
+  ),
+  layers: (props) => (
+    <StrokeIcon {...props}>
+      <path d="m12 4 8 4.2-8 4.2-8-4.2L12 4Z" />
+      <path d="m4 12.4 8 4.2 8-4.2" />
+      <path d="m4 16.4 8 4.2 8-4.2" />
+    </StrokeIcon>
+  ),
+  monitor: (props) => (
+    <StrokeIcon {...props}>
+      <rect x="3" y="4.5" width="18" height="12" rx="1.5" />
+      <path d="M8.5 20h7" />
+      <path d="M12 16.5V20" />
     </StrokeIcon>
   ),
   search: (props) => (
