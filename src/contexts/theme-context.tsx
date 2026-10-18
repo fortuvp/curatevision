@@ -77,6 +77,8 @@ interface Palette {
   border: string
   borderStrong: string
   primary: string
+  /** Button fill: may be deeper than `primary` so white text clears 4.5:1. */
+  primaryFill: string
   primaryHover: string
   onPrimary: string
   primarySoft: string
@@ -112,17 +114,18 @@ const light: Palette = {
   raised: '#f1f4fa',
   text: '#0b1220',
   textMuted: '#4d5a6e',
-  textFaint: '#7b8799',
+  textFaint: '#647083',
   textInverted: '#ffffff',
   border: 'rgba(16, 24, 40, 0.08)',
   borderStrong: 'rgba(16, 24, 40, 0.16)',
-  primary: '#2f6bff',
+  primary: '#2a63f0',
+  primaryFill: '#2a63f0',
   primaryHover: '#2459e0',
   onPrimary: '#ffffff',
-  primarySoft: 'rgba(47, 107, 255, 0.1)',
+  primarySoft: 'rgba(42, 99, 240, 0.1)',
   indigo: '#5b61d6',
   indigoSoft: 'rgba(91, 97, 214, 0.1)',
-  success: '#148a4e',
+  success: '#127d47',
   successSoft: 'rgba(20, 138, 78, 0.1)',
   warning: '#9a5b00',
   warningSoft: 'rgba(154, 91, 0, 0.1)',
@@ -150,11 +153,12 @@ const dark: Palette = {
   raised: 'rgba(255, 255, 255, 0.045)',
   text: '#f4f6fb',
   textMuted: '#a1abc0',
-  textFaint: '#6b7590',
+  textFaint: '#7a849e',
   textInverted: '#04101f',
   border: 'rgba(255, 255, 255, 0.07)',
   borderStrong: 'rgba(255, 255, 255, 0.16)',
   primary: '#3d7bff',
+  primaryFill: '#2962ff',
   primaryHover: '#5a8fff',
   onPrimary: '#ffffff',
   primarySoft: 'rgba(61, 123, 255, 0.16)',
@@ -193,6 +197,7 @@ const kleros: Palette = {
   border: 'rgba(255, 255, 255, 0.1)',
   borderStrong: 'rgba(255, 255, 255, 0.2)',
   primary: '#6cc5ff',
+  primaryFill: '#6cc5ff',
   primaryHover: '#a5dbff',
   onPrimary: '#14002f',
   primarySoft: 'rgba(108, 197, 255, 0.16)',
@@ -258,7 +263,8 @@ const buildTheme = (p: Palette) => ({
   bannerLinkHoverColor: p.primaryHover,
   bannerPolicyLinkColor: p.primary,
   bannerPolicyLinkHoverColor: p.primaryHover,
-  buttonPrimaryBg: p.primary,
+  buttonPrimaryBg: p.primaryFill,
+  primaryFill: p.primaryFill,
   buttonPrimaryText: p.onPrimary,
   buttonPrimaryHoverBg: p.primaryHover,
   buttonSecondaryBg: p.surface,

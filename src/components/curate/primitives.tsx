@@ -373,7 +373,7 @@ const buttonStyles = css<{
               }
             `
           : css`
-              background: var(--color-primary);
+              background: var(--color-primary-fill);
               color: var(--color-on-primary);
               box-shadow:
                 inset 0 1px 0 color-mix(in srgb, white 24%, transparent),

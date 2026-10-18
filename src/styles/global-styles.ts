@@ -83,6 +83,7 @@ const GlobalStyle = createGlobalStyle`
     --color-border-strong: ${({ theme }) => theme.curateBorderStrong};
     --color-primary: ${({ theme }) => theme.primaryColor};
     --color-primary-hover: ${({ theme }) => theme.primaryColorHover};
+    --color-primary-fill: ${({ theme }) => theme.primaryFill};
     --color-on-primary: ${({ theme }) => theme.textOnPrimary};
     --color-primary-soft: ${({ theme }) => theme.curateLiveSoft};
     --color-indigo: ${({ theme }) => theme.secondaryColor};
