@@ -1,103 +1,132 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react'
-import type { BigNumber } from 'ethers'
+import { ethers, type BigNumber } from 'ethers'
 import styled from 'styled-components'
-import { MAX_WIDTH_CONTENT } from 'styles/small-screen-style'
-import { Layout, Breadcrumb } from 'components/ui'
 import { useParams, Link } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { abi as _IArbitrator } from '@kleros/erc-792/build/contracts/IArbitrator.json'
 import useUrlChainId from 'hooks/use-url-chain-id'
 import useDocumentHead from 'hooks/use-document-head'
-import { abi as _IArbitrator } from '@kleros/erc-792/build/contracts/IArbitrator.json'
-import { ethers } from 'ethers'
+import useNow from 'hooks/use-now'
 import { useEthersProvider } from 'hooks/ethers-adapters'
-import ErrorPage from '../error-page'
-import ItemDetailsCard from 'components/item-details-card'
-import ItemStatusCard from './item-status-card'
-import CrowdfundingCard from './crowdfunding-card'
-import { LightTCRViewContext } from 'contexts/light-tcr-view-context'
-import RequestTimelines, {
-  type TimelineRequest,
-} from '../../components/request-timelines'
-import { WalletContext } from 'contexts/wallet-context'
-import { capitalizeFirstLetter } from 'utils/string'
-import { LIGHT_ITEM_DETAILS_QUERY } from 'utils/graphql'
-import { useQuery } from '@tanstack/react-query'
-import { STALE_TIME } from 'consts'
-import { useGraphqlBatcher } from 'contexts/graphql-batcher'
-import SearchBar from 'components/light-search-bar'
-import { parseIpfs } from 'utils/ipfs-parse'
-import { itemToStatusCode, STATUS_CODE } from 'utils/item-status'
-import { truncateAtWord } from 'utils/truncate-at-word'
 import useTcrMetaEvidence from 'hooks/use-tcr-meta-evidence'
 import { useAttachment } from 'hooks/use-attachment'
-import { buttonReset } from 'styles/button-reset'
+import ErrorPage from '../error-page'
+import ItemDetailsCard from 'components/item-details-card'
+import RequestTimelines, {
+  type TimelineRequest,
+} from 'components/request-timelines'
 import PolicyUpdatedBadge from 'components/policy-updated-badge'
+import { LightTCRViewContext } from 'contexts/light-tcr-view-context'
+import { WalletContext } from 'contexts/wallet-context'
+import { useGraphqlBatcher } from 'contexts/graphql-batcher'
+import { capitalizeFirstLetter } from 'utils/string'
+import { LIGHT_ITEM_DETAILS_QUERY } from 'utils/graphql'
+import { STALE_TIME } from 'consts'
+import { parseIpfs } from 'utils/ipfs-parse'
+import { truncateAtWord } from 'utils/truncate-at-word'
+import { CurateIcon } from 'components/curate/icons'
+import {
+  Button,
+  ChainChip,
+  Heading,
+  Label,
+  Page,
+  Row,
+  Section,
+  SkeletonBlock,
+  Small,
+  SplitGrid,
+  Stack,
+} from 'components/curate/primitives'
+import { EntryStatus, lightEntryStatus } from 'components/curate/entry-status'
+import { Explainer } from 'components/curate/explainer'
+import {
+  FieldValue,
+  identifierFields,
+  titleField,
+  type EntryField,
+} from 'components/curate/item-light-fields'
+import { StickyActionBarSpacer } from 'components/curate/item-light-action-bar'
+import ItemStatusCard from './item-status-card'
+import CrowdfundingCard from './crowdfunding-card'
 
-export const StyledBreadcrumbItem = styled(Breadcrumb.Item)`
-  text-transform: capitalize;
-  color: ${({ theme }) => theme.itemDetailsTitleColor} !important;
+/*
+ * Light Curate item page (DESIGN.md): breadcrumb back to the registry, the
+ * identifiers as the title with the status next to it, then two columns:
+ * the fields, the history with evidence and the evidence form on the left;
+ * the action card on the right (a sticky bottom bar on phones). Every
+ * figure comes from the subgraph, the list contract and the clock.
+ */
+
+const Crumbs = styled.nav`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+
+  a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--color-muted);
+    text-decoration: none;
+  }
+
+  a:hover {
+    color: var(--color-primary);
+  }
 `
 
-export const StyledLayoutContent = styled(Layout.Content)`
-  padding: 0 var(--horizontal-padding) 42px;
+const TitleBlock = styled.header`
   display: flex;
   flex-direction: column;
-  width: 100%;
+  gap: 10px;
+  margin-top: 16px;
 `
 
-export const StyledBanner = styled.div`
-  padding: 24px
-    max(
-      var(--horizontal-padding),
-      calc(50vw - ${MAX_WIDTH_CONTENT} / 2 + var(--horizontal-padding))
-    );
-  background: ${({ theme }) => theme.bannerGradient};
-  box-shadow: 0px 3px 24px ${({ theme }) => theme.shadowColor};
-  color: ${({ theme }) => theme.textPrimary};
-  transition:
-    background 0.3s ease,
-    box-shadow 0.3s ease,
-    color 0.3s ease;
-  width: 100vw;
-  position: relative;
-  left: 50%;
-  margin-left: -50vw;
+const TitleRow = styled.div`
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
   align-items: center;
+  gap: 10px 16px;
 `
 
-export const StyledMargin = styled.div`
-  padding: 24px var(--horizontal-padding);
+const EntryTitle = styled(Heading)`
+  min-width: 0;
+  overflow-wrap: anywhere;
+
+  a {
+    color: var(--color-text);
+  }
+`
+
+const Identifiers = styled.dl`
   display: flex;
-  align-items: center;
-`
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  margin: 0;
 
-export const StyledLink = styled(Link)`
-  text-decoration: underline;
-  color: ${({ theme }) => theme.itemDetailsSubtitleColor};
-`
+  div {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+  }
 
-export const StyledBackLink = styled.div`
-  margin-right: 12px;
-  display: flex;
-  align-items: center;
-  white-space: nowrap;
-  flex-shrink: 0;
-`
+  dt {
+    color: var(--color-faint);
+    font-size: var(--fs-small);
+    line-height: var(--lh-small);
+  }
 
-export const Divider = styled.div`
-  margin-bottom: 40px;
-`
-
-const StyledPolicyAnchor = styled.a`
-  ${buttonReset}
-  text-decoration: none;
-  white-space: nowrap;
-  font-size: var(--font-size-base);
-  color: ${({ theme }) => theme.bannerPolicyLinkColor};
-
-  &:hover {
-    color: ${({ theme }) => theme.bannerPolicyLinkHoverColor};
+  dd {
+    margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 `
 
@@ -105,14 +134,16 @@ export const PolicyLink: React.FC<{ href: string }> = ({ href }) => {
   const openAttachment = useAttachment()
   const { tcrAddress } = useParams<{ tcrAddress: string }>()
   return (
-    <StyledPolicyAnchor
-      as="button"
+    <Button
       type="button"
+      $variant="ghost"
+      $size="sm"
       onClick={() => openAttachment(href, true)}
     >
-      View Submission Policy
+      <CurateIcon name="policy" size={14} />
+      Listing policy
       <PolicyUpdatedBadge registryAddress={tcrAddress} />
-    </StyledPolicyAnchor>
+    </Button>
   )
 }
 
@@ -138,6 +169,7 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
   const challengePeriodDuration = tcrViewContext?.challengePeriodDuration
   // null means "resolved, but no appeal cost applies"; undefined means "not yet fetched".
   const [appealCost, setAppealCost] = useState<BigNumber | null | undefined>()
+  const now = useNow()
 
   // subgraph item entities have id "<itemID>@<listaddress>"
   const compoundId = `${itemID}@${tcrAddress?.toLowerCase()}`
@@ -163,7 +195,7 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
 
   // Scout-style fire-and-forget IPFS background fetch. Only runs when the
   // subgraph didn't index props (indexer hit IPFS failure). Never blocks
-  // rendering — the unavailable warning shows immediately and is silently
+  // rendering: the unavailable warning shows immediately and is silently
   // upgraded to real fields if/when the fetch resolves.
   const subgraphPropsMissing =
     !!item && (!item.props || item.props.length === 0)
@@ -196,7 +228,7 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
 
     // Happy path: subgraph already decoded the item into props. Derive columns
     // from props directly so the fields card does not have to wait for the
-    // metaEvidence IPFS fetch (which also hits cdn.kleros.link and can lag).
+    // metaEvidence IPFS fetch (which also hits the CDN and can lag).
     if (item.props && item.props.length > 0) {
       type ItemProp = {
         label: string
@@ -246,39 +278,26 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
   const { decodedData } = decodedItem || {}
   const { tcrTitle, itemName } = metadata || {}
 
-  const statusCode = useMemo(() => {
-    if (!item || !timestamp || !challengePeriodDuration) return null
-    return itemToStatusCode(item, timestamp, challengePeriodDuration)
-  }, [item, timestamp, challengePeriodDuration])
+  const view = useMemo(
+    () => lightEntryStatus(item, timestamp, challengePeriodDuration),
+    [item, timestamp, challengePeriodDuration],
+  )
 
-  const getStatusPhrase = (statusCode: number | null | undefined) => {
-    switch (statusCode) {
-      case STATUS_CODE.REGISTERED:
-        return 'is verified to be safe'
-      case STATUS_CODE.SUBMITTED:
-        return 'is pending verification'
-      case STATUS_CODE.REMOVAL_REQUESTED:
-        return 'has removal requested'
-      case STATUS_CODE.CHALLENGED:
-        return 'is under challenge'
-      case STATUS_CODE.CROWDFUNDING:
-        return 'is crowdfunding appeal'
-      case STATUS_CODE.CROWDFUNDING_WINNER:
-        return 'won crowdfunding appeal'
-      case STATUS_CODE.PENDING_SUBMISSION:
-        return 'awaits submission'
-      case STATUS_CODE.PENDING_REMOVAL:
-        return 'awaits removal'
-      case STATUS_CODE.WAITING_ARBITRATOR:
-        return 'awaits arbitrator ruling'
-      case STATUS_CODE.REJECTED:
-        return 'was rejected'
-      case STATUS_CODE.REMOVED:
-        return 'was removed'
-      default:
-        return 'has unknown status'
-    }
-  }
+  const fields = useMemo<EntryField[]>(
+    () =>
+      decodedItem
+        ? decodedItem.columns.map((column: Column, index: number) => ({
+            ...column,
+            value: decodedItem.decodedData?.[index],
+          }))
+        : [],
+    [decodedItem],
+  )
+  const primaryField = useMemo(() => titleField(fields), [fields])
+  const otherIdentifiers = useMemo(
+    () => identifierFields(fields).filter((field) => field !== primaryField),
+    [fields, primaryField],
+  )
 
   const capitalizeFirst = (s: string | undefined) =>
     s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
@@ -290,11 +309,11 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
   const truncatedSeoTitle = truncateAtWord(fullSeoTitle, 160)
 
   const fullSeoMetaDescription =
-    decodedItem && metadata && statusCode !== null && decodedData?.length > 0
-      ? `${decodedData.join(' ')} - ${getStatusPhrase(statusCode)} on ${
+    decodedItem && metadata && view && (decodedData?.length ?? 0) > 0
+      ? `${decodedData.join(' ')} · ${view.label} on ${
           metadata.tcrTitle
         } in Kleros Curate`
-      : 'View item details on Kleros Curate.'
+      : 'View entry details on Kleros Curate.'
   const truncatedSeoMetaDescription = truncateAtWord(
     fullSeoMetaDescription,
     160,
@@ -359,73 +378,131 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
         message={
           typeof tcrError === 'string'
             ? tcrError
-            : 'This item could not be found.'
+            : 'This entry could not be found.'
         }
         tip="Make sure your wallet is set to the correct network (is this on Gnosis Chain?)."
       />
     )
 
-  return (
-    <>
-      <StyledBanner>
-        <Breadcrumb separator=">">
-          <StyledBreadcrumbItem>
-            <StyledLink to={`/tcr/${chainId}/${tcrAddress}`}>
-              {tcrTitle}
-            </StyledLink>
-          </StyledBreadcrumbItem>
-          <StyledBreadcrumbItem>
-            {itemName && capitalizeFirstLetter(itemName)} Details
-          </StyledBreadcrumbItem>
-        </Breadcrumb>
-        {metaEvidence?.fileURI && (
-          <PolicyLink href={parseIpfs(metaEvidence.fileURI)} />
-        )}
-      </StyledBanner>
-      <StyledMargin>
-        <StyledBackLink>
-          <StyledLink to={`/tcr/${chainId}/${tcrAddress}`}>Go Back</StyledLink>
-        </StyledBackLink>
-        <SearchBar />
-      </StyledMargin>
-      <StyledLayoutContent>
-        <ItemDetailsCard
-          columns={decodedItem?.columns}
-          item={decodedItem}
-          title={`${
-            itemName ? capitalizeFirstLetter(itemName) : 'Item'
-          } Details`}
-          loading={loading}
-          itemMetaEvidence={itemMetaEvidence}
-        />
-        <ItemStatusCard
-          item={decodedItem}
-          timestamp={timestamp}
-          request={item?.requests && { ...item.requests[0] }}
-          modalOpen={modalOpen}
-          setModalOpen={setModalOpen}
-          appealCost={appealCost ?? undefined}
-          dark
-        />
-        {/* Crowdfunding card is only rendered if the item has an appealable dispute. */}
-        <CrowdfundingCard
-          item={decodedItem}
-          timestamp={timestamp}
-          appealCost={appealCost ?? undefined}
-        />
+  const entryName = itemName ? capitalizeFirstLetter(itemName) : 'Entry'
+  const registryHref = `/tcr/${chainId}/${tcrAddress}`
 
-        {/* Spread the `requests` parameter to convert elements from array to an object */}
-        <RequestTimelines
-          item={item}
-          requests={
-            item?.requests &&
-            item.requests.map((r: TimelineRequest) => ({ ...r }))
-          }
-          kind="light"
-          metaEvidence={metaEvidence}
-        />
-      </StyledLayoutContent>
-    </>
+  return (
+    <Page>
+      <Crumbs aria-label="Breadcrumb">
+        <Link to={registryHref}>
+          <CurateIcon name="registry" size={14} />
+          {tcrTitle || 'Registry'}
+        </Link>
+        <span aria-hidden>/</span>
+        <span>{entryName}</span>
+      </Crumbs>
+
+      <TitleBlock>
+        <Row $gap={8} $wrap>
+          <Label>{entryName}</Label>
+          {chainId && <ChainChip chainId={chainId} size="sm" />}
+        </Row>
+        <TitleRow>
+          {loading ? (
+            <SkeletonBlock $height="28px" $width="320px" />
+          ) : (
+            <EntryTitle as="h1">
+              {primaryField ? (
+                <FieldValue field={primaryField} detailed />
+              ) : (
+                entryName
+              )}
+            </EntryTitle>
+          )}
+          {view && <EntryStatus status={view} now={now} />}
+        </TitleRow>
+        {otherIdentifiers.length > 0 && (
+          <Identifiers>
+            {otherIdentifiers.map((field, index) => (
+              <div key={`${field.label}-${index}`}>
+                <dt>{field.label}</dt>
+                <dd>
+                  <FieldValue field={field} detailed />
+                </dd>
+              </div>
+            ))}
+          </Identifiers>
+        )}
+        {metaEvidence?.fileURI && (
+          <Row $gap={8} $wrap>
+            <PolicyLink href={parseIpfs(metaEvidence.fileURI)} />
+          </Row>
+        )}
+      </TitleBlock>
+
+      <Section $gap="sm">
+        <SplitGrid $rail={360}>
+          <Stack $gap={24}>
+            <ItemDetailsCard
+              columns={decodedItem?.columns}
+              item={decodedItem}
+              title={`${entryName} fields`}
+              loading={loading}
+              itemMetaEvidence={itemMetaEvidence}
+            />
+            <Explainer
+              id="item-light-how-entries-are-judged"
+              eyebrow="How this entry is judged"
+              heading="A deposit, a window, then jurors if anyone objects."
+              steps={[
+                {
+                  title: 'A request locks a deposit',
+                  body: `Submitting or removing a ${itemName || 'entry'} locks the list's base deposit plus the arbitration cost. It comes back in full if nobody challenges.`,
+                },
+                {
+                  title: 'Anyone can challenge during the window',
+                  body: 'A challenger locks their own deposit and gives a reason. The window and the cost to challenge are shown in the action card.',
+                },
+                {
+                  title: 'Kleros jurors decide; the winner is paid',
+                  body: 'The court rules on the listing policy. The winner takes both deposits minus one arbitration cost; the loser loses the deposit.',
+                },
+              ]}
+              footer={
+                <Link to="/guide">
+                  <Small>Read the guide</Small>
+                </Link>
+              }
+            />
+            {/* Spread the `requests` parameter to convert elements from array to an object */}
+            <RequestTimelines
+              item={item}
+              requests={
+                item?.requests &&
+                item.requests.map((r: TimelineRequest) => ({ ...r }))
+              }
+              kind="light"
+              metaEvidence={metaEvidence}
+            />
+          </Stack>
+
+          <Stack $gap={16}>
+            <ItemStatusCard
+              item={decodedItem}
+              timestamp={timestamp}
+              request={item?.requests && { ...item.requests[0] }}
+              modalOpen={modalOpen}
+              setModalOpen={setModalOpen}
+              appealCost={appealCost ?? undefined}
+              dark
+            />
+            {/* Appeal funding is only rendered if the item has an appealable dispute. */}
+            <CrowdfundingCard
+              item={decodedItem}
+              timestamp={timestamp}
+              appealCost={appealCost ?? undefined}
+            />
+          </Stack>
+        </SplitGrid>
+      </Section>
+      <StickyActionBarSpacer />
+    </Page>
   )
 }
 

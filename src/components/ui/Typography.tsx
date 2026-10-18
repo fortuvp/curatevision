@@ -1,24 +1,17 @@
 import React, { useCallback } from 'react'
-import styled, { css, DefaultTheme } from 'styled-components'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import styled, { css } from 'styled-components'
+import { KitIcon } from './kit-icons'
+import { ghostIconButton, joinClassNames } from './kit-styles'
 
-const typeColorMap: Record<string, (props: { theme: DefaultTheme }) => string> =
-  {
-    secondary: ({ theme }) => theme.textSecondary,
-    warning: ({ theme }) => theme.warningColor,
-    danger: ({ theme }) => theme.errorColor,
-  }
-
-const getTypeColor = ({
-  textType,
-  theme,
-}: {
-  textType?: string
-  theme: DefaultTheme
-}): string => {
-  const resolver = typeColorMap[textType || '']
-  return resolver ? resolver({ theme }) : theme.textPrimary
+const typeColor: Record<string, string> = {
+  secondary: 'var(--color-muted)',
+  warning: 'var(--color-warning)',
+  danger: 'var(--color-danger)',
+  success: 'var(--color-success)',
 }
+
+const getTypeColor = ({ textType }: { textType?: string }): string =>
+  typeColor[textType || ''] || 'var(--color-text)'
 
 const ellipsisMixin = css`
   overflow: hidden;
@@ -43,45 +36,48 @@ const StyledText = styled.span<StyledTextProps>`
 `
 
 const CopyButton = styled.button`
-  display: inline-flex;
-  align-items: center;
-  border: none;
-  background: none;
-  cursor: pointer;
-  color: ${({ theme }) => theme.linkColor};
-  padding: 0 4px;
+  ${ghostIconButton}
+  width: 20px;
+  height: 20px;
   margin-left: 4px;
-  font-size: inherit;
-  opacity: 0.65;
-  transition: opacity 0.2s;
-
-  &:hover {
-    opacity: 1;
-  }
+  vertical-align: middle;
+  color: var(--color-muted);
 `
+
+/* Sans titles on the DESIGN.md scale; sentence case, weight 600. */
+const titleSizes: Record<number, ReturnType<typeof css>> = {
+  1: css`
+    font-size: var(--fs-figure);
+    line-height: var(--lh-figure);
+  `,
+  2: css`
+    font-size: var(--fs-heading);
+    line-height: var(--lh-heading);
+  `,
+  3: css`
+    font-size: var(--fs-subheading);
+    line-height: var(--lh-subheading);
+  `,
+  4: css`
+    font-size: var(--fs-body-lg);
+    line-height: var(--lh-body-lg);
+  `,
+  5: css`
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+  `,
+}
 
 interface StyledTitleProps {
   $level: number
 }
 
 const StyledTitle = styled.h1<StyledTitleProps>`
-  color: ${({ theme }) => theme.textPrimary};
+  margin: 0 0 8px;
+  color: var(--color-text);
   font-weight: 600;
-  margin-bottom: 0.5em;
-  margin-top: 0;
-
-  ${({ $level }) => {
-    const sizes: Record<number, string> = {
-      1: '38px',
-      2: '30px',
-      3: '24px',
-      4: '20px',
-      5: '16px',
-    }
-    return css`
-      font-size: ${sizes[$level] || sizes[1]};
-    `
-  }}
+  letter-spacing: 0;
+  ${({ $level }) => titleSizes[$level] || titleSizes[1]}
 `
 
 interface StyledParagraphProps {
@@ -90,8 +86,11 @@ interface StyledParagraphProps {
 }
 
 const StyledParagraph = styled.p<StyledParagraphProps>`
+  max-width: 68ch;
+  margin: 0 0 12px;
   color: ${getTypeColor};
-  margin-bottom: 1em;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
   ${({ $ellipsis }) => $ellipsis && ellipsisMixin}
 `
 
@@ -127,13 +126,24 @@ const Text: React.FC<TextProps> = ({
       $strong={strong}
       $ellipsis={ellipsis}
       style={style}
-      className={className}
+      className={joinClassNames(
+        'ui-typography',
+        'ui-typography-text',
+        type && `ui-typography-${type}`,
+        className,
+      )}
       {...rest}
     >
       {children}
       {copyable && (
-        <CopyButton onClick={handleCopy} title="Copy">
-          <FontAwesomeIcon icon="copy" size="sm" />
+        <CopyButton
+          type="button"
+          className="ui-typography-copy"
+          onClick={handleCopy}
+          title="Copy"
+          aria-label="Copy"
+        >
+          <KitIcon name="copy" size={14} />
         </CopyButton>
       )}
     </StyledText>
@@ -162,7 +172,11 @@ const Title: React.FC<TitleProps> = ({
       as={tag}
       $level={level}
       style={style}
-      className={className}
+      className={joinClassNames(
+        'ui-typography',
+        'ui-typography-title',
+        className,
+      )}
       {...rest}
     >
       {children}
@@ -191,7 +205,12 @@ const Paragraph: React.FC<ParagraphProps> = ({
     textType={type}
     $ellipsis={ellipsis}
     style={style}
-    className={className}
+    className={joinClassNames(
+      'ui-typography',
+      'ui-typography-paragraph',
+      type && `ui-typography-${type}`,
+      className,
+    )}
     {...rest}
   >
     {children}

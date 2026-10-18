@@ -1,5 +1,6 @@
 import React, { Children, useMemo } from 'react'
 import styled, { css } from 'styled-components'
+import { joinClassNames, monoLabel } from './kit-styles'
 
 interface DescriptionsItemProps {
   label?: React.ReactNode
@@ -13,78 +14,91 @@ const Item: React.FC<DescriptionsItemProps> = ({ children }) =>
 Item.displayName = 'Descriptions.Item'
 
 const DescriptionsWrapper = styled.div`
-  font-size: 14px;
-  color: ${({ theme }) => theme.textPrimary};
+  color: var(--color-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
 `
 
 const Title = styled.div`
-  font-size: 16px;
-  font-weight: 500;
-  margin-bottom: 16px;
-  color: ${({ theme }) => theme.textPrimary};
+  margin-bottom: 12px;
+  color: var(--color-text);
+  font-size: var(--fs-subheading);
+  line-height: var(--lh-subheading);
+  font-weight: 600;
 `
 
-// ---- Bordered layout (table-like) ----
+/* ---- Bordered layout: a key/value table with 44px rows (40px small) ---- */
 const BorderedTableWrapper = styled.div`
-  border: 1px solid ${({ theme }) => theme.borderColor};
-  border-radius: 8px;
-  overflow: hidden;
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
 `
 
 const BorderedTable = styled.table`
   width: 100%;
   border-collapse: collapse;
-  background: ${({ theme }) => theme.componentBackground};
 `
 
+const rowHeight = ($size?: string) => ($size === 'small' ? '40px' : '44px')
+
 const BorderedLabelCell = styled.th<{ $size?: string }>`
-  padding: ${({ $size }) => ($size === 'small' ? '8px 12px' : '12px 16px')};
-  background: ${({ theme }) => theme.elevatedBackground};
-  border: 1px solid ${({ theme }) => theme.borderColor};
-  color: ${({ theme }) => theme.textSecondary};
-  font-weight: 500;
-  font-size: 14px;
+  height: ${({ $size }) => rowHeight($size)};
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-raised);
+  color: var(--color-muted);
+  ${monoLabel}
   text-align: left;
+  vertical-align: middle;
   white-space: nowrap;
   width: 1%;
 
   tr:first-child & {
-    border-top: none;
+    border-top: 0;
   }
   tr:last-child & {
-    border-bottom: none;
+    border-bottom: 0;
   }
   &:first-child {
-    border-left: none;
+    border-left: 0;
   }
 `
 
 const BorderedContentCell = styled.td<{ $size?: string }>`
-  padding: ${({ $size }) => ($size === 'small' ? '8px 12px' : '12px 16px')};
-  border: 1px solid ${({ theme }) => theme.borderColor};
-  color: ${({ theme }) => theme.textPrimary};
-  font-size: 14px;
-  word-break: break-word;
+  height: ${({ $size }) => rowHeight($size)};
+  padding: ${({ $size }) => ($size === 'small' ? '8px 12px' : '10px 12px')};
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  vertical-align: middle;
+  overflow-wrap: anywhere;
 
   tr:first-child & {
-    border-top: none;
+    border-top: 0;
   }
   tr:last-child & {
-    border-bottom: none;
+    border-bottom: 0;
   }
   &:last-child {
-    border-right: none;
+    border-right: 0;
   }
 `
 
-// ---- Non-bordered layout (list-like) ----
+/* ---- Plain layout: mono label above the value, in a column grid ---- */
 const ListGrid = styled.div<{ $columns?: number }>`
   display: grid;
-  grid-template-columns: ${({ $columns }) => `repeat(${$columns}, 1fr)`};
-  gap: 16px;
+  grid-template-columns: ${({ $columns }) =>
+    `repeat(${$columns || 1}, minmax(0, 1fr))`};
+  gap: 12px 16px;
 `
 
 const ListItem = styled.div<{ $span?: number }>`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
   ${({ $span }) =>
     $span &&
     $span > 1 &&
@@ -94,17 +108,15 @@ const ListItem = styled.div<{ $span?: number }>`
 `
 
 const ListLabel = styled.span`
-  color: ${({ theme }) => theme.textSecondary};
-  font-size: 14px;
-  line-height: 1.5;
-  margin-right: 4px;
-  font-weight: 500;
+  ${monoLabel}
+  color: var(--color-muted);
 `
 
 const ListContent = styled.span`
-  color: ${({ theme }) => theme.textPrimary};
-  font-size: 14px;
-  line-height: 1.5;
+  color: var(--color-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  overflow-wrap: anywhere;
 `
 
 const getColumnCount = (
@@ -113,9 +125,9 @@ const getColumnCount = (
 ): number => {
   if (typeof column === 'number') return column
   if (typeof column === 'object' && column !== null) {
-    // Simple responsive approach: pick largest available
+    // Simple responsive approach: pick the largest matching breakpoint
     const breakpoints = ['xxl', 'xl', 'lg', 'md', 'sm', 'xs'] as const
-    const width = typeof window !== 'undefined' ? window.innerWidth : 1200
+    const width = typeof window === 'undefined' ? 1200 : window.innerWidth
     const widthMap: Record<string, number> = {
       xxl: 1600,
       xl: 1200,
@@ -183,13 +195,20 @@ const Descriptions: DescriptionsComponent = ({
     return result
   }, [children])
 
+  const rootClassName = joinClassNames(
+    'ui-descriptions',
+    bordered && 'ui-descriptions-bordered',
+    size === 'small' && 'ui-descriptions-small',
+    className,
+  )
+
   if (bordered) {
     // Build rows for the table
     const rows: (typeof items)[] = []
     let currentRow: typeof items = []
     let currentSpan = 0
 
-    items.forEach((item) => {
+    for (const item of items) {
       if (currentSpan + item.span > columns) {
         rows.push(currentRow)
         currentRow = []
@@ -202,23 +221,30 @@ const Descriptions: DescriptionsComponent = ({
         currentRow = []
         currentSpan = 0
       }
-    })
+    }
     if (currentRow.length > 0) rows.push(currentRow)
 
     return (
-      <DescriptionsWrapper style={style} className={className}>
-        {descTitle && <Title>{descTitle}</Title>}
-        <BorderedTableWrapper>
+      <DescriptionsWrapper style={style} className={rootClassName}>
+        {descTitle && (
+          <Title className="ui-descriptions-title">{descTitle}</Title>
+        )}
+        <BorderedTableWrapper className="ui-descriptions-view">
           <BorderedTable>
             <tbody>
               {rows.map((row, rowIdx) => (
-                <tr key={rowIdx}>
+                <tr key={rowIdx} className="ui-descriptions-row">
                   {row.map((item, cellIdx) => (
                     <React.Fragment key={cellIdx}>
-                      <BorderedLabelCell $size={size}>
+                      <BorderedLabelCell
+                        className="ui-descriptions-item-label"
+                        scope="row"
+                        $size={size}
+                      >
                         {item.label}
                       </BorderedLabelCell>
                       <BorderedContentCell
+                        className="ui-descriptions-item-content"
                         $size={size}
                         colSpan={item.span > 1 ? item.span * 2 - 1 : 1}
                       >
@@ -236,13 +262,23 @@ const Descriptions: DescriptionsComponent = ({
   }
 
   return (
-    <DescriptionsWrapper style={style} className={className}>
-      {descTitle && <Title>{descTitle}</Title>}
-      <ListGrid $columns={columns}>
+    <DescriptionsWrapper style={style} className={rootClassName}>
+      {descTitle && (
+        <Title className="ui-descriptions-title">{descTitle}</Title>
+      )}
+      <ListGrid className="ui-descriptions-view" $columns={columns}>
         {items.map((item, idx) => (
-          <ListItem key={idx} $span={item.span}>
-            <ListLabel>{item.label}:</ListLabel>
-            <ListContent>{item.content}</ListContent>
+          <ListItem
+            key={idx}
+            className="ui-descriptions-item"
+            $span={item.span}
+          >
+            <ListLabel className="ui-descriptions-item-label">
+              {item.label}
+            </ListLabel>
+            <ListContent className="ui-descriptions-item-content">
+              {item.content}
+            </ListContent>
           </ListItem>
         ))}
       </ListGrid>

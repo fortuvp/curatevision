@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import styled, { css } from 'styled-components'
+import { joinClassNames, overlayPanel } from './kit-styles'
 
 type PopoverPlacement =
   | 'top'
@@ -12,8 +13,8 @@ type PopoverPlacement =
   | 'bottomRight'
 
 const Wrapper = styled.span`
-  display: inline-flex;
   position: relative;
+  display: inline-flex;
 `
 
 const getPlacementStyles = (placement: PopoverPlacement) => {
@@ -22,161 +23,82 @@ const getPlacementStyles = (placement: PopoverPlacement) => {
       return css`
         top: 100%;
         left: 50%;
+        margin-top: 6px;
         transform: translateX(-50%);
-        margin-top: 10px;
       `
     case 'bottomLeft':
       return css`
         top: 100%;
         left: 0;
-        margin-top: 10px;
+        margin-top: 6px;
       `
     case 'bottomRight':
       return css`
         top: 100%;
         right: 0;
-        margin-top: 10px;
+        margin-top: 6px;
       `
     case 'topLeft':
       return css`
         bottom: 100%;
         left: 0;
-        margin-bottom: 10px;
+        margin-bottom: 6px;
       `
     case 'topRight':
       return css`
         bottom: 100%;
         right: 0;
-        margin-bottom: 10px;
+        margin-bottom: 6px;
       `
     case 'left':
       return css`
         top: 50%;
         right: 100%;
+        margin-right: 6px;
         transform: translateY(-50%);
-        margin-right: 10px;
       `
     case 'right':
       return css`
         top: 50%;
         left: 100%;
+        margin-left: 6px;
         transform: translateY(-50%);
-        margin-left: 10px;
       `
     case 'top':
     default:
       return css`
         bottom: 100%;
         left: 50%;
+        margin-bottom: 6px;
         transform: translateX(-50%);
-        margin-bottom: 10px;
       `
   }
 }
 
-const getArrowStyles = (placement: PopoverPlacement) => {
-  switch (placement) {
-    case 'bottom':
-      return css`
-        top: -4px;
-        left: 50%;
-        transform: translateX(-50%) rotate(45deg);
-        border-top: 1px solid ${({ theme }) => theme.borderColor};
-        border-left: 1px solid ${({ theme }) => theme.borderColor};
-      `
-    case 'bottomLeft':
-      return css`
-        top: -4px;
-        left: 16px;
-        transform: rotate(45deg);
-        border-top: 1px solid ${({ theme }) => theme.borderColor};
-        border-left: 1px solid ${({ theme }) => theme.borderColor};
-      `
-    case 'bottomRight':
-      return css`
-        top: -4px;
-        right: 16px;
-        transform: rotate(45deg);
-        border-top: 1px solid ${({ theme }) => theme.borderColor};
-        border-left: 1px solid ${({ theme }) => theme.borderColor};
-      `
-    case 'topLeft':
-      return css`
-        bottom: -4px;
-        left: 16px;
-        transform: rotate(45deg);
-        border-bottom: 1px solid ${({ theme }) => theme.borderColor};
-        border-right: 1px solid ${({ theme }) => theme.borderColor};
-      `
-    case 'topRight':
-      return css`
-        bottom: -4px;
-        right: 16px;
-        transform: rotate(45deg);
-        border-bottom: 1px solid ${({ theme }) => theme.borderColor};
-        border-right: 1px solid ${({ theme }) => theme.borderColor};
-      `
-    case 'left':
-      return css`
-        top: 50%;
-        right: -4px;
-        transform: translateY(-50%) rotate(45deg);
-        border-top: 1px solid ${({ theme }) => theme.borderColor};
-        border-right: 1px solid ${({ theme }) => theme.borderColor};
-      `
-    case 'right':
-      return css`
-        top: 50%;
-        left: -4px;
-        transform: translateY(-50%) rotate(45deg);
-        border-bottom: 1px solid ${({ theme }) => theme.borderColor};
-        border-left: 1px solid ${({ theme }) => theme.borderColor};
-      `
-    case 'top':
-    default:
-      return css`
-        bottom: -4px;
-        left: 50%;
-        transform: translateX(-50%) rotate(45deg);
-        border-bottom: 1px solid ${({ theme }) => theme.borderColor};
-        border-right: 1px solid ${({ theme }) => theme.borderColor};
-      `
-  }
-}
-
+/* Floating panel like the app bar's menus; no arrow. */
 const PopoverContent = styled.div<{ $placement: PopoverPlacement }>`
   position: absolute;
   z-index: 1060;
-  min-width: 177px;
-  max-width: 350px;
-  background: ${({ theme }) => theme.componentBackground};
-  border: 1px solid ${({ theme }) => theme.borderColor};
-  border-radius: 4px;
-  box-shadow: ${({ theme }) => `0 4px 12px ${theme.shadowColor}`};
-  color: ${({ theme }) => theme.textPrimary};
-
+  min-width: 200px;
+  max-width: 360px;
+  ${overlayPanel}
   ${({ $placement }) => getPlacementStyles($placement)}
 `
 
-const PopoverArrow = styled.span<{ $placement: PopoverPlacement }>`
-  position: absolute;
-  width: 8px;
-  height: 8px;
-  background: ${({ theme }) => theme.componentBackground};
-  ${({ $placement }) => getArrowStyles($placement)}
-`
-
 const PopoverTitle = styled.div`
-  padding: 8px 16px;
-  font-weight: 500;
-  font-size: 14px;
-  border-bottom: 1px solid ${({ theme }) => theme.borderColor};
-  color: ${({ theme }) => theme.textPrimary};
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: 600;
 `
 
 const PopoverInner = styled.div`
-  padding: 12px 16px;
-  font-size: 14px;
+  padding: 12px 14px;
+  color: var(--color-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
 `
 
 interface PopoverProps {
@@ -219,15 +141,22 @@ const Popover: React.FC<PopoverProps> = ({
     [isControlled, onVisibleChange],
   )
 
-  // Click outside
+  // Click outside and Escape close a click popover
   useEffect(() => {
-    if (!visible || trigger !== 'click') return
+    if (!visible || trigger !== 'click') return undefined
     const handleClickOutside = (e: MouseEvent) => {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node))
         setVisible(false)
     }
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setVisible(false)
+    }
     document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
   }, [visible, trigger, setVisible])
 
   useEffect(
@@ -259,6 +188,7 @@ const Popover: React.FC<PopoverProps> = ({
   return (
     <Wrapper
       ref={wrapperRef}
+      className="ui-popover"
       onClick={handleClick}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -268,11 +198,14 @@ const Popover: React.FC<PopoverProps> = ({
         <PopoverContent
           $placement={placement}
           style={style}
-          className={className}
+          className={joinClassNames('ui-popover-content', className)}
         >
-          <PopoverArrow $placement={placement} />
-          {title && <PopoverTitle>{title}</PopoverTitle>}
-          {content && <PopoverInner>{content}</PopoverInner>}
+          {title && (
+            <PopoverTitle className="ui-popover-title">{title}</PopoverTitle>
+          )}
+          {content && (
+            <PopoverInner className="ui-popover-inner">{content}</PopoverInner>
+          )}
         </PopoverContent>
       )}
     </Wrapper>

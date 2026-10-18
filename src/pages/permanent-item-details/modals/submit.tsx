@@ -1,69 +1,56 @@
-import React, { useCallback, useState, useEffect } from 'react'
-import { Button, Form, Tooltip, Typography, Alert } from 'components/ui'
-import Icon from 'components/ui/Icon'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import styled from 'styled-components'
-import _gtcr from 'assets/abis/PermanentGTCR.json'
+import { ethers } from 'ethers'
 import { withFormik, type FormikProps } from 'formik'
-import humanizeDuration from 'humanize-duration'
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
 import { simulateContract } from '@wagmi/core'
 import { erc20Abi } from 'viem'
 import { ItemTypes, typeDefaultValues } from '@kleros/gtcr-encoder'
-import InputSelector from 'components/input-selector'
-import EnsureAuth from 'components/ensure-auth'
-import ETHAmount from 'components/eth-amount'
-import useFactory from 'hooks/factory'
-import { ArbitrationFeeLabel } from 'components/arbitration-fee-tooltip'
-import { addPeriod, capitalizeFirstLetter } from 'utils/string'
 import { useAtlasProvider } from '@kleros/kleros-app'
-import { resolveStashedFiles } from 'utils/resolve-stashed-files'
-import { JSON_UPLOAD_ROLE } from 'utils/atlas-roles'
+import _gtcr from 'assets/abis/PermanentGTCR.json'
+import { Form } from 'components/ui'
+import InputSelector from 'components/input-selector'
+import ListingCriteriaLink from 'components/listing-criteria-link'
+import useFactory from 'hooks/factory'
 import useNativeCurrency from 'hooks/native-currency'
 import useTokenSymbol from 'hooks/token-symbol'
+import { resolveStashedFiles } from 'utils/resolve-stashed-files'
+import { JSON_UPLOAD_ROLE } from 'utils/atlas-roles'
+import { addPeriod, capitalizeFirstLetter } from 'utils/string'
+import { formatDurationLong } from 'utils/time'
 import { wrapWithToast, errorToast } from 'utils/wrap-with-toast'
 import { parseWagmiError } from 'utils/parse-wagmi-error'
 import { wagmiConfig } from 'config/wagmi'
-import { StyledSpin } from './challenge'
 import {
-  StyledModal,
-  SubmissionNavigation,
-  SubmissionFlowScaffold,
-} from 'pages/light-item-details/modals/submit'
+  Body,
+  Button,
+  Data,
+  Label,
+  Row,
+  Small,
+  Stack,
+  TextInput,
+} from 'components/curate/primitives'
+import { WhatHappensNext } from 'components/curate/what-happens-next'
+import {
+  FormBlock,
+  GateHelper,
+  ModalShell,
+  ModalSkeleton,
+  PolicyText,
+  applyMultiplier,
+  multiplierPercent,
+  nativeText,
+  tokenText,
+  useActionGate,
+} from './shell'
 
-export const StyledAlert = styled(Alert)`
-  margin-bottom: 16px;
-`
-
-export const StyledParagraph = styled(Typography.Paragraph)`
-  font-size: 14px;
-  line-height: 1.6;
-`
-
-export const DepositContainer = styled.div`
-  border: 1px solid ${({ theme }) => theme.borderColor};
-  border-radius: 6px;
-  padding: 16px;
-  margin: 16px 0;
-  background: ${({ theme }) => theme.componentBackground};
-`
-
-export const DepositRow = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 0;
-
-  &:not(:last-child) {
-    border-bottom: 1px solid ${({ theme }) => theme.borderColor};
-  }
-`
-
-export const DepositLabel = styled.span`
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-`
+/*
+ * Submit (or resubmit) an item to a Stake Curate list. Two assets leave the
+ * wallet: an ERC20 stake of at least the list minimum (approve first, stake
+ * more if you want) and the native arbitration deposit. The form, its
+ * validation and the uploads are the same plumbing the list page relies on.
+ */
 
 export const SUBMISSION_FORM_ID = 'submitItemForm'
 
@@ -92,6 +79,12 @@ interface SubmissionFormOuterProps {
   onFieldsComplete?: (complete: boolean) => void
   style?: React.CSSProperties
 }
+
+const FieldLabel = styled.span`
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+`
 
 const _SubmissionForm: React.FC<
   SubmissionFormOuterProps & FormikProps<SubmissionFormValues>
@@ -124,12 +117,15 @@ const _SubmissionForm: React.FC<
             disabled={p.disabledFields && p.disabledFields[index]}
             touched={p.touched[column.label]}
             label={
-              <span>
-                {column.label}&nbsp;
-                <Tooltip title={addPeriod(column.description)}>
-                  <Icon type="question-circle-o" />
-                </Tooltip>
-              </span>
+              <FieldLabel>
+                <span>
+                  {column.label}
+                  {column.optional ? '' : ' *'}
+                </span>
+                {column.description && (
+                  <Small $muted>{addPeriod(column.description)}</Small>
+                )}
+              </FieldLabel>
             }
           />
         ))}
@@ -214,9 +210,35 @@ const SubmissionForm = withFormik<
   },
 })(_SubmissionForm)
 
+const StakeField = styled.label`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+`
+
+const StakeInput = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+`
+
+const StepRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-raised);
+`
+
 const SubmitModal: React.FC<{
   onCancel: () => void
   visible?: boolean
+  title?: React.ReactNode
   tcrAddress?: string
   tokenAddress?: string
   initialValues?: unknown[]
@@ -227,10 +249,14 @@ const SubmitModal: React.FC<{
   submissionPeriod?: string | number
   withdrawingPeriod?: string | number
   arbitrationCost?: { toString: () => string }
+  /** Share of the stake a challenger must match, in basis points. */
+  challengeStakeMultiplier?: string | number
   embedded?: boolean
 }> = (props) => {
   const {
     onCancel,
+    visible = false,
+    title,
     initialValues,
     submissionDeposit,
     tcrAddress,
@@ -240,6 +266,7 @@ const SubmitModal: React.FC<{
     submissionPeriod,
     withdrawingPeriod,
     arbitrationCost,
+    challengeStakeMultiplier,
     columns,
     embedded = false,
   } = props
@@ -254,6 +281,7 @@ const SubmitModal: React.FC<{
   const publicClient = usePublicClient()
   const { data: walletClient } = useWalletClient()
   const { uploadFile } = useAtlasProvider()
+  const gate = useActionGate('submit', { needsSignIn: true })
 
   const [balance, setBalance] = useState(0n)
   const [allowance, setAllowance] = useState(0n)
@@ -262,9 +290,50 @@ const SubmitModal: React.FC<{
   const [isApproving, setIsApproving] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [fieldsComplete, setFieldsComplete] = useState(false)
-  const { symbol: tokenSymbol } = useTokenSymbol(tokenAddress)
+  const [stakeInput, setStakeInput] = useState('')
+  const [stakeTouched, setStakeTouched] = useState(false)
+  const {
+    symbol: tokenSymbol,
+    decimals: tokenDecimals,
+    loading: tokenLoading,
+  } = useTokenSymbol(tokenAddress)
 
-  const { itemName, title, policyURI } = metadata || {}
+  const { itemName, title: tcrTitle, policyURI } = metadata || {}
+  const name = itemName || 'item'
+
+  const minDeposit = useMemo(
+    () => (submissionDeposit ? BigInt(submissionDeposit.toString()) : 0n),
+    [submissionDeposit],
+  )
+  const arbitrationWei = useMemo(
+    () => BigInt((arbitrationCost || 0).toString()),
+    [arbitrationCost],
+  )
+
+  // The stake defaults to the list minimum once the token's decimals are known.
+  useEffect(() => {
+    if (tokenLoading || stakeTouched || minDeposit === 0n) return
+    setStakeInput(
+      ethers.utils.formatUnits(minDeposit.toString(), tokenDecimals),
+    )
+  }, [tokenLoading, tokenDecimals, minDeposit, stakeTouched])
+
+  const { depositWei, stakeError } = useMemo(() => {
+    if (!stakeInput.trim()) return { depositWei: minDeposit }
+    try {
+      const parsed = BigInt(
+        ethers.utils.parseUnits(stakeInput.trim(), tokenDecimals).toString(),
+      )
+      if (parsed < minDeposit)
+        return {
+          depositWei: minDeposit,
+          stakeError: `At least ${tokenText(minDeposit, tokenDecimals, tokenSymbol)}`,
+        }
+      return { depositWei: parsed }
+    } catch {
+      return { depositWei: minDeposit, stakeError: 'Enter a number' }
+    }
+  }, [stakeInput, tokenDecimals, minDeposit, tokenSymbol])
 
   const checkTokenStatus = useCallback(async () => {
     if (!account || !publicClient || !tokenAddress) return
@@ -299,7 +368,7 @@ const SubmitModal: React.FC<{
     checkTokenStatus()
   }, [checkTokenStatus])
 
-  // Reset loading states when modal is closed
+  // Reset loading states when the modal unmounts.
   useEffect(
     () => () => {
       setIsApproving(false)
@@ -309,23 +378,20 @@ const SubmitModal: React.FC<{
   )
 
   const handleApprove = useCallback(async () => {
-    if (!submissionDeposit) return
+    if (!submissionDeposit || !walletClient || !publicClient) return
     setIsApproving(true)
     try {
       const { request } = await simulateContract(wagmiConfig, {
         address: tokenAddress as `0x${string}`,
         abi: erc20Abi,
         functionName: 'approve',
-        args: [
-          tcrAddress as `0x${string}`,
-          BigInt(submissionDeposit.toString()),
-        ],
+        args: [tcrAddress as `0x${string}`, depositWei],
         account,
       })
 
       const result = await wrapWithToast(
-        () => walletClient!.writeContract(request),
-        publicClient!,
+        () => walletClient.writeContract(request),
+        publicClient,
       )
 
       if (result.status) {
@@ -343,6 +409,7 @@ const SubmitModal: React.FC<{
     tokenAddress,
     tcrAddress,
     submissionDeposit,
+    depositWei,
     checkTokenStatus,
     account,
     walletClient,
@@ -360,7 +427,7 @@ const SubmitModal: React.FC<{
         shouldValidate?: boolean,
       ) => void,
     ) => {
-      if (!submissionDeposit) return
+      if (!submissionDeposit || !walletClient || !publicClient) return
       setIsSubmitting(true)
       try {
         const resolvedValues = await resolveStashedFiles({
@@ -383,14 +450,14 @@ const SubmitModal: React.FC<{
           address: tcrAddress as `0x${string}`,
           abi: _gtcr,
           functionName: 'addItem',
-          args: [ipfsEvidencePath, BigInt(submissionDeposit.toString())],
-          value: BigInt((arbitrationCost || 0).toString()),
+          args: [ipfsEvidencePath, depositWei],
+          value: arbitrationWei,
           account,
         })
 
         const result = await wrapWithToast(
-          () => walletClient!.writeContract(request),
-          publicClient!,
+          () => walletClient.writeContract(request),
+          publicClient,
         )
 
         if (result.status) {
@@ -407,7 +474,8 @@ const SubmitModal: React.FC<{
       onCancel,
       submissionDeposit,
       tcrAddress,
-      arbitrationCost,
+      depositWei,
+      arbitrationWei,
       account,
       walletClient,
       publicClient,
@@ -415,175 +483,220 @@ const SubmitModal: React.FC<{
     ],
   )
 
-  const submissionDepositBigInt = submissionDeposit
-    ? BigInt(submissionDeposit.toString())
-    : 0n
-  const hasEnoughBalance = balance >= submissionDepositBigInt
-  const hasEnoughAllowance = allowance >= submissionDepositBigInt
-  const hasEnoughNativeBalance =
-    nativeBalance != null &&
-    nativeBalance >= BigInt((arbitrationCost || 0).toString())
-
-  const renderSubmitButton = () => {
-    if (checkingToken)
-      return (
-        <Button key="checking" loading>
-          Checking Token...
-        </Button>
-      )
-
-    if (!hasEnoughBalance)
-      return (
-        <Button key="insufficient" disabled>
-          Insufficient {tokenSymbol} Balance
-        </Button>
-      )
-
-    if (!hasEnoughNativeBalance)
-      return (
-        <Button key="insufficientNative" disabled>
-          Not enough {nativeCurrency}
-        </Button>
-      )
-
-    if (!hasEnoughAllowance)
-      return (
-        <Button
-          key="approve"
-          type="primary"
-          onClick={handleApprove}
-          loading={isApproving}
-        >
-          Approve {tokenSymbol}
-        </Button>
-      )
-
-    return (
-      <Button
-        key="challengeSubmit"
-        type="primary"
-        form={SUBMISSION_FORM_ID}
-        htmlType="submit"
-        disabled={!fieldsComplete}
-        loading={isSubmitting}
-      >
-        Submit
-      </Button>
-    )
+  const close = () => {
+    setIsApproving(false)
+    setIsSubmitting(false)
+    onCancel()
   }
 
-  if (!metadata || !submissionDeposit)
-    return (
-      // @ts-ignore
-      <StyledModal
-        title="Submit Item"
-        footer={[
-          <Button key="back" onClick={onCancel}>
-            Cancel
-          </Button>,
-        ]}
-        {...props}
-      >
-        <StyledSpin />
-      </StyledModal>
+  const confirm = () => {
+    const form = document.querySelector<HTMLFormElement>(
+      `#${SUBMISSION_FORM_ID}`,
+    )
+    form?.requestSubmit()
+  }
+
+  const hasEnoughBalance = balance >= depositWei
+  const hasEnoughAllowance = allowance >= depositWei
+  const hasEnoughNativeBalance =
+    nativeBalance !== undefined && nativeBalance >= arbitrationWei
+
+  const stakeText = tokenText(depositWei, tokenDecimals, tokenSymbol)
+  const minText = tokenText(minDeposit, tokenDecimals, tokenSymbol)
+  const depositText = nativeText(arbitrationWei, nativeCurrency)
+  const multiplierKnown =
+    challengeStakeMultiplier !== undefined && challengeStakeMultiplier !== null
+  const challengerStake = applyMultiplier(depositWei, challengeStakeMultiplier)
+  const challengerText = multiplierKnown
+    ? tokenText(challengerStake, tokenDecimals, tokenSymbol)
+    : 'a share of your stake set by the list'
+  // A period of "0" is a real value: the list accepts at once.
+  const submissionSeconds = Number(submissionPeriod ?? Number.NaN)
+  const submissionWindow =
+    submissionSeconds > 0 ? formatDurationLong(submissionSeconds) : undefined
+  const acceptsAtOnce = submissionSeconds === 0
+  const withdrawingSeconds = Number(withdrawingPeriod ?? Number.NaN)
+  const withdrawingWindow =
+    withdrawingSeconds > 0 ? formatDurationLong(withdrawingSeconds) : undefined
+
+  // The first blocker wins; the approve step is its own button above the confirm.
+  const blocker = !gate.ready
+    ? gate.blocker
+    : checkingToken
+      ? 'Checking balances'
+      : stakeError
+        ? stakeError
+        : !fieldsComplete
+          ? 'Fill in every required field'
+          : !hasEnoughBalance
+            ? `Not enough ${tokenSymbol}: you hold ${tokenText(balance, tokenDecimals, tokenSymbol)}`
+            : !hasEnoughNativeBalance
+              ? `Not enough ${nativeCurrency} for the arbitration deposit`
+              : !hasEnoughAllowance
+                ? `Approve ${tokenSymbol} first`
+                : undefined
+  const showApprove =
+    gate.ready &&
+    !checkingToken &&
+    !stakeError &&
+    hasEnoughBalance &&
+    !hasEnoughAllowance
+
+  const content =
+    !metadata || !submissionDeposit ? (
+      <ModalSkeleton />
+    ) : (
+      <Stack $gap={16}>
+        <Body $muted>
+          {tcrTitle ? `Add a ${name} to ${tcrTitle}. ` : `Add a ${name}. `}
+          Every field below becomes part of the public entry.
+          {policyURI && (
+            <>
+              {' '}
+              <ListingCriteriaLink fileURI={policyURI}>
+                <PolicyText as="span">
+                  Read the listing policy first.
+                </PolicyText>
+              </ListingCriteriaLink>
+            </>
+          )}
+        </Body>
+
+        <FormBlock>
+          <SubmissionForm
+            columns={columns ?? []}
+            postSubmit={postSubmit}
+            initialValues={initialValues}
+            disabledFields={disabledFields ?? []}
+            deployedWithFactory={deployedWithFactory}
+            deployedWithLightFactory={deployedWithLightFactory}
+            deployedWithPermanentFactory={deployedWithPermanentFactory}
+            onFieldsComplete={setFieldsComplete}
+          />
+        </FormBlock>
+
+        <StakeField>
+          <Label>Token stake</Label>
+          <StakeInput>
+            <TextInput
+              type="text"
+              inputMode="decimal"
+              value={stakeInput}
+              onChange={(event) => {
+                setStakeTouched(true)
+                setStakeInput(event.target.value)
+              }}
+              aria-invalid={Boolean(stakeError)}
+              aria-describedby="stake-help"
+            />
+            <Data>{tokenSymbol}</Data>
+          </StakeInput>
+          <Small $muted id="stake-help">
+            {stakeError
+              ? stakeError
+              : multiplierKnown
+                ? `Minimum ${minText}. You may stake more; a bigger stake makes a challenge dearer (a challenger matches ${multiplierPercent(challengeStakeMultiplier)} of it).`
+                : `Minimum ${minText}. You may stake more; a bigger stake makes a challenge dearer.`}
+          </Small>
+        </StakeField>
+
+        {showApprove && (
+          <StepRow>
+            <Small>
+              Step 1 of 2 · Allow the list to take your stake. One transaction.
+            </Small>
+            <Button
+              type="button"
+              $variant="primary"
+              $size="sm"
+              disabled={isApproving}
+              onClick={handleApprove}
+            >
+              {isApproving
+                ? 'Waiting for your wallet…'
+                : `Approve ${stakeText}`}
+            </Button>
+          </StepRow>
+        )}
+        {gate.ready && hasEnoughAllowance && (
+          <Small $muted role="status">
+            {tokenSymbol} approved. Step 2 of 2 stakes it and sends the
+            arbitration deposit.
+          </Small>
+        )}
+
+        <WhatHappensNext
+          receipt={[
+            { label: `Token stake (minimum ${minText})`, value: stakeText },
+            { label: 'Arbitration deposit', value: depositText },
+          ]}
+          total={`${stakeText} + ${depositText}`}
+          steps={[
+            {
+              title: 'You stake and deposit',
+              body: `${stakeText} in ${tokenSymbol} and ${depositText} leave your wallet in one transaction. Both stay locked for as long as the ${name} is listed.`,
+            },
+            {
+              title: acceptsAtOnce
+                ? 'Accepted at once'
+                : submissionWindow
+                  ? `Submission period of ${submissionWindow}`
+                  : 'Submission period',
+              body: acceptsAtOnce
+                ? `This list has no submission period: the ${name} is accepted as soon as it is submitted. It can be challenged at any time, for as long as it is listed.`
+                : `Anyone can challenge from the moment you submit. If nobody does${submissionWindow ? ` within ${submissionWindow}` : ''}, the ${name} is accepted. It can still be challenged later, for as long as it is listed.`,
+            },
+            {
+              title: 'Nobody challenges: withdraw whenever you want',
+              body: `Start a withdrawal${withdrawingWindow ? `, wait ${withdrawingWindow}` : ''}, then execute it. ${stakeText} and ${depositText} come back in full.`,
+            },
+            {
+              title: 'Someone challenges: jurors decide',
+              branch: true,
+              body: `The challenger stakes ${challengerText} and pays the arbitration cost. If you win, your stake grows by the challenger's stake${multiplierKnown ? ` (${challengerText})` : ''}. If you lose, the challenger takes your ${stakeText} and your ${depositText}. If the jurors refuse to rule, both stakes come back, the arbitration deposit is split, and the ${name} is withdrawn.`,
+            },
+          ]}
+          confirmLabel={`Submit ${name}`}
+          onConfirm={confirm}
+          confirmDisabled={Boolean(blocker)}
+          confirmBlocker={blocker}
+          loading={isSubmitting}
+          policy={
+            policyURI ? (
+              <>
+                Jurors decide against the{' '}
+                <ListingCriteriaLink fileURI={policyURI}>
+                  <PolicyText as="span">listing policy</PolicyText>
+                </ListingCriteriaLink>
+                .
+              </>
+            ) : undefined
+          }
+        />
+        <GateHelper gate={gate} />
+      </Stack>
     )
 
-  const submitContent = (
-    <SubmissionFlowScaffold
-      tcrTitle={title}
-      itemName={itemName}
-      nativeCurrency={tokenSymbol || nativeCurrency}
-      submissionDeposit={submissionDeposit}
-      fileURI={policyURI}
-      navigation={
-        embedded ? (
-          <SubmissionNavigation>
-            <Button
-              onClick={() => {
-                setIsApproving(false)
-                setIsSubmitting(false)
-                onCancel()
-              }}
-            >
-              Back
-            </Button>
-            <EnsureAuth>{renderSubmitButton()}</EnsureAuth>
-          </SubmissionNavigation>
-        ) : undefined
-      }
-    >
-      <SubmissionForm
-        columns={columns ?? []}
-        postSubmit={postSubmit}
-        initialValues={initialValues}
-        disabledFields={disabledFields ?? []}
-        deployedWithFactory={deployedWithFactory}
-        deployedWithLightFactory={deployedWithLightFactory}
-        deployedWithPermanentFactory={deployedWithPermanentFactory}
-        onFieldsComplete={setFieldsComplete}
-      />
-      <DepositContainer>
-        <DepositRow>
-          <DepositLabel>
-            <ArbitrationFeeLabel />
-          </DepositLabel>
-          <ETHAmount
-            decimals={3}
-            amount={arbitrationCost ? arbitrationCost.toString() : '0'}
-            displayUnit={` ${nativeCurrency}`}
-          />
-        </DepositRow>
-        {submissionPeriod && (
-          <DepositRow>
-            <DepositLabel>Submission period</DepositLabel>
-            <span>
-              {humanizeDuration(Number(submissionPeriod) * 1000, {
-                largest: 2,
-                round: true,
-              })}
-            </span>
-          </DepositRow>
-        )}
-        {withdrawingPeriod && (
-          <DepositRow>
-            <DepositLabel>Withdrawing period</DepositLabel>
-            <span>
-              {humanizeDuration(Number(withdrawingPeriod) * 1000, {
-                largest: 2,
-                round: true,
-              })}
-            </span>
-          </DepositRow>
-        )}
-      </DepositContainer>
-    </SubmissionFlowScaffold>
-  )
-
-  if (embedded) return submitContent
+  if (embedded)
+    return (
+      <Stack $gap={16}>
+        {content}
+        <Row>
+          <Button type="button" $variant="secondary" onClick={close}>
+            Back
+          </Button>
+        </Row>
+      </Stack>
+    )
 
   return (
-    // @ts-ignore
-    <StyledModal
-      title={`Submit ${
-        (itemName && capitalizeFirstLetter(itemName)) || 'Item'
-      }`}
-      footer={[
-        <Button
-          key="back"
-          onClick={() => {
-            setIsApproving(false)
-            setIsSubmitting(false)
-            onCancel()
-          }}
-        >
-          Back
-        </Button>,
-        <EnsureAuth key="ensure-auth">{renderSubmitButton()}</EnsureAuth>,
-      ]}
-      {...props}
+    <ModalShell
+      open={visible}
+      title={title ?? `Submit ${capitalizeFirstLetter(name)}`}
+      onClose={close}
     >
-      {submitContent}
-    </StyledModal>
+      {content}
+    </ModalShell>
   )
 }
 

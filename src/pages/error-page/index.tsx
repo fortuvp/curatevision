@@ -1,45 +1,26 @@
 import React from 'react'
 import styled from 'styled-components'
-import Acropolis from 'assets/images/acropolis.svg'
+import {
+  Body,
+  ButtonLink,
+  Label,
+  Page,
+  Row,
+  Stack,
+  Statement,
+} from 'components/curate/primitives'
 
-const StyledDiv = styled.div`
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-`
-const StyledAcropolis = styled(Acropolis)`
-  height: auto;
-  width: 100%;
+/*
+ * Error page (DESIGN.md): a mono eyebrow carries the code, the page's one
+ * serif statement says what went wrong, plain sentences say why and what to
+ * do next. No illustration: type and structure are the identity.
+ */
 
-  /* Dark mode: use CSS filter for maintainable theming */
-  ${({ theme }) =>
-    theme.name === 'dark' &&
-    `
-    filter: brightness(0.4) saturate(0.8) hue-rotate(-10deg);
-  `}
+const Wrap = styled(Stack)`
+  max-width: 560px;
+  padding-top: 24px;
 `
-const StyledInfoDiv = styled.div`
-  flex: 1;
-  padding: 0 var(--horizontal-padding) 62px;
-  text-align: center;
-`
-const Styled404Div = styled.div`
-  font-size: 88px;
-  font-weight: bold;
-  line-height: 112px;
-  color: ${({ theme }) => theme.tertiaryColor};
-`
-const StyledMessageLine1 = styled.div`
-  font-size: 28px;
-  font-weight: bold;
-`
-const StyledMessageLine2 = styled.div`
-  font-size: 24px;
-`
-const StyledMessageLine3 = styled.div`
-  font-size: 16px;
-  margin-top: 25px;
-`
+
 interface ErrorPageProps {
   code?: string | null
   title?: string | null
@@ -47,22 +28,32 @@ interface ErrorPageProps {
   tip?: string | React.ReactNode | null
 }
 
-const ErrorPage = ({ code, title, message, tip }: ErrorPageProps) => (
-  <StyledDiv>
-    <StyledAcropolis />
-    <StyledInfoDiv className="quaternary-background theme-background">
-      <Styled404Div>{code || '404'}</Styled404Div>
-      <StyledMessageLine1 className="ternary-color theme-color">
-        {title}
-      </StyledMessageLine1>
-      <StyledMessageLine2 className="ternary-color theme-color">
-        {message || 'The gods could not find the page you are looking for!'}
-      </StyledMessageLine2>
-      <StyledMessageLine3 className="ternary-color theme-color">
-        {tip}
-      </StyledMessageLine3>
-    </StyledInfoDiv>
-  </StyledDiv>
-)
+const ErrorPage = ({ code, title, message, tip }: ErrorPageProps) => {
+  const shownCode = code || '404'
+  const notFound = shownCode === '404'
+  const heading =
+    title || (notFound ? 'Page not found' : 'Something went wrong')
+  const body = message || (notFound ? 'This page could not be found.' : null)
+
+  return (
+    <Page>
+      <Wrap $gap={16}>
+        <Label $tone="faint">{shownCode}</Label>
+        <Statement>{heading}</Statement>
+        {body && (
+          <Body $muted $large>
+            {body}
+          </Body>
+        )}
+        {tip && <Body $muted>{tip}</Body>}
+        <Row $gap={8} $wrap>
+          <ButtonLink to="/" $variant="secondary">
+            Go to the dashboard
+          </ButtonLink>
+        </Row>
+      </Wrap>
+    </Page>
+  )
+}
 
 export default ErrorPage

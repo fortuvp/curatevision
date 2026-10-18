@@ -1,28 +1,30 @@
 import React, { useEffect, useState } from 'react'
 import styled from 'styled-components'
-import Icon from 'components/ui/Icon'
 import { getExtension } from 'mime'
 import { parseIpfs } from 'utils/ipfs-parse'
 import { useAttachment } from 'hooks/use-attachment'
 import { buttonReset } from 'styles/button-reset'
+import { CurateIcon } from 'components/curate/icons'
+import { Small } from 'components/curate/primitives'
 
-const EmptyText = styled.span`
-  color: ${({ theme }) => theme.textTertiary};
+const ViewButton = styled.button`
+  ${buttonReset}
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-primary);
+
+  &:hover {
+    color: var(--color-primary-hover);
+    text-decoration: underline;
+  }
 `
 
 const ErrorText = styled.span`
-  margin-left: 6px;
-  color: ${({ theme }) => theme.errorColor};
-`
-
-const StyledViewButton = styled.button`
-  ${buttonReset}
-  color: inherit;
-  text-decoration: none;
-
-  &:hover {
-    text-decoration: underline;
-  }
+  margin-left: 8px;
+  color: var(--color-danger);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
 `
 
 interface FileDisplayProps {
@@ -58,16 +60,17 @@ const FileDisplay = ({ value, allowedFileTypes }: FileDisplayProps) => {
     check()
   }, [value, allowedFileTypes])
 
-  if (!value) return <EmptyText>empty</EmptyText>
+  if (!value) return <Small $faint>No file</Small>
 
   return (
     <>
-      <StyledViewButton
+      <ViewButton
         type="button"
         onClick={() => openAttachment(parseIpfs(value))}
       >
-        View File <Icon type="paper-clip" />
-      </StyledViewButton>
+        <CurateIcon name="policy" size={14} />
+        View file
+      </ViewButton>
       {!supported && <ErrorText>File type not supported</ErrorText>}
     </>
   )

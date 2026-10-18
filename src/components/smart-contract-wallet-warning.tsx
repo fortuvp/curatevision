@@ -1,19 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Alert } from 'components/ui'
-import styled from 'styled-components'
 import { useWeb3Context } from 'hooks/use-web3-context'
-
-const StyledAlert = styled(Alert)`
-  text-align: center;
-
-  .ui-alert-message {
-    font-weight: bold;
-  }
-`
-
-const StyledP = styled.p`
-  margin: 0;
-`
 
 const EIP7702_PREFIX = '0xef0100'
 const STORAGE_KEY = '@kleros/curate/alert/smart-contract-wallet-warning'
@@ -74,19 +61,20 @@ export default function SmartContractWalletWarning() {
   if (!showWarning || !isSmartContractWallet) return null
 
   return (
-    <StyledAlert
-      message="Warning"
+    <Alert
+      message="Smart contract wallet detected"
       description={
-        <StyledP>
-          You are using a smart contract wallet. This is not recommended.{' '}
+        <>
+          Some Curate actions may fail from a contract wallet. Use an externally
+          owned account.{' '}
           <a
             href="https://docs.kleros.io/welcome/faq#can-i-use-a-smart-contract-account-to-stake-in-the-court"
             target="_blank"
             rel="noopener noreferrer"
           >
-            Learn more.
+            Learn more
           </a>
-        </StyledP>
+        </>
       }
       type="warning"
       banner

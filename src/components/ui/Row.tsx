@@ -1,5 +1,6 @@
 import React from 'react'
 import styled, { css } from 'styled-components'
+import { joinClassNames } from './kit-styles'
 
 const justifyMap: Record<string, string> = {
   start: 'flex-start',
@@ -15,15 +16,40 @@ const alignMap: Record<string, string> = {
   bottom: 'flex-end',
 }
 
+const BREAKPOINT_WIDTHS: [string, number][] = [
+  ['xxl', 1600],
+  ['xl', 1200],
+  ['lg', 992],
+  ['md', 768],
+  ['sm', 576],
+  ['xs', 0],
+]
+
+/** Horizontal and vertical gutter from a number, a [h, v] pair or a breakpoint map. */
+const resolveGutter = (gutter: number | object): [number, number] => {
+  if (typeof gutter === 'number') return [gutter, 0]
+  if (Array.isArray(gutter))
+    return [Number(gutter[0]) || 0, Number(gutter[1]) || 0]
+  if (gutter && typeof gutter === 'object') {
+    const map = gutter as Record<string, number>
+    const width = typeof window === 'undefined' ? 1200 : window.innerWidth
+    for (const [name, min] of BREAKPOINT_WIDTHS)
+      if (map[name] !== undefined && width >= min) return [map[name], 0]
+  }
+  return [0, 0]
+}
+
 interface RowWrapperProps {
   $justify?: string
   $align?: string
   $gutter?: number
+  $rowGap?: number
 }
 
 const RowWrapper = styled.div<RowWrapperProps>`
   display: flex;
   flex-flow: row wrap;
+  min-width: 0;
   ${({ $justify }) =>
     $justify &&
     css`
@@ -34,18 +60,19 @@ const RowWrapper = styled.div<RowWrapperProps>`
     css`
       align-items: ${alignMap[$align] || $align};
     `}
-  ${({ $gutter }) => {
-    if (!$gutter) return ''
-    const g = typeof $gutter === 'number' ? $gutter : 0
-    if (g > 0) {
-      const half = g / 2
-      return css`
-        margin-left: -${half}px;
-        margin-right: -${half}px;
-      `
-    }
-    return ''
-  }}
+  ${({ $gutter }) =>
+    $gutter &&
+    $gutter > 0 &&
+    css`
+      margin-left: -${$gutter / 2}px;
+      margin-right: -${$gutter / 2}px;
+    `}
+  ${({ $rowGap }) =>
+    $rowGap &&
+    $rowGap > 0 &&
+    css`
+      row-gap: ${$rowGap}px;
+    `}
 `
 
 interface RowProps {
@@ -66,12 +93,12 @@ const Row: React.FC<RowProps> = ({
   style,
   className,
 }) => {
-  const gutterValue = typeof gutter === 'object' ? 0 : gutter
+  const [gutterValue, rowGap] = resolveGutter(gutter)
 
   const childrenWithGutter =
     gutterValue > 0
       ? React.Children.map(children, (child) => {
-          if (!child) return child
+          if (!child || !React.isValidElement(child)) return child
           return React.cloneElement(child as React.ReactElement<any>, {
             $gutter: gutterValue,
           })
@@ -83,8 +110,9 @@ const Row: React.FC<RowProps> = ({
       $justify={justify}
       $align={align}
       $gutter={gutterValue}
+      $rowGap={rowGap}
       style={style}
-      className={`ui-row${className ? ` ${className}` : ''}`}
+      className={joinClassNames('ui-row', className)}
     >
       {childrenWithGutter}
     </RowWrapper>

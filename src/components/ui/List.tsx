@@ -1,30 +1,37 @@
 import React from 'react'
 import styled, { css } from 'styled-components'
+import { joinClassNames, skeletonBlock } from './kit-styles'
 
+/* List: surface with hairline rows of 44px (40 small, 56 large). */
 const ListWrapper = styled.div<{ $bordered?: boolean }>`
-  font-size: 14px;
-  color: ${({ theme }) => theme.textPrimary};
-  background: ${({ theme }) => theme.componentBackground};
-  border-radius: 4px;
+  color: var(--color-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  background: var(--color-surface);
+  border-radius: var(--radius);
 
-  ${({ $bordered, theme }) =>
+  ${({ $bordered }) =>
     $bordered &&
     css`
-      border: 1px solid ${theme.borderColor};
+      border: 1px solid var(--color-border);
     `}
 `
 
 const ListHeader = styled.div`
-  padding: 12px 24px;
-  border-bottom: 1px solid ${({ theme }) => theme.borderColor};
-  font-weight: 500;
-  color: ${({ theme }) => theme.textPrimary};
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-size: var(--fs-body-lg);
+  line-height: var(--lh-body-lg);
+  font-weight: 600;
 `
 
 const ListFooter = styled.div`
-  padding: 12px 24px;
-  border-top: 1px solid ${({ theme }) => theme.borderColor};
-  color: ${({ theme }) => theme.textSecondary};
+  padding: 12px 16px;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
 `
 
 const ListContentWrapper = styled.ul`
@@ -35,26 +42,30 @@ const ListContentWrapper = styled.ul`
 
 const sizeMap: Record<string, ReturnType<typeof css>> = {
   small: css`
-    padding: 8px 16px;
+    min-height: 40px;
+    padding: 8px 12px;
   `,
   default: css`
-    padding: 12px 24px;
+    min-height: 44px;
+    padding: 10px 16px;
   `,
   large: css`
-    padding: 16px 24px;
+    min-height: 56px;
+    padding: 14px 16px;
   `,
 }
 
 const ListItemWrapper = styled.li<{ $size?: string; $split?: boolean }>`
   display: flex;
   align-items: center;
+  gap: 16px;
   ${({ $size }) => sizeMap[$size || 'default'] || sizeMap.default}
 
-  ${({ $split, theme }) =>
+  ${({ $split }) =>
     $split &&
     css`
       &:not(:last-child) {
-        border-bottom: 1px solid ${theme.borderColor};
+        border-bottom: 1px solid var(--color-border);
       }
     `}
 `
@@ -67,19 +78,19 @@ const ListItemContent = styled.div`
 const ListItemActions = styled.div`
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-left: 24px;
   flex-shrink: 0;
+  gap: 12px;
 `
 
 const MetaWrapper = styled.div`
   display: flex;
   align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
 `
 
 const MetaAvatar = styled.div`
-  margin-right: 16px;
-  flex-shrink: 0;
+  flex: 0 0 auto;
 `
 
 const MetaDetail = styled.div`
@@ -88,23 +99,34 @@ const MetaDetail = styled.div`
 `
 
 const MetaTitle = styled.div`
-  color: ${({ theme }) => theme.textPrimary};
+  color: var(--color-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
   font-weight: 500;
-  font-size: 14px;
-  margin-bottom: 4px;
 `
 
 const MetaDescription = styled.div`
-  color: ${({ theme }) => theme.textSecondary};
-  font-size: 13px;
+  margin-top: 2px;
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
 `
 
-const LoadingWrapper = styled.div`
+const LoadingRow = styled.div`
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 32px;
-  color: ${({ theme }) => theme.textSecondary};
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+
+  &:not(:last-child) {
+    border-bottom: 1px solid var(--color-border);
+  }
+`
+
+const LoadingLine = styled.div<{ $width: string }>`
+  ${skeletonBlock}
+  height: 14px;
+  width: ${({ $width }) => $width};
 `
 
 interface MetaProps {
@@ -115,10 +137,18 @@ interface MetaProps {
 
 const Meta: React.FC<MetaProps> = ({ title, description, avatar }) => (
   <MetaWrapper className="ui-list-item-meta">
-    {avatar && <MetaAvatar>{avatar}</MetaAvatar>}
-    <MetaDetail>
-      {title && <MetaTitle>{title}</MetaTitle>}
-      {description && <MetaDescription>{description}</MetaDescription>}
+    {avatar && (
+      <MetaAvatar className="ui-list-item-meta-avatar">{avatar}</MetaAvatar>
+    )}
+    <MetaDetail className="ui-list-item-meta-content">
+      {title && (
+        <MetaTitle className="ui-list-item-meta-title">{title}</MetaTitle>
+      )}
+      {description && (
+        <MetaDescription className="ui-list-item-meta-description">
+          {description}
+        </MetaDescription>
+      )}
     </MetaDetail>
   </MetaWrapper>
 )
@@ -150,11 +180,13 @@ const ListItem: ListItemComponent = ({
     $size={$size}
     $split={$split}
     style={style}
-    className={`ui-list-item${className ? ` ${className}` : ''}`}
+    className={joinClassNames('ui-list-item', className)}
   >
-    <ListItemContent>{children}</ListItemContent>
+    <ListItemContent className="ui-list-item-content">
+      {children}
+    </ListItemContent>
     {actions && actions.length > 0 && (
-      <ListItemActions>
+      <ListItemActions className="ui-list-item-actions">
         {actions.map((action, i) => (
           <span key={i}>{action}</span>
         ))}
@@ -199,7 +231,17 @@ const List: ListComponent = ({
 }) => {
   let content: React.ReactNode
 
-  if (loading) content = <LoadingWrapper>Loading...</LoadingWrapper>
+  if (loading)
+    content = (
+      <div className="ui-list-loading" aria-busy="true">
+        {[0, 1, 2].map((row) => (
+          <LoadingRow key={row}>
+            <LoadingLine $width="42%" />
+            <LoadingLine $width="76%" />
+          </LoadingRow>
+        ))}
+      </div>
+    )
   else if (dataSource && renderItem)
     content = (
       <ListContentWrapper>
@@ -213,8 +255,15 @@ const List: ListComponent = ({
             })
 
           return (
-            <ListItemWrapper key={index} $size={size} $split={split}>
-              <ListItemContent>{rendered}</ListItemContent>
+            <ListItemWrapper
+              key={index}
+              className="ui-list-item"
+              $size={size}
+              $split={split}
+            >
+              <ListItemContent className="ui-list-item-content">
+                {rendered}
+              </ListItemContent>
             </ListItemWrapper>
           )
         })}
@@ -241,11 +290,16 @@ const List: ListComponent = ({
     <ListWrapper
       $bordered={bordered}
       style={style}
-      className={`ui-list${className ? ` ${className}` : ''}`}
+      className={joinClassNames(
+        'ui-list',
+        bordered && 'ui-list-bordered',
+        `ui-list-${size}`,
+        className,
+      )}
     >
-      {header && <ListHeader>{header}</ListHeader>}
+      {header && <ListHeader className="ui-list-header">{header}</ListHeader>}
       {content}
-      {footer && <ListFooter>{footer}</ListFooter>}
+      {footer && <ListFooter className="ui-list-footer">{footer}</ListFooter>}
     </ListWrapper>
   )
 }

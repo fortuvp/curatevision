@@ -4,134 +4,163 @@ import React, {
   useEffect,
   useCallback,
   useMemo,
+  useId,
   Children,
 } from 'react'
 import { createPortal } from 'react-dom'
-import styled, { css, DefaultTheme } from 'styled-components'
+import styled, { css } from 'styled-components'
+import { KitIcon } from './kit-icons'
+import { joinClassNames, overlayPanel, ringSpinner } from './kit-styles'
 
+/*
+ * Select: a 40px control with radius 6 and the action color on focus; the
+ * option panel is styled like the app bar's menus and keeps the keyboard
+ * working (arrows, Enter, Escape).
+ */
 const SelectWrapper = styled.div`
   display: inline-block;
+  max-width: 100%;
 `
 
-const SelectTrigger = styled.div<{ $focused?: boolean; $disabled?: boolean }>`
+const SelectTrigger = styled.button<{ $focused?: boolean }>`
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   width: 100%;
-  min-height: 38px;
-  padding: 4px 12px;
-  font-size: 14px;
-  line-height: 1.5;
-  color: ${({ theme }) => theme.textPrimary};
-  background: var(--v2-card);
-  border: 1px solid var(--v2-stroke);
-  border-radius: var(--radius-sm);
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid
+    ${({ $focused }) =>
+      $focused ? 'var(--color-primary)' : 'var(--color-border)'};
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  text-align: left;
   cursor: pointer;
-  transition: all 0.3s;
-  box-sizing: border-box;
   user-select: none;
+  transition: border-color var(--motion);
 
-  &:hover {
-    border-color: var(--v2-blue);
+  &:hover:not(:disabled) {
+    border-color: ${({ $focused }) =>
+      $focused ? 'var(--color-primary)' : 'var(--color-border-strong)'};
   }
 
-  ${({ $focused, theme }) =>
-    $focused &&
-    css`
-      border-color: var(--v2-blue);
-      box-shadow: 0 0 0 2px ${theme.focusShadowColor};
-    `}
-
-  ${({ $disabled, theme }) =>
-    $disabled &&
-    css`
-      background: ${theme.elevatedBackground};
-      color: ${theme.disabledColor};
-      cursor: not-allowed;
-
-      &:hover {
-        border-color: ${theme.borderColor};
-      }
-    `}
+  &:disabled {
+    background: var(--color-raised);
+    color: var(--color-muted);
+    cursor: not-allowed;
+  }
 `
 
 const SelectValue = styled.span`
   flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 `
 
 const Placeholder = styled.span`
-  color: ${({ theme }) => theme.textTertiary};
+  color: var(--color-faint);
 `
 
 const Arrow = styled.span<{ $open?: boolean }>`
-  margin-left: 4px;
-  font-size: 12px;
-  color: ${({ theme }) => theme.textTertiary};
-  transition: transform 0.3s;
-  transform: ${({ $open }) => ($open ? 'rotate(180deg)' : 'rotate(0deg)')};
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--color-faint);
+  transition: transform var(--motion);
+  transform: rotate(${({ $open }) => ($open ? '180deg' : '0deg')});
+`
+
+const Spinner = styled.span`
+  ${ringSpinner}
+  width: 14px;
+  height: 14px;
+  color: var(--color-muted);
 `
 
 const DropdownStyled = styled.div`
   position: fixed;
   z-index: 1050;
-  background: var(--v2-card);
-  border: 1px solid var(--v2-stroke);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--v2-shadow-hover);
-  max-height: 256px;
+  max-height: 280px;
+  padding: 6px;
   overflow-y: auto;
-  padding: 4px 0;
+  ${overlayPanel}
 `
 
 const SearchInput = styled.input`
   width: 100%;
-  padding: 5px 12px;
-  margin-bottom: 4px;
-  border: none;
-  border-bottom: 1px solid var(--v2-stroke);
+  height: 32px;
+  margin-bottom: 6px;
+  padding: 0 10px;
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  border-radius: 0;
   background: transparent;
-  color: ${({ theme }) => theme.textPrimary};
-  font-size: 14px;
-  outline: none;
-  box-sizing: border-box;
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
 
   &::placeholder {
-    color: ${({ theme }) => theme.textTertiary};
+    color: var(--color-faint);
+  }
+
+  &:focus-visible {
+    outline: none;
+    border-bottom-color: var(--color-primary);
   }
 `
 
-const OptionItem = styled.div<{ $selected?: boolean; $disabled?: boolean }>`
-  margin: 2px 6px;
-  padding: 7px 10px;
+const OptionItem = styled.div<{
+  $selected?: boolean
+  $disabled?: boolean
+  $highlighted?: boolean
+}>`
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 6px 10px;
   border-radius: var(--radius-sm);
+  color: ${({ $selected }) =>
+    $selected ? 'var(--color-primary)' : 'var(--color-text)'};
+  background: ${({ $selected, $highlighted }) =>
+    $selected
+      ? 'var(--color-primary-soft)'
+      : $highlighted
+        ? 'var(--color-raised)'
+        : 'transparent'};
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: ${({ $selected }) => ($selected ? 500 : 400)};
   cursor: pointer;
-  transition: background 0.3s;
-  color: ${({ theme }) => theme.textPrimary};
-  font-size: 14px;
-  line-height: 22px;
+  transition: background var(--motion);
 
-  ${({ $selected, theme }) =>
-    $selected &&
-    css`
-      background: ${theme.dropdownSelectedBg};
-      font-weight: 600;
-    `}
-
-  ${({ $disabled, theme }) =>
+  ${({ $disabled, $selected }) =>
     $disabled
       ? css`
-          color: ${theme.disabledColor};
+          color: var(--color-muted);
           cursor: not-allowed;
+          opacity: 0.55;
         `
       : css`
           &:hover {
-            background: ${({ theme: t }: { theme: DefaultTheme }) =>
-              t.dropdownHoverBg};
+            background: ${$selected
+              ? 'var(--color-primary-soft)'
+              : 'var(--color-raised)'};
           }
         `}
+`
+
+const EmptyOption = styled.div`
+  padding: 8px 10px;
+  color: var(--color-faint);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  text-align: center;
 `
 
 interface OptionProps {
@@ -164,10 +193,18 @@ interface SelectProps {
   showSearch?: boolean
   children?: React.ReactNode
   className?: string
+  id?: string
+  name?: string
 }
 
 interface SelectComponent extends React.FC<SelectProps> {
   Option: React.FC<OptionProps>
+}
+
+type ParsedOption = {
+  value: string | number
+  label: React.ReactNode
+  disabled?: boolean
 }
 
 const Select: SelectComponent = ({
@@ -183,15 +220,18 @@ const Select: SelectComponent = ({
   showSearch = false,
   children,
   className,
+  id,
 }) => {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [highlighted, setHighlighted] = useState(-1)
   const [selectedValue, setSelectedValue] = useState<
     string | number | undefined
-  >(value !== undefined ? value : defaultValue)
-  const triggerRef = useRef<HTMLDivElement>(null)
+  >(value === undefined ? defaultValue : value)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
+  const listboxId = useId()
   const [dropdownPos, setDropdownPos] = useState({
     top: 0,
     left: 0,
@@ -205,11 +245,7 @@ const Select: SelectComponent = ({
 
   // Parse options from children
   const options = useMemo(() => {
-    const opts: {
-      value: string | number
-      label: React.ReactNode
-      disabled?: boolean
-    }[] = []
+    const opts: ParsedOption[] = []
     Children.forEach(children, (child) => {
       const element = child as React.ReactElement
       if (!element || !element.props) return
@@ -233,7 +269,7 @@ const Select: SelectComponent = ({
     })
   }, [options, search, showSearch])
 
-  // Calculate dropdown position
+  // Place the panel under the trigger (fixed, so it escapes clipped parents)
   const updateDropdownPosition = useCallback(() => {
     if (!triggerRef.current) return
     const rect = triggerRef.current.getBoundingClientRect()
@@ -244,54 +280,120 @@ const Select: SelectComponent = ({
     })
   }, [])
 
-  // Click outside detection
+  const close = useCallback(() => {
+    setOpen(false)
+    setSearch('')
+    setHighlighted(-1)
+  }, [])
+
+  // Click outside, Escape, scroll and resize while open
   useEffect(() => {
-    if (!open) return
+    if (!open) return undefined
     const handleClickOutside = (e: MouseEvent) => {
       if (
         triggerRef.current &&
         !triggerRef.current.contains(e.target as Node) &&
         dropdownRef.current &&
         !dropdownRef.current.contains(e.target as Node)
-      ) {
-        setOpen(false)
-        setSearch('')
+      )
+        close()
+    }
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        close()
+        triggerRef.current?.focus()
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [open])
+    document.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('scroll', updateDropdownPosition, true)
+    window.addEventListener('resize', updateDropdownPosition)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('scroll', updateDropdownPosition, true)
+      window.removeEventListener('resize', updateDropdownPosition)
+    }
+  }, [open, close, updateDropdownPosition])
 
-  // Focus search input when dropdown opens
+  // Focus the search input when the panel opens
   useEffect(() => {
     if (open && showSearch && searchRef.current) searchRef.current.focus()
   }, [open, showSearch])
 
   const handleToggle = useCallback(() => {
     if (disabled || loading) return
-    setOpen((prev) => {
-      if (!prev) updateDropdownPosition()
-      return !prev
-    })
-    setSearch('')
-  }, [disabled, loading, updateDropdownPosition])
+    if (open) close()
+    else {
+      updateDropdownPosition()
+      setHighlighted(options.findIndex((opt) => opt.value === selectedValue))
+      setOpen(true)
+    }
+  }, [
+    disabled,
+    loading,
+    open,
+    close,
+    updateDropdownPosition,
+    options,
+    selectedValue,
+  ])
 
   const handleSelect = useCallback(
-    (opt: {
-      value: string | number
-      label: React.ReactNode
-      disabled?: boolean
-    }) => {
+    (opt: ParsedOption) => {
       if (opt.disabled) return
       const newValue = opt.value
       setSelectedValue(newValue)
-      setOpen(false)
-      setSearch('')
+      close()
       if (onChange)
         if (labelInValue) onChange({ key: newValue, label: opt.label })
         else onChange(newValue)
     },
-    [onChange, labelInValue],
+    [onChange, labelInValue, close],
+  )
+
+  const moveHighlight = useCallback(
+    (delta: number) => {
+      if (filteredOptions.length === 0) return
+      setHighlighted((prev) => {
+        let next = prev
+        for (let i = 0; i < filteredOptions.length; i++) {
+          next =
+            (next + delta + filteredOptions.length) % filteredOptions.length
+          if (!filteredOptions[next].disabled) return next
+        }
+        return prev
+      })
+    },
+    [filteredOptions],
+  )
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (disabled || loading) return
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault()
+        if (!open) {
+          handleToggle()
+          return
+        }
+        moveHighlight(e.key === 'ArrowDown' ? 1 : -1)
+      } else if (e.key === 'Enter' && open) {
+        e.preventDefault()
+        const opt = filteredOptions[highlighted]
+        if (opt) handleSelect(opt)
+      }
+    },
+    [
+      disabled,
+      loading,
+      open,
+      handleToggle,
+      moveHighlight,
+      filteredOptions,
+      highlighted,
+      handleSelect,
+    ],
   )
 
   // Find display label for selected value
@@ -301,33 +403,59 @@ const Select: SelectComponent = ({
   }, [selectedValue, options])
 
   const currentVal = selectedValue
+  const hasValue =
+    currentVal !== undefined && currentVal !== null && currentVal !== ''
 
   return (
-    <SelectWrapper className={`ui-select${className ? ` ${className}` : ''}`}>
+    <SelectWrapper
+      className={joinClassNames(
+        'ui-select',
+        open && 'ui-select-open',
+        disabled && 'ui-select-disabled',
+        className,
+      )}
+    >
       <SelectTrigger
         ref={triggerRef}
+        type="button"
+        id={id}
+        role="combobox"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? listboxId : undefined}
+        aria-busy={loading || undefined}
+        disabled={disabled}
         onClick={handleToggle}
+        onKeyDown={handleKeyDown}
         $focused={open}
-        $disabled={disabled}
         style={style}
         className="ui-select-trigger"
       >
-        <SelectValue>
-          {currentVal !== undefined &&
-          currentVal !== null &&
-          currentVal !== '' ? (
+        <SelectValue className="ui-select-value">
+          {hasValue ? (
             selectedLabel
           ) : (
-            <Placeholder>{placeholder || '\u00A0'}</Placeholder>
+            <Placeholder className="ui-select-placeholder">
+              {placeholder || ' '}
+            </Placeholder>
           )}
         </SelectValue>
-        <Arrow $open={open}>&#x25BC;</Arrow>
+        {loading ? (
+          <Spinner aria-hidden />
+        ) : (
+          <Arrow className="ui-select-arrow" $open={open} aria-hidden>
+            <KitIcon name="chevron-down" size={14} />
+          </Arrow>
+        )}
       </SelectTrigger>
 
       {open &&
         createPortal(
           <DropdownStyled
             ref={dropdownRef}
+            id={listboxId}
+            role="listbox"
+            className="ui-select-dropdown"
             style={{
               top: dropdownPos.top,
               left: dropdownPos.left,
@@ -338,27 +466,35 @@ const Select: SelectComponent = ({
             {showSearch && (
               <SearchInput
                 ref={searchRef}
+                className="ui-select-search"
                 value={search}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                   setSearch(e.target.value)
-                }
-                placeholder="Search..."
+                  setHighlighted(0)
+                }}
+                onKeyDown={handleKeyDown}
+                placeholder="Search"
+                aria-label="Search options"
                 onClick={(e: React.MouseEvent) => e.stopPropagation()}
               />
             )}
             {filteredOptions.length === 0 ? (
-              <OptionItem
-                style={{ cursor: 'default', textAlign: 'center' }}
-                $disabled
-              >
-                No options
-              </OptionItem>
+              <EmptyOption className="ui-select-empty">No options</EmptyOption>
             ) : (
-              filteredOptions.map((opt) => (
+              filteredOptions.map((opt, index) => (
                 <OptionItem
                   key={opt.value}
+                  role="option"
+                  aria-selected={opt.value === currentVal}
+                  aria-disabled={opt.disabled || undefined}
+                  className={joinClassNames(
+                    'ui-select-option',
+                    opt.value === currentVal && 'ui-select-option-selected',
+                  )}
                   $selected={opt.value === currentVal}
                   $disabled={opt.disabled}
+                  $highlighted={index === highlighted}
+                  onMouseEnter={() => setHighlighted(index)}
                   onClick={(e: React.MouseEvent) => {
                     e.stopPropagation()
                     handleSelect(opt)

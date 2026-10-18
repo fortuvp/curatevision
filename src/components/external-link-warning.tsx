@@ -1,112 +1,37 @@
 import React from 'react'
 import styled from 'styled-components'
-import { Modal, Button } from 'components/ui'
-import Icon from 'components/ui/Icon'
+import { Modal } from 'components/ui'
+import { CurateIcon } from 'components/curate/icons'
+import { Body, Button, Label, Stack } from 'components/curate/primitives'
 
-const StyledModal = styled(Modal)`
-  & > .ui-modal-content {
-    border-radius: 12px;
-    box-shadow: 0px 6px 36px ${({ theme }) => theme.shadowColor};
-    background: ${({ theme }) => theme.componentBackground};
+/*
+ * Confirmation before leaving for an external site. Built on the ui Modal
+ * (radius 10, overlay shadow); the address is set in mono so it can be read
+ * before it is opened.
+ */
 
-    & > .ui-modal-body {
-      padding: 24px;
-    }
-
-    & > .ui-modal-close {
-      color: ${({ theme }) => theme.primaryColor};
-    }
-  }
-`
-
-const Header = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-`
-
-const WarningIcon = styled(Icon)`
-  font-size: 24px;
-  color: ${({ theme }) => theme.warningColor};
-`
-
-const Title = styled.h3`
-  color: ${({ theme }) => theme.textPrimary};
-  font-size: 18px;
-  font-weight: 600;
-  margin: 0;
-`
-
-const Message = styled.p`
-  color: ${({ theme }) => theme.textPrimary};
-  font-size: 14px;
-  line-height: 1.6;
-  margin: 0 0 16px 0;
-`
-
-const UrlContainer = styled.div`
-  background-color: ${({ theme }) => theme.elevatedBackground};
-  border: 1px solid ${({ theme }) => theme.borderColor};
-  border-radius: 8px;
+const UrlBox = styled.code`
+  display: block;
   padding: 12px;
-  margin: 16px 0;
-  word-break: break-all;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-raised);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-data);
+  line-height: var(--lh-data);
+  overflow-wrap: anywhere;
 `
 
-const Url = styled.code`
-  color: ${({ theme }) => theme.primaryColor};
-  font-size: 13px;
-  font-family: monospace;
-`
+const Checklist = styled.ul`
+  margin: 0;
+  padding-left: 20px;
+  color: var(--color-muted);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
 
-const SafetyTips = styled.div`
-  color: ${({ theme }) => theme.textPrimary};
-  font-size: 13px;
-  line-height: 1.6;
-  margin-bottom: 8px;
-
-  strong {
-    display: block;
-    margin-bottom: 8px;
-  }
-
-  ul {
-    margin: 0;
-    padding-left: 20px;
-  }
-`
-
-const ButtonContainer = styled.div`
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-  margin-top: 24px;
-`
-
-const CancelButton = styled(Button)`
-  background-color: transparent !important;
-  border-color: ${({ theme }) => theme.borderColor} !important;
-  color: ${({ theme }) => theme.textPrimary} !important;
-
-  &:hover,
-  &:focus {
-    background-color: transparent !important;
-    border-color: ${({ theme }) => theme.primaryColor} !important;
-    color: ${({ theme }) => theme.primaryColor} !important;
-  }
-`
-
-const ConfirmButton = styled(Button)`
-  background-color: ${({ theme }) => theme.buttonPrimaryBg} !important;
-  border-color: ${({ theme }) => theme.buttonPrimaryBg} !important;
-  color: ${({ theme }) => theme.buttonPrimaryText} !important;
-
-  &:hover,
-  &:focus {
-    background-color: ${({ theme }) => theme.buttonPrimaryHoverBg} !important;
-    border-color: ${({ theme }) => theme.buttonPrimaryHoverBg} !important;
-    color: ${({ theme }) => theme.buttonPrimaryText} !important;
+  li + li {
+    margin-top: 4px;
   }
 `
 
@@ -123,43 +48,40 @@ const ExternalLinkWarning = ({
   onConfirm,
   onCancel,
 }: ExternalLinkWarningProps) => (
-  <StyledModal
+  <Modal
     visible={visible}
-    footer={null}
+    title="Leaving CurateVision"
     onCancel={onCancel}
     width={480}
     centered
+    footer={
+      <>
+        <Button type="button" $variant="secondary" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="button" $variant="primary" onClick={onConfirm}>
+          <CurateIcon name="external" size={16} />
+          Open external site
+        </Button>
+      </>
+    }
   >
-    <Header>
-      <WarningIcon type="warning" />
-      <Title>External Link Warning</Title>
-    </Header>
-
-    <Message>
-      You are about to navigate to an external website. Please verify this is a
-      trusted destination before proceeding.
-    </Message>
-
-    <UrlContainer>
-      <Url>{url}</Url>
-    </UrlContainer>
-
-    <SafetyTips>
-      <strong>Safety Tips:</strong>
-      <ul>
-        <li>Verify the domain matches your expected destination</li>
-        <li>Check for suspicious characters or misspellings</li>
-        <li>Only proceed if you trust this website</li>
-      </ul>
-    </SafetyTips>
-
-    <ButtonContainer>
-      <CancelButton onClick={onCancel}>Cancel</CancelButton>
-      <ConfirmButton type="primary" onClick={onConfirm}>
-        Continue to External Site
-      </ConfirmButton>
-    </ButtonContainer>
-  </StyledModal>
+    <Stack $gap={16}>
+      <Body>
+        This link opens a site outside CurateVision. Check the address before
+        you continue.
+      </Body>
+      <UrlBox>{url}</UrlBox>
+      <Stack $gap={8}>
+        <Label>Before you continue</Label>
+        <Checklist>
+          <li>Check that the domain is the one you expect.</li>
+          <li>Look for misspellings or unusual characters.</li>
+          <li>Open it only if you trust the site.</li>
+        </Checklist>
+      </Stack>
+    </Stack>
+  </Modal>
 )
 
 export default ExternalLinkWarning

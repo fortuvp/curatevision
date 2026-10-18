@@ -1,9 +1,10 @@
 import React from 'react'
 import styled from 'styled-components'
-import { Typography } from 'components/ui'
+import { Body, Small } from 'components/curate/primitives'
 
-const StyledSpan = styled.span`
-  color: ${({ theme }) => theme.textSecondary};
+const Text = styled(Body)`
+  white-space: pre-line;
+  overflow-wrap: anywhere;
 `
 
 interface LongTextProps {
@@ -11,9 +12,9 @@ interface LongTextProps {
 }
 
 const LongText = ({ value }: LongTextProps) => {
-  if (!value) return <StyledSpan>empty</StyledSpan>
+  if (!value) return <Small $faint>No text</Small>
 
-  return <Typography.Paragraph>{value}</Typography.Paragraph>
+  return <Text>{value}</Text>
 }
 
 export default LongText

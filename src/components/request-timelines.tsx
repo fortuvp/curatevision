@@ -1,18 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react'
-import styled, { css } from 'styled-components'
-import { smallScreenStyle } from 'styles/small-screen-style'
-import {
-  Timeline as UITimeline,
-  Card,
-  Skeleton,
-  Typography,
-  Divider,
-  Button,
-  Collapse,
-} from 'components/ui'
-import Icon from 'components/ui/Icon'
+import styled from 'styled-components'
 import useUrlChainId from 'hooks/use-url-chain-id'
-import ETHAddress from 'components/eth-address'
 import {
   CONTRACT_STATUS,
   REQUEST_TYPE_LABEL,
@@ -22,76 +10,35 @@ import {
 import { capitalizeFirstLetter } from 'utils/string'
 import { getTxPage } from 'utils/network-utils'
 import { parseIpfs } from 'utils/ipfs-parse'
+import toOrdinal from 'utils/ordinal'
 import EvidenceFileLink from 'components/evidence-file-link'
 import ClassicEvidenceModal from 'pages/item-details/modals/evidence'
 import LightEvidenceModal from 'pages/light-item-details/modals/evidence'
-import toOrdinal from 'utils/ordinal'
+import { CurateIcon } from 'components/curate/icons'
+import {
+  Button,
+  Chip,
+  Data,
+  PanelHeader,
+  Row,
+  SkeletonBlock,
+  Small,
+  Stack,
+  Status,
+  Subheading,
+  Surface,
+  type StatusTone,
+} from 'components/curate/primitives'
+import { Timeline, TimelineEvent } from 'components/curate/item-light-timeline'
+import { AddressLink } from 'components/curate/item-light-fields'
+import { toSeconds } from 'components/curate/item-light-format'
 
-const StyledText = styled(Typography.Text)`
-  text-transform: capitalize;
-`
-
-const StyledCard = styled(Card)`
-  cursor: default;
-  background: var(--v2-card) !important;
-  border-color: var(--v2-stroke) !important;
-  border-radius: var(--radius-sm) !important;
-  box-shadow: var(--v2-shadow) !important;
-
-  & > .ui-card-head {
-    background: var(--v2-card) !important;
-    border-color: var(--v2-stroke) !important;
-    color: var(--v2-text) !important;
-  }
-
-  & > .ui-card-head .ui-card-head-title {
-    color: var(--v2-text) !important;
-  }
-
-  & > .ui-card-head .ui-card-extra a {
-    color: ${({ theme }) => theme.cardHeaderLinkColor} !important;
-
-    &:hover {
-      color: ${({ theme }) => theme.cardHeaderLinkHoverColor} !important;
-    }
-  }
-
-  & > .ui-card-body {
-    background: var(--v2-card) !important;
-  }
-
-  .ui-card-meta-description {
-    color: ${({ theme }) => theme.textSecondary} !important;
-
-    a {
-      text-decoration: none;
-
-      &:hover {
-        text-decoration: underline;
-      }
-    }
-  }
-
-  ${smallScreenStyle(
-    () => css`
-      & > .ui-card-head > .ui-card-head-wrapper {
-        flex-wrap: wrap;
-      }
-      & > .ui-card-head > .ui-card-head-wrapper > .ui-card-head-title {
-        white-space: normal;
-      }
-    `,
-  )}
-`
-
-const StyledEvidenceTitle = styled.div`
-  white-space: pre-line;
-  font-weight: 400;
-  color: ${({ theme }) => theme.textPrimary};
-`
-
-const secondTimestamp = (timestamp: string | number | null | undefined) =>
-  ` - ${new Date(new Date(Number(timestamp) * 1000)).toUTCString()}`
+/*
+ * An entry's history (DESIGN.md: a vertical timeline with absolute UTC
+ * dates): one panel per request, newest first, each with its submission,
+ * evidence, rulings, appeals and resolution; then the inline evidence
+ * composer while a request is open.
+ */
 
 /** Round fields the subgraph returns beyond the shared SubgraphRound. */
 interface TimelineRound extends SubgraphRound {
@@ -169,13 +116,44 @@ interface EvidenceFile {
   fileTypeExtension?: string | null
 }
 
+const EvidenceCard = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-raised);
+`
+
+const EvidenceText = styled.p`
+  margin: 0;
+  max-width: 68ch;
+  color: var(--color-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+`
+
+const rulingSentence = (ruling: string, isRegistration: boolean): string => {
+  if (ruling === SUBGRAPH_RULING.NONE) return 'Jurors refused to rule'
+  if (ruling === SUBGRAPH_RULING.ACCEPT)
+    return `Jurors ruled for the ${isRegistration ? 'submitter' : 'requester'}`
+  if (ruling === SUBGRAPH_RULING.REJECT)
+    return 'Jurors ruled for the challenger'
+  return 'Jurors gave an unknown ruling'
+}
+
 interface TimelineProps {
   request: TimelineRequest
   item: SubgraphItem
   metaEvidence?: MetaEvidence
 }
 
-const Timeline = ({ request, item, metaEvidence }: TimelineProps) => {
+const RequestTimeline = ({ request, item, metaEvidence }: TimelineProps) => {
   const networkId = useUrlChainId()
   const [evidenceMap, setEvidenceMap] = useState<Record<string, EvidenceFile>>()
 
@@ -234,8 +212,9 @@ const Timeline = ({ request, item, metaEvidence }: TimelineProps) => {
   }, [request])
 
   const requestType = request.requestType
+  const isRegistration = requestType === CONTRACT_STATUS.REGISTRATION_REQUESTED
 
-  // The Graph can fail to index the evidence fields. Load unloaded fields manually
+  // The indexer can miss the evidence fields. Load unindexed files manually.
   useEffect(() => {
     if (!logs || evidenceMap) return
     const evidenceManualFetch = async () => {
@@ -262,227 +241,237 @@ const Timeline = ({ request, item, metaEvidence }: TimelineProps) => {
       })
       setEvidenceMap(evidenceMapProcess)
     }
-    evidenceManualFetch()
+    evidenceManualFetch().catch((err) => {
+      console.error('Could not load unindexed evidence', err)
+    })
   }, [logs, evidenceMap, setEvidenceMap])
 
-  // Display loading indicator
-  if (!item || !request || !logs) return <Skeleton active />
+  if (!item || !request || !logs) return <SkeletonBlock $height="80px" />
 
   const metadata = metaEvidence?.metadata
-  // Build nodes from request events.
   const itemName = metadata?.itemName
     ? capitalizeFirstLetter(metadata.itemName)
     : 'Item'
+  const txPage = (txHash?: string | null) =>
+    txHash ? getTxPage({ networkId: networkId ?? 0, txHash }) : undefined
 
-  const requestSubmittedNode = (
-    <UITimeline.Item key={1337}>
-      <span>
-        <StyledText>
-          {requestType === 'RegistrationRequested'
-            ? `${itemName} submitted`
-            : 'Removal requested'}
-        </StyledText>
-        <Typography.Text type="secondary">
-          <a
-            href={getTxPage({
-              networkId: networkId ?? 0,
-              txHash: request.creationTx,
-            })}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {secondTimestamp(request.submissionTime)}
-          </a>
-        </Typography.Text>
-      </span>
-    </UITimeline.Item>
-  )
+  return (
+    <Timeline>
+      <TimelineEvent
+        tone="window"
+        title={isRegistration ? `${itemName} submitted` : 'Removal requested'}
+        timestamp={toSeconds(request.submissionTime)}
+        href={txPage(request.creationTx)}
+        detail={
+          request.requester ? (
+            <>
+              by <AddressLink address={request.requester} />
+            </>
+          ) : undefined
+        }
+      />
+      {logs.map((event, i) => {
+        const timestamp = toSeconds(event.timestamp)
+        const href = txPage(event.transactionHash)
 
-  // `logs` is already ordered by timestamp.
-  const items = logs.map((event, i) => {
-    const { name, transactionHash, timestamp } = event
-    const txPage = getTxPage({
-      networkId: networkId ?? 0,
-      txHash: transactionHash ?? '',
-    })
+        if (event.name === 'Evidence') {
+          const { title, description, fileURI } = evidenceMap?.[event.URI]
+            ? evidenceMap[event.URI]
+            : event
+          return (
+            <TimelineEvent
+              key={i}
+              tone="neutral"
+              title={title || 'Evidence'}
+              timestamp={timestamp}
+              href={href}
+              detail={
+                <>
+                  by <AddressLink address={event.party} />
+                </>
+              }
+            >
+              {(description || fileURI) && (
+                <EvidenceCard>
+                  {description && <EvidenceText>{description}</EvidenceText>}
+                  {fileURI && <EvidenceFileLink fileURI={fileURI} />}
+                </EvidenceCard>
+              )}
+            </TimelineEvent>
+          )
+        }
 
-    if (event.name === 'Evidence') {
-      const { party } = event
-      const { title, description, fileURI } = evidenceMap?.[event.URI]
-        ? evidenceMap[event.URI]
-        : event
-      /* eslint-disable unicorn/new-for-builtins */
-      const submissionTime = (
-        <span>
-          <a href={txPage} target="_blank" rel="noopener noreferrer">
-            {new Date(Number(timestamp) * 1000).toUTCString()}
-          </a>{' '}
-          by <ETHAddress address={party} />
-        </span>
-      )
-
-      /* eslint-enable unicorn/new-for-builtins */
-      return (
-        <UITimeline.Item dot={<Icon type="file-text" />} key={i} color="grey">
-          <StyledCard
-            title={title}
-            extra={fileURI && <EvidenceFileLink fileURI={fileURI} />}
-          >
-            <Card.Meta
-              title={<StyledEvidenceTitle>{description}</StyledEvidenceTitle>}
-              description={submissionTime}
+        if (event.name === 'AppealPossible')
+          return (
+            <TimelineEvent
+              key={i}
+              tone="contested"
+              title={
+                typeof event.appealableRuling === 'undefined'
+                  ? 'Ruling'
+                  : rulingSentence(event.appealableRuling, isRegistration)
+              }
+              timestamp={timestamp}
+              href={href}
+              detail="Appeal period opened"
             />
-          </StyledCard>
-        </UITimeline.Item>
-      )
-    } else if (name === 'AppealPossible') {
-      const appealableRuling = event.appealableRuling
-      if (typeof appealableRuling === 'undefined')
-        return (
-          <UITimeline.Item dot={<Icon type="file-text" />} key={i}>
-            <Skeleton active paragraph={false} title={{ width: '200px' }} />
-          </UITimeline.Item>
-        )
+          )
 
-      return (
-        <UITimeline.Item key={i}>
-          <span>
-            {appealableRuling === SUBGRAPH_RULING.NONE
-              ? 'The arbitrator refused to rule'
-              : appealableRuling === SUBGRAPH_RULING.ACCEPT
-                ? `The arbitrator ruled in favor of the ${
-                    requestType === CONTRACT_STATUS.REGISTRATION_REQUESTED
-                      ? 'submitter'
-                      : 'requester'
-                  }`
-                : appealableRuling === SUBGRAPH_RULING.REJECT
-                  ? 'The arbitrator ruled in favor of the challenger'
-                  : 'The arbitrator gave an unknown ruling'}
-            <Typography.Text type="secondary">
-              <a href={txPage} target="_blank" rel="noopener noreferrer">
-                {secondTimestamp(timestamp)}
-              </a>
-            </Typography.Text>
-          </span>
-        </UITimeline.Item>
-      )
-    } else if (name === 'AppealDecision')
-      return (
-        <UITimeline.Item key={i}>
-          Ruling appealed{' '}
-          <Typography.Text type="secondary">
-            <a href={txPage} target="_blank" rel="noopener noreferrer">
-              {secondTimestamp(timestamp)}
-            </a>
-          </Typography.Text>
-        </UITimeline.Item>
-      )
-    else if (name === 'Resolution') {
-      let resultMessage, statusColor
-      switch (event.disputeOutcome) {
-        case 'None': {
-          resultMessage =
-            requestType === CONTRACT_STATUS.REGISTRATION_REQUESTED
-              ? 'Submission removed'
-              : 'Removal refused'
-          statusColor =
-            requestType === CONTRACT_STATUS.REGISTRATION_REQUESTED
-              ? 'red'
-              : 'green'
-          break
+        if (event.name === 'AppealDecision')
+          return (
+            <TimelineEvent
+              key={i}
+              tone="contested"
+              title="Ruling appealed"
+              timestamp={timestamp}
+              href={href}
+              detail="A new round of jurors decides"
+            />
+          )
+
+        if (event.name === 'Resolution') {
+          let message: string
+          let tone: StatusTone
+          switch (event.disputeOutcome) {
+            case 'None':
+            case 'Reject': {
+              message = isRegistration
+                ? 'Submission rejected'
+                : 'Removal refused'
+              tone = isRegistration ? 'off' : 'registered'
+              break
+            }
+            case 'Accept': {
+              message = isRegistration
+                ? 'Submission accepted'
+                : `${itemName} removed`
+              tone = isRegistration ? 'registered' : 'off'
+              break
+            }
+            default:
+              throw new Error('Unhandled ruling')
+          }
+          const differentAppealableRuling =
+            request.disputed &&
+            request.rounds[0].ruling !== request.disputeOutcome
+
+          return (
+            <TimelineEvent
+              key={i}
+              tone={tone}
+              title={message}
+              timestamp={timestamp}
+              href={href}
+              detail={
+                differentAppealableRuling
+                  ? 'The winner of the last round did not fund the appeal.'
+                  : undefined
+              }
+            />
+          )
         }
-        case 'Accept': {
-          resultMessage =
-            requestType === CONTRACT_STATUS.REGISTRATION_REQUESTED
-              ? 'Submission accepted'
-              : `${itemName || 'item'} removed.`
 
-          statusColor =
-            requestType === CONTRACT_STATUS.REGISTRATION_REQUESTED
-              ? 'green'
-              : 'red'
-          break
-        }
-        case 'Reject': {
-          resultMessage =
-            requestType === CONTRACT_STATUS.REGISTRATION_REQUESTED
-              ? 'Submission removed'
-              : `Removal refused.`
-
-          statusColor =
-            requestType === CONTRACT_STATUS.REGISTRATION_REQUESTED
-              ? 'red'
-              : 'green'
-          break
-        }
-        default:
-          throw new Error('Unhandled ruling')
-      }
-      const differentAppealableRuling =
-        request.disputed && request.rounds[0].ruling !== request.disputeOutcome
-
-      return (
-        <UITimeline.Item key={i} color={statusColor}>
-          {differentAppealableRuling &&
-            'The winner of the last round did not fund the appeal. '}
-          {resultMessage}
-          <Typography.Text type="secondary">
-            <a href={txPage} target="_blank" rel="noopener noreferrer">
-              {secondTimestamp(timestamp)}
-            </a>
-          </Typography.Text>
-        </UITimeline.Item>
-      )
-    } else throw new Error(`Unhandled event ${name}`)
-  })
-
-  return <UITimeline>{[requestSubmittedNode, ...items]}</UITimeline>
+        return null
+      })}
+    </Timeline>
+  )
 }
 
-const StyledDivider = styled(Divider)`
-  text-transform: capitalize;
-  flex: 1;
-  min-width: 0;
-
-  &.ui-divider {
-    margin: 0;
-  }
-`
-
-const StyledButton = styled(Button)`
-  text-transform: capitalize;
-  margin: 0;
-
-  @media (max-width: 640px) {
-    width: 100%;
-  }
-`
-
-const StyledLoadingCard = styled(Card)`
-  margin-top: 40px;
-`
-
-const StyledCollapse = styled(Collapse)`
-  background-color: ${({ theme }) => theme.componentBackground} !important;
-  border: 1px solid ${({ theme }) => theme.borderColor};
-  border-radius: var(--radius-sm);
-`
-
-const HistoryHeader = styled.div`
+const PanelToggle = styled.button`
   display: flex;
+  width: 100%;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  margin: 0 0 16px;
+  min-height: 48px;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--motion);
 
-  @media (max-width: 640px) {
-    align-items: stretch;
-    flex-direction: column;
+  &:hover {
+    background: var(--color-raised);
   }
 `
 
-const EVIDENCE_COMPOSER_ID = 'evidence-composer'
+const Chevron = styled.span<{ $open: boolean }>`
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--color-muted);
+  transform: rotate(${({ $open }) => ($open ? 180 : 0)}deg);
+  transition: transform var(--motion);
+`
 
-const scrollToEvidenceComposer = () => {
+const PanelBody = styled.div`
+  padding: 16px;
+  border-top: 1px solid var(--color-border);
+`
+
+const requestState = (
+  request: TimelineRequest,
+): { label: string; tone: StatusTone } =>
+  request.resolved
+    ? { label: 'Resolved', tone: 'neutral' }
+    : request.disputed
+      ? { label: 'Disputed', tone: 'contested' }
+      : { label: 'Open', tone: 'window' }
+
+const RequestPanel = ({
+  request,
+  ordinal,
+  open,
+  onToggle,
+  item,
+  metaEvidence,
+}: {
+  request: TimelineRequest
+  ordinal: number
+  open: boolean
+  onToggle: () => void
+  item: SubgraphItem
+  metaEvidence?: MetaEvidence
+}) => {
+  const state = requestState(request)
+  const panelId = `request-${ordinal}-timeline`
+  return (
+    <Surface $padding="none">
+      <PanelToggle
+        type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={onToggle}
+      >
+        <Row $gap={10} $wrap>
+          <Data>{toOrdinal(ordinal)} request</Data>
+          <Chip>{REQUEST_TYPE_LABEL[request.requestType] ?? 'Request'}</Chip>
+          <Status tone={state.tone} label={state.label} />
+        </Row>
+        <Chevron $open={open} aria-hidden>
+          <CurateIcon name="chevron-down" size={16} />
+        </Chevron>
+      </PanelToggle>
+      {open && (
+        <PanelBody id={panelId}>
+          {/* The request is spread to convert it from an array to an object. */}
+          <RequestTimeline
+            item={item}
+            request={{ ...request }}
+            metaEvidence={metaEvidence}
+          />
+        </PanelBody>
+      )}
+    </Surface>
+  )
+}
+
+export const EVIDENCE_COMPOSER_ID = 'evidence-composer'
+
+export const scrollToEvidenceComposer = () => {
   const composer = document.querySelector(`#${EVIDENCE_COMPOSER_ID}`)
   composer?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   window.setTimeout(() => {
@@ -508,56 +497,65 @@ const RequestTimelines = ({
 }: RequestTimelinesProps) => {
   const EvidenceComposer =
     kind === 'classic' ? ClassicEvidenceModal : LightEvidenceModal
+  const [openPanels, setOpenPanels] = useState<Record<number, boolean>>({
+    0: true,
+  })
 
   const { metadata } = metaEvidence || {}
-  const { itemName } = metadata || {}
+  const itemName = metadata?.itemName || 'entry'
 
   if (!item)
     return (
-      <>
-        <StyledLoadingCard loading id="request-timelines" />
-      </>
+      <Surface id="request-timelines" $padding="standard" aria-busy="true">
+        <SkeletonBlock $height="120px" />
+      </Surface>
     )
 
+  const pending = hasPendingRequest(item.status)
+
   return (
-    <div id="request-timelines">
-      <HistoryHeader>
-        <StyledDivider orientation="left">{`${
-          capitalizeFirstLetter(itemName ?? '') || 'Item'
-        } History`}</StyledDivider>
-        {hasPendingRequest(item.status) && (
-          <StyledButton onClick={scrollToEvidenceComposer}>
-            Submit evidence
-          </StyledButton>
+    <Stack id="request-timelines" $gap={12}>
+      <PanelHeader style={{ marginBottom: 0 }}>
+        <div>
+          <Subheading>History</Subheading>
+          <Small $muted>
+            Requests, evidence and rulings for this {itemName}, newest first.
+            Times are UTC.
+          </Small>
+        </div>
+        {pending && (
+          <Button
+            type="button"
+            $variant="secondary"
+            $size="sm"
+            onClick={scrollToEvidenceComposer}
+          >
+            <CurateIcon name="policy" size={14} />
+            Add evidence
+          </Button>
         )}
-      </HistoryHeader>
-      {requests && (
-        <StyledCollapse bordered={false} defaultActiveKey={['0']}>
-          {requests.map((request, i) => (
-            <Collapse.Panel
-              header={`${toOrdinal(requests.length - i)} request - ${
-                REQUEST_TYPE_LABEL[request.requestType]
-              }`}
-              key={i}
-            >
-              {/* We spread `requests` to convert it from an array to an object. */}
-              <Timeline
-                item={item}
-                request={{ ...request }}
-                metaEvidence={metaEvidence}
-              />
-            </Collapse.Panel>
-          ))}
-        </StyledCollapse>
-      )}
-      {hasPendingRequest(item.status) && (
+      </PanelHeader>
+      {requests?.map((request, i) => (
+        <RequestPanel
+          key={i}
+          request={request}
+          ordinal={requests.length - i}
+          open={!!openPanels[i]}
+          onToggle={() =>
+            setOpenPanels((state) => ({ ...state, [i]: !state[i] }))
+          }
+          item={item}
+          metaEvidence={metaEvidence}
+        />
+      ))}
+      {pending && (
         <EvidenceComposer
           item={item}
           inline
           composerId={EVIDENCE_COMPOSER_ID}
         />
       )}
-    </div>
+    </Stack>
   )
 }
 

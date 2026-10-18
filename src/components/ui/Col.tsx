@@ -1,5 +1,6 @@
 import React from 'react'
 import styled, { css } from 'styled-components'
+import { joinClassNames } from './kit-styles'
 
 const BREAKPOINTS: Record<string, number> = {
   xs: 0,
@@ -71,12 +72,13 @@ interface ColWrapperProps {
   $xxl?: ResponsiveValue
 }
 
+/* 24-column grid cell; Row hands it the horizontal gutter as padding. */
 const ColWrapper = styled.div<ColWrapperProps>`
   position: relative;
   box-sizing: border-box;
   min-height: 1px;
+  min-width: 0;
 
-  /* Base span */
   ${({ $span }) => {
     if ($span === undefined) return ''
     if ($span === 0) return 'display: none;'
@@ -87,7 +89,6 @@ const ColWrapper = styled.div<ColWrapperProps>`
     `
   }}
 
-  /* Base offset */
   ${({ $offset }) => {
     if (!$offset) return ''
     const ml = ($offset / 24) * 100
@@ -96,7 +97,6 @@ const ColWrapper = styled.div<ColWrapperProps>`
     `
   }}
 
-  /* Gutter from Row */
   ${({ $gutter }) => {
     if (!$gutter) return ''
     const half = $gutter / 2
@@ -106,7 +106,6 @@ const ColWrapper = styled.div<ColWrapperProps>`
     `
   }}
 
-  /* Responsive breakpoints */
   ${({ $xs }) => getResponsiveStyles('xs', $xs)}
   ${({ $sm }) => getResponsiveStyles('sm', $sm)}
   ${({ $md }) => getResponsiveStyles('md', $md)}
@@ -155,7 +154,7 @@ const Col: React.FC<ColProps> = ({
     $xxl={xxl}
     $gutter={$gutter}
     style={style}
-    className={`ui-col${className ? ` ${className}` : ''}`}
+    className={joinClassNames('ui-col', className)}
   >
     {children}
   </ColWrapper>

@@ -1,94 +1,86 @@
 import React from 'react'
-import styled, { css, keyframes, DefaultTheme } from 'styled-components'
+import styled, { css, keyframes } from 'styled-components'
+import { joinClassNames, monoData } from './kit-styles'
 
-const activeAnim = keyframes`
-  0% {
-    transform: translateX(-100%) scaleX(0);
-    opacity: 0.1;
-  }
-  20% {
-    transform: translateX(-100%) scaleX(0);
-    opacity: 0.5;
-  }
-  100% {
-    transform: translateX(0) scaleX(1);
-    opacity: 0;
-  }
+/*
+ * Progress rail (DESIGN.md, Shapes): 4px tall, radius 2, raised track; the
+ * fill carries a status role (window while running, registered when done,
+ * off on failure). A caller may hand in its own strokeColor.
+ */
+const sheen = keyframes`
+  0% { transform: translateX(-100%); opacity: 0.35; }
+  70% { transform: translateX(100%); opacity: 0; }
+  100% { transform: translateX(100%); opacity: 0; }
 `
 
 const Wrapper = styled.div`
   display: flex;
   align-items: center;
+  gap: 8px;
   width: 100%;
-  font-size: 14px;
-  line-height: 1.5;
 `
 
-const Outer = styled.div<{ $showInfo: boolean }>`
+const Rail = styled.div`
+  position: relative;
   flex: 1;
   min-width: 0;
-  margin-right: ${({ $showInfo }) => ($showInfo ? '8px' : '0')};
-`
-
-const Inner = styled.div`
-  position: relative;
-  width: 100%;
-  height: 8px;
-  border-radius: 100px;
-  background: ${({ theme }) => theme.borderColor};
+  height: 4px;
   overflow: hidden;
+  border-radius: 2px;
+  background: var(--color-raised);
 `
 
-const getBarColor = (
-  status: string,
-  strokeColor: string | undefined,
-  theme: DefaultTheme,
-): string => {
+const fillColor = (status: string, strokeColor?: string): string => {
   if (strokeColor) return strokeColor
   switch (status) {
     case 'success':
-      return theme.successColor
+      return 'var(--status-registered)'
     case 'exception':
-      return theme.errorColor
+      return 'var(--status-off)'
     default:
-      return theme.primaryColor
+      return 'var(--status-window)'
   }
 }
 
-interface BarProps {
+const Fill = styled.div<{
   $status: string
   $strokeColor?: string
   $percent: number
-}
-
-const Bar = styled.div<BarProps>`
+}>`
   position: relative;
   height: 100%;
-  border-radius: 100px;
-  background: ${({ $status, $strokeColor, theme }) =>
-    getBarColor($status, $strokeColor, theme)};
   width: ${({ $percent }) => `${Math.min(Math.max($percent, 0), 100)}%`};
-  transition: width 0.3s ease;
+  border-radius: 2px;
+  background: ${({ $status, $strokeColor }) =>
+    fillColor($status, $strokeColor)};
+  transition: width 300ms ease;
 
   ${({ $status }) =>
     $status === 'active' &&
     css`
-      &::before {
+      &::after {
         content: '';
         position: absolute;
         inset: 0;
         border-radius: inherit;
         background: var(--color-on-primary);
-        animation: ${activeAnim} 2.4s cubic-bezier(0.23, 1, 0.32, 1) infinite;
+        opacity: 0;
+        animation: ${sheen} 2.4s ease infinite;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        &::after {
+          animation: none;
+        }
       }
     `}
 `
 
 const Info = styled.span`
-  white-space: nowrap;
-  font-size: 12px;
-  color: ${({ theme }) => theme.textPrimary};
-  min-width: 36px;
+  flex: 0 0 auto;
+  min-width: 40px;
+  color: var(--color-muted);
+  ${monoData}
   text-align: right;
 `
 
@@ -111,22 +103,30 @@ const Progress: React.FC<ProgressProps> = ({
 }) => {
   const effectiveStatus =
     status === 'normal' && percent >= 100 ? 'success' : status
+  const value = Math.round(Math.min(Math.max(percent, 0), 100))
 
   return (
     <Wrapper
       style={style}
-      className={`ui-progress${className ? ` ${className}` : ''}`}
+      className={joinClassNames(
+        'ui-progress',
+        `ui-progress-${effectiveStatus}`,
+        className,
+      )}
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={value}
     >
-      <Outer $showInfo={showInfo}>
-        <Inner>
-          <Bar
-            $percent={percent}
-            $status={effectiveStatus}
-            $strokeColor={strokeColor}
-          />
-        </Inner>
-      </Outer>
-      {showInfo && <Info>{Math.round(percent)}%</Info>}
+      <Rail className="ui-progress-rail">
+        <Fill
+          className="ui-progress-fill"
+          $percent={percent}
+          $status={effectiveStatus}
+          $strokeColor={strokeColor}
+        />
+      </Rail>
+      {showInfo && <Info className="ui-progress-info">{value}%</Info>}
     </Wrapper>
   )
 }

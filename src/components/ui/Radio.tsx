@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useCallback } from 'react'
 import styled, { css } from 'styled-components'
+import { joinClassNames } from './kit-styles'
 
 type RadioValue = string | number | boolean | undefined
 
@@ -15,46 +16,55 @@ const RadioGroupContext = createContext<RadioGroupContextValue | null>(null)
 // --- Radio (circle-style) ---
 
 const RadioWrapper = styled.label<{ $disabled?: boolean }>`
+  position: relative;
   display: inline-flex;
   align-items: center;
-  cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
-  opacity: ${({ $disabled }) => ($disabled ? 0.65 : 1)};
-  font-size: 14px;
-  color: ${({ theme }) => theme.textPrimary};
-  user-select: none;
   gap: 8px;
   margin-right: 8px;
+  color: var(--color-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
+  opacity: ${({ $disabled }) => ($disabled ? 0.55 : 1)};
+  user-select: none;
 `
 
 const HiddenRadioInput = styled.input`
   position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
   opacity: 0;
-  width: 0;
-  height: 0;
   pointer-events: none;
 `
 
+/* 16px pill; checked = action-color ring with an 8px action dot inside. */
 const RadioDot = styled.span<{ $checked?: boolean }>`
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
   width: 16px;
   height: 16px;
   border: 1px solid
-    ${({ $checked, theme }) =>
-      $checked ? theme.primaryColor : theme.borderColor};
-  border-radius: 50%;
-  background: ${({ theme }) => theme.componentBackground};
-  transition: all 0.2s;
-  flex-shrink: 0;
+    ${({ $checked }) =>
+      $checked ? 'var(--color-primary)' : 'var(--color-border-strong)'};
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  transition: border-color var(--motion);
 
   &::after {
     content: '';
     display: ${({ $checked }) => ($checked ? 'block' : 'none')};
     width: 8px;
     height: 8px;
-    border-radius: 50%;
-    background: ${({ theme }) => theme.primaryColor};
+    border-radius: var(--radius-pill);
+    background: var(--color-primary);
+  }
+
+  ${HiddenRadioInput}:focus-visible + & {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
   }
 `
 
@@ -64,12 +74,16 @@ interface RadioProps {
   disabled?: boolean
   value?: RadioValue
   children?: React.ReactNode
+  style?: React.CSSProperties
+  className?: string
 }
 
 interface RadioButtonProps {
   value?: RadioValue
   disabled?: boolean
   children?: React.ReactNode
+  style?: React.CSSProperties
+  className?: string
 }
 
 interface RadioGroupProps {
@@ -78,6 +92,8 @@ interface RadioGroupProps {
   disabled?: boolean
   children?: React.ReactNode
   buttonStyle?: string
+  style?: React.CSSProperties
+  className?: string
 }
 
 interface RadioComponent extends React.FC<RadioProps> {
@@ -91,9 +107,11 @@ const Radio: RadioComponent = ({
   disabled = false,
   value,
   children,
+  style,
+  className,
 }) => {
   const group = useContext(RadioGroupContext)
-  const isDisabled = disabled || (group && group.disabled)
+  const isDisabled = disabled || Boolean(group && group.disabled)
   const isChecked = group ? group.value === value : checked
 
   const handleChange = useCallback(
@@ -106,12 +124,20 @@ const Radio: RadioComponent = ({
   )
 
   return (
-    <RadioWrapper $disabled={isDisabled || false}>
+    <RadioWrapper
+      $disabled={isDisabled}
+      style={style}
+      className={joinClassNames(
+        'ui-radio',
+        isChecked && 'ui-radio-checked',
+        className,
+      )}
+    >
       <HiddenRadioInput
         type="radio"
-        checked={isChecked}
+        checked={Boolean(isChecked)}
         onChange={handleChange}
-        disabled={isDisabled || false}
+        disabled={isDisabled}
       />
       <RadioDot $checked={isChecked} />
       {children && <span>{children}</span>}
@@ -121,48 +147,63 @@ const Radio: RadioComponent = ({
 
 // --- Radio.Button ---
 
+/* Joined 32px segments; the chosen one is outlined (or filled) in the action color. */
 const RadioButtonStyled = styled.label<{
   $checked?: boolean
   $disabled?: boolean
   $buttonStyle?: string
 }>`
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0 15px;
   height: 32px;
-  font-size: 14px;
-  cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
-  opacity: ${({ $disabled }) => ($disabled ? 0.65 : 1)};
-  border: 1px solid ${({ theme }) => theme.borderColor};
   margin-left: -1px;
-  transition: all 0.2s;
+  padding: 0 12px;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
+  opacity: ${({ $disabled }) => ($disabled ? 0.55 : 1)};
   user-select: none;
-  color: ${({ theme }) => theme.textPrimary};
-  background: ${({ theme }) => theme.componentBackground};
+  transition:
+    background var(--motion),
+    border-color var(--motion),
+    color var(--motion);
 
   &:first-child {
     margin-left: 0;
-    border-radius: 4px 0 0 4px;
+    border-radius: var(--radius-sm) 0 0 var(--radius-sm);
   }
 
   &:last-child {
-    border-radius: 0 4px 4px 0;
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   }
 
-  ${({ $checked, $buttonStyle, theme }) =>
+  &:focus-within {
+    z-index: 2;
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  ${({ $checked, $buttonStyle }) =>
     $checked &&
     ($buttonStyle === 'solid'
       ? css`
-          background: ${theme.primaryColor};
-          color: ${theme.textOnPrimary};
-          border-color: ${theme.primaryColor};
           z-index: 1;
+          border-color: var(--color-primary);
+          background: var(--color-primary);
+          color: var(--color-on-primary);
         `
       : css`
-          color: ${theme.primaryColor};
-          border-color: ${theme.primaryColor};
           z-index: 1;
+          border-color: var(--color-primary);
+          background: var(--color-primary-soft);
+          color: var(--color-primary);
         `)}
 `
 
@@ -170,12 +211,14 @@ const RadioButton: React.FC<RadioButtonProps> = ({
   value,
   disabled = false,
   children,
+  style,
+  className,
 }) => {
   const group = useContext(RadioGroupContext)
-  const isDisabled = disabled || (group && group.disabled)
+  const isDisabled = disabled || Boolean(group && group.disabled)
   const isChecked = group ? group.value === value : false
 
-  const handleClick = useCallback(() => {
+  const handleChange = useCallback(() => {
     if (isDisabled) return
     if (group) group.onChange(value)
   }, [isDisabled, group, value])
@@ -183,15 +226,20 @@ const RadioButton: React.FC<RadioButtonProps> = ({
   return (
     <RadioButtonStyled
       $checked={isChecked}
-      $disabled={isDisabled || false}
+      $disabled={isDisabled}
       $buttonStyle={group ? group.buttonStyle : 'outline'}
-      onClick={handleClick}
+      style={style}
+      className={joinClassNames(
+        'ui-radio-button',
+        isChecked && 'ui-radio-button-checked',
+        className,
+      )}
     >
       <HiddenRadioInput
         type="radio"
         checked={isChecked}
-        onChange={() => {}}
-        disabled={isDisabled || false}
+        onChange={handleChange}
+        disabled={isDisabled}
       />
       {children}
     </RadioButtonStyled>
@@ -203,6 +251,7 @@ const RadioButton: React.FC<RadioButtonProps> = ({
 const GroupWrapper = styled.div`
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
 `
 
 const RadioGroup: React.FC<RadioGroupProps> = ({
@@ -211,6 +260,8 @@ const RadioGroup: React.FC<RadioGroupProps> = ({
   disabled = false,
   children,
   buttonStyle = 'outline',
+  style,
+  className,
 }) => {
   const handleChange = useCallback(
     (val: RadioValue) => {
@@ -223,7 +274,13 @@ const RadioGroup: React.FC<RadioGroupProps> = ({
     <RadioGroupContext.Provider
       value={{ value, onChange: handleChange, disabled, buttonStyle }}
     >
-      <GroupWrapper className="ui-radio-group">{children}</GroupWrapper>
+      <GroupWrapper
+        role="radiogroup"
+        style={style}
+        className={joinClassNames('ui-radio-group', className)}
+      >
+        {children}
+      </GroupWrapper>
     </RadioGroupContext.Provider>
   )
 }

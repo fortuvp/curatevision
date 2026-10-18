@@ -1,70 +1,47 @@
 import React from 'react'
 import styled from 'styled-components'
+import { KitIcon } from './kit-icons'
+import { joinClassNames } from './kit-styles'
 
+/* Empty state like the primitives' EmptyState: an outlined icon box, then text. */
 const Wrapper = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 32px 0;
-  color: ${({ theme }) => theme.textSecondary};
-  font-size: 14px;
+  gap: 6px;
+  padding: 32px 24px;
+  color: var(--color-muted);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  text-align: center;
 `
 
 const ImageWrapper = styled.div`
-  margin-bottom: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+  color: var(--color-faint);
+`
+
+const IconBox = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
 `
 
 const DescriptionText = styled.div`
-  color: ${({ theme }) => theme.textSecondary};
+  max-width: 40ch;
+  color: var(--color-muted);
 `
 
 const Extra = styled.div`
-  margin-top: 16px;
+  margin-top: 10px;
 `
-
-const DefaultSvg: React.FC = () => (
-  <svg
-    width="64"
-    height="41"
-    viewBox="0 0 64 41"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <g fill="none" fillRule="evenodd" transform="translate(0 1)">
-      <ellipse cx="32" cy="33" rx="32" ry="7" fill="var(--color-raised)" />
-      <g fillRule="nonzero" stroke="var(--color-border-strong)">
-        <path d="M55 12.76L44.854 1.258C44.367.474 43.656 0 42.907 0H21.093c-.749 0-1.46.474-1.947 1.257L9 12.761V22h46v-9.24z" />
-        <path
-          d="M41.613 15.931c0-1.605.994-2.93 2.227-2.931H55v18.137C55 33.26 53.68 35 52.05 35h-40.1C10.32 35 9 33.259 9 31.137V13h11.16c1.233 0 2.227 1.323 2.227 2.928v.022c0 1.605 1.005 2.901 2.237 2.901h14.752c1.232 0 2.237-1.308 2.237-2.913v-.007z"
-          fill="var(--color-surface)"
-        />
-      </g>
-    </g>
-  </svg>
-)
-
-const SimpleSvg: React.FC = () => (
-  <svg
-    width="64"
-    height="41"
-    viewBox="0 0 64 41"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <g fill="none" fillRule="evenodd" transform="translate(0 1)">
-      <ellipse
-        cx="32"
-        cy="33"
-        rx="32"
-        ry="7"
-        fill="none"
-        stroke="var(--color-border-strong)"
-      />
-      <g fillRule="nonzero" stroke="var(--color-border-strong)" fill="none">
-        <path d="M55 12.76L44.854 1.258C44.367.474 43.656 0 42.907 0H21.093c-.749 0-1.46.474-1.947 1.257L9 12.761V22h46v-9.24z" />
-        <path d="M41.613 15.931c0-1.605.994-2.93 2.227-2.931H55v18.137C55 33.26 53.68 35 52.05 35h-40.1C10.32 35 9 33.259 9 31.137V13h11.16c1.233 0 2.227 1.323 2.227 2.928v.022c0 1.605 1.005 2.901 2.237 2.901h14.752c1.232 0 2.237-1.308 2.237-2.913v-.007z" />
-      </g>
-    </g>
-  </svg>
-)
 
 interface EmptyProps {
   description?: React.ReactNode | false
@@ -79,29 +56,41 @@ interface EmptyComponent extends React.FC<EmptyProps> {
 }
 
 const Empty: EmptyComponent = ({
-  description = 'No Data',
+  description = 'No data',
   image,
   children,
   style,
   className,
 }) => {
   const isSimple = image === Empty.PRESENTED_IMAGE_SIMPLE
+  const customImage = image && !isSimple && typeof image !== 'string'
 
   return (
-    <Wrapper style={style} className={className}>
-      <ImageWrapper>
-        {image && !isSimple && typeof image !== 'string' ? (
+    <Wrapper
+      style={style}
+      className={joinClassNames(
+        'ui-empty',
+        isSimple && 'ui-empty-simple',
+        className,
+      )}
+    >
+      <ImageWrapper className="ui-empty-image">
+        {customImage ? (
           image
         ) : isSimple ? (
-          <SimpleSvg />
+          <KitIcon name="inbox" size={20} />
         ) : (
-          <DefaultSvg />
+          <IconBox>
+            <KitIcon name="inbox" size={18} />
+          </IconBox>
         )}
       </ImageWrapper>
       {description !== false && (
-        <DescriptionText>{description}</DescriptionText>
+        <DescriptionText className="ui-empty-description">
+          {description}
+        </DescriptionText>
       )}
-      {children && <Extra>{children}</Extra>}
+      {children && <Extra className="ui-empty-footer">{children}</Extra>}
     </Wrapper>
   )
 }

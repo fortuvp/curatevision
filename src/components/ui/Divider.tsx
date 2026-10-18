@@ -1,33 +1,29 @@
 import React from 'react'
 import styled, { css } from 'styled-components'
+import { joinClassNames, monoLabel } from './kit-styles'
 
-interface DividerWrapperProps {
+/* Hairline rule; an optional mono label sits on it (left, center or right). */
+const DividerWrapper = styled.div<{
   $hasChildren: boolean
   $orientation: string
-}
-
-const DividerWrapper = styled.div<DividerWrapperProps>`
+}>`
   display: flex;
   align-items: center;
   margin: 24px 0;
-  color: ${({ theme }) => theme.textPrimary};
-  font-weight: 500;
-  font-size: 16px;
+  color: var(--color-muted);
+  ${monoLabel}
   white-space: nowrap;
 
   &::before,
   &::after {
     content: '';
     flex: 1;
-    border-top: 1px solid ${({ theme }) => theme.borderColor};
+    border-top: 1px solid var(--color-border);
   }
 
   ${({ $hasChildren }) =>
     !$hasChildren &&
     css`
-      &::before {
-        flex: 1;
-      }
       &::after {
         display: none;
       }
@@ -37,24 +33,16 @@ const DividerWrapper = styled.div<DividerWrapperProps>`
     $hasChildren &&
     css`
       &::before {
-        flex: ${$orientation === 'left'
-          ? '0 0 5%'
-          : $orientation === 'right'
-            ? '1'
-            : '1'};
+        flex: ${$orientation === 'left' ? '0 0 16px' : '1'};
       }
       &::after {
-        flex: ${$orientation === 'left'
-          ? '1'
-          : $orientation === 'right'
-            ? '0 0 5%'
-            : '1'};
+        flex: ${$orientation === 'right' ? '0 0 16px' : '1'};
       }
     `}
 `
 
 const LabelText = styled.span`
-  padding: 0 1em;
+  padding: 0 12px;
 `
 
 interface DividerProps {
@@ -71,13 +59,18 @@ const Divider: React.FC<DividerProps> = ({
   className,
 }) => (
   <DividerWrapper
-    $hasChildren={!!children}
+    $hasChildren={Boolean(children)}
     $orientation={orientation}
     style={style}
-    className={className}
+    className={joinClassNames(
+      'ui-divider',
+      Boolean(children) && 'ui-divider-with-text',
+      `ui-divider-${orientation}`,
+      className,
+    )}
     role="separator"
   >
-    {children && <LabelText>{children}</LabelText>}
+    {children && <LabelText className="ui-divider-text">{children}</LabelText>}
   </DividerWrapper>
 )
 

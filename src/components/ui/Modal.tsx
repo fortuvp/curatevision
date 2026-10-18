@@ -2,125 +2,116 @@ import React, { useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { createRoot } from 'react-dom/client'
 import styled, { ThemeProvider as SCThemeProvider } from 'styled-components'
+import {
+  lightTheme,
+  darkTheme,
+  klerosTheme,
+} from '../../contexts/theme-context'
+import Button from './Button'
+import { KitIcon } from './kit-icons'
+import { ghostIconButton, joinClassNames } from './kit-styles'
 
+/*
+ * Modal (DESIGN.md, Elevation): surface, 1px strong hairline, radius 10,
+ * overlay shadow, over a 62% scrim derived from the page background. Max
+ * width 560 unless the caller asks for more; a full-screen sheet below 600px.
+ */
 const ThemeProvider = SCThemeProvider as any
-import { lightTheme, darkTheme } from '../../contexts/theme-context'
 
 const Overlay = styled.div<{ $centered?: boolean }>`
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.62);
-  backdrop-filter: none;
+  inset: 0;
   z-index: 1000;
   display: flex;
   align-items: ${({ $centered }) => ($centered ? 'center' : 'flex-start')};
   justify-content: center;
-  padding: ${({ $centered }) => ($centered ? '0' : '100px 0')};
+  padding: ${({ $centered }) => ($centered ? '16px' : '64px 16px')};
   overflow: auto;
+  background: color-mix(in srgb, var(--color-bg) 62%, transparent);
+
+  @media (max-width: 599px) {
+    align-items: stretch;
+    padding: 0;
+  }
 `
 
 const ModalContent = styled.div<{ $width?: string | number }>`
-  background: var(--klerosUIComponentsWhiteBackground);
-  border: 1px solid var(--klerosUIComponentsStroke);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--v2-shadow-hover);
-  width: ${({ $width }) =>
-    typeof $width === 'number' ? `${$width}px` : $width};
-  max-width: calc(100vw - 32px);
   position: relative;
-  color: var(--v2-text);
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: min(
+    ${({ $width }) =>
+      typeof $width === 'number' ? `${$width}px` : $width || '560px'},
+    calc(100vw - 32px)
+  );
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+  color: var(--color-text);
+  outline: none;
+
+  @media (max-width: 599px) {
+    max-width: none;
+    min-height: 100dvh;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
 `
 
 const ModalHeader = styled.div`
-  padding: 20px 24px;
-  border-bottom: 1px solid var(--klerosUIComponentsStroke);
-  font-size: 18px;
+  padding: 16px 56px 16px 20px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-size: var(--fs-subheading);
+  line-height: var(--lh-subheading);
   font-weight: 600;
-  color: var(--v2-text);
-  letter-spacing: 0;
+  overflow-wrap: anywhere;
 `
 
 const ModalBody = styled.div`
-  padding: 24px;
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--v2-text);
+  padding: 20px;
+  color: var(--color-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+
+  @media (max-width: 599px) {
+    flex: 1;
+    overflow: auto;
+  }
 `
 
 const ModalFooter = styled.div`
-  padding: 16px 24px;
-  border-top: 1px solid var(--klerosUIComponentsStroke);
-  text-align: right;
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--color-border);
 `
 
 const CloseButton = styled.button`
+  ${ghostIconButton}
   position: absolute;
-  top: 20px;
-  right: 20px;
-  background: var(--klerosUIComponentsWhiteBackground);
-  border: 1px solid var(--klerosUIComponentsStroke);
-  cursor: pointer;
-  font-size: 16px;
-  color: var(--v2-muted);
-  padding: 0;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: var(--radius-sm);
-  transition: color 0.3s;
-
-  &:hover {
-    color: var(--v2-text);
-    border-color: var(--v2-blue);
-  }
+  top: 12px;
+  right: 12px;
+  z-index: 1;
+  width: 32px;
+  height: 32px;
 `
 
-const DefaultButton = styled.button`
-  padding: 10.5px 31px;
-  min-height: 46px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--klerosUIComponentsPrimaryBlue);
-  background: var(--klerosUIComponentsWhiteBackground);
-  color: var(--klerosUIComponentsPrimaryBlue);
-  cursor: pointer;
-  transition:
-    background var(--klerosUIComponentsTransitionSpeed),
-    transform var(--klerosUIComponentsTransitionSpeed);
-  font-size: 16px;
-  line-height: 22px;
+const ConfirmTitle = styled.div`
+  margin-bottom: 8px;
+  color: var(--color-text);
+  font-size: var(--fs-subheading);
+  line-height: var(--lh-subheading);
   font-weight: 600;
-  font-family: var(--font-sans);
-
-  &:hover {
-    color: var(--klerosUIComponentsPrimaryBlue);
-    border-color: var(--klerosUIComponentsPrimaryBlue);
-    background: var(--klerosUIComponentsMediumBlue);
-  }
-
-  &:active {
-    transform: scale(0.95);
-  }
 `
 
-const PrimaryButton = styled(DefaultButton)`
-  background: var(--klerosUIComponentsPrimaryBlue);
-  color: var(--klerosUIComponentsWhiteBackground);
-  border-color: var(--klerosUIComponentsPrimaryBlue);
-
-  &:hover {
-    background: var(--klerosUIComponentsSecondaryBlue);
-    border-color: var(--klerosUIComponentsSecondaryBlue);
-    color: var(--klerosUIComponentsWhiteBackground);
-  }
+const ConfirmText = styled.div`
+  color: var(--color-muted);
 `
 
 interface ModalProps {
@@ -157,7 +148,7 @@ const Modal: ModalComponent = ({
   footer,
   onCancel,
   onOk,
-  width = '520px',
+  width = '560px',
   closable = true,
   style,
   className,
@@ -186,6 +177,7 @@ const Modal: ModalComponent = ({
     if (visible) {
       document.addEventListener('keydown', handleKeyDown)
       document.body.style.overflow = 'hidden'
+      contentRef.current?.focus()
     }
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
@@ -198,8 +190,10 @@ const Modal: ModalComponent = ({
 
   const defaultFooter = (
     <>
-      <DefaultButton onClick={onCancel}>Cancel</DefaultButton>
-      <PrimaryButton onClick={onOk}>OK</PrimaryButton>
+      <Button onClick={onCancel}>Cancel</Button>
+      <Button type="primary" onClick={onOk}>
+        OK
+      </Button>
     </>
   )
 
@@ -211,17 +205,22 @@ const Modal: ModalComponent = ({
     >
       <ModalContent
         ref={contentRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={typeof title === 'string' ? title : undefined}
+        tabIndex={-1}
         $width={width}
         style={style}
-        className={`ui-modal-content${className ? ` ${className}` : ''}`}
+        className={joinClassNames('ui-modal-content', className)}
       >
         {closable && (
           <CloseButton
+            type="button"
             className="ui-modal-close"
             onClick={onCancel}
             aria-label="Close"
           >
-            &#x2715;
+            <KitIcon name="close" size={16} />
           </CloseButton>
         )}
         {title && (
@@ -230,7 +229,7 @@ const Modal: ModalComponent = ({
         <ModalBody className="ui-modal-body">{children}</ModalBody>
         {footer !== null && (
           <ModalFooter className="ui-modal-footer">
-            {footer !== undefined ? footer : defaultFooter}
+            {footer === undefined ? defaultFooter : footer}
           </ModalFooter>
         )}
       </ModalContent>
@@ -253,9 +252,14 @@ Modal.confirm = ({
   document.body.append(container)
   const root = createRoot(container)
 
-  // Detect current theme from document body attribute
+  // Follow the active theme from the body attribute
   const themeAttr = document.body.getAttribute('data-theme')
-  const theme = themeAttr === 'dark' ? darkTheme : lightTheme
+  const theme =
+    themeAttr === 'dark'
+      ? darkTheme
+      : themeAttr === 'kleros'
+        ? klerosTheme
+        : lightTheme
 
   const destroy = () => {
     root.unmount()
@@ -274,30 +278,24 @@ Modal.confirm = ({
 
   const ConfirmDialog = () => (
     <ThemeProvider theme={theme}>
-      <Overlay $centered onClick={handleCancel}>
+      <Overlay $centered onClick={handleCancel} className="ui-modal-mask">
         <ModalContent
+          role="alertdialog"
+          aria-modal="true"
+          aria-label={typeof title === 'string' ? title : undefined}
           $width="416px"
-          className="ui-modal-content"
+          className="ui-modal-content ui-modal-confirm"
           onClick={(e: React.MouseEvent) => e.stopPropagation()}
         >
           <ModalBody className="ui-modal-body">
-            {title && (
-              <div
-                style={{
-                  fontWeight: 600,
-                  fontSize: '18px',
-                  marginBottom: '8px',
-                  letterSpacing: '-0.01em',
-                }}
-              >
-                {title}
-              </div>
-            )}
-            {content && <div>{content}</div>}
+            {title && <ConfirmTitle>{title}</ConfirmTitle>}
+            {content && <ConfirmText>{content}</ConfirmText>}
           </ModalBody>
           <ModalFooter className="ui-modal-footer">
-            <DefaultButton onClick={handleCancel}>{cancelText}</DefaultButton>
-            <PrimaryButton onClick={handleOk}>{okText}</PrimaryButton>
+            <Button onClick={handleCancel}>{cancelText}</Button>
+            <Button type="primary" onClick={handleOk}>
+              {okText}
+            </Button>
           </ModalFooter>
         </ModalContent>
       </Overlay>

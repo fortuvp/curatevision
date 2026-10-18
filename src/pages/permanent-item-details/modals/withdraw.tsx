@@ -1,27 +1,31 @@
 import React, { useState } from 'react'
 import type { Address } from 'viem'
-import { Modal, Typography, Button, Alert } from 'components/ui'
-import styled from 'styled-components'
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
 import { simulateContract } from '@wagmi/core'
 import _gtcr from 'assets/abis/PermanentGTCR.json'
-import humanizeDuration from 'humanize-duration'
-import EnsureAuth from 'components/ensure-auth'
+import useNativeCurrency from 'hooks/native-currency'
+import useTokenSymbol from 'hooks/token-symbol'
+import { formatDurationLong } from 'utils/time'
 import { wrapWithToast, errorToast } from 'utils/wrap-with-toast'
 import { parseWagmiError } from 'utils/parse-wagmi-error'
 import { wagmiConfig } from 'config/wagmi'
+import { Body, Stack } from 'components/curate/primitives'
+import { WhatHappensNext } from 'components/curate/what-happens-next'
+import { Stepper, withdrawalSteps } from '../withdrawal-stepper'
+import {
+  GateHelper,
+  ModalShell,
+  nativeText,
+  tokenText,
+  useActionGate,
+} from './shell'
 
-export const StyledModal = styled(Modal)`
-  & > .ui-modal-content {
-    border-top-left-radius: 14px;
-    border-top-right-radius: 14px;
-  }
-`
-
-export const StyledAlert = styled(Alert)`
-  margin-bottom: 16px;
-  text-transform: initial;
-`
+/*
+ * Start withdrawing a Stake Curate item. Nothing is deposited: the submitter
+ * signs one transaction, waits the withdrawing period (during which the item
+ * can still be challenged), then anyone executes the withdrawal and the stake
+ * and arbitration deposit return.
+ */
 
 interface WithdrawModalProps {
   isOpen: boolean
@@ -42,6 +46,17 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({
   const publicClient = usePublicClient()
   const { data: walletClient } = useWalletClient()
   const [loading, setLoading] = useState(false)
+  const nativeCurrency = useNativeCurrency()
+  const { symbol: tokenSymbol, decimals: tokenDecimals } = useTokenSymbol(
+    registry?.token,
+  )
+  const gate = useActionGate('withdraw')
+
+  const submitter = item?.submitter as string | undefined
+  const isSubmitter =
+    !!account &&
+    !!submitter &&
+    account.toLowerCase() === submitter.toLowerCase()
 
   const handleStartWithdraw = async () => {
     if (!item || !registry || !walletClient || !publicClient) return
@@ -71,57 +86,72 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({
     }
   }
 
+  const periodSeconds = Number(registry?.withdrawingPeriod ?? Number.NaN)
+  const period =
+    periodSeconds > 0 ? formatDurationLong(periodSeconds) : undefined
+  const stakeText = tokenText(item?.stake || 0, tokenDecimals, tokenSymbol)
+  const deposit = item?.arbitrationDeposit as string | undefined
+  const depositText = deposit
+    ? nativeText(deposit, nativeCurrency)
+    : 'the arbitration deposit'
+  const returned = deposit ? `${stakeText} + ${depositText}` : stakeText
+
+  const blocker = !gate.ready
+    ? gate.blocker
+    : !isSubmitter
+      ? 'Only the submitter can withdraw'
+      : undefined
+
   return (
-    <StyledModal
-      title="Withdraw Item"
-      visible={isOpen}
-      onCancel={onCancel}
-      footer={null}
-      destroyOnClose
-    >
-      <StyledAlert
-        message="Warning"
-        description="Once you start the withdrawal process, this item will be removed from the registry after the withdrawal period. This action cannot be undone."
-        type="warning"
-        showIcon
-      />
-
-      {registry?.withdrawingPeriod && (
-        <StyledAlert
-          message="Withdrawal Timing"
-          description={`Withdrawing an item takes ${humanizeDuration(
-            Number(registry.withdrawingPeriod) * 1000,
-          )}. After starting the withdrawal, you must wait for this period to complete before the item is permanently removed from the registry.`}
-          type="info"
-          showIcon
+    <ModalShell open={isOpen} title={`Withdraw ${itemName}`} onClose={onCancel}>
+      <Stack $gap={16}>
+        <Body $muted>
+          Withdrawing takes the {itemName} off the list for good and returns
+          what backs it. It cannot be undone once started.
+        </Body>
+        <Stepper
+          label="Withdrawal steps"
+          steps={withdrawalSteps('listed', {
+            withdraw: 'One transaction, signed by the submitter.',
+            withdrawing: period
+              ? `${period}. The ${itemName} stays listed and can still be challenged.`
+              : `The ${itemName} stays listed and can still be challenged.`,
+            execute: `Anyone can execute it. ${returned} return to the submitter.`,
+          })}
         />
-      )}
-
-      <Typography.Paragraph>
-        Are you sure you want to withdraw &quot;{itemName}&quot; from the
-        registry? This will initiate the withdrawal period after which the item
-        will be permanently removed.
-      </Typography.Paragraph>
-
-      <div style={{ textAlign: 'right', marginTop: 24 }}>
-        <Button
-          style={{ marginRight: 8 }}
-          onClick={onCancel}
-          disabled={loading}
-        >
-          Back
-        </Button>
-        <EnsureAuth>
-          <Button
-            type="primary"
-            onClick={handleStartWithdraw}
-            loading={loading}
-          >
-            Start Withdraw
-          </Button>
-        </EnsureAuth>
-      </div>
-    </StyledModal>
+        <WhatHappensNext
+          receipt={[
+            {
+              label: period
+                ? `Returned after ${period}`
+                : 'Returned after the withdrawing period',
+              value: returned,
+            },
+          ]}
+          total="gas only"
+          steps={[
+            {
+              title: 'You start the withdrawal',
+              body: 'No deposit leaves your wallet. The withdrawing period starts with this transaction.',
+            },
+            {
+              title: period ? `Withdrawing for ${period}` : 'Withdrawing',
+              body: `The ${itemName} stays listed with its ${stakeText} at stake. A challenger can still open a dispute; if the jurors keep the ${itemName}, it is withdrawn at that moment instead.`,
+            },
+            {
+              title: 'Execute withdrawal',
+              body: `Once the period is over, you or anyone else executes it and ${returned} go back to the submitter.`,
+            },
+          ]}
+          confirmLabel="Start withdrawal"
+          onConfirm={handleStartWithdraw}
+          confirmDisabled={Boolean(blocker)}
+          confirmBlocker={blocker}
+          loading={loading}
+        />
+        <GateHelper gate={gate} />
+      </Stack>
+    </ModalShell>
   )
 }
 

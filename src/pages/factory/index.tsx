@@ -1,40 +1,64 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import styled from 'styled-components'
-import { Button, Card, Modal } from 'components/ui'
+import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { useDebounce } from 'use-debounce'
+import { ethers } from 'ethers'
+import { ItemTypes } from '@kleros/gtcr-encoder'
+import _GTCRFactory from 'assets/abis/LightGTCRFactory.json'
 import { useWeb3Context } from 'hooks/use-web3-context'
 import useUrlChainId from 'hooks/use-url-chain-id'
-import { ethers } from 'ethers'
-import _GTCRFactory from 'assets/abis/LightGTCRFactory.json'
-import TCRParams, { FactorySection } from './tcr-params'
-import ItemParams from './item-params'
-import Deploy from './deploy'
-import StyledLayoutContent from '../layout-content'
+import useDocumentHead from 'hooks/use-document-head'
+import { fetchMetaEvidence } from 'hooks/light-tcr-view'
+import { parseIpfs } from 'utils/ipfs-parse'
 import { version } from '../../../package.json'
-import { ItemTypes } from '@kleros/gtcr-encoder'
-import RelTCRParams from './rel-tcr-params'
-import TCRCardContent from 'components/tcr-card-content'
 import {
   defaultArbitrator as defaultArbitratorAddresses,
   defaultArbitratorExtraData as defaultArbitratorExtraDataObj,
   defaultGovernor as defaultGovernorAddresses,
 } from 'config/tcr-addresses'
+import { NETWORKS_INFO } from 'config/networks'
 import { CurateIcon } from 'components/curate/icons'
+import { Explainer } from 'components/curate/explainer'
 import {
-  FactoryActionGroup,
-  FactoryActions,
-  FactoryCreateLabel,
-  FactoryDeploymentGrid,
-  FactoryDeploymentsCard,
-  FactoryDeploymentsHeader,
-  FactoryHeroImage,
-  FactoryPageShell,
+  Body,
+  Button,
+  ChainChip,
+  Data,
+  EmptyState,
+  Label,
+  ListRow,
+  Page,
+  PanelHeader,
+  PanelTitle,
+  Row,
+  Section,
+  SegmentedControl,
+  SkeletonBlock,
+  Small,
+  Stack,
+  Statement,
+  Surface,
+  Title,
+  truncateMiddle,
+} from 'components/curate/primitives'
+import {
   FactoryStepTimeline,
   FactoryWizardGrid,
-  FactoryWorkArea,
 } from 'components/curate/v2-factory-shell'
+import TCRParams from './tcr-params'
+import ItemParams from './item-params'
+import RelTCRParams from './rel-tcr-params'
+import Deploy from './deploy'
+import type { FactorySection } from './schemas'
 
-const { confirm } = Modal
+/*
+ * /factory/:chainId, the Standard (Light Curate) list wizard: the page's
+ * statement, one explainer, the step timeline, the current step's form and
+ * the action bar (Next submits the step's form, so its schema runs), then
+ * the lists deployed from this browser. The wizard state is cached per
+ * chain and app version in localStorage, as before.
+ */
 
 export interface TransactionInfo {
   txHash: string
@@ -111,94 +135,23 @@ export interface StepProps extends CachedFactory {
 export const LIGHT_FACTORY_STEPS = [
   {
     title: 'List',
-    description: '',
+    description: 'Name, description, logo and policy.',
     subitems: ['Name', 'Description', 'Logo', 'Policy'],
   },
   {
     title: 'Item',
-    description: '',
-    subitems: ['Deposit', 'Fields', 'Preview', 'Custom'],
+    description: 'Deposit, fields, preview and item name.',
+    subitems: ['Deposit', 'Fields', 'Preview', 'Item name'],
   },
   {
-    title: 'Advanced',
-    description: 'Badges, governor, and court.',
+    title: 'Badges',
+    description: 'An optional list of connected lists.',
   },
   {
     title: 'Deploy',
-    description: 'Review the generated transactions and publish the list.',
+    description: 'Review, then sign one transaction.',
   },
 ]
-
-export const StyledButtonGroup = styled(Button.Group)`
-  &.ui-btn-group {
-    margin-left: 12px;
-  }
-`
-
-export const StyledStepper = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: flex-end;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 14px;
-  border: 1px solid var(--v2-stroke);
-  border-radius: var(--radius-sm);
-  background: var(--v2-card);
-  box-shadow: var(--v2-shadow);
-`
-export const StyledContainer = styled.div`
-  margin: 32px 0;
-  word-break: break-word;
-`
-
-export const StyledBanner = styled.div`
-  width: calc(100% - var(--horizontal-padding) * 2);
-  max-width: 1440px;
-  margin: 24px auto 0;
-  padding: clamp(24px, 4vw, 42px);
-  background: var(--v2-card);
-  border: 1px solid var(--v2-stroke);
-  border-top: 5px solid var(--v2-purple);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--v2-shadow);
-  color: var(--v2-text);
-  transition:
-    background 0.3s ease,
-    box-shadow 0.3s ease,
-    color 0.3s ease;
-  position: relative;
-  overflow: hidden;
-
-  &::before {
-    content: none;
-  }
-`
-
-export const StyledGrid = styled.div`
-  display: grid;
-  margin: 24px 0;
-  grid-gap: 20px;
-  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
-`
-
-export const StyledTitle = styled.h1`
-  position: relative;
-  margin: 0;
-  max-width: 900px;
-  font-size: clamp(30px, 4.8vw, 48px);
-  line-height: 1.12;
-  font-weight: 600;
-  color: var(--v2-text);
-`
-
-export const StyledSubtitle = styled.h3`
-  margin-bottom: 16px;
-  font-size: var(--font-size-section-title);
-  font-weight: 600;
-  color: var(--v2-muted);
-`
 
 export const formIds = [
   'tcrParamsForm',
@@ -213,6 +166,7 @@ type LightFactoryVisualStep = {
   groupStep: number
   kind: 'tcr' | 'item' | 'rel' | 'deploy'
   section?: FactorySection
+  itemSection?: 'fields' | 'preview'
 }
 
 const LIGHT_FACTORY_VISUAL_STEPS: LightFactoryVisualStep[] = [
@@ -251,42 +205,35 @@ const LIGHT_FACTORY_VISUAL_STEPS: LightFactoryVisualStep[] = [
     kind: 'tcr',
     section: 'deposit',
   },
-  { title: 'Fields', componentStep: 2, groupStep: 2, kind: 'item' },
-  { title: 'Preview', componentStep: 2, groupStep: 2, kind: 'item' },
   {
-    title: 'Custom',
+    title: 'Fields',
+    componentStep: 2,
+    groupStep: 2,
+    kind: 'item',
+    itemSection: 'fields',
+  },
+  {
+    title: 'Preview',
+    componentStep: 2,
+    groupStep: 2,
+    kind: 'item',
+    itemSection: 'preview',
+  },
+  {
+    title: 'Item name',
     componentStep: 1,
     groupStep: 2,
     kind: 'tcr',
     section: 'custom',
   },
-  { title: 'Advanced', componentStep: 3, groupStep: 3, kind: 'rel' },
+  { title: 'Badges', componentStep: 3, groupStep: 3, kind: 'rel' },
   { title: 'Deploy', componentStep: 4, groupStep: 4, kind: 'deploy' },
 ]
 
-export const CurrentStep = (
-  props: CachedFactory & { postSubmit: () => void },
-) => (
-  <>
-    {(() => {
-      const {
-        tcrState: { currStep },
-      } = props
-      switch (currStep) {
-        case 1:
-          return <TCRParams formId={formIds[currStep]} {...props} />
-        case 2:
-          return <ItemParams formId={formIds[currStep]} {...props} />
-        case 3:
-          return <RelTCRParams formId={formIds[currStep]} {...props} />
-        case 4:
-          return <Deploy formId={formIds[currStep]} {...props} />
-        default:
-          throw new Error('Unknown step')
-      }
-    })()}
-  </>
-)
+const LAST_STEP = LIGHT_FACTORY_VISUAL_STEPS.length - 1
+const ONE_DAY = 24 * 60 * 60 * 1000
+
+/* ---------- Cached wizard state ---------- */
 
 const useCachedFactory = (
   version: string,
@@ -457,12 +404,124 @@ const useCachedFactory = (
   }
 }
 
+/* ---------- Layout ---------- */
+
+const Hero = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px 24px;
+`
+
+const HeroCopy = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+`
+
+const ActionBar = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+
+  @media (max-width: 720px) {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin: 0 calc(-1 * var(--horizontal-padding));
+    padding: 12px var(--horizontal-padding)
+      calc(12px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--color-border);
+    background: var(--color-surface);
+  }
+`
+
+const DeploymentList = styled(Surface)`
+  overflow: hidden;
+`
+
+const RowCopy = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+`
+
+/* ---------- Previous deployments ---------- */
+
+const DeploymentRow = ({
+  address,
+  chainId,
+}: {
+  address: string
+  chainId: number
+}) => {
+  const { data, isLoading } = useQuery({
+    queryKey: ['factoryDeployment', chainId, address.toLowerCase()],
+    queryFn: async () => {
+      const found = await fetchMetaEvidence(address, chainId)
+      if (!found) return null
+      const response = await fetch(parseIpfs(found.metaEvidenceURI))
+      return (await response.json()) as MetaEvidence
+    },
+    staleTime: ONE_DAY,
+  })
+  const title = data?.metadata?.tcrTitle ?? data?.title
+
+  return (
+    <ListRow to={`/tcr/${chainId}/${address}`}>
+      <RowCopy>
+        {isLoading ? (
+          <SkeletonBlock $height="18px" $width="40%" />
+        ) : (
+          <Title>{title || 'Untitled list'}</Title>
+        )}
+        <Data $muted title={address}>
+          {truncateMiddle(address, 10, 8)}
+        </Data>
+      </RowCopy>
+      <CurateIcon
+        name="chevron-down"
+        size={16}
+        style={{ transform: 'rotate(-90deg)' }}
+        aria-hidden
+      />
+    </ListRow>
+  )
+}
+
+/** The parent list address from a deploy receipt: the second NewGTCR event. */
+const deployedAddressFromLogs = (
+  logs: ethers.providers.Log[],
+  factoryInterface: ethers.utils.Interface,
+): string | undefined => {
+  const addresses: string[] = []
+  for (const log of logs)
+    try {
+      const parsed = factoryInterface.parseLog(log)
+      if (parsed.name === 'NewGTCR' && typeof parsed.args._address === 'string')
+        addresses.push(parsed.args._address)
+    } catch {
+      // Not a factory event.
+    }
+
+  return addresses[1] ?? addresses[0]
+}
+
+/* ---------- Page ---------- */
+
 const FactoryPage = () => {
   const urlChainId = useUrlChainId()
+  const navigate = useNavigate()
   const { library, active } = useWeb3Context()
   const factoryChainId = urlChainId ?? undefined
   const cachedFactory = useCachedFactory(version, factoryChainId)
   const [previousDeployments, setPreviousDeployments] = useState<string[]>([])
+  const [confirmingReset, setConfirmingReset] = useState(false)
   const tcrState = cachedFactory?.tcrState
   const setTcrState = cachedFactory?.setTcrState
   const resetTcrState = cachedFactory?.resetTcrState
@@ -470,29 +529,33 @@ const FactoryPage = () => {
 
   const transactions = tcrState?.transactions
   const currentVisualStep = LIGHT_FACTORY_VISUAL_STEPS[visualStepIndex]
+  const chainName = factoryChainId
+    ? (NETWORKS_INFO[factoryChainId as keyof typeof NETWORKS_INFO]?.name ??
+      `chain ${factoryChainId}`)
+    : undefined
+  const supportedChain =
+    factoryChainId !== undefined && !!defaultArbitratorAddresses[factoryChainId]
+
+  useDocumentHead(
+    'Create a list | Kleros Curate',
+    'Create a Standard Kleros Curate list: name it, set the deposits and the court, define the item fields and deploy it with one transaction.',
+  )
 
   const factoryInterface = useMemo(
     () => new ethers.utils.Interface(_GTCRFactory),
     [],
   )
 
-  const showConfirmReset = useCallback(() => {
-    confirm({
-      title: 'Are you sure?',
-      content: 'This will clear all fields and reset the wizard to step 1',
-      okText: 'Yes, start over',
-      onOk: () => {
-        resetTcrState?.()
-        setVisualStepIndex(0)
-      },
-    })
-  }, [resetTcrState])
-
   const goToVisualStep = useCallback((nextIndex: number) => {
-    setVisualStepIndex(
-      Math.max(0, Math.min(LIGHT_FACTORY_VISUAL_STEPS.length - 1, nextIndex)),
-    )
+    setVisualStepIndex(Math.max(0, Math.min(LAST_STEP, nextIndex)))
+    setConfirmingReset(false)
   }, [])
+
+  const startOver = useCallback(() => {
+    resetTcrState?.()
+    setVisualStepIndex(0)
+    setConfirmingReset(false)
+  }, [resetTcrState])
 
   useEffect(() => {
     if (!setTcrState || !currentVisualStep) return
@@ -505,26 +568,38 @@ const FactoryPage = () => {
 
   // Fetch previously deployed list information
   useEffect(() => {
+    let cancelled = false
     ;(async () => {
       if (!cachedFactory) return
       if (!transactions || Object.keys(transactions).length === 0) return
-      if (!library || !active || !factoryInterface) return
 
-      const deploymentTxHashes = Object.keys(transactions)
-        .filter((txHash) => transactions[txHash].networkId === factoryChainId)
-        .filter((txHash) => !transactions[txHash].isConnectedTCR)
+      const deployments = Object.values(transactions).filter(
+        (tx) =>
+          !tx.isConnectedTCR &&
+          (tx.networkId === undefined || tx.networkId === factoryChainId),
+      )
 
-      const txDatas = await Promise.all(
-        deploymentTxHashes.map(async (txHash) =>
-          library.waitForTransaction(txHash),
-        ),
+      const addresses = await Promise.all(
+        deployments.map(async (tx) => {
+          if (tx.contractAddress) return tx.contractAddress
+          if (!library || !active) return undefined
+          try {
+            const receipt = await library.waitForTransaction(tx.txHash)
+            return deployedAddressFromLogs(receipt.logs, factoryInterface)
+          } catch (err) {
+            console.warn('Could not read a previous deployment', err)
+            return undefined
+          }
+        }),
       )
-      setPreviousDeployments(
-        txDatas.map(
-          (txData) => factoryInterface.parseLog(txData.logs[7]).args._address,
-        ),
-      )
+      if (!cancelled)
+        setPreviousDeployments(
+          addresses.filter((address): address is string => !!address),
+        )
     })()
+    return () => {
+      cancelled = true
+    }
   }, [
     active,
     cachedFactory,
@@ -534,17 +609,74 @@ const FactoryPage = () => {
     transactions,
   ])
 
+  const header = (
+    <Hero>
+      <HeroCopy>
+        <Row $gap={8} $wrap>
+          <Label>Launch a list</Label>
+          {factoryChainId !== undefined && (
+            <ChainChip chainId={factoryChainId} />
+          )}
+        </Row>
+        <Statement>Create a Standard list.</Statement>
+        <Body $muted $large>
+          Describe the list, set the deposits and the item fields, then deploy
+          it with one transaction. Your progress is saved in this browser.
+        </Body>
+      </HeroCopy>
+      <SegmentedControl
+        ariaLabel="List type"
+        value="light"
+        options={[
+          { value: 'light', label: 'Standard' },
+          { value: 'permanent', label: 'Stake' },
+        ]}
+        onChange={(value) => {
+          if (value === 'permanent')
+            navigate(`/factory-permanent/${factoryChainId ?? ''}`)
+        }}
+      />
+    </Hero>
+  )
+
   if (!cachedFactory || !cachedFactory.tcrState.arbitratorAddress)
     return (
-      <>
-        <StyledBanner>
-          <StyledTitle>Loading factory...</StyledTitle>
-        </StyledBanner>
-        <StyledLayoutContent>
-          <StyledSubtitle>Fetching factory configuration...</StyledSubtitle>
-        </StyledLayoutContent>
-      </>
+      <Page>
+        {header}
+        <Section>
+          {factoryChainId !== undefined && !supportedChain ? (
+            <Surface $padding="none">
+              <EmptyState
+                icon="factory"
+                title={`Lists cannot be created on ${chainName}`}
+                action={null}
+              >
+                No default arbitrator is configured for this chain. Pick another
+                chain from the launch page.
+              </EmptyState>
+            </Surface>
+          ) : (
+            <FactoryWizardGrid aria-busy>
+              <Stack $gap={12}>
+                {[0, 1, 2, 3].map((index) => (
+                  <SkeletonBlock key={index} $height="24px" $width="70%" />
+                ))}
+              </Stack>
+              <Surface $padding="standard">
+                <Stack $gap={20}>
+                  <SkeletonBlock $height="24px" $width="40%" />
+                  <SkeletonBlock $height="40px" />
+                  <SkeletonBlock $height="40px" />
+                </Stack>
+              </Surface>
+            </FactoryWizardGrid>
+          )}
+        </Section>
+      </Page>
     )
+
+  const currentFormId = formIds[currentVisualStep.componentStep - 1]
+  const isLast = visualStepIndex === LAST_STEP
 
   const renderVisualStep = () => {
     switch (currentVisualStep.kind) {
@@ -552,7 +684,7 @@ const FactoryPage = () => {
         return (
           <TCRParams
             key={`${factoryChainId}-${visualStepIndex}`}
-            formId={formIds[0]}
+            formId={currentFormId}
             factorySection={currentVisualStep.section}
             postSubmit={() => goToVisualStep(visualStepIndex + 1)}
             {...cachedFactory}
@@ -562,7 +694,8 @@ const FactoryPage = () => {
         return (
           <ItemParams
             key={`${factoryChainId}-${visualStepIndex}`}
-            formId={formIds[1]}
+            formId={currentFormId}
+            section={currentVisualStep.itemSection}
             postSubmit={() => goToVisualStep(visualStepIndex + 1)}
             {...cachedFactory}
           />
@@ -571,17 +704,16 @@ const FactoryPage = () => {
         return (
           <RelTCRParams
             key={`${factoryChainId}-${visualStepIndex}`}
-            formId={formIds[2]}
+            formId={currentFormId}
             postSubmit={() => goToVisualStep(visualStepIndex + 1)}
             {...cachedFactory}
-            nextStep={() => goToVisualStep(visualStepIndex + 1)}
           />
         )
       case 'deploy':
         return (
           <Deploy
             key={`${factoryChainId}-${visualStepIndex}`}
-            formId={formIds[3]}
+            formId={currentFormId}
             {...cachedFactory}
           />
         )
@@ -591,79 +723,129 @@ const FactoryPage = () => {
   }
 
   return (
-    <>
-      <FactoryHeroImage />
-      <FactoryCreateLabel>Create a List</FactoryCreateLabel>
-      <StyledLayoutContent>
-        <FactoryPageShell>
-          <FactoryWizardGrid>
-            <FactoryStepTimeline
-              currentStep={currentVisualStep.groupStep}
-              steps={LIGHT_FACTORY_STEPS}
-            />
-            <div>
-              <FactoryWorkArea>{renderVisualStep()}</FactoryWorkArea>
-              <FactoryActions>
+    <Page>
+      {header}
+
+      <Section $gap="sm">
+        <Explainer
+          id="factory"
+          eyebrow="Before you start"
+          heading="What a list needs"
+          steps={[
+            {
+              title: 'A description and a policy',
+              body: 'A name, a one-line description, a logo and the listing policy: the PDF jurors and challengers use to judge every item.',
+            },
+            {
+              title: 'Deposits, a court and fields',
+              body: 'What a submitter locks while the challenge period runs, which Kleros court rules on disputes, and the fields each item has.',
+            },
+            {
+              title: 'One transaction',
+              body: 'Deploying sends two batched calls to the factory and costs gas only. Deposits are paid by submitters later.',
+            },
+          ]}
+        />
+      </Section>
+
+      <Section>
+        <FactoryWizardGrid>
+          <FactoryStepTimeline
+            currentStep={currentVisualStep.groupStep}
+            steps={LIGHT_FACTORY_STEPS}
+            activeSubitem={currentVisualStep.title}
+          />
+          <Stack $gap={16}>
+            <Surface $padding="standard">
+              <Stack $gap={16}>
+                <Label>
+                  Step {visualStepIndex + 1} of{' '}
+                  {LIGHT_FACTORY_VISUAL_STEPS.length} ·{' '}
+                  {LIGHT_FACTORY_STEPS[currentVisualStep.groupStep - 1].title}
+                </Label>
+                {renderVisualStep()}
+              </Stack>
+            </Surface>
+
+            {confirmingReset && (
+              <Surface
+                $padding="compact"
+                $raised
+                role="alertdialog"
+                aria-label="Start over?"
+              >
+                <Stack $gap={12}>
+                  <Body>
+                    Clear every field and go back to the first step? Previous
+                    deployments are kept.
+                  </Body>
+                  <Row $gap={8} $wrap>
+                    <Button type="button" $variant="danger" onClick={startOver}>
+                      Start over
+                    </Button>
+                    <Button
+                      type="button"
+                      $variant="ghost"
+                      onClick={() => setConfirmingReset(false)}
+                    >
+                      Keep editing
+                    </Button>
+                  </Row>
+                </Stack>
+              </Surface>
+            )}
+
+            <ActionBar>
+              <Button
+                type="button"
+                $variant="ghost"
+                onClick={() => setConfirmingReset(true)}
+              >
+                Start over
+              </Button>
+              <Row $gap={8}>
                 <Button
-                  onClick={showConfirmReset}
-                  icon={<CurateIcon name="remove" size={16} />}
+                  type="button"
+                  $variant="secondary"
+                  disabled={visualStepIndex === 0}
+                  onClick={() => goToVisualStep(visualStepIndex - 1)}
                 >
-                  Reset
+                  Previous
                 </Button>
-                <FactoryActionGroup>
-                  <Button
-                    onClick={() => goToVisualStep(visualStepIndex - 1)}
-                    type="primary"
-                    disabled={visualStepIndex === 0}
-                  >
-                    <CurateIcon
-                      name="chevron-down"
-                      size={16}
-                      style={{ transform: 'rotate(90deg)' }}
-                    />
-                    Previous
-                  </Button>
-                  <Button
-                    onClick={() => goToVisualStep(visualStepIndex + 1)}
-                    type="primary"
-                    disabled={
-                      visualStepIndex === LIGHT_FACTORY_VISUAL_STEPS.length - 1
-                    }
-                  >
+                {!isLast && (
+                  <Button type="submit" form={currentFormId} $variant="primary">
                     Next
-                    <CurateIcon
-                      name="chevron-down"
-                      size={16}
-                      style={{ transform: 'rotate(-90deg)' }}
-                    />
                   </Button>
-                </FactoryActionGroup>
-              </FactoryActions>
+                )}
+              </Row>
+            </ActionBar>
+          </Stack>
+        </FactoryWizardGrid>
+      </Section>
+
+      {previousDeployments.length > 0 && factoryChainId !== undefined && (
+        <Section>
+          <PanelHeader>
+            <div>
+              <PanelTitle>Previous deployments</PanelTitle>
+              <Small $muted>
+                Lists deployed from this browser on {chainName}.
+              </Small>
             </div>
-          </FactoryWizardGrid>
-        </FactoryPageShell>
-        {previousDeployments.length > 0 && (
-          <FactoryDeploymentsCard>
-            <FactoryDeploymentsHeader>
-              <div>
-                <h2>Previous deployments</h2>
-                <span>Lists deployed from this browser and network.</span>
-              </div>
-            </FactoryDeploymentsHeader>
-            <FactoryDeploymentGrid>
-              {previousDeployments.map((contractAddress, i) => (
-                <Card key={i}>
-                  <TCRCardContent
-                    tcrAddress={contractAddress}
-                    hideDetailsButton
-                  />
-                </Card>
-              ))}
-            </FactoryDeploymentGrid>
-          </FactoryDeploymentsCard>
-        )}
-      </StyledLayoutContent>
-    </>
+          </PanelHeader>
+          <DeploymentList $padding="none">
+            {previousDeployments.map((contractAddress) => (
+              <DeploymentRow
+                key={contractAddress}
+                address={contractAddress}
+                chainId={factoryChainId}
+              />
+            ))}
+          </DeploymentList>
+        </Section>
+      )}
+    </Page>
   )
 }
+
 export default FactoryPage

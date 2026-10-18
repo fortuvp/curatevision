@@ -1,27 +1,31 @@
 import React, { useState } from 'react'
-import styled, { keyframes } from 'styled-components'
-import { Typography, Avatar, Checkbox } from 'components/ui'
-import GTCRAddress from './gtcr-address'
+import styled from 'styled-components'
+import { Typography } from 'components/ui'
 import { ItemTypes } from '@kleros/gtcr-encoder'
-import { ZERO_ADDRESS } from '../utils/string'
+import { parseIpfs } from 'utils/ipfs-parse'
+import { isSafeNavigationUrl } from 'utils/url-validation'
+import { useAttachment } from 'hooks/use-attachment'
+import { buttonReset } from 'styles/button-reset'
+import { Data, SkeletonBlock, Small } from 'components/curate/primitives'
+import GTCRAddress from './gtcr-address'
 import RichAddress from './rich-address'
 import ETHAddress from './eth-address'
 import LongText from './long-text'
 import FileDisplay from './file-display'
 import TruncatedLink from './truncated-link'
-import { parseIpfs } from 'utils/ipfs-parse'
-import { isSafeNavigationUrl } from 'utils/url-validation'
-import { useAttachment } from 'hooks/use-attachment'
-import { buttonReset } from 'styles/button-reset'
+
+/*
+ * Renders one entry field by its MetaEvidence type. Empty values show a
+ * faint placeholder; nothing is substituted for data the entry does not have.
+ */
 
 const StyledLink = styled.a`
-  text-decoration: underline;
-  color: inherit;
-  transition: opacity 0.2s ease;
+  color: var(--color-primary);
+  text-decoration: none;
+  overflow-wrap: anywhere;
 
   &:hover {
-    opacity: 0.7;
-    color: inherit;
+    text-decoration: underline;
   }
 `
 
@@ -30,52 +34,58 @@ const ImageLinkButton = styled.button`
   display: inline-flex;
   align-items: center;
   vertical-align: middle;
-  transition: opacity 0.2s ease;
+  border-radius: var(--radius);
+  transition: opacity var(--motion);
 
   &:hover {
     opacity: 0.85;
   }
 `
 
-const pohRichAddress = 'eip155:1:0xc5e9ddebb09cd64dfacab4011a0d5cedaf7c9bdb'
-
-const StyledImage = styled.img`
-  object-fit: contain;
-  height: 100px;
-  width: 100px;
-  padding: 5px;
-`
-
-const shimmer = keyframes`
-  0% { background-position: -400px 0; }
-  100% { background-position: 400px 0; }
-`
-
-const ImageContainer = styled.div`
+const ImageFrame = styled.div`
   display: inline-flex;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
   width: 100px;
   height: 100px;
   vertical-align: middle;
 `
 
-const ImageSkeleton = styled.div`
-  width: 100px;
-  height: 100px;
-  display: flex;
+const ImagePlaceholder = styled.span`
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(
-    90deg,
-    ${({ theme }) => theme.skeletonBase} 25%,
-    ${({ theme }) => theme.skeletonHighlight} 50%,
-    ${({ theme }) => theme.skeletonBase} 75%
-  );
-  background-size: 400px 100%;
-  animation: ${shimmer} 1.4s ease infinite;
-  border-radius: 50%;
+  width: 100px;
+  height: 100px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-raised);
+  color: var(--color-faint);
 `
+
+const StyledImage = styled.img`
+  width: 100px;
+  height: 100px;
+  padding: 4px;
+  border-radius: var(--radius);
+  object-fit: contain;
+`
+
+const ImageIcon = () => (
+  <svg
+    width="20"
+    height="20"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    aria-hidden="true"
+  >
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <circle cx="9" cy="10" r="1.5" />
+    <path d="m21 16-5-5-8 8" />
+  </svg>
+)
 
 interface ImageWithLoadingProps {
   src: string
@@ -90,16 +100,16 @@ const ImageWithLoading = ({ src, alt, linkImage }: ImageWithLoadingProps) => {
 
   if (error)
     return (
-      <ImageContainer>
-        <ImageSkeleton style={{ animation: 'none' }}>
-          <Avatar shape="square" size="large" icon="file-image" />
-        </ImageSkeleton>
-      </ImageContainer>
+      <ImageFrame>
+        <ImagePlaceholder title="Image could not be loaded">
+          <ImageIcon />
+        </ImagePlaceholder>
+      </ImageFrame>
     )
 
   const content = (
-    <ImageContainer>
-      {loading && <ImageSkeleton />}
+    <ImageFrame>
+      {loading && <SkeletonBlock $width="100px" $height="100px" />}
       <StyledImage
         src={src}
         alt={alt}
@@ -110,12 +120,16 @@ const ImageWithLoading = ({ src, alt, linkImage }: ImageWithLoadingProps) => {
           setError(true)
         }}
       />
-    </ImageContainer>
+    </ImageFrame>
   )
 
   if (linkImage)
     return (
-      <ImageLinkButton onClick={() => openAttachment(src)}>
+      <ImageLinkButton
+        type="button"
+        aria-label="Open image"
+        onClick={() => openAttachment(src)}
+      >
         {content}
       </ImageLinkButton>
     )
@@ -144,31 +158,42 @@ const DisplaySelector = ({
 }: DisplaySelectorProps) => {
   switch (type) {
     case ItemTypes.GTCR_ADDRESS:
-      return (
-        <GTCRAddress
-          address={String(value || ZERO_ADDRESS)}
-          disabled={disabled}
-        />
+      return value ? (
+        <GTCRAddress address={String(value)} disabled={disabled} />
+      ) : (
+        <Small $faint>No address</Small>
       )
     case ItemTypes.ADDRESS:
-      return <ETHAddress address={String(value || ZERO_ADDRESS)} />
+      return value ? (
+        <ETHAddress address={String(value)} />
+      ) : (
+        <Small $faint>No address</Small>
+      )
     case ItemTypes.RICH_ADDRESS:
-      return <RichAddress crude={String(value || pohRichAddress)} />
+      return value ? (
+        <RichAddress crude={String(value)} />
+      ) : (
+        <Small $faint>No address</Small>
+      )
     case ItemTypes.TEXT:
-    case ItemTypes.NUMBER:
       return <Typography.Text>{value}</Typography.Text>
+    case ItemTypes.NUMBER:
+      return value === null || value === undefined ? (
+        <Small $faint>No value</Small>
+      ) : (
+        <Data>{String(value)}</Data>
+      )
     case ItemTypes.BOOLEAN:
-      return <Checkbox disabled checked={value === 'true'} />
+      return <Data>{String(value) === 'true' ? 'Yes' : 'No'}</Data>
     case ItemTypes.LONG_TEXT:
       return <LongText value={value ? String(value) : null} />
-    case ItemTypes.FILE: {
+    case ItemTypes.FILE:
       return (
         <FileDisplay
           value={value ? String(value) : null}
           allowedFileTypes={allowedFileTypes}
         />
       )
-    }
     case ItemTypes.IMAGE:
       return value ? (
         <ImageWithLoading
@@ -177,9 +202,10 @@ const DisplaySelector = ({
           linkImage={linkImage}
         />
       ) : (
-        <Avatar shape="square" size="large" icon="file-image" />
+        <Small $faint>No image</Small>
       )
     case ItemTypes.LINK: {
+      if (!value) return <Small $faint>No link</Small>
       const fullUrl = protocolRegex.test(String(value))
         ? String(value)
         : `https://${value}`
@@ -188,16 +214,12 @@ const DisplaySelector = ({
       if (truncateLinks) return <TruncatedLink url={fullUrl} />
       return (
         <StyledLink href={fullUrl} target="_blank" rel="noopener noreferrer">
-          <Typography.Text>{value}</Typography.Text>
+          {value}
         </StyledLink>
       )
     }
     default:
-      return (
-        <Typography.Paragraph>
-          Error: Unhandled Type {type} for data {value}
-        </Typography.Paragraph>
-      )
+      return <Small $faint>Unsupported field type: {type}</Small>
   }
 }
 

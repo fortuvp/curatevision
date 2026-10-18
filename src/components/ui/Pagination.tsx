@@ -1,11 +1,14 @@
 import React, { useState, useCallback, useMemo } from 'react'
 import styled, { css } from 'styled-components'
+import { KitIcon } from './kit-icons'
+import { joinClassNames, monoData } from './kit-styles'
 
+/* Pagination: 32px ghost buttons in mono; the current page in the action color. */
 const Wrapper = styled.nav`
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 4px;
-  font-size: 14px;
   user-select: none;
 `
 
@@ -15,24 +18,25 @@ const pageButtonBase = css`
   justify-content: center;
   min-width: 32px;
   height: 32px;
-  padding: 0 6px;
-  border: 1px solid ${({ theme }) => theme.borderColor};
-  border-radius: 4px;
-  background: ${({ theme }) => theme.componentBackground};
-  color: ${({ theme }) => theme.textPrimary};
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-muted);
+  ${monoData}
   cursor: pointer;
-  transition: all 0.2s;
-  font-size: 14px;
-  line-height: 1;
+  transition:
+    background var(--motion),
+    color var(--motion);
 
   &:hover:not(:disabled):not(.active) {
-    color: ${({ theme }) => theme.primaryColor};
-    border-color: ${({ theme }) => theme.primaryColor};
+    color: var(--color-text);
+    background: var(--color-raised);
   }
 
   &:disabled {
     cursor: not-allowed;
-    opacity: 0.5;
+    opacity: 0.45;
   }
 `
 
@@ -40,10 +44,8 @@ const PageButton = styled.button`
   ${pageButtonBase}
 
   &.active {
-    color: ${({ theme }) => theme.textOnPrimary};
-    background: ${({ theme }) => theme.primaryColor};
-    border-color: ${({ theme }) => theme.primaryColor};
-    font-weight: 500;
+    color: var(--color-primary);
+    background: var(--color-primary-soft);
   }
 `
 
@@ -53,24 +55,28 @@ const Ellipsis = styled.span`
   justify-content: center;
   min-width: 32px;
   height: 32px;
-  color: ${({ theme }) => theme.textSecondary};
-  letter-spacing: 2px;
+  color: var(--color-faint);
+  ${monoData}
 `
 
 const SizeChanger = styled.select`
   height: 32px;
-  padding: 0 8px;
-  border: 1px solid ${({ theme }) => theme.borderColor};
-  border-radius: 4px;
-  background: ${({ theme }) => theme.componentBackground};
-  color: ${({ theme }) => theme.textPrimary};
-  font-size: 14px;
-  cursor: pointer;
   margin-left: 8px;
-  outline: none;
+  padding: 0 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--color-border-strong);
+  }
 
   &:focus {
-    border-color: ${({ theme }) => theme.primaryColor};
+    border-color: var(--color-primary);
   }
 `
 
@@ -78,23 +84,23 @@ const SimplePagination = styled.div`
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
-  color: ${({ theme }) => theme.textPrimary};
+  color: var(--color-text);
+  ${monoData}
 `
 
 const SimpleInput = styled.input`
   width: 48px;
   height: 32px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  ${monoData}
   text-align: center;
-  border: 1px solid ${({ theme }) => theme.borderColor};
-  border-radius: 4px;
-  background: ${({ theme }) => theme.componentBackground};
-  color: ${({ theme }) => theme.textPrimary};
-  font-size: 14px;
-  outline: none;
 
   &:focus {
-    border-color: ${({ theme }) => theme.primaryColor};
+    border-color: var(--color-primary);
   }
 `
 
@@ -162,7 +168,7 @@ const Pagination: React.FC<PaginationProps> = ({
   const isControlled = controlledCurrent !== undefined
   const current = isControlled ? controlledCurrent : internalCurrent
   const pageSize =
-    controlledPageSize !== undefined ? controlledPageSize : internalPageSize
+    controlledPageSize === undefined ? internalPageSize : controlledPageSize
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   const goTo = useCallback(
@@ -204,25 +210,39 @@ const Pagination: React.FC<PaginationProps> = ({
     return (
       <SimplePagination
         style={style}
-        className={`ui-pagination ui-pagination-simple${className ? ` ${className}` : ''}`}
+        className={joinClassNames(
+          'ui-pagination',
+          'ui-pagination-simple',
+          className,
+        )}
       >
-        <PageButton disabled={current <= 1} onClick={() => goTo(current - 1)}>
-          &#8249;
+        <PageButton
+          type="button"
+          className="ui-pagination-prev"
+          disabled={current <= 1}
+          onClick={() => goTo(current - 1)}
+          aria-label="Previous page"
+        >
+          <KitIcon name="chevron-left" size={14} />
         </PageButton>
         <SimpleInput
           value={current}
+          aria-label="Page"
           onChange={(e) => {
-            const val = parseInt(e.target.value, 10)
+            const val = Number.parseInt(e.target.value, 10)
             if (!Number.isNaN(val)) goTo(val)
           }}
         />
         <span>/</span>
         <span>{totalPages}</span>
         <PageButton
+          type="button"
+          className="ui-pagination-next"
           disabled={current >= totalPages}
           onClick={() => goTo(current + 1)}
+          aria-label="Next page"
         >
-          &#8250;
+          <KitIcon name="chevron-right" size={14} />
         </PageButton>
       </SimplePagination>
     )
@@ -230,43 +250,78 @@ const Pagination: React.FC<PaginationProps> = ({
   return (
     <Wrapper
       style={style}
-      className={`ui-pagination${className ? ` ${className}` : ''}`}
+      className={joinClassNames('ui-pagination', className)}
+      aria-label="Pagination"
     >
       <PageButton
+        type="button"
+        className="ui-pagination-prev"
         disabled={current <= 1}
         onClick={() => goTo(current - 1)}
-        aria-label="Previous Page"
+        aria-label="Previous page"
       >
-        {renderItem(current - 1, 'prev', <>&#8249;</>)}
+        {renderItem(
+          current - 1,
+          'prev',
+          <KitIcon name="chevron-left" size={14} />,
+        )}
       </PageButton>
 
       {pages.map((page, idx) => {
         if (typeof page === 'string')
-          return <Ellipsis key={page + idx}>...</Ellipsis>
+          return (
+            <Ellipsis
+              key={page + idx}
+              className="ui-pagination-ellipsis"
+              aria-hidden
+            >
+              …
+            </Ellipsis>
+          )
 
-        return renderItem(
-          page,
-          'page',
-          <PageButton
-            key={page}
-            className={page === current ? 'active' : ''}
-            onClick={() => goTo(page)}
-          >
-            {page}
-          </PageButton>,
+        return (
+          <React.Fragment key={page}>
+            {renderItem(
+              page,
+              'page',
+              <PageButton
+                type="button"
+                className={joinClassNames(
+                  'ui-pagination-item',
+                  page === current && 'active',
+                )}
+                aria-current={page === current ? 'page' : undefined}
+                aria-label={`Page ${page}`}
+                onClick={() => goTo(page)}
+              >
+                {page}
+              </PageButton>,
+            )}
+          </React.Fragment>
         )
       })}
 
       <PageButton
+        type="button"
+        className="ui-pagination-next"
         disabled={current >= totalPages}
         onClick={() => goTo(current + 1)}
-        aria-label="Next Page"
+        aria-label="Next page"
       >
-        {renderItem(current + 1, 'next', <>&#8250;</>)}
+        {renderItem(
+          current + 1,
+          'next',
+          <KitIcon name="chevron-right" size={14} />,
+        )}
       </PageButton>
 
       {showSizeChanger && (
-        <SizeChanger value={pageSize} onChange={handleSizeChange}>
+        <SizeChanger
+          className="ui-pagination-size"
+          value={pageSize}
+          onChange={handleSizeChange}
+          aria-label="Items per page"
+        >
           {pageSizeOptions.map((opt) => (
             <option key={opt} value={opt}>
               {opt} / page

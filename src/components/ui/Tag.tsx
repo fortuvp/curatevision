@@ -1,76 +1,60 @@
 import React, { useState, useCallback } from 'react'
 import styled, { css } from 'styled-components'
+import { KitIcon } from './kit-icons'
+import { ghostIconButton, joinClassNames, monoLabel } from './kit-styles'
 
-const StyledTag = styled.span<{ $color?: string }>`
+/* Tag = chip (DESIGN.md): 24px, radius 4, raised surface, mono label. */
+const chipStyles = css`
   display: inline-flex;
   align-items: center;
+  gap: 6px;
+  height: 24px;
   padding: 0 8px;
-  height: 22px;
-  font-size: 12px;
-  line-height: 20px;
-  border-radius: 4px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  ${monoLabel}
   white-space: nowrap;
-  transition: all 0.2s;
-  border: 1px solid;
-  gap: 4px;
-
-  ${({ $color, theme }) =>
-    $color
-      ? css`
-          background: ${$color};
-          border-color: ${$color};
-          color: var(--color-on-primary);
-        `
-      : css`
-          background: ${theme.elevatedBackground};
-          border-color: ${theme.borderColor};
-          color: ${theme.textPrimary};
-        `}
+  vertical-align: middle;
 `
 
-const CloseButton = styled.span`
-  cursor: pointer;
-  font-size: 10px;
-  margin-left: 2px;
-  opacity: 0.7;
-  transition: opacity 0.2s;
+const StyledTag = styled.span<{ $color?: string }>`
+  ${chipStyles}
+  background: ${({ $color }) => $color || 'var(--color-raised)'};
+  color: ${({ $color }) =>
+    $color ? 'var(--color-on-primary)' : 'var(--color-muted)'};
+`
 
-  &:hover {
+const CloseButton = styled.button`
+  ${ghostIconButton}
+  width: 16px;
+  height: 16px;
+  margin-right: -4px;
+  color: inherit;
+  opacity: 0.7;
+
+  &:hover:not(:disabled) {
+    background: transparent;
+    color: inherit;
     opacity: 1;
   }
 `
 
-const CheckableTagStyled = styled.span<{ $checked?: boolean }>`
-  display: inline-flex;
-  align-items: center;
-  padding: 0 8px;
-  height: 22px;
-  font-size: 12px;
-  line-height: 20px;
-  border-radius: 4px;
-  white-space: nowrap;
+const CheckableTagStyled = styled.button<{ $checked?: boolean }>`
+  ${chipStyles}
+  background: ${({ $checked }) =>
+    $checked ? 'var(--color-primary-soft)' : 'var(--color-raised)'};
+  color: ${({ $checked }) =>
+    $checked ? 'var(--color-primary)' : 'var(--color-muted)'};
   cursor: pointer;
-  transition: all 0.2s;
-  border: 1px solid;
   user-select: none;
+  transition:
+    background var(--motion),
+    color var(--motion);
 
-  ${({ $checked, theme }) =>
-    $checked
-      ? css`
-          background: ${theme.primaryColor};
-          border-color: ${theme.primaryColor};
-          color: ${theme.textOnPrimary};
-        `
-      : css`
-          background: ${theme.elevatedBackground};
-          border-color: ${theme.borderColor};
-          color: ${theme.textPrimary};
-
-          &:hover {
-            color: ${theme.primaryColor};
-            border-color: ${theme.primaryColor};
-          }
-        `}
+  &:hover {
+    color: ${({ $checked }) =>
+      $checked ? 'var(--color-primary)' : 'var(--color-text)'};
+  }
 `
 
 interface TagProps {
@@ -119,12 +103,17 @@ const Tag: TagComponent = ({
     <StyledTag
       $color={color}
       style={style}
-      className={`ui-tag${className ? ` ${className}` : ''}`}
+      className={joinClassNames('ui-tag', className)}
     >
       {children}
       {closable && (
-        <CloseButton onClick={handleClose} role="button" aria-label="Close">
-          &#10005;
+        <CloseButton
+          type="button"
+          className="ui-tag-close"
+          onClick={handleClose}
+          aria-label="Remove"
+        >
+          <KitIcon name="close" size={12} />
         </CloseButton>
       )}
     </StyledTag>
@@ -144,10 +133,16 @@ const CheckableTag: React.FC<CheckableTagProps> = ({
 
   return (
     <CheckableTagStyled
+      type="button"
+      aria-pressed={Boolean(checked)}
       $checked={checked}
       onClick={handleClick}
       style={style}
-      className={`ui-tag-checkable${className ? ` ${className}` : ''}`}
+      className={joinClassNames(
+        'ui-tag-checkable',
+        checked && 'ui-tag-checked',
+        className,
+      )}
     >
       {children}
     </CheckableTagStyled>

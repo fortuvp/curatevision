@@ -1,48 +1,52 @@
 import React, { useState, useCallback } from 'react'
 import styled from 'styled-components'
+import { KitIcon } from './kit-icons'
+import { joinClassNames } from './kit-styles'
 
 const Wrapper = styled.label<{ $disabled?: boolean }>`
+  position: relative;
   display: inline-flex;
   align-items: center;
-  cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
-  opacity: ${({ $disabled }) => ($disabled ? 0.65 : 1)};
-  font-size: 14px;
-  color: ${({ theme }) => theme.textPrimary};
-  user-select: none;
   gap: 8px;
+  color: var(--color-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
+  opacity: ${({ $disabled }) => ($disabled ? 0.55 : 1)};
+  user-select: none;
 `
 
 const HiddenInput = styled.input`
   position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
   opacity: 0;
-  width: 0;
-  height: 0;
   pointer-events: none;
 `
 
+/* 16px box, radius 4; checked = action fill with the mark in on-primary. */
 const Indicator = styled.span<{ $checked?: boolean }>`
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
   width: 16px;
   height: 16px;
   border: 1px solid
-    ${({ $checked, theme }) =>
-      $checked ? theme.primaryColor : theme.borderColor};
-  border-radius: 2px;
-  background: ${({ $checked, theme }) =>
-    $checked ? theme.primaryColor : theme.componentBackground};
-  transition: all 0.2s;
-  flex-shrink: 0;
+    ${({ $checked }) =>
+      $checked ? 'var(--color-primary)' : 'var(--color-border-strong)'};
+  border-radius: var(--radius-sm);
+  background: ${({ $checked }) =>
+    $checked ? 'var(--color-primary)' : 'var(--color-surface)'};
+  color: var(--color-on-primary);
+  transition:
+    background var(--motion),
+    border-color var(--motion);
 
-  &::after {
-    content: '';
-    display: ${({ $checked }) => ($checked ? 'block' : 'none')};
-    width: 5px;
-    height: 9px;
-    border: solid var(--color-on-primary);
-    border-width: 0 2px 2px 0;
-    transform: rotate(45deg) translate(-1px, -1px);
+  ${HiddenInput}:focus-visible + & {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
   }
 `
 
@@ -83,16 +87,23 @@ const Checkbox: React.FC<CheckboxProps> = ({
     <Wrapper
       $disabled={disabled}
       style={style}
-      className={`ui-checkbox${className ? ` ${className}` : ''}`}
+      className={joinClassNames(
+        'ui-checkbox',
+        isChecked && 'ui-checkbox-checked',
+        className,
+      )}
     >
       <HiddenInput
+        className="ui-checkbox-input"
         type="checkbox"
         checked={isChecked}
         onChange={handleChange}
         disabled={disabled}
       />
-      <Indicator $checked={isChecked} />
-      {children && <span>{children}</span>}
+      <Indicator className="ui-checkbox-indicator" $checked={isChecked}>
+        {isChecked && <KitIcon name="check" size={12} />}
+      </Indicator>
+      {children && <span className="ui-checkbox-label">{children}</span>}
     </Wrapper>
   )
 }

@@ -1,109 +1,126 @@
 import React from 'react'
-import styled, { css, keyframes } from 'styled-components'
+import styled, { css } from 'styled-components'
+import { joinClassNames, skeletonBlock } from './kit-styles'
 
-const shimmer = keyframes`
-  0% { background-position: -400px 0; }
-  100% { background-position: 400px 0; }
-`
-
+/*
+ * Card (DESIGN.md, Elevation): a surface on the page with a hairline and
+ * radius 6; depth comes from the border, the token shadow is none in dark.
+ */
 const StyledCard = styled.div<{ $bordered?: boolean; $hoverable?: boolean }>`
-  background: var(--v2-card);
-  border-radius: var(--radius-sm);
-  border: ${({ $bordered, theme }) =>
-    $bordered ? `1px solid ${theme.borderColor}` : 'none'};
-  box-shadow: var(--v2-shadow);
-  transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease,
-    transform 0.2s ease;
+  position: relative;
+  min-width: 0;
   overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid
+    ${({ $bordered }) => ($bordered ? 'var(--color-border)' : 'transparent')};
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  color: var(--color-text);
+  transition:
+    border-color var(--motion),
+    box-shadow var(--motion);
 
   ${({ $hoverable }) =>
     $hoverable &&
     css`
       cursor: pointer;
+
       &:hover {
-        border-color: var(--v2-stroke-strong);
-        box-shadow: var(--v2-shadow-hover);
-        transform: translateY(-1px);
+        border-color: var(--color-border-strong);
+        box-shadow: var(--shadow-card-hover);
       }
     `}
 `
 
 const CardHead = styled.div`
-  background: var(--v2-card);
-  border-bottom: 1px solid var(--v2-stroke);
-  padding: 16px 18px;
-  min-height: 54px;
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--color-border);
 `
 
 const CardHeadWrapper = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
 `
 
 const CardHeadTitle = styled.div`
-  color: var(--v2-text);
-  font-weight: 600;
-  font-size: 16px;
   flex: 1;
   min-width: 0;
   overflow: hidden;
+  color: var(--color-text);
+  font-size: var(--fs-subheading);
+  line-height: var(--lh-subheading);
+  font-weight: 600;
   white-space: nowrap;
   text-overflow: ellipsis;
 `
 
 const CardExtra = styled.div`
+  flex: 0 0 auto;
   margin-left: auto;
-  padding-left: 16px;
-  color: var(--v2-text);
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
 `
 
 const CardBody = styled.div`
-  padding: 18px;
-  color: var(--v2-text);
+  padding: 20px;
+  color: var(--color-text);
 `
 
 const CardActions = styled.div`
   display: flex;
-  align-items: center;
-  border-top: 1px solid var(--v2-stroke);
+  align-items: stretch;
+  border-top: 1px solid var(--color-border);
 
-  & > * {
+  > * {
+    display: inline-flex;
     flex: 1;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0 12px;
+    color: var(--color-muted);
     text-align: center;
-    padding: 12px 0;
     cursor: pointer;
-    transition: color 0.3s;
+    transition:
+      color var(--motion),
+      background var(--motion);
 
     &:not(:last-child) {
-      border-right: 1px solid var(--v2-stroke);
+      border-right: 1px solid var(--color-border);
+    }
+
+    &:hover {
+      color: var(--color-text);
+      background: var(--color-raised);
     }
   }
 `
 
-const SkeletonLine = styled.div<{ $height?: string; $width?: string }>`
-  height: ${({ $height }) => $height || '16px'};
+const SkeletonLine = styled.div<{ $width?: string }>`
+  ${skeletonBlock}
+  height: 14px;
   width: ${({ $width }) => $width || '100%'};
-  border-radius: 4px;
-  background: linear-gradient(
-    90deg,
-    ${({ theme }) => theme.skeletonBase} 25%,
-    ${({ theme }) => theme.skeletonHighlight} 37%,
-    ${({ theme }) => theme.skeletonBase} 63%
-  );
-  background-size: 400px 100%;
-  animation: ${shimmer} 1.4s ease infinite;
   margin-bottom: 12px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
 `
 
 const SkeletonContent = () => (
-  <div>
-    <SkeletonLine $width="38%" $height="16px" />
-    <SkeletonLine $width="100%" $height="16px" />
-    <SkeletonLine $width="61%" $height="16px" />
-    <SkeletonLine $width="80%" $height="16px" />
+  <div className="ui-card-loading" aria-busy="true">
+    <SkeletonLine $width="38%" />
+    <SkeletonLine $width="100%" />
+    <SkeletonLine $width="61%" />
+    <SkeletonLine $width="80%" />
   </div>
 )
 
@@ -111,31 +128,35 @@ const SkeletonContent = () => (
 const MetaWrapper = styled.div`
   display: flex;
   align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
 `
 
 const MetaAvatar = styled.div`
-  margin-right: 16px;
-  flex-shrink: 0;
+  flex: 0 0 auto;
 `
 
 const MetaDetail = styled.div`
   flex: 1;
+  min-width: 0;
   overflow: hidden;
 `
 
 const MetaTitle = styled.div`
-  color: var(--v2-text);
-  font-weight: 600;
-  font-size: 16px;
   overflow: hidden;
+  color: var(--color-text);
+  font-size: var(--fs-body-lg);
+  line-height: var(--lh-body-lg);
+  font-weight: 600;
   white-space: nowrap;
   text-overflow: ellipsis;
-  margin-bottom: 8px;
 `
 
 const MetaDescription = styled.div`
-  color: var(--v2-muted);
-  font-size: 14px;
+  margin-top: 2px;
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
 `
 
 interface CardMetaProps {
@@ -192,7 +213,12 @@ const Card: CardComponent = ({
   children,
 }) => (
   <StyledCard
-    className={`ui-card${className ? ` ${className}` : ''}`}
+    className={joinClassNames(
+      'ui-card',
+      bordered && 'ui-card-bordered',
+      hoverable && 'ui-card-hoverable',
+      className,
+    )}
     $bordered={bordered}
     $hoverable={hoverable}
     id={id}

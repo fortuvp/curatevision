@@ -1,119 +1,54 @@
 import React from 'react'
+import type { BigNumber } from 'ethers'
 import {
-  STATUS_COLOR,
-  STATUS_TEXT,
-  STATUS_CODE,
-} from '../utils/permanent-item-status'
-import { Badge, Skeleton } from 'components/ui'
-import Icon from 'components/ui/Icon'
-import styled from 'styled-components'
-import { BigNumber } from 'ethers'
+  SkeletonBlock,
+  Status,
+  type StatusTone,
+} from 'components/curate/primitives'
+import { STATUS_CODE, STATUS_ROLE } from 'utils/permanent-item-status'
 
-const SkeletonTitleProps = { width: '90px' }
-const StyledSkeleton = styled(Skeleton)`
-  display: inline;
+/*
+ * Stake Curate status as DESIGN.md wants it: a dot in the status role and a
+ * plain-language label. Used where only the status code is known (list
+ * cards). The item page uses <EntryStatus> from stakeEntryStatus, which adds
+ * the time left to the same labels.
+ */
 
-  .ui-skeleton-title {
-    margin: -3px 0;
-  }
-`
-
-export const ItemStatusBadgeWrap = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-`
-
-const ItemStatusIconWrap = styled.div`
-  margin-left: 6px;
-  font-size: 13px;
-  display: inline-flex;
-  align-items: center;
-`
-
-const iconTypes = {
-  [STATUS_CODE.ACCEPTED]: 'check-circle',
-  [STATUS_CODE.DISPUTED]: 'fire',
-  [STATUS_CODE.CROWDFUNDING]: 'dollar',
-  [STATUS_CODE.CROWDFUNDING_WINNER]: 'dollar',
-  [STATUS_CODE.PENDING]: 'hourglass',
-  [STATUS_CODE.PENDING_WITHDRAWAL]: 'hourglass',
-  [STATUS_CODE.REJECTED]: 'close',
-  [STATUS_CODE.REMOVED]: 'close',
-  [STATUS_CODE.WITHDRAWN]: 'close',
-  [STATUS_CODE.WAITING_ARBITRATOR]: 'hourglass',
+export const STAKE_STATUS_LABEL: Record<number, string> = {
+  [STATUS_CODE.REJECTED]: 'Rejected',
+  [STATUS_CODE.PENDING]: 'Pending',
+  [STATUS_CODE.ACCEPTED]: 'Accepted',
+  [STATUS_CODE.DISPUTED]: 'Disputed',
+  [STATUS_CODE.CROWDFUNDING]: 'Appeal open',
+  [STATUS_CODE.CROWDFUNDING_WINNER]: 'Appeal · winner funding',
+  [STATUS_CODE.WAITING_ARBITRATOR]: 'Awaiting ruling',
+  [STATUS_CODE.PENDING_WITHDRAWAL]: 'Withdrawal ready',
+  [STATUS_CODE.REMOVED]: 'Removed',
+  [STATUS_CODE.WITHDRAWN]: 'Withdrawn',
 }
 
-export const ItemStatusIcon = ({ statusCode }: { statusCode: number }) => (
-  <ItemStatusIconWrap>
-    <Icon type={iconTypes[statusCode]} />
-  </ItemStatusIconWrap>
-)
-
-// For clarity, here "badge" refers to the status badge UI component,
-// and not badges related to connection between TCRs.
-export const badgeStatus = (statusCode: number) => {
-  switch (statusCode) {
-    case STATUS_CODE.CROWDFUNDING:
-    case STATUS_CODE.CROWDFUNDING_WINNER:
-    case STATUS_CODE.WAITING_ARBITRATOR:
-    case STATUS_CODE.DISPUTED:
-    case STATUS_CODE.PENDING:
-    case STATUS_CODE.PENDING_WITHDRAWAL:
-      return 'processing'
-    case STATUS_CODE.REJECTED:
-    case STATUS_CODE.REMOVED:
-    case STATUS_CODE.WITHDRAWN:
-    case STATUS_CODE.ACCEPTED:
-      return 'default'
-    default:
-      throw new Error(`Unhandled status code ${statusCode}`)
-  }
-}
+export const stakeStatusTone = (statusCode: number): StatusTone =>
+  (STATUS_ROLE as Record<number, StatusTone>)[statusCode] ?? 'neutral'
 
 interface ItemStatusBadgeProps {
   item?: SubgraphItem
   timestamp?: BigNumber
   statusCode?: number | null
+  /** Kept for existing callers; the dot carries the role color in every theme. */
   dark?: boolean | null
+  /** "2d 4h until accepted", "jurors deciding" */
+  detail?: React.ReactNode
 }
 
-const ItemStatusBadge = ({
-  item,
-  timestamp,
-  statusCode,
-}: ItemStatusBadgeProps) => {
-  if (statusCode)
-    return (
-      <ItemStatusBadgeWrap>
-        <Badge
-          status={badgeStatus(statusCode)}
-          color={STATUS_COLOR[statusCode]}
-          text={STATUS_TEXT[statusCode]}
-          style={{ color: 'inherit' }}
-        />
-        <ItemStatusIcon statusCode={statusCode} />
-      </ItemStatusBadgeWrap>
-    )
-
-  if (typeof statusCode !== 'number' && !item && !timestamp)
-    return (
-      <StyledSkeleton active paragraph={false} title={SkeletonTitleProps} />
-    )
-
+const ItemStatusBadge = ({ statusCode, detail }: ItemStatusBadgeProps) => {
   if (typeof statusCode !== 'number')
-    throw new Error(`Unhandled status code ${statusCode}`)
+    return <SkeletonBlock $width="96px" $height="18px" />
+
+  const label = STAKE_STATUS_LABEL[statusCode]
+  if (!label) throw new Error(`Unhandled status code ${statusCode}`)
 
   return (
-    <ItemStatusBadgeWrap>
-      <Badge
-        status={badgeStatus(statusCode)}
-        color={STATUS_COLOR[statusCode]}
-        text={STATUS_TEXT[statusCode]}
-        style={{ color: 'inherit' }}
-      />
-      <ItemStatusIcon statusCode={statusCode} />
-    </ItemStatusBadgeWrap>
+    <Status tone={stakeStatusTone(statusCode)} label={label} detail={detail} />
   )
 }
 

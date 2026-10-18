@@ -1,57 +1,66 @@
-import React, { useEffect, useCallback } from 'react'
+import React, { useEffect, useCallback, useId } from 'react'
 import styled from 'styled-components'
-import {
-  Card,
-  Button,
-  Row,
-  Col,
-  Select,
-  Form,
-  Divider,
-  Switch,
-  Tooltip,
-  Alert,
-} from 'components/ui'
-import Icon from 'components/ui/Icon'
 import { toast } from 'react-toastify'
-import {
-  withFormik,
-  FieldArray,
-  Field,
-  type FormikProps,
-  type FieldProps,
-  type FormikErrors,
-} from 'formik'
-import type { StepProps, TcrState } from '.'
-import type { SelectChangeValue } from 'components/ui/Select'
+import { withFormik, FieldArray, type FormikProps } from 'formik'
 import { ItemTypes as AllItemTypes } from '@kleros/gtcr-encoder'
-import * as yup from 'yup'
-import CustomInput from 'components/custom-input'
 import ItemDetailsCard from 'components/item-details-card'
 import objectWithoutKey from 'utils/object-without-key'
+import { CurateIcon } from 'components/curate/icons'
+import {
+  Button,
+  IconButton,
+  Label,
+  Row,
+  Stack,
+  Surface,
+} from 'components/curate/primitives'
+import {
+  ErrorText,
+  FormField,
+  Select,
+  StepHeader,
+  SwitchField,
+  TextField,
+} from './fields'
+import { itemColumnsProblem, itemSchema } from './schemas'
+import type { StepProps, TcrState } from '.'
 
-export const StyledAlert = styled(Alert)`
-  margin-bottom: 42px;
-`
+/*
+ * Step 2, the item: the fields every entry has (one block per field,
+ * stacked so they fit a phone), the list-of-lists switch and the preview
+ * of an entry with those fields. The identifier rules and the two submit
+ * checks (one ID field, unique names) are the ones the previous step had.
+ */
 
 export const ItemTypes = objectWithoutKey(AllItemTypes, 'TWITTER_USER_ID')
 
 const { IMAGE, FILE, GTCR_ADDRESS, LONG_TEXT } = AllItemTypes
 
+const MAX_IDENTIFIERS = 5
+
+export type ItemSection = 'fields' | 'preview'
+
+const FieldGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+`
+
 type ItemFormValues = TcrState
-type ItemParamsProps = StepProps & FormikProps<ItemFormValues>
+type ItemParamsOuterProps = StepProps & { section?: ItemSection }
+type ItemParamsProps = ItemParamsOuterProps & FormikProps<ItemFormValues>
 
 const ItemParams = ({
   handleSubmit,
   setFieldValue,
   formId,
+  section,
   values: { columns, isTCRofTCRs },
-  errors,
-  touched,
-  ...rest
+  status,
+  setTcrState,
+  tcrState,
 }: ItemParamsProps) => {
-  const { setTcrState } = rest
-  const { tcrState } = rest || {}
+  const ids = useId()
   const { tcrLogo, tcrPrimaryDocument, tcrDescription, tcrTitle } =
     tcrState || {}
 
@@ -77,287 +86,193 @@ const ItemParams = ({
     }))
   }, [columns, isTCRofTCRs, setTcrState])
 
-  const columnError = (index: number, key: keyof Column) => {
-    const cols = errors.columns
-    if (!Array.isArray(cols)) return undefined
-    const entry = cols[index]
-    return entry && typeof entry === 'object'
-      ? ((entry as FormikErrors<Column>)[key] as string | undefined)
-      : undefined
+  const onTypeChange = (index: number, value: string) => {
+    setFieldValue(`columns[${index}].type`, value)
+    // Long text and image fields cannot be identifiers.
+    if (value === LONG_TEXT || value === IMAGE)
+      setFieldValue(`columns[${index}].isIdentifier`, false)
   }
 
-  const onTypeChange = (index: number, value: SelectChangeValue) => {
-    setFieldValue(`columns[${index}].type`, value)
-    if (value === LONG_TEXT)
-      // Long text fields cannot be identifiers.
-      setFieldValue(`columns[${index}].isIdentifier`, false)
-    if (value === IMAGE)
-      // Image fields cannot be identifiers.
-      setFieldValue(`columns[${index}].isIdentifier`, false)
-  }
+  const identifierCount = columns.filter((column) => column.isIdentifier).length
+  const showFields = section !== 'preview'
+  const showPreview = section !== 'fields'
+  const problem = typeof status === 'string' ? status : ''
 
   return (
-    <Card title="Choose the item parameters">
-      <Row>
-        <Col span={24}>
-          Is this a list of lists?
-          <Tooltip title="A list of lists has only one column: the list address. Information such as its title, description and logo will be pulled from the list itself.">
-            &nbsp;
-            <Icon type="question-circle-o" />
-          </Tooltip>
-          {'  '}
-          <Switch checked={isTCRofTCRs} onChange={toggleTCRofTCRs} />
-        </Col>
-      </Row>
-      <Divider />
-      {!isTCRofTCRs && (
-        <>
-          <StyledAlert
-            description="The column order defined here will be used to display the items. In other words, if your item has an image or title, you probably want it to be the first columns displayed."
-            type="info"
-            showIcon
-            closable
-          />
-          <Row
-            gutter={{ xs: 3, sm: 6, md: 10 }}
-            type="flex"
-            justify="space-between"
-          >
-            <Col span={4}>
-              Name
-              <Tooltip title="This will be the field label displayed to users when submitting an item.">
-                &nbsp;
-                <Icon type="question-circle-o" />
-              </Tooltip>
-            </Col>
-            <Col span={6}>
-              Description
-              <Tooltip title="This will be the text displayed when the user clicks the '?' symbol near the field label.">
-                &nbsp;
-                <Icon type="question-circle-o" />
-              </Tooltip>
-            </Col>
-            <Col span={4}>
-              Type
-              <Tooltip title="This is the column type">
-                &nbsp;
-                <Icon type="question-circle-o" />
-              </Tooltip>
-            </Col>
-            <Col span={3}>
-              Indexed
-              <Tooltip title="Indexed fields are searcheable and displayed on the card in the items view (along with image field types). Toggle these for the fields you consider most important.">
-                &nbsp;
-                <Icon type="question-circle-o" />
-              </Tooltip>
-            </Col>
-            {columns.filter((col) => col.type === FILE).length > 0 ? (
-              <Col span={4}>
-                Allowed File Types
-                <Tooltip title="A list of space separated allowed file extensions (e.g.: pdf doc  mp3).">
-                  &nbsp;
-                  <Icon type="question-circle-o" />
-                </Tooltip>
-              </Col>
-            ) : (
-              <Col span={4} />
-            )}
-            {columns.length > 1 && <Col span={1} />}
-          </Row>
-        </>
-      )}
-      <form id={formId} onSubmit={handleSubmit}>
-        {!isTCRofTCRs && (
-          <>
-            <FieldArray name="columns">
-              {({ push, remove }) => (
-                <>
-                  {columns &&
-                    columns.length > 0 &&
-                    columns.map((_, index) => (
-                      <Row
-                        gutter={{ xs: 3, sm: 6, md: 10 }}
-                        key={index}
-                        type="flex"
-                        justify="space-between"
-                      >
-                        <Col span={4}>
-                          <CustomInput
-                            name={`columns[${index}].label`}
-                            hasFeedback
-                            touched={
-                              touched.columns &&
-                              touched.columns[index] &&
-                              touched.columns[index].label
-                            }
-                            error={columnError(index, 'label')}
-                            {...rest}
-                          />
-                        </Col>
-                        <Col span={6}>
-                          <CustomInput
-                            name={`columns[${index}].description`}
-                            hasFeedback
-                            touched={
-                              touched.columns &&
-                              touched.columns[index] &&
-                              touched.columns[index].description
-                            }
-                            error={columnError(index, 'description')}
-                            {...rest}
-                          />
-                        </Col>
-                        <Col span={4}>
-                          <Field name={`columns[${index}].type`}>
-                            {({ field }: FieldProps) => (
-                              <Form.Item>
-                                <Select
-                                  {...field}
-                                  value={columns[index].type}
-                                  onChange={(value) =>
-                                    onTypeChange(index, value)
-                                  }
+    <Stack $gap={20}>
+      {showFields && (
+        <form id={formId} onSubmit={handleSubmit} noValidate>
+          <Stack $gap={20}>
+            <StepHeader
+              heading="Define the item fields"
+              lede="Each field is a column of the list. Items are displayed in this order, so put the image or the title first."
+            />
+            <SwitchField
+              id={`${ids}-list-of-lists`}
+              label="This is a list of lists"
+              help="A list of lists has one field, the list address. Each entry's title, description and logo come from the list itself."
+              checked={!!isTCRofTCRs}
+              onChange={toggleTCRofTCRs}
+            />
+            {!isTCRofTCRs && (
+              <FieldArray name="columns">
+                {({ push, remove }) => (
+                  <Stack $gap={12}>
+                    {columns.map((column, index) => {
+                      const canBeIdentifier =
+                        (identifierCount < MAX_IDENTIFIERS ||
+                          !!column.isIdentifier) &&
+                        column.type !== LONG_TEXT &&
+                        column.type !== IMAGE &&
+                        column.type !== FILE
+                      return (
+                        <Surface
+                          key={index}
+                          $padding="compact"
+                          role="group"
+                          aria-label={`Field ${index + 1}`}
+                        >
+                          <Stack $gap={12}>
+                            <Row $justify="space-between" $gap={8}>
+                              <Label>Field {index + 1}</Label>
+                              {columns.length > 1 && (
+                                <IconButton
+                                  type="button"
+                                  aria-label={`Remove field ${index + 1}`}
+                                  onClick={() => remove(index)}
                                 >
-                                  {Object.values(ItemTypes).map(
-                                    (itemType, i) => (
-                                      <Select.Option
-                                        value={String(itemType)}
-                                        key={i}
-                                      >
-                                        {String(itemType)}
-                                      </Select.Option>
-                                    ),
-                                  )}
-                                </Select>
-                              </Form.Item>
-                            )}
-                          </Field>
-                        </Col>
-                        {(columns
-                          .map((column) => column.isIdentifier)
-                          .filter((isIdentifier) => !!isIdentifier).length <
-                          5 ||
-                          columns[index].isIdentifier) &&
-                        columns[index].type !== LONG_TEXT &&
-                        columns[index].type !== IMAGE &&
-                        columns[index].type !== FILE ? ( // Image, file and long text cannot be identifiers.
-                          <Col span={3}>
-                            <Field name={`columns[${index}].isIdentifier`}>
-                              {({ field }: FieldProps) => (
-                                <Form.Item>
-                                  <Switch
-                                    onChange={(value) =>
-                                      setFieldValue(
-                                        `columns[${index}].isIdentifier`,
-                                        value,
-                                      )
-                                    }
-                                    checked={field.value}
-                                    size="small"
-                                  />
-                                </Form.Item>
+                                  <CurateIcon name="remove" size={16} />
+                                </IconButton>
                               )}
-                            </Field>
-                          </Col>
-                        ) : (
-                          <Col span={3} />
-                        )}
-                        {columns[index].type === FILE ? (
-                          <Col span={4}>
-                            <CustomInput
-                              name={`columns[${index}].allowedFileTypes`}
-                              hasFeedback
-                              touched={
-                                touched.columns &&
-                                touched.columns[index] &&
-                                touched.columns[index].allowedFileTypes
-                              }
-                              error={columnError(index, 'allowedFileTypes')}
-                              {...rest}
-                            />
-                          </Col>
-                        ) : (
-                          <Col span={4} />
-                        )}
-                        {columns.length > 1 && (
-                          <Col span={1}>
-                            <Form.Item>
-                              <Icon
-                                className="dynamic-delete-button"
-                                type="minus-circle-o"
-                                onClick={() => remove(index)}
+                            </Row>
+                            <FieldGrid>
+                              <TextField
+                                name={`columns[${index}].label`}
+                                label="Name"
+                                help="Shown as the field's label when someone submits an item."
                               />
-                            </Form.Item>
-                          </Col>
-                        )}
-                      </Row>
-                    ))}
-                  <Button
-                    onClick={() =>
-                      push({ label: '', description: '', type: 'address' })
-                    }
-                    type="primary"
-                  >
-                    Add Field
-                  </Button>
-                </>
-              )}
-            </FieldArray>
-            <Divider />
-          </>
-        )}
-      </form>
-      <ItemDetailsCard
-        title="Preview"
-        columns={columns}
-        itemMetaEvidence={
-          isTCRofTCRs && {
-            file: {
-              fileURI: tcrPrimaryDocument,
-              metadata: {
-                tcrTitle,
-                tcrDescription,
-                logoURI: tcrLogo,
-              },
-            },
-          }
-        }
-        disabled
-      />
-    </Card>
+                              <TextField
+                                name={`columns[${index}].description`}
+                                label="Description"
+                                help="Explains what to enter; shown under the field."
+                              />
+                              <FormField
+                                id={`${ids}-type-${index}`}
+                                label="Type"
+                              >
+                                {(a11y) => (
+                                  <Select
+                                    {...a11y}
+                                    value={column.type}
+                                    onChange={(event) =>
+                                      onTypeChange(index, event.target.value)
+                                    }
+                                  >
+                                    {Object.values(ItemTypes).map(
+                                      (itemType) => (
+                                        <option
+                                          value={String(itemType)}
+                                          key={String(itemType)}
+                                        >
+                                          {String(itemType)}
+                                        </option>
+                                      ),
+                                    )}
+                                  </Select>
+                                )}
+                              </FormField>
+                              {canBeIdentifier && (
+                                <SwitchField
+                                  id={`${ids}-indexed-${index}`}
+                                  label="Indexed"
+                                  help={`Searchable and shown on the item card. Up to ${MAX_IDENTIFIERS} fields.`}
+                                  checked={!!column.isIdentifier}
+                                  onChange={(checked) =>
+                                    setFieldValue(
+                                      `columns[${index}].isIdentifier`,
+                                      checked,
+                                    )
+                                  }
+                                />
+                              )}
+                              {column.type === FILE && (
+                                <TextField
+                                  name={`columns[${index}].allowedFileTypes`}
+                                  label="Allowed file types"
+                                  placeholder="pdf doc mp3"
+                                  help="File extensions separated by spaces."
+                                />
+                              )}
+                            </FieldGrid>
+                          </Stack>
+                        </Surface>
+                      )
+                    })}
+                    <div>
+                      <Button
+                        type="button"
+                        $variant="secondary"
+                        onClick={() =>
+                          push({ label: '', description: '', type: 'address' })
+                        }
+                      >
+                        Add a field
+                      </Button>
+                    </div>
+                    {problem && <ErrorText role="alert">{problem}</ErrorText>}
+                  </Stack>
+                )}
+              </FieldArray>
+            )}
+          </Stack>
+        </form>
+      )}
+
+      {showPreview && (
+        <Stack $gap={16}>
+          {!showFields && (
+            <StepHeader
+              heading="Preview"
+              lede="How an entry looks on its page with these fields."
+            />
+          )}
+          <ItemDetailsCard
+            title="Preview"
+            columns={columns}
+            itemMetaEvidence={
+              isTCRofTCRs && {
+                file: {
+                  fileURI: tcrPrimaryDocument,
+                  metadata: {
+                    tcrTitle,
+                    tcrDescription,
+                    logoURI: tcrLogo,
+                  },
+                },
+              }
+            }
+            disabled
+          />
+        </Stack>
+      )}
+    </Stack>
   )
 }
 
-const validationSchema = yup.object().shape({
-  columns: yup.array().of(
-    yup.object().shape({
-      label: yup.string().required('The column label is required.'),
-      description: yup.string().required('The column description is required.'),
-      allowedFileTypes: yup.string().when('type', {
-        is: FILE,
-        then: (schema) =>
-          schema.required('At least one file type is required.'),
-      }),
-    }),
-  ),
-})
-
-export default withFormik<StepProps, ItemFormValues>({
-  validationSchema,
+export default withFormik<ItemParamsOuterProps, ItemFormValues>({
+  validationSchema: itemSchema,
   mapPropsToValues: ({ tcrState }) => tcrState,
-  handleSubmit: ({ columns }, { props: { postSubmit } }) => {
-    if (!columns.some((c) => c.isIdentifier)) {
-      toast.warning('At least one ID field is required.')
+  handleSubmit: (
+    { columns, isTCRofTCRs },
+    { props: { postSubmit }, setStatus },
+  ) => {
+    const problem = isTCRofTCRs ? null : itemColumnsProblem(columns)
+    if (problem) {
+      toast.warning(problem)
+      setStatus(problem)
       return
     }
-    const usedLabels = new Set()
-    for (const col of columns) {
-      if (usedLabels.has(col.label)) {
-        toast.warning('Column names must be unique.')
-        return
-      }
-      usedLabels.add(col.label)
-    }
+    setStatus(undefined)
     postSubmit()
   },
 })(ItemParams)

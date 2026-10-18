@@ -1,9 +1,37 @@
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 import { Link } from 'react-router-dom'
-import { Button } from 'components/ui'
-import { CurateIcon } from 'components/curate/icons'
 import useDocumentHead from 'hooks/use-document-head'
+import { CurateIcon, type CurateIconName } from 'components/curate/icons'
+import {
+  Body,
+  Button,
+  ButtonAnchor,
+  ButtonLink,
+  Chip,
+  Figure,
+  Heading,
+  Label,
+  Page,
+  Section,
+  Small,
+  Statement,
+  Subheading,
+  Surface,
+  Table,
+  TableScroller,
+  Title,
+} from 'components/curate/primitives'
+import { Explainer } from 'components/curate/explainer'
+import { ProductionStackSchematic } from './schematic'
+
+/*
+ * Curate Pro (route /pro): the assisted route to launch a production registry.
+ * An editorial comparison of the three ways to run Curate (Permissionless,
+ * Quickstart, Curate Pro), the creator prompt for agents, and an explainer
+ * on what a production registry needs. The protocol is the same in every
+ * tier; the paid ones buy speed, infrastructure and support, not access.
+ */
 
 const CREATOR_PROMPT = `You are helping me launch a production Kleros Curate registry.
 
@@ -17,577 +45,589 @@ Goal:
 - Decide whether we self-host, use Quickstart indexing, or buy Curate Pro support.
 - Produce a launch checklist with risks, costs, dependencies, and next actions.`
 
-const Page = styled.main`
-  width: 100%;
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 32px var(--horizontal-padding) 70px;
-  color: var(--v2-text);
-`
+const CREATE_HREF = '/factory/100'
+const CONTACT_HREF = 'mailto:contact@kleros.io?subject=Curate%20Pro'
+const GUIDE_HREF = '/guide'
+const SKILL_HREF = '/skills/kleros-curate/SKILL.md'
 
-const Surface = styled.section`
-  overflow: hidden;
-  border: 1px solid var(--v2-stroke);
-  border-radius: var(--radius-sm);
-  background: var(--v2-card);
-  box-shadow: var(--v2-shadow);
-`
+const COPIED_FOR_MS = 1800
 
-const Hero = styled(Surface)`
-  min-height: 0;
-  padding: clamp(24px, 4vw, 42px);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.46fr);
-  gap: clamp(22px, 4vw, 48px);
-  align-items: end;
-  background: var(--v2-card);
-  border-top: 5px solid var(--v2-purple);
+type CopyState = 'idle' | 'copied' | 'failed'
 
-  @media (max-width: 980px) {
-    grid-template-columns: 1fr;
-    min-height: 0;
-  }
-`
+interface Capabilities {
+  frontend: string
+  indexing: string
+  policy: string
+}
 
-const Eyebrow = styled.div`
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  width: fit-content;
-  min-height: 30px;
-  padding: 0 11px;
-  border: 1px solid var(--v2-stroke);
-  border-radius: var(--radius-sm);
-  color: var(--v2-blue);
-  background: var(--v2-blue-soft);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0;
-  text-transform: uppercase;
-`
+interface Tier {
+  name: string
+  icon: CurateIconName
+  path: string
+  pathSummary: string
+  badge: string
+  featured: boolean
+  price: string
+  priceDetail: string
+  meta: string
+  features: string[]
+  capabilities: Capabilities
+  action: React.ReactNode
+}
 
-const Title = styled.h1`
-  max-width: 920px;
-  margin: 18px 0 14px;
-  color: var(--v2-text);
-  font-size: clamp(32px, 5vw, 56px);
-  line-height: 1.08;
-  font-weight: 600;
-  letter-spacing: 0;
-`
+const CAPABILITY_ROWS: { key: keyof Capabilities; label: string }[] = [
+  { key: 'frontend', label: 'Frontend' },
+  { key: 'indexing', label: 'Indexing' },
+  { key: 'policy', label: 'Policy' },
+]
 
-const Copy = styled.p`
-  max-width: 790px;
-  margin: 0;
-  color: var(--v2-muted);
-  font-size: clamp(16px, 1.7vw, 19px);
-  line-height: 1.65;
-`
-
-const ActionRow = styled.div`
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 28px;
-`
-
-const HeroStats = styled.div`
-  display: grid;
-  gap: 12px;
-`
-
-const SignalCard = styled.div`
-  padding: 16px;
-  border: 1px solid var(--color-border);
-  border-radius: 16px;
-  background: var(--color-raised);
-`
-
-const SignalLabel = styled.div`
-  color: var(--curate-faint);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-`
-
-const SignalValue = styled.div`
-  margin-top: 8px;
-  color: var(--curate-text);
-  font-size: 28px;
-  font-weight: 950;
-`
-
-const SectionHeader = styled.div`
-  margin: 34px 0 14px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 18px;
-
-  @media (max-width: 760px) {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-`
-
-const SectionTitle = styled.h2`
-  margin: 0;
-  color: var(--v2-text);
-  font-size: clamp(24px, 3vw, 38px);
-  font-weight: 600;
-`
-
-const SectionCopy = styled.p`
-  max-width: 720px;
-  margin: 8px 0 0;
-  color: var(--v2-muted);
-  font-size: 15px;
-  line-height: 1.6;
-`
-
-const PlanGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-
-  @media (max-width: 1020px) {
-    grid-template-columns: 1fr;
-  }
-`
-
-const PlanCard = styled(Surface)<{ $featured?: boolean }>`
-  min-height: 430px;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  border-color: ${({ $featured }) =>
-    $featured ? 'var(--v2-blue)' : 'var(--v2-stroke)'};
-  background: ${({ $featured }) =>
-    $featured ? 'var(--v2-blue-soft)' : 'var(--v2-card)'};
-`
-
-const PlanTop = styled.div`
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-`
-
-const IconBox = styled.div`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 42px;
-  height: 42px;
-  border: 1px solid currentColor;
-  border-radius: var(--radius-sm);
-  color: var(--v2-blue);
-  background: var(--v2-card);
-`
-
-const Pill = styled.div`
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--v2-stroke);
-  border-radius: var(--radius-sm);
-  color: var(--v2-muted);
-  background: var(--v2-card);
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-`
-
-const PlanName = styled.h3`
-  margin: 0;
-  color: var(--v2-text);
-  font-size: 22px;
-  font-weight: 600;
-`
-
-const Price = styled.div`
-  color: var(--v2-text);
-  font-size: 38px;
-  font-weight: 600;
-  line-height: 1;
-
-  span {
-    color: var(--v2-muted);
-    font-size: 13px;
-    font-weight: 600;
-  }
-`
-
-const FeatureList = styled.ul`
-  display: grid;
-  gap: 10px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  color: var(--curate-muted);
-  font-size: 14px;
-  line-height: 1.45;
-
-  li {
-    display: grid;
-    grid-template-columns: 18px minmax(0, 1fr);
-    gap: 8px;
-  }
-`
-
-const Compare = styled(Surface)`
-  margin-top: 14px;
-  overflow-x: auto;
-`
-
-const CompareGrid = styled.div`
-  min-width: 960px;
-  display: grid;
-  grid-template-columns: 0.9fr repeat(3, minmax(0, 1fr));
-`
-
-const CompareCell = styled.div<{ $head?: boolean; $featured?: boolean }>`
-  min-height: ${({ $head }) => ($head ? '86px' : '78px')};
-  padding: 15px;
-  border-right: 1px solid var(--color-border);
-  border-bottom: 1px solid var(--color-border);
-  background: ${({ $featured }) =>
-    $featured ? 'var(--color-primary-soft)' : 'transparent'};
-
-  &:nth-child(4n) {
-    border-right: 0;
-  }
-`
-
-const CompareTitle = styled.div`
-  color: var(--curate-text);
-  font-size: 14px;
-  font-weight: 950;
-`
-
-const CompareMeta = styled.div`
-  margin-top: 6px;
-  color: var(--curate-muted);
-  font-size: 13px;
-  line-height: 1.45;
-`
-
-const SkillPanel = styled(Surface)`
-  display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-  gap: 0;
-
-  @media (max-width: 980px) {
-    grid-template-columns: 1fr;
-  }
-`
-
-const SkillIntro = styled.div`
-  padding: 22px;
-`
-
-const SkillCode = styled.pre`
-  min-height: 440px;
-  max-height: 620px;
-  margin: 0;
-  padding: 18px;
-  overflow: auto;
-  border-left: 1px solid var(--color-border);
-  color: var(--color-text);
-  background: var(--color-raised);
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
-    monospace;
-  font-size: 12px;
-  line-height: 1.55;
-  white-space: pre-wrap;
-`
-
-const LinkLine = styled.a`
-  display: inline-flex;
-  margin-top: 14px;
-  color: var(--curate-live);
-  font-size: 13px;
-  font-weight: 600;
-  text-decoration: none;
-
-  &:hover {
-    text-decoration: underline;
-  }
-`
-
-const plans = [
+const TIERS: Tier[] = [
   {
-    icon: 'factory',
-    featured: false,
     name: 'Permissionless',
-    price: '$0',
-    meta: 'Open-source, self-operated',
+    icon: 'factory',
+    path: 'Default path',
+    pathSummary: 'Deploy and operate your own registry without approval.',
     badge: 'Build yourself',
+    featured: false,
+    price: '$0',
+    priceDetail: '/ month · self-operated',
+    meta: 'Open-source, self-operated',
     features: [
       'Deploy a registry without approval from Kleros.',
       'Build and host the frontend yourself.',
       'Run local indexing or wire a third-party indexer.',
       'Own the policy, monitoring, and operations.',
     ],
+    capabilities: {
+      frontend: 'Build, host, and maintain your own frontend.',
+      indexing: 'Run local indexing or connect a third-party indexer.',
+      policy: 'Write, publish, and maintain your own policy.',
+    },
+    action: (
+      <ButtonLink to={CREATE_HREF} $variant="primary" $block>
+        <CurateIcon name="factory" size={16} />
+        Create a registry
+      </ButtonLink>
+    ),
   },
   {
-    icon: 'activity',
     name: 'Quickstart',
-    price: '$19.99',
-    meta: 'Indexing without the setup drag',
+    icon: 'activity',
+    path: 'Fastest path',
+    pathSummary: 'Skip the indexer setup and build against a ready API.',
     badge: 'API only',
     featured: true,
+    price: '$19.99',
+    priceDetail: '/ month · API access',
+    meta: 'Indexing without the setup drag',
     features: [
       'Deploy a registry without approval from Kleros.',
       'Build and host the frontend yourself.',
       'Use a ready API instead of running the indexer.',
       'Keep policy and product decisions in-house.',
     ],
+    capabilities: {
+      frontend: 'Build, host, and maintain your own frontend.',
+      indexing: 'Ready API for agents and frontends.',
+      policy: 'Write, publish, and maintain your own policy.',
+    },
+    action: (
+      <ButtonAnchor href={CONTACT_HREF} $variant="secondary" $block>
+        Talk to Kleros
+      </ButtonAnchor>
+    ),
   },
   {
-    icon: 'policy',
-    featured: false,
     name: 'Curate Pro',
-    price: '$199',
-    meta: 'A supported path to production',
+    icon: 'policy',
+    path: 'Supported path',
+    pathSummary:
+      'Get direct help packaging the registry into a usable product.',
     badge: 'Kleros support',
+    featured: false,
+    price: '$199',
+    priceDetail: '/ month · managed support',
+    meta: 'A supported path to production',
     features: [
       'Launch with help on registry parameters.',
       'Get support for a dedicated frontend.',
       'Use a ready API with operational guidance.',
       'Get policy drafting and review support.',
     ],
+    capabilities: {
+      frontend: 'Support creating a dedicated frontend.',
+      indexing: 'Ready API with operational support.',
+      policy: 'Policy creation and review support.',
+    },
+    action: (
+      <ButtonAnchor href={CONTACT_HREF} $variant="secondary" $block>
+        Talk to Kleros
+      </ButtonAnchor>
+    ),
   },
-] as const
+]
+
+/* ---------- Hero ---------- */
+
+const Hero = styled.section`
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 760px;
+`
+
+const Actions = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+`
+
+/* ---------- Tiers ---------- */
+
+const SectionIntro = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+`
+
+const Tiers = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+
+  @media (max-width: 1020px) {
+    grid-template-columns: 1fr;
+  }
+`
+
+/* The featured tier keeps the old page's primary border; the "Recommended"
+ * chip says it in words so the emphasis does not rest on color alone. */
+const TierCard = styled(Surface)<{ $featured?: boolean }>`
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-color: ${({ $featured }) =>
+    $featured ? 'var(--color-primary)' : 'var(--color-border)'};
+`
+
+const TierEyebrow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+`
+
+const TierChips = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+`
+
+const TierName = styled(Subheading)`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  svg {
+    color: var(--color-muted);
+  }
+`
+
+const Price = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+`
+
+const Points = styled.ul`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+`
+
+const Point = styled.li`
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 8px;
+  color: var(--color-muted);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+
+  svg {
+    margin-top: 2px;
+    color: var(--color-faint);
+  }
+`
+
+const TierAction = styled.div`
+  margin-top: auto;
+  padding-top: 4px;
+`
+
+/* One row per capability, one column per tier, so the tiers can be read
+ * side by side; the scroller keeps the 640px table usable at phone width. */
+const Compare = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+`
+
+const CompareTable = styled(Table)`
+  tbody th {
+    height: 44px;
+    padding: 12px;
+    border-bottom: 1px solid var(--color-border);
+    text-align: left;
+    vertical-align: top;
+    white-space: nowrap;
+  }
+
+  tbody tr:last-child th {
+    border-bottom: 0;
+  }
+
+  tbody td {
+    padding: 12px;
+    color: var(--color-muted);
+    vertical-align: top;
+  }
+`
+
+const Note = styled(Surface)`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 16px;
+`
+
+/* ---------- Creator prompt ---------- */
+
+const PromptShell = styled(Surface)`
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 24px;
+  align-items: start;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+`
+
+const PromptIntro = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+`
+
+const PromptLinks = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 6px;
+`
+
+const TextLink = styled(Link)`
+  color: var(--color-primary);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  font-weight: 500;
+  text-decoration: none;
+
+  &:hover {
+    color: var(--color-primary-hover);
+    text-decoration: underline;
+  }
+`
+
+const TextAnchor = styled.a`
+  color: var(--color-primary);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  font-weight: 500;
+  text-decoration: none;
+
+  &:hover {
+    color: var(--color-primary-hover);
+    text-decoration: underline;
+  }
+`
+
+const PromptBlock = styled.div`
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-raised);
+`
+
+const PromptBar = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 8px 8px 16px;
+  border-bottom: 1px solid var(--color-border);
+`
+
+const PromptCode = styled.pre`
+  margin: 0;
+  max-height: 480px;
+  padding: 16px;
+  overflow: auto;
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-data);
+  line-height: var(--lh-data);
+  font-weight: 400;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+`
+
+/* Live region for the copy failure; it takes no space while empty. */
+const CopyNotice = styled(Small)`
+  display: block;
+  padding: 0 16px 12px;
+
+  &:empty {
+    display: none;
+  }
+`
+
+/* ---------- Page ---------- */
 
 const CuratePro = () => {
-  const [copied, setCopied] = useState(false)
-
   useDocumentHead(
     'Curate Pro | Kleros Curate',
     'Launch a Kleros Curate registry with permissionless contracts, Quickstart indexing, or supported policy and frontend delivery.',
   )
 
+  const [copyState, setCopyState] = useState<CopyState>('idle')
+  const copiedTimer = useRef<number | undefined>(undefined)
+
+  useEffect(() => () => window.clearTimeout(copiedTimer.current), [])
+
   const copyCreatorPrompt = async () => {
-    await navigator.clipboard.writeText(CREATOR_PROMPT)
-    setCopied(true)
-    window.setTimeout(() => setCopied(false), 1800)
+    window.clearTimeout(copiedTimer.current)
+    const clipboard = navigator.clipboard
+    if (!clipboard) {
+      setCopyState('failed')
+      return
+    }
+    try {
+      await clipboard.writeText(CREATOR_PROMPT)
+      setCopyState('copied')
+      copiedTimer.current = window.setTimeout(
+        () => setCopyState('idle'),
+        COPIED_FOR_MS,
+      )
+    } catch {
+      setCopyState('failed')
+    }
   }
+
+  const copied = copyState === 'copied'
 
   return (
     <Page>
       <Hero>
-        <div>
-          <Eyebrow>
-            <CurateIcon name="spark" size={15} />
-            Curate Pro
-          </Eyebrow>
-          <Title>Launch a registry without building the whole stack.</Title>
-          <Copy>
-            Curate is open source and permissionless. Use it yourself for free,
-            add Quickstart when indexing slows you down, or work with Kleros
-            when you want policy, API, and frontend support in one launch path.
-          </Copy>
-          <ActionRow>
-            <Button
-              type="primary"
-              size="large"
-              as={Link as any}
-              to="/factory/100"
-            >
-              Create a registry
-            </Button>
-            <Button
-              size="large"
-              href="mailto:contact@kleros.io?subject=Curate%20Pro"
-            >
-              Talk to Kleros
-            </Button>
-          </ActionRow>
-        </div>
-        <HeroStats>
-          <SignalCard>
-            <SignalLabel>Default path</SignalLabel>
-            <SignalValue>Permissionless</SignalValue>
-            <Copy>Deploy and operate your own registry without approval.</Copy>
-          </SignalCard>
-          <SignalCard>
-            <SignalLabel>Fastest path</SignalLabel>
-            <SignalValue>Quickstart</SignalValue>
-            <Copy>Skip the indexer setup and build against a ready API.</Copy>
-          </SignalCard>
-          <SignalCard>
-            <SignalLabel>Supported path</SignalLabel>
-            <SignalValue>Curate Pro</SignalValue>
-            <Copy>
-              Get direct help packaging the registry into a usable product.
-            </Copy>
-          </SignalCard>
-        </HeroStats>
+        <Label>Curate Pro</Label>
+        <Statement>
+          Launch a registry without building the whole stack.
+        </Statement>
+        <Body $muted $large>
+          Curate is open source and permissionless. Use it yourself for free,
+          add Quickstart when indexing slows you down, or work with Kleros when
+          you want policy, API, and frontend support in one launch path.
+        </Body>
+        <Actions>
+          <ButtonLink to={CREATE_HREF} $variant="primary">
+            <CurateIcon name="factory" size={16} />
+            Create a registry
+          </ButtonLink>
+          <ButtonAnchor href={CONTACT_HREF} $variant="secondary">
+            Talk to Kleros
+          </ButtonAnchor>
+        </Actions>
       </Hero>
 
-      <SectionHeader>
-        <div>
-          <SectionTitle>
-            Choose the amount of stack you want to own
-          </SectionTitle>
-          <SectionCopy>
+      <Section>
+        <SectionIntro>
+          <Heading>Choose the amount of stack you want to own</Heading>
+          <Body $muted>
             The protocol stays permissionless in every option. The paid paths do
             not buy access to Curate; they buy speed, infrastructure, and direct
             support.
-          </SectionCopy>
-        </div>
-      </SectionHeader>
+          </Body>
+        </SectionIntro>
 
-      <PlanGrid>
-        {plans.map((plan) => (
-          <PlanCard key={plan.name} $featured={plan.featured}>
-            <PlanTop>
-              <IconBox>
-                <CurateIcon name={plan.icon} size={20} />
-              </IconBox>
-              <Pill>{plan.badge}</Pill>
-            </PlanTop>
-            <div>
-              <PlanName>{plan.name}</PlanName>
-              <CompareMeta>{plan.meta}</CompareMeta>
-            </div>
-            <Price>
-              {plan.price} <span>/ month</span>
-            </Price>
-            <FeatureList>
-              {plan.features.map((feature) => (
-                <li key={feature}>
-                  <CurateIcon name="verified" size={15} />
-                  <span>{feature}</span>
-                </li>
-              ))}
-            </FeatureList>
-          </PlanCard>
-        ))}
-      </PlanGrid>
+        <Tiers>
+          {TIERS.map((tier) => (
+            <TierCard
+              key={tier.name}
+              $padding="standard"
+              $featured={tier.featured}
+              as="article"
+              aria-label={tier.name}
+            >
+              <TierEyebrow>
+                <Label>{tier.path}</Label>
+                <TierChips>
+                  {tier.featured && <Chip $selected>Recommended</Chip>}
+                  <Chip>{tier.badge}</Chip>
+                </TierChips>
+              </TierEyebrow>
+              <div>
+                <TierName>
+                  <CurateIcon name={tier.icon} size={16} />
+                  {tier.name}
+                </TierName>
+                <Small $muted>{tier.meta}</Small>
+              </div>
+              <Price>
+                <Figure>{tier.price}</Figure>
+                <Small $muted>{tier.priceDetail}</Small>
+              </Price>
+              <Body $muted>{tier.pathSummary}</Body>
+              <Points>
+                {tier.features.map((feature) => (
+                  <Point key={feature}>
+                    <CurateIcon name="check" size={14} />
+                    <span>{feature}</span>
+                  </Point>
+                ))}
+              </Points>
+              <TierAction>{tier.action}</TierAction>
+            </TierCard>
+          ))}
+        </Tiers>
 
-      <SectionHeader>
-        <div>
-          <SectionTitle>Same protocol, different operating burden</SectionTitle>
-          <SectionCopy>
+        <Compare>
+          <TableScroller>
+            <CompareTable aria-label="Capabilities by tier">
+              <thead>
+                <tr>
+                  <th scope="col">Capability</th>
+                  {TIERS.map((tier) => (
+                    <th key={tier.name} scope="col">
+                      {tier.name}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {CAPABILITY_ROWS.map((row) => (
+                  <tr key={row.key}>
+                    <th scope="row">
+                      <Label>{row.label}</Label>
+                    </th>
+                    {TIERS.map((tier) => (
+                      <td key={tier.name}>{tier.capabilities[row.key]}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </CompareTable>
+          </TableScroller>
+        </Compare>
+
+        <Note $padding="compact" $raised>
+          <Title>Same protocol, different operating burden</Title>
+          <Body $muted>
             Permissionless and Quickstart both leave product ownership with you.
             Quickstart removes indexing work. Curate Pro adds Kleros support
             where mistakes are expensive: policy, data access, and the frontend
             users will actually touch.
-          </SectionCopy>
-        </div>
-      </SectionHeader>
+          </Body>
+        </Note>
+      </Section>
 
-      <Compare>
-        <CompareGrid>
-          <CompareCell $head>
-            <CompareTitle>Capability</CompareTitle>
-          </CompareCell>
-          <CompareCell $head>
-            <CompareTitle>Permissionless</CompareTitle>
-            <CompareMeta>$0, self-operated</CompareMeta>
-          </CompareCell>
-          <CompareCell $head $featured>
-            <CompareTitle>Quickstart</CompareTitle>
-            <CompareMeta>$19.99, API access</CompareMeta>
-          </CompareCell>
-          <CompareCell $head>
-            <CompareTitle>Curate Pro</CompareTitle>
-            <CompareMeta>$199, managed support</CompareMeta>
-          </CompareCell>
-
-          <CompareCell>
-            <CompareTitle>Frontend</CompareTitle>
-          </CompareCell>
-          <CompareCell>
-            <CompareMeta>
-              Build, host, and maintain your own frontend.
-            </CompareMeta>
-          </CompareCell>
-          <CompareCell $featured>
-            <CompareMeta>
-              Build, host, and maintain your own frontend.
-            </CompareMeta>
-          </CompareCell>
-          <CompareCell>
-            <CompareMeta>Support creating a dedicated frontend.</CompareMeta>
-          </CompareCell>
-
-          <CompareCell>
-            <CompareTitle>Indexing</CompareTitle>
-          </CompareCell>
-          <CompareCell>
-            <CompareMeta>
-              Run local indexing or connect a third-party indexer.
-            </CompareMeta>
-          </CompareCell>
-          <CompareCell $featured>
-            <CompareMeta>Ready API for agents and frontends.</CompareMeta>
-          </CompareCell>
-          <CompareCell>
-            <CompareMeta>Ready API with operational support.</CompareMeta>
-          </CompareCell>
-
-          <CompareCell>
-            <CompareTitle>Policy</CompareTitle>
-          </CompareCell>
-          <CompareCell>
-            <CompareMeta>
-              Write, publish, and maintain your own policy.
-            </CompareMeta>
-          </CompareCell>
-          <CompareCell $featured>
-            <CompareMeta>
-              Write, publish, and maintain your own policy.
-            </CompareMeta>
-          </CompareCell>
-          <CompareCell>
-            <CompareMeta>Policy creation and review support.</CompareMeta>
-          </CompareCell>
-        </CompareGrid>
-      </Compare>
-
-      <SectionHeader>
-        <div>
-          <SectionTitle>Creator prompt for new lists</SectionTitle>
-          <SectionCopy>
+      <Section>
+        <SectionIntro>
+          <Heading>Creator prompt for new lists</Heading>
+          <Body $muted>
             The global Curate skill is for every registry. This prompt is only
             for creators deciding how to launch and operate a new list.
-          </SectionCopy>
-        </div>
-        <Button type="primary" onClick={copyCreatorPrompt}>
-          <CurateIcon name="copy" size={16} />
-          {copied ? 'Copied' : 'Copy creator prompt'}
-        </Button>
-      </SectionHeader>
+          </Body>
+        </SectionIntro>
 
-      <SkillPanel>
-        <SkillIntro>
-          <Eyebrow>
-            <CurateIcon name="activity" size={15} />
-            Agent context
-          </Eyebrow>
-          <SectionTitle style={{ marginTop: 16 }}>
-            Start a launch conversation.
-          </SectionTitle>
-          <SectionCopy>
-            Paste this after the agent loads the Curate skill. It keeps the
-            conversation focused on policy, indexing, frontend, and the real
-            operating choices behind a registry launch.
-          </SectionCopy>
-          <LinkLine href="/guide">Open Guide & Skills</LinkLine>
-          <LinkLine href="/skills/kleros-curate/SKILL.md">
-            Open local SKILL.md
-          </LinkLine>
-        </SkillIntro>
-        <SkillCode>{CREATOR_PROMPT}</SkillCode>
-      </SkillPanel>
+        <PromptShell $padding="standard" aria-label="Creator prompt">
+          <PromptIntro>
+            <Label>Agent context</Label>
+            <Subheading>Start a launch conversation.</Subheading>
+            <Body $muted>
+              Paste this after the agent loads the Curate skill. It keeps the
+              conversation focused on policy, indexing, frontend, and the real
+              operating choices behind a registry launch.
+            </Body>
+            <PromptLinks>
+              <TextLink to={GUIDE_HREF}>Open the guide</TextLink>
+              <TextAnchor href={SKILL_HREF}>Open local SKILL.md</TextAnchor>
+            </PromptLinks>
+          </PromptIntro>
+          <PromptBlock>
+            <PromptBar>
+              <Label>Creator prompt</Label>
+              <Button
+                type="button"
+                $variant="primary"
+                $size="sm"
+                onClick={copyCreatorPrompt}
+              >
+                <CurateIcon name={copied ? 'check' : 'copy'} size={14} />
+                <span aria-live="polite">
+                  {copied ? 'Copied' : 'Copy creator prompt'}
+                </span>
+              </Button>
+            </PromptBar>
+            <PromptCode
+              role="region"
+              tabIndex={0}
+              aria-label="Creator prompt text"
+            >
+              {CREATOR_PROMPT}
+            </PromptCode>
+            <CopyNotice $muted role="status">
+              {copyState === 'failed'
+                ? 'Copy failed. Select the text above to copy it.'
+                : null}
+            </CopyNotice>
+          </PromptBlock>
+        </PromptShell>
+      </Section>
+
+      <Section>
+        <Explainer
+          id="curate-pro-production-registry"
+          eyebrow="Before you launch"
+          heading="What a production registry needs"
+          intro="Every tier runs the same contracts. What changes is who builds and operates the pieces around them."
+          steps={[
+            {
+              title: 'Policy and court',
+              body: 'The acceptance criteria, as a PDF the list’s MetaEvidence points to, and a Kleros court with a number of jurors set in the list’s arbitrator data. Challengers cite the policy and jurors rule by it, so it says what belongs on the list, what does not, and how to check. In Light and Classic Curate disputes are raised during the challenge period; in Stake Curate an item can be challenged at any time while it is listed. More jurors make rulings sturdier and raise the arbitration cost every deposit has to cover.',
+            },
+            {
+              title: 'Deposits',
+              body: 'In Light and Classic Curate every submission, removal and challenge locks a base deposit plus the court’s arbitration cost, in the chain’s native token. An unchallenged deposit comes back in full when the request is executed; after a dispute the winner takes the pool minus the arbitration cost. Stake Curate instead locks an ERC-20 stake for as long as the item is listed, plus a native arbitration deposit.',
+            },
+            {
+              title: 'Indexing and front end',
+              body: 'Light Curate keeps only an IPFS hash on-chain, so the fields people search are indexed off-chain by a subgraph or indexer: run one yourself, connect a third-party indexer, or use the ready API that Quickstart and Curate Pro include. The front end is where people read the list, submit entries and challenge them. Build and host your own on the permissionless contracts, or get support for a dedicated one with Curate Pro.',
+            },
+          ]}
+          schematic={<ProductionStackSchematic />}
+          footer={<TextLink to={GUIDE_HREF}>Read the guide</TextLink>}
+        />
+      </Section>
     </Page>
   )
 }

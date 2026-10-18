@@ -1,48 +1,49 @@
 import React from 'react'
-import styled, { useTheme } from 'styled-components'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import {
-  faCheckCircle,
-  faExclamationTriangle,
-  faTimesCircle,
-  faInfoCircle,
-} from '@fortawesome/free-solid-svg-icons'
+import styled from 'styled-components'
+import { KitIcon, type KitIconName } from './kit-icons'
+import { joinClassNames } from './kit-styles'
 
 type ResultStatus = 'success' | 'error' | 'warning' | 'info'
 
-const statusIcons: Record<ResultStatus, typeof faCheckCircle> = {
-  success: faCheckCircle,
-  error: faTimesCircle,
-  warning: faExclamationTriangle,
-  info: faInfoCircle,
+const STATUS: Record<ResultStatus, { color: string; icon: KitIconName }> = {
+  success: { color: 'var(--color-success)', icon: 'check-circle' },
+  error: { color: 'var(--color-danger)', icon: 'error-circle' },
+  warning: { color: 'var(--color-warning)', icon: 'warning-triangle' },
+  info: { color: 'var(--color-primary)', icon: 'info-circle' },
 }
 
 const Wrapper = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 24px;
   text-align: center;
-  padding: 48px 32px;
 `
 
 const IconWrapper = styled.div<{ $color: string }>`
-  font-size: 48px;
-  margin-bottom: 24px;
+  display: inline-flex;
+  margin-bottom: 16px;
   color: ${({ $color }) => $color};
 `
 
 const Title = styled.div`
-  font-size: 24px;
-  font-weight: 500;
-  color: ${({ theme }) => theme.textPrimary};
-  margin-bottom: 8px;
+  color: var(--color-text);
+  font-size: var(--fs-subheading);
+  line-height: var(--lh-subheading);
+  font-weight: 600;
+  overflow-wrap: anywhere;
 `
 
 const SubTitle = styled.div`
-  font-size: 14px;
-  color: ${({ theme }) => theme.textSecondary};
-  margin-bottom: 24px;
+  max-width: 48ch;
+  margin-top: 6px;
+  color: var(--color-muted);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
 `
 
 const Extra = styled.div`
-  margin-top: 24px;
+  margin-top: 20px;
 `
 
 interface ResultProps {
@@ -62,26 +63,24 @@ const Result: React.FC<ResultProps> = ({
   subTitle,
   extra,
   icon,
+  className,
   ...rest
 }) => {
-  const theme = useTheme()
-  const statusColors: Record<ResultStatus, string> = {
-    success: theme.successColor,
-    error: theme.errorColor,
-    warning: theme.warningColor,
-    info: theme.infoColor,
-  }
-  const color = statusColors[status] || statusColors.info
-  const statusIcon = statusIcons[status] || statusIcons.info
+  const role = STATUS[status] || STATUS.info
 
   return (
-    <Wrapper {...rest}>
-      <IconWrapper $color={color}>
-        {icon || <FontAwesomeIcon icon={statusIcon} />}
+    <Wrapper
+      className={joinClassNames('ui-result', `ui-result-${status}`, className)}
+      {...rest}
+    >
+      <IconWrapper className="ui-result-icon" $color={role.color}>
+        {icon || <KitIcon name={role.icon} size={32} />}
       </IconWrapper>
-      {title && <Title>{title}</Title>}
-      {subTitle && <SubTitle>{subTitle}</SubTitle>}
-      {extra && <Extra>{extra}</Extra>}
+      {title && <Title className="ui-result-title">{title}</Title>}
+      {subTitle && (
+        <SubTitle className="ui-result-subtitle">{subTitle}</SubTitle>
+      )}
+      {extra && <Extra className="ui-result-extra">{extra}</Extra>}
     </Wrapper>
   )
 }

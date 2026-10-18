@@ -1,59 +1,62 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
 import styled, { css } from 'styled-components'
+import { overlayPanel } from './kit-styles'
 
+/*
+ * Dropdown: the trigger plus a floating panel styled like the app bar's
+ * menus (surface, strong hairline, radius 6, overlay shadow). The panel is
+ * always the wrapper's last child div, which callers rely on for placement.
+ */
 const Wrapper = styled.div`
   display: inline-block;
   position: relative;
 `
 
-const placementStyles: Record<string, any> = {
+const placementStyles: Record<string, ReturnType<typeof css>> = {
   bottomLeft: css`
     top: 100%;
     left: 0;
-    margin-top: 4px;
+    margin-top: 6px;
   `,
   bottomRight: css`
     top: 100%;
     right: 0;
-    margin-top: 4px;
+    margin-top: 6px;
   `,
   bottomCenter: css`
     top: 100%;
     left: 50%;
     transform: translateX(-50%);
-    margin-top: 4px;
+    margin-top: 6px;
   `,
   topLeft: css`
     bottom: 100%;
     left: 0;
-    margin-bottom: 4px;
+    margin-bottom: 6px;
   `,
   topRight: css`
     bottom: 100%;
     right: 0;
-    margin-bottom: 4px;
+    margin-bottom: 6px;
   `,
   topCenter: css`
     bottom: 100%;
     left: 50%;
     transform: translateX(-50%);
-    margin-bottom: 4px;
+    margin-bottom: 6px;
   `,
 }
 
 const Overlay = styled.div<{ $visible?: boolean; $placement?: string }>`
   position: absolute;
   z-index: 1050;
-  min-width: 120px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-overlay);
+  min-width: 160px;
+  ${overlayPanel}
   opacity: ${({ $visible }) => ($visible ? 1 : 0)};
   visibility: ${({ $visible }) => ($visible ? 'visible' : 'hidden')};
   transition:
-    opacity 0.2s,
-    visibility 0.2s;
+    opacity var(--motion),
+    visibility var(--motion);
   ${({ $placement }) =>
     placementStyles[$placement || 'bottomLeft'] || placementStyles.bottomLeft}
 `
@@ -113,17 +116,24 @@ const Dropdown: React.FC<DropdownProps> = ({
       }, 100)
   }, [trigger, setVisible])
 
-  // Close on outside click
+  // Close on outside click and on Escape
   useEffect(() => {
-    if (!isVisible) return
+    if (!isVisible) return undefined
 
     const handleClickOutside = (e: MouseEvent) => {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node))
         setVisible(false)
     }
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setVisible(false)
+    }
 
     document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
   }, [isVisible, setVisible])
 
   // Cleanup timeout on unmount
@@ -143,7 +153,12 @@ const Dropdown: React.FC<DropdownProps> = ({
       className="ui-dropdown"
     >
       {children}
-      <Overlay $visible={isVisible} $placement={placement}>
+      <Overlay
+        className="ui-dropdown-overlay"
+        $visible={isVisible}
+        $placement={placement}
+        aria-hidden={!isVisible}
+      >
         {overlay}
       </Overlay>
     </Wrapper>

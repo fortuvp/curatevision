@@ -1,8 +1,16 @@
 import React from 'react'
-import styled, { css, DefaultTheme } from 'styled-components'
+import styled, { css } from 'styled-components'
+import { KitIcon } from './kit-icons'
+import { joinClassNames, monoLabel } from './kit-styles'
 
+/*
+ * Stepper (DESIGN.md): 24px pill markers with mono numbers, hairline tails.
+ * The current step is drawn in the action color, finished steps are filled
+ * with it and carry a check, waiting steps stay muted.
+ */
 const StepsWrapper = styled.div<{ $direction?: string }>`
   display: flex;
+  width: 100%;
   ${({ $direction }) =>
     $direction === 'vertical'
       ? css`
@@ -10,113 +18,125 @@ const StepsWrapper = styled.div<{ $direction?: string }>`
         `
       : css`
           flex-direction: row;
-          align-items: center;
+          align-items: flex-start;
+          gap: 8px;
         `}
-  width: 100%;
 `
 
 const StepItem = styled.div<{ $isLast?: boolean; $direction?: string }>`
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
   flex: ${({ $isLast }) => ($isLast ? '0 0 auto' : '1 1 0')};
   ${({ $direction }) =>
     $direction === 'vertical' &&
     css`
-      flex-direction: row;
-      min-height: 64px;
+      flex: 0 0 auto;
+      min-height: 56px;
     `}
 `
 
-const getStatusColor = (status: string, theme: DefaultTheme) => {
-  switch (status) {
-    case 'finish':
-      return theme.primaryColor
-    case 'process':
-      return theme.primaryColor
-    case 'error':
-      return theme.errorColor
-    default:
-      return theme.borderColor
-  }
+const statusStyles: Record<string, ReturnType<typeof css>> = {
+  wait: css`
+    border-color: var(--color-border-strong);
+    background: var(--color-surface);
+    color: var(--color-muted);
+  `,
+  process: css`
+    border-color: var(--color-primary);
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+  `,
+  finish: css`
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+  `,
+  error: css`
+    border-color: var(--color-danger);
+    background: var(--color-danger-soft);
+    color: var(--color-danger);
+  `,
 }
 
 const StepCircle = styled.div<{ $status?: string }>`
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
-  font-weight: 600;
-  flex-shrink: 0;
-  border: 2px solid
-    ${({ $status, theme }) => getStatusColor($status || 'wait', theme)};
-  transition: all 0.3s;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border: 1px solid;
+  border-radius: var(--radius-pill);
+  ${monoLabel}
+  letter-spacing: 0;
+  transition:
+    background var(--motion),
+    border-color var(--motion),
+    color var(--motion);
+  ${({ $status }) => statusStyles[$status || 'wait'] || statusStyles.wait}
 
-  ${({ $status, theme }) =>
-    $status === 'process'
-      ? css`
-          background: ${theme.primaryColor};
-          color: ${theme.textOnPrimary};
-        `
-      : $status === 'finish'
-        ? css`
-            background: ${theme.componentBackground};
-            color: ${theme.primaryColor};
-          `
-        : $status === 'error'
-          ? css`
-              background: ${theme.componentBackground};
-              color: ${theme.errorColor};
-            `
-          : css`
-              background: ${theme.componentBackground};
-              color: ${theme.textSecondary};
-            `}
+  svg {
+    display: block;
+  }
 `
 
 const StepTail = styled.div<{ $direction?: string; $done?: boolean }>`
   flex: 1;
+  background: ${({ $done }) =>
+    $done ? 'var(--color-primary)' : 'var(--color-border)'};
+  transition: background var(--motion);
   ${({ $direction }) =>
     $direction === 'vertical'
       ? css`
-          width: 2px;
+          width: 1px;
           min-height: 24px;
           margin: 4px 0;
         `
       : css`
-          height: 2px;
-          margin: 0 12px;
+          height: 1px;
           min-width: 16px;
+          margin-top: 12px;
         `}
-  background: ${({ $done, theme }) =>
-    $done ? theme.primaryColor : theme.borderColor};
-  transition: background 0.3s;
+`
+
+const StepColumn = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  align-self: stretch;
+`
+
+const StepBody = styled.div<{ $direction?: string }>`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding-top: 2px;
+  ${({ $direction }) =>
+    $direction === 'vertical' &&
+    css`
+      padding-bottom: 16px;
+    `}
 `
 
 const StepTitle = styled.span<{ $status?: string }>`
-  font-size: 14px;
-  font-weight: 500;
-  margin-left: 8px;
+  color: ${({ $status }) =>
+    $status === 'wait' ? 'var(--color-muted)' : 'var(--color-text)'};
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: 600;
   white-space: nowrap;
-  color: ${({ $status, theme }) =>
-    $status === 'wait' ? theme.textSecondary : theme.textPrimary};
-  transition: color 0.3s;
+  transition: color var(--motion);
 `
 
 const StepDescription = styled.div`
-  font-size: 12px;
-  color: ${({ theme }) => theme.textSecondary};
-  margin-top: 2px;
-  max-width: 140px;
+  max-width: 160px;
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
 `
-
-const CheckIcon = () => (
-  <svg viewBox="64 64 896 896" width="14" height="14" fill="currentColor">
-    <path d="M912 190h-69.9c-9.8 0-19.1 4.5-25.1 12.2L404.7 724.5 207 474a32 32 0 00-25.1-12.2H112c-6.7 0-10.4 7.7-6.3 12.9l273.9 347c12.8 16.2 37.4 16.2 50.3 0l488.4-618.9c4.1-5.1.4-12.8-6.3-12.8z" />
-  </svg>
-)
 
 interface StepProps {
   title?: React.ReactNode
@@ -137,39 +157,63 @@ const Step: React.FC<StepProps> = ({
   $direction,
   $isLast,
 }) => {
+  const marker =
+    icon ||
+    (status === 'finish' ? <KitIcon name="check" size={14} /> : $index + 1)
+  const className = joinClassNames('ui-steps-item', `ui-steps-item-${status}`)
+  const current = status === 'process' ? 'step' : undefined
+
   if ($direction === 'vertical')
     return (
-      <StepItem $direction={$direction} $isLast={$isLast}>
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-          }}
-        >
-          <StepCircle $status={status}>
-            {icon || (status === 'finish' ? <CheckIcon /> : $index + 1)}
+      <StepItem
+        className={className}
+        $direction={$direction}
+        $isLast={$isLast}
+        aria-current={current}
+      >
+        <StepColumn>
+          <StepCircle className="ui-steps-icon" $status={status}>
+            {marker}
           </StepCircle>
           {!$isLast && (
-            <StepTail $direction={$direction} $done={status === 'finish'} />
+            <StepTail
+              className="ui-steps-tail"
+              $direction={$direction}
+              $done={status === 'finish'}
+            />
           )}
-        </div>
-        <div style={{ marginLeft: 12, paddingBottom: 16 }}>
-          <StepTitle $status={status} style={{ marginLeft: 0 }}>
+        </StepColumn>
+        <StepBody $direction={$direction}>
+          <StepTitle className="ui-steps-title" $status={status}>
             {title}
           </StepTitle>
-          {description && <StepDescription>{description}</StepDescription>}
-        </div>
+          {description && (
+            <StepDescription className="ui-steps-description">
+              {description}
+            </StepDescription>
+          )}
+        </StepBody>
       </StepItem>
     )
 
   return (
-    <StepItem $isLast={$isLast}>
-      <StepCircle $status={status}>
-        {icon || (status === 'finish' ? <CheckIcon /> : $index + 1)}
+    <StepItem className={className} $isLast={$isLast} aria-current={current}>
+      <StepCircle className="ui-steps-icon" $status={status}>
+        {marker}
       </StepCircle>
-      <StepTitle $status={status}>{title}</StepTitle>
-      {!$isLast && <StepTail $done={status === 'finish'} />}
+      <StepBody>
+        <StepTitle className="ui-steps-title" $status={status}>
+          {title}
+        </StepTitle>
+        {description && (
+          <StepDescription className="ui-steps-description">
+            {description}
+          </StepDescription>
+        )}
+      </StepBody>
+      {!$isLast && (
+        <StepTail className="ui-steps-tail" $done={status === 'finish'} />
+      )}
     </StepItem>
   )
 }
@@ -201,7 +245,7 @@ const Steps: StepsComponent = ({
     <StepsWrapper
       $direction={direction}
       style={style}
-      className={`ui-steps${className ? ` ${className}` : ''}`}
+      className={joinClassNames('ui-steps', `ui-steps-${direction}`, className)}
     >
       {items.map((child, index) => {
         const element = child as React.ReactElement

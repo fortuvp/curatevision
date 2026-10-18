@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import styled, { css, DefaultTheme } from 'styled-components'
+import styled from 'styled-components'
+import { overlayPanel } from './kit-styles'
 
 type Placement = 'top' | 'bottom' | 'left' | 'right'
 
@@ -10,78 +11,18 @@ const Wrapper = styled.span`
   vertical-align: middle;
 `
 
-const getArrowStyles = (placement: Placement, theme: DefaultTheme) => {
-  const bg =
-    theme.tooltipBg ||
-    (theme.name === 'dark' ? theme.elevatedBackground : theme.secondaryColor)
-  const border =
-    theme.tooltipBorder ||
-    (theme.name === 'dark' ? theme.borderColor : theme.secondaryColor)
-
-  switch (placement) {
-    case 'bottom':
-      return css`
-        top: -4px;
-        left: 50%;
-        transform: translateX(-50%) rotate(45deg);
-        border-top: 1px solid ${border};
-        border-left: 1px solid ${border};
-        background: ${bg};
-      `
-    case 'left':
-      return css`
-        top: 50%;
-        right: -4px;
-        transform: translateY(-50%) rotate(45deg);
-        border-top: 1px solid ${border};
-        border-right: 1px solid ${border};
-        background: ${bg};
-      `
-    case 'right':
-      return css`
-        top: 50%;
-        left: -4px;
-        transform: translateY(-50%) rotate(45deg);
-        border-bottom: 1px solid ${border};
-        border-left: 1px solid ${border};
-        background: ${bg};
-      `
-    case 'top':
-    default:
-      return css`
-        bottom: -4px;
-        left: 50%;
-        transform: translateX(-50%) rotate(45deg);
-        border-bottom: 1px solid ${border};
-        border-right: 1px solid ${border};
-        background: ${bg};
-      `
-  }
-}
-
+/* Small floating panel like the menus: surface, strong hairline, no arrow. */
 const TooltipBubble = styled.div`
   position: fixed;
   z-index: 1070;
   width: max-content;
-  max-width: 250px;
-  padding: 6px 8px;
-  font-size: 12px;
-  line-height: 1.5;
-  border-radius: 6px;
+  max-width: 280px;
+  padding: 6px 10px;
+  ${overlayPanel}
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
   pointer-events: none;
-
-  background: ${({ theme }) => theme.tooltipBg};
-  color: ${({ theme }) => theme.tooltipText};
-  border: 1px solid ${({ theme }) => theme.tooltipBorder};
-  box-shadow: ${({ theme }) =>
-    `0 2px 8px ${theme.tooltipShadow || theme.shadowColor}`};
-`
-
-const TooltipArrow = styled.span<{ $placement: Placement }>`
-  position: absolute;
-  width: 8px;
-  height: 8px;
-  ${({ $placement, theme }) => getArrowStyles($placement, theme)}
 `
 
 interface TooltipProps {
@@ -97,29 +38,30 @@ const getPositionStyle = (
   rect: DOMRect,
 ): React.CSSProperties => {
   switch (placement) {
-    case 'top':
-      return {
-        top: rect.top,
-        left: rect.left + rect.width / 2,
-        transform: 'translate(-50%, -100%) translateY(-8px)',
-      }
     case 'bottom':
       return {
         top: rect.bottom,
         left: rect.left + rect.width / 2,
-        transform: 'translate(-50%, 0) translateY(8px)',
+        transform: 'translate(-50%, 0) translateY(6px)',
       }
     case 'left':
       return {
         top: rect.top + rect.height / 2,
         left: rect.left,
-        transform: 'translate(-100%, -50%) translateX(-8px)',
+        transform: 'translate(-100%, -50%) translateX(-6px)',
       }
     case 'right':
       return {
         top: rect.top + rect.height / 2,
         left: rect.right,
-        transform: 'translate(0, -50%) translateX(8px)',
+        transform: 'translate(0, -50%) translateX(6px)',
+      }
+    case 'top':
+    default:
+      return {
+        top: rect.top,
+        left: rect.left + rect.width / 2,
+        transform: 'translate(-50%, -100%) translateY(-6px)',
       }
   }
 }
@@ -171,14 +113,16 @@ const Tooltip: React.FC<TooltipProps> = ({
   return (
     <Wrapper
       ref={wrapperRef}
+      className="ui-tooltip-trigger"
       onMouseEnter={handleEnter}
       onMouseLeave={handleLeave}
+      onFocus={handleEnter}
+      onBlur={handleLeave}
     >
       {children}
       {visible &&
         createPortal(
-          <TooltipBubble style={posStyle}>
-            <TooltipArrow $placement={placement} />
+          <TooltipBubble role="tooltip" className="ui-tooltip" style={posStyle}>
             {title}
           </TooltipBubble>,
           document.body,

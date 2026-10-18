@@ -1,310 +1,225 @@
-import React, { useCallback, useEffect, useState } from 'react'
-import { ethers } from 'ethers'
-import { Modal, Button, Form, Tooltip, Typography } from 'components/ui'
-import Icon from 'components/ui/Icon'
+import React, { useCallback, useContext, useEffect, useState } from 'react'
 import styled from 'styled-components'
+import type { BigNumber } from 'ethers'
 import _gtcr from 'assets/abis/LightGeneralizedTCR.json'
 import { useAccount, usePublicClient, useWalletClient, useChainId } from 'wagmi'
 import { simulateContract } from '@wagmi/core'
 import { getAddress, keccak256, encodePacked } from 'viem'
 import { withFormik, type FormikProps } from 'formik'
-import humanizeDuration from 'humanize-duration'
 import { ItemTypes, typeDefaultValues } from '@kleros/gtcr-encoder'
+import { useAtlasProvider } from '@kleros/kleros-app'
 import InputSelector from 'components/input-selector'
-import EnsureAuth from 'components/ensure-auth'
-import ETHAmount from 'components/eth-amount'
 import useFactory from 'hooks/factory'
 import { addPeriod, capitalizeFirstLetter } from 'utils/string'
-import ListingCriteriaLink from 'components/listing-criteria-link'
-import { useAtlasProvider } from '@kleros/kleros-app'
 import { resolveStashedFiles } from 'utils/resolve-stashed-files'
 import { JSON_UPLOAD_ROLE } from 'utils/atlas-roles'
 import useNativeCurrency from 'hooks/native-currency'
-import useNativeBalance from 'hooks/use-native-balance'
+import { useAttachment } from 'hooks/use-attachment'
+import { parseIpfs } from 'utils/ipfs-parse'
+import { formatDurationLong } from 'utils/time'
 import { wrapWithToast, errorToast } from 'utils/wrap-with-toast'
 import { parseWagmiError } from 'utils/parse-wagmi-error'
 import { wagmiConfig } from 'config/wagmi'
-import { StyledSpin, InsufficientBalanceText } from './challenge'
+import { LightTCRViewContext } from 'contexts/light-tcr-view-context'
+import { CurateIcon } from 'components/curate/icons'
+import {
+  Body,
+  Button,
+  Data,
+  KeyValueList,
+  Label,
+  Row,
+  SkeletonBlock,
+  Small,
+  Stack,
+  Subheading,
+} from 'components/curate/primitives'
+import {
+  WhatHappensNext,
+  type OutcomeStep,
+  type ReceiptLine,
+} from 'components/curate/what-happens-next'
+import { Dialog } from 'components/curate/item-light-dialog'
+import { useActionGate } from 'components/curate/item-light-gate'
+import { formatAmount } from 'components/curate/item-light-format'
 
-export const StyledModal = styled(Modal)`
-  width: min(1180px, calc(100vw - 32px)) !important;
-  max-width: calc(100vw - 16px) !important;
-  border-radius: var(--radius-sm);
-  background: var(--klerosUIComponentsLightBackground);
+/*
+ * Submit an entry to a Light Curate list in three steps: fill in the fields,
+ * read the policy, review and confirm. The confirm step is the "What happens
+ * next" panel with the exact deposit, its breakdown and the challenge period
+ * (DESIGN.md: money and time are always legible). The upload goes through
+ * Atlas, then addItem is sent with the deposit.
+ */
 
-  .ui-modal-header {
-    display: none;
-  }
+/* ---------- Flow scaffold (also used by the Classic and Stake submit flows) ---------- */
 
-  .ui-modal-body {
-    padding: 0;
-    background: var(--klerosUIComponentsLightBackground);
-  }
-
-  .ui-modal-footer {
-    justify-content: center;
-    gap: 24px;
-    padding: 24px;
-    border-top: 0;
-    background: var(--klerosUIComponentsLightBackground);
-  }
-
-  @media (max-width: 720px) {
-    width: calc(100vw - 16px) !important;
-  }
-`
-
-export const StyledParagraph = styled(Typography.Paragraph)`
-  font-size: 14px;
-  line-height: 1.6;
-`
-
-export const StyledListingCriteria = styled(Typography.Paragraph)`
-  font-size: 13px;
-  line-height: 1.6;
-  color: ${({ theme }) => theme.textSecondary};
-  margin-top: 4px;
-  margin-bottom: 16px;
-`
-
-const SubmissionFlow = styled.div`
+const Flow = styled.div`
   display: flex;
   flex-direction: column;
-  align-items: center;
-  width: 100%;
-  padding: 0;
-  background: var(--klerosUIComponentsLightBackground);
-  color: var(--klerosUIComponentsPrimaryText);
+  gap: 20px;
 `
 
-const SubmissionHeaderCard = styled.div`
+const FlowHeader = styled.div`
   display: flex;
   flex-wrap: wrap;
+  align-items: flex-start;
   justify-content: space-between;
-  align-items: center;
-  gap: 24px;
-  width: min(91vw, 100%);
-  margin: 60px 0 36px;
-  padding: 24px clamp(24px, 3vw, 32px);
-  border: 1px solid var(--klerosUIComponentsStroke);
-  border-radius: var(--radius-sm);
-  background: var(--klerosUIComponentsWhiteBackground);
-  box-shadow: var(--v2-shadow);
+  gap: 12px 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-border);
 `
 
-const SubmissionTitle = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  color: var(--klerosUIComponentsPrimaryText);
-  font-size: 24px;
-  font-weight: 600;
-  line-height: 32px;
-
-  strong {
-    color: var(--klerosUIComponentsSecondaryPurple);
-    font-weight: 600;
-  }
-`
-
-const DepositPill = styled.div`
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--klerosUIComponentsPrimaryText);
-  font-size: 14px;
-  line-height: 18px;
-
-  svg {
-    color: var(--klerosUIComponentsSecondaryPurple);
-  }
-`
-
-const SubmissionWorkspace = styled.div`
-  display: grid;
-  grid-template-columns: minmax(180px, 220px) minmax(0, 700px);
-  justify-content: center;
-  align-items: start;
-  gap: clamp(24px, 4vw, 44px);
-  width: 100%;
-  max-width: 87.5rem;
-  padding: clamp(24px, 3vw, 28px) clamp(24px, 3vw, 32px) clamp(76px, 8vw, 96px);
-  background: var(--klerosUIComponentsLightBackground);
-
-  @media (max-width: 1024px) {
-    grid-template-columns: minmax(0, 700px);
-  }
-
-  @media (max-width: 900px) {
-    padding-inline: 16px;
-  }
-`
-
-const SubmissionTimeline = styled.ol`
-  position: sticky;
-  top: 96px;
+const DepositBlock = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 2px;
+  text-align: right;
+
+  @media (max-width: 560px) {
+    text-align: left;
+  }
+`
+
+const FlowBody = styled.div`
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 24px 32px;
+  align-items: start;
+
+  @media (max-width: 860px) {
+    grid-template-columns: 1fr;
+  }
+`
+
+const StepsRail = styled.ol`
+  position: sticky;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
   margin: 0;
   padding: 0;
   list-style: none;
 
-  @media (max-width: 1024px) {
-    display: none;
+  @media (max-width: 860px) {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px 20px;
   }
 `
 
-const SubmissionStep = styled.li<{ $active?: boolean }>`
-  position: relative;
+const StepItem = styled.li<{ $active: boolean }>`
   display: grid;
   grid-template-columns: 24px minmax(0, 1fr);
-  gap: 12px;
-  min-height: 70px;
+  gap: 10px;
+  align-items: start;
   color: ${({ $active }) =>
-    $active
-      ? 'var(--klerosUIComponentsPrimaryBlue)'
-      : 'var(--klerosUIComponentsSecondaryText)'};
-
-  &::after {
-    content: '';
-    position: absolute;
-    top: 25px;
-    left: 11px;
-    width: 1px;
-    height: calc(100% - 25px);
-    background: var(--klerosUIComponentsStroke);
-  }
-
-  &:last-child::after {
-    content: none;
-  }
-
-  span {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    border: 1px solid currentColor;
-    border-radius: 50%;
-    font-size: 12px;
-    font-weight: 600;
-  }
-
-  strong {
-    color: currentColor;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 18px;
-  }
-
-  small {
-    display: block;
-    margin-top: 4px;
-    color: var(--klerosUIComponentsSecondaryText);
-    font-size: 12px;
-    line-height: 16px;
-  }
+    $active ? 'var(--color-text)' : 'var(--color-muted)'};
 `
 
-export const SubmissionStageTitle = styled.h2`
-  width: min(84vw, 100%);
-  margin: 0 0 32px;
-  color: var(--klerosUIComponentsPrimaryText);
-  text-align: center;
-  font-size: 24px;
-  line-height: 32px;
-  font-weight: 600;
+const StepNumber = styled.span<{ $active: boolean; $done: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid
+    ${({ $active, $done }) =>
+      $active || $done ? 'var(--color-primary)' : 'var(--color-border-strong)'};
+  border-radius: var(--radius-pill);
+  background: ${({ $done }) =>
+    $done ? 'var(--color-primary-soft)' : 'transparent'};
+  color: ${({ $active, $done }) =>
+    $active || $done ? 'var(--color-primary)' : 'var(--color-muted)'};
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  font-weight: 500;
 `
 
-const SubmissionMain = styled.div`
-  display: grid;
-  gap: 24px;
-  width: min(100%, 700px);
-  min-width: 0;
-`
-
-const SubmissionFormCard = styled.div`
-  min-width: 0;
-  overflow: visible;
-  padding: clamp(24px, 4vw, 48px) clamp(24px, 3vw, 32px);
-  border: 1px solid var(--klerosUIComponentsStroke);
-  border-radius: var(--radius-sm);
-  background: var(--klerosUIComponentsWhiteBackground);
-  box-shadow: var(--v2-shadow);
-`
-
-const PolicyPanel = styled.div`
-  position: relative;
-  z-index: 0;
+const StepText = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 20px clamp(20px, 3vw, 28px);
-  border-radius: var(--radius-sm);
-  background: var(--klerosUIComponentsMediumBlue);
-  color: var(--klerosUIComponentsPrimaryBlue);
-  line-height: 22px;
-`
+  gap: 2px;
+  min-width: 0;
+  padding-top: 2px;
 
-export const PolicyReviewPanel = styled.div`
-  display: grid;
-  gap: 14px;
-  color: var(--klerosUIComponentsPrimaryText);
-  line-height: 22px;
+  strong {
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+    font-weight: 600;
+  }
 
-  p {
-    margin: 0;
+  @media (max-width: 860px) {
+    small {
+      display: none;
+    }
   }
 `
 
-export const SubmissionPreview = styled.div`
-  display: grid;
-  gap: 12px;
+const FlowMain = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
 `
 
-export const SubmissionPreviewRow = styled.div`
-  display: grid;
-  grid-template-columns: minmax(110px, 180px) minmax(0, 1fr);
-  gap: 16px;
-  align-items: start;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--klerosUIComponentsStroke);
-
-  &:last-child {
-    border-bottom: 0;
-  }
-
-  small {
-    color: var(--klerosUIComponentsSecondaryText);
-    font-size: 13px;
-    line-height: 18px;
-  }
-
-  span {
-    min-width: 0;
-    color: var(--klerosUIComponentsPrimaryText);
-    font-size: 14px;
-    line-height: 20px;
-    overflow-wrap: anywhere;
-  }
-
-  @media (max-width: 640px) {
-    grid-template-columns: 1fr;
-    gap: 6px;
-  }
+const PolicyNote = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border);
 `
 
 export const SubmissionNavigation = styled.div`
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
-  gap: 24px;
-  margin-top: clamp(24px, 4vw, 32px);
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  @media (max-width: 520px) {
+    > * {
+      flex: 1 1 auto;
+    }
+  }
 `
 
-type SubmissionStage = 'field' | 'policy' | 'preview'
+/** Dialog with the old modal props (visible, onCancel, title, footer). */
+export const StyledModal = ({
+  visible,
+  onCancel,
+  title,
+  footer,
+  width = 'lg',
+  children,
+}: {
+  visible?: boolean
+  onCancel?: () => void
+  title?: React.ReactNode
+  footer?: React.ReactNode
+  width?: 'md' | 'lg'
+  children?: React.ReactNode
+  [key: string]: unknown
+}) => (
+  <Dialog
+    open={!!visible}
+    onClose={onCancel ?? (() => undefined)}
+    title={title}
+    footer={footer}
+    width={width}
+  >
+    {children}
+  </Dialog>
+)
+
+const DEFAULT_STEPS = [
+  'Fill in the fields',
+  'Read the policy',
+  'Review and confirm',
+]
 
 export const SubmissionFlowScaffold = ({
   tcrTitle,
@@ -315,6 +230,7 @@ export const SubmissionFlowScaffold = ({
   fileURI,
   activeStep = 0,
   fieldLabels = [],
+  steps = DEFAULT_STEPS,
   navigation,
   children,
 }: {
@@ -326,76 +242,90 @@ export const SubmissionFlowScaffold = ({
   fileURI?: string
   activeStep?: number
   fieldLabels?: string[]
+  steps?: string[]
   navigation?: React.ReactNode
   children: React.ReactNode
-}) => (
-  <SubmissionFlow>
-    <SubmissionHeaderCard>
-      <SubmissionTitle>
-        <span>Submit {capitalizeFirstLetter(itemName ?? '') || 'Item'} to</span>
-        <strong>{tcrTitle || 'this list'}</strong>
-      </SubmissionTitle>
-      <DepositPill>
-        <Icon type="dollar" />
-        <span>Deposit required:&nbsp;</span>
-        <ETHAmount
-          decimals={3}
-          amount={submissionDeposit.toString()}
-          displayUnit={` ${nativeCurrency}`}
-        />
-      </DepositPill>
-    </SubmissionHeaderCard>
-    <SubmissionWorkspace>
-      <SubmissionTimeline>
-        <SubmissionStep $active={activeStep === 0}>
-          <span>1</span>
-          <div>
-            <strong>Item Details</strong>
-            {fieldLabels.slice(0, 4).map((label) => (
-              <small key={label}>{label}</small>
-            ))}
-          </div>
-        </SubmissionStep>
-        <SubmissionStep $active={activeStep === 1}>
-          <span>2</span>
-          <div>
-            <strong>Policy Review</strong>
-            <small>Check the list criteria.</small>
-          </div>
-        </SubmissionStep>
-        <SubmissionStep $active={activeStep === 2}>
-          <span>3</span>
-          <div>
-            <strong>Preview</strong>
-            <small>Confirm and submit.</small>
-          </div>
-        </SubmissionStep>
-      </SubmissionTimeline>
-      <SubmissionMain>
-        <SubmissionFormCard>{children}</SubmissionFormCard>
-        {navigation}
-        <PolicyPanel>
-          <div>
-            Make sure your submission complies with the{' '}
-            <ListingCriteriaLink fileURI={fileURI}>
-              listing criteria
-            </ListingCriteriaLink>{' '}
-            to avoid challenges.
-          </div>
-          <div>
-            This is a deposit, not a fee. It is reimbursed if your submission is
-            accepted.
-            {challengePeriodDuration
-              ? ` The challenge period lasts ${humanizeDuration(
-                  challengePeriodDuration.toNumber() * 1000,
-                )}.`
-              : ''}
-          </div>
-        </PolicyPanel>
-      </SubmissionMain>
-    </SubmissionWorkspace>
-  </SubmissionFlow>
-)
+}) => {
+  const openAttachment = useAttachment()
+  const period = challengePeriodDuration
+    ? formatDurationLong(challengePeriodDuration.toNumber())
+    : undefined
+  return (
+    <Flow>
+      <FlowHeader>
+        <div>
+          <Label>Submit {itemName || 'entry'}</Label>
+          <Subheading>to {tcrTitle || 'this list'}</Subheading>
+        </div>
+        <DepositBlock>
+          <Label $tone="faint">Deposit</Label>
+          <Data>
+            {formatAmount(submissionDeposit.toString(), nativeCurrency)}
+          </Data>
+          <Small $muted>
+            {period
+              ? `Returned in full if nobody challenges within ${period}`
+              : 'Returned in full if nobody challenges'}
+          </Small>
+        </DepositBlock>
+      </FlowHeader>
+      <FlowBody>
+        <StepsRail aria-label="Steps">
+          {steps.map((step, index) => (
+            <StepItem key={step} $active={index === activeStep}>
+              <StepNumber
+                $active={index === activeStep}
+                $done={index < activeStep}
+                aria-hidden
+              >
+                {index < activeStep ? (
+                  <CurateIcon name="check" size={12} />
+                ) : (
+                  index + 1
+                )}
+              </StepNumber>
+              <StepText
+                aria-current={index === activeStep ? 'step' : undefined}
+              >
+                <strong>{step}</strong>
+                {index === 0 &&
+                  fieldLabels.slice(0, 4).map((label) => (
+                    <Small key={label} $muted>
+                      {label}
+                    </Small>
+                  ))}
+              </StepText>
+            </StepItem>
+          ))}
+        </StepsRail>
+        <FlowMain>
+          {children}
+          {navigation}
+          <PolicyNote>
+            <Small $muted>
+              Entries that break the listing policy can be challenged and lose
+              the deposit.
+            </Small>
+            <Button
+              type="button"
+              $variant="ghost"
+              $size="sm"
+              disabled={!fileURI}
+              onClick={() =>
+                fileURI && openAttachment(parseIpfs(fileURI), true)
+              }
+            >
+              <CurateIcon name="policy" size={14} />
+              Read the listing policy
+            </Button>
+          </PolicyNote>
+        </FlowMain>
+      </FlowBody>
+    </Flow>
+  )
+}
+
+/* ---------- Form ---------- */
 
 export const SUBMISSION_FORM_ID = 'submitItemForm'
 
@@ -404,12 +334,14 @@ type SubmissionFormValues = Record<string, string | File>
 
 type RegistryExistsCheck = (tcrAddress: string) => Promise<boolean>
 
+type SubmissionStage = 'field' | 'policy' | 'preview'
+
 interface SubmissionFormOuterProps {
   columns: Column[]
   initialValues?: unknown[]
   activeStage?: SubmissionStage
-  activeFieldIndex?: number
   disabledFields: boolean[]
+  fileURI?: string
   postSubmit: (
     values: SubmissionFormValues,
     columns: Column[],
@@ -427,9 +359,26 @@ interface SubmissionFormOuterProps {
   style?: React.CSSProperties
 }
 
+const PreviewList = styled(KeyValueList)`
+  @media (max-width: 560px) {
+    grid-template-columns: 1fr;
+    gap: 2px;
+
+    dt {
+      margin-top: 10px;
+    }
+
+    dt:first-child {
+      margin-top: 0;
+    }
+  }
+`
+
 const _SubmissionForm: React.FC<
   SubmissionFormOuterProps & FormikProps<SubmissionFormValues>
 > = (p) => {
+  const openAttachment = useAttachment()
+
   useEffect(() => {
     if (!p.onFieldsComplete || !p.columns) return
     const allFilled = p.columns.every((column) => {
@@ -442,75 +391,85 @@ const _SubmissionForm: React.FC<
   }, [p])
 
   const activeStage = p.activeStage || 'field'
-  const activeFieldIndex = p.activeFieldIndex || 0
-  const activeColumn = p.columns?.[activeFieldIndex]
 
   return (
-    <Form onSubmit={p.handleSubmit} id={SUBMISSION_FORM_ID}>
-      {activeStage === 'field' && activeColumn && (
-        <>
-          <SubmissionStageTitle>{activeColumn.label}</SubmissionStageTitle>
-          <InputSelector
-            style={p.style}
-            type={activeColumn.type}
-            name={`${activeColumn.label}`}
-            allowedFileTypes={activeColumn.allowedFileTypes}
-            key={activeFieldIndex}
-            values={p.values}
-            error={p.errors[activeColumn.label]}
-            setFieldValue={p.setFieldValue}
-            disabled={p.disabledFields && p.disabledFields[activeFieldIndex]}
-            touched={p.touched[activeColumn.label]}
-            label={
-              <span>
-                {activeColumn.label}&nbsp;
-                <Tooltip title={addPeriod(activeColumn.description)}>
-                  <Icon type="question-circle-o" />
-                </Tooltip>
-              </span>
-            }
-          />
-        </>
+    <form onSubmit={p.handleSubmit} id={SUBMISSION_FORM_ID} noValidate>
+      {activeStage === 'field' && (
+        <Stack $gap={16}>
+          {p.columns.map((column, index) => (
+            <InputSelector
+              key={column.label}
+              style={p.style}
+              type={column.type}
+              name={`${column.label}`}
+              allowedFileTypes={column.allowedFileTypes}
+              values={p.values}
+              error={p.errors[column.label]}
+              setFieldValue={p.setFieldValue}
+              disabled={p.disabledFields && p.disabledFields[index]}
+              touched={p.touched[column.label]}
+              label={
+                <span>
+                  {column.label}
+                  {column.description && (
+                    <Small $muted> · {addPeriod(column.description)}</Small>
+                  )}
+                </span>
+              }
+            />
+          ))}
+        </Stack>
       )}
       {activeStage === 'policy' && (
-        <>
-          <SubmissionStageTitle>Policy Review</SubmissionStageTitle>
-          <PolicyReviewPanel>
-            <p>
-              Review the list policy before submitting. Incorrect entries can be
-              challenged and removed.
-            </p>
-            <p>
-              The deposit is returned if the submission is accepted and no valid
-              challenge succeeds.
-            </p>
-          </PolicyReviewPanel>
-        </>
+        <Stack $gap={12}>
+          <Subheading>Read the listing policy</Subheading>
+          <Body>
+            Kleros jurors rule against this policy when an entry is challenged.
+            Entries that break it can be challenged and lose the deposit.
+          </Body>
+          <Body>
+            The deposit is returned in full if the submission is accepted and no
+            challenge succeeds.
+          </Body>
+          <div>
+            <Button
+              type="button"
+              $variant="secondary"
+              disabled={!p.fileURI}
+              onClick={() =>
+                p.fileURI && openAttachment(parseIpfs(p.fileURI), true)
+              }
+            >
+              <CurateIcon name="policy" size={16} />
+              Open the listing policy
+            </Button>
+          </div>
+        </Stack>
       )}
       {activeStage === 'preview' && (
-        <>
-          <SubmissionStageTitle>Preview</SubmissionStageTitle>
-          <SubmissionPreview>
+        <Stack $gap={12}>
+          <Subheading>Review the submission</Subheading>
+          <PreviewList>
             {p.columns.map((column) => {
               const value = p.values[column.label]
               const displayValue =
                 value instanceof File
                   ? value.name
                   : value === undefined || value === ''
-                    ? 'Not provided'
+                    ? undefined
                     : String(value)
 
               return (
-                <SubmissionPreviewRow key={column.label}>
-                  <small>{column.label}</small>
-                  <span>{displayValue}</span>
-                </SubmissionPreviewRow>
+                <React.Fragment key={column.label}>
+                  <dt>{column.label}</dt>
+                  <dd>{displayValue ?? <Small $faint>Not provided</Small>}</dd>
+                </React.Fragment>
               )
             })}
-          </SubmissionPreview>
-        </>
+          </PreviewList>
+        </Stack>
       )}
-    </Form>
+    </form>
   )
 }
 
@@ -591,19 +550,27 @@ const SubmissionForm = withFormik<
   },
 })(_SubmissionForm)
 
+/* ---------- Modal ---------- */
+
 const SubmitModal: React.FC<{
   onCancel: () => void
   visible?: boolean
+  title?: React.ReactNode
   tcrAddress?: string
   initialValues?: unknown[]
-  submissionDeposit?: ethers.BigNumber
+  submissionDeposit?: BigNumber
+  /** Optional breakdown; read from the list context when it is the same list. */
+  baseDeposit?: BigNumber
+  arbitrationCost?: BigNumber
   metaEvidence?: MetaEvidence
   disabledFields?: boolean[]
-  challengePeriodDuration?: ethers.BigNumber
+  challengePeriodDuration?: BigNumber
   embedded?: boolean
 }> = (props) => {
   const {
     onCancel,
+    visible,
+    title,
     initialValues,
     submissionDeposit,
     tcrAddress,
@@ -618,11 +585,7 @@ const SubmitModal: React.FC<{
   const publicClient = usePublicClient()
   const { data: walletClient } = useWalletClient()
   const { uploadFile } = useAtlasProvider()
-  const { balance: nativeBalance } = useNativeBalance()
-  const insufficientBalance =
-    nativeBalance !== undefined &&
-    submissionDeposit &&
-    nativeBalance < BigInt(submissionDeposit.toString())
+  const listContext = useContext(LightTCRViewContext)
   const {
     deployedWithFactory,
     deployedWithLightFactory,
@@ -631,14 +594,32 @@ const SubmitModal: React.FC<{
 
   const { fileURI, metadata } = metaEvidence || {}
   const { itemName, columns, tcrTitle } = metadata || {}
+  const name = itemName || 'entry'
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [fieldsComplete, setFieldsComplete] = useState(false)
   const [activeStage, setActiveStage] = useState<SubmissionStage>('field')
-  const [activeFieldIndex, setActiveFieldIndex] = useState(0)
   const activeStep =
     activeStage === 'field' ? 0 : activeStage === 'policy' ? 1 : 2
   const fieldLabels = columns?.map((column) => column.label) || []
+
+  const sameList =
+    !!listContext?.tcrAddress &&
+    !!tcrAddress &&
+    listContext.tcrAddress.toLowerCase() === tcrAddress.toLowerCase()
+  const baseDeposit =
+    props.baseDeposit ??
+    (sameList ? listContext?.submissionBaseDeposit : undefined)
+  const arbitrationCost =
+    props.arbitrationCost ??
+    (sameList ? listContext?.arbitrationCost : undefined)
+
+  const gate = useActionGate({
+    verb: `submit the ${name}`,
+    amount: submissionDeposit,
+    pending:
+      !metaEvidence || !submissionDeposit ? 'Loading the list' : undefined,
+  })
 
   const goBack = useCallback(() => {
     if (activeStage === 'preview') {
@@ -647,27 +628,15 @@ const SubmitModal: React.FC<{
     }
     if (activeStage === 'policy') {
       setActiveStage('field')
-      setActiveFieldIndex(Math.max(0, (columns?.length || 1) - 1))
-      return
-    }
-    if (activeFieldIndex > 0) {
-      setActiveFieldIndex((index) => Math.max(0, index - 1))
       return
     }
     onCancel()
-  }, [activeFieldIndex, activeStage, columns?.length, onCancel])
+  }, [activeStage, onCancel])
 
   const goNext = useCallback(() => {
-    if (activeStage === 'field') {
-      if (activeFieldIndex < (columns?.length || 1) - 1) {
-        setActiveFieldIndex((index) => index + 1)
-        return
-      }
-      setActiveStage('policy')
-      return
-    }
-    if (activeStage === 'policy') setActiveStage('preview')
-  }, [activeFieldIndex, activeStage, columns?.length])
+    if (activeStage === 'field') setActiveStage('policy')
+    else if (activeStage === 'policy') setActiveStage('preview')
+  }, [activeStage])
 
   const postSubmit = useCallback(
     async (
@@ -756,20 +725,101 @@ const SubmitModal: React.FC<{
     ],
   )
 
-  if (!metaEvidence || !submissionDeposit)
+  const dialogTitle =
+    typeof title === 'string' && title
+      ? title
+      : `Submit ${capitalizeFirstLetter(name)}`
+
+  if (!metaEvidence || !submissionDeposit) {
+    const placeholder = <SkeletonBlock $height="220px" />
+    if (embedded) return placeholder
     return (
-      // @ts-ignore
-      <StyledModal
-        title="Submit Item"
-        footer={[
-          <Button key="back" onClick={onCancel}>
-            Cancel
-          </Button>,
-        ]}
-        {...props}
+      <Dialog
+        open={!!visible}
+        onClose={onCancel}
+        title={dialogTitle}
+        width="lg"
       >
-        <StyledSpin />
-      </StyledModal>
+        {placeholder}
+      </Dialog>
+    )
+  }
+
+  const confirm = () => {
+    const form = document.querySelector<HTMLFormElement>(
+      `#${SUBMISSION_FORM_ID}`,
+    )
+    form?.requestSubmit()
+  }
+
+  const total = formatAmount(submissionDeposit, nativeCurrency)
+  const period = challengePeriodDuration
+    ? formatDurationLong(challengePeriodDuration.toNumber())
+    : 'the challenge period'
+  const receipt: ReceiptLine[] =
+    baseDeposit && arbitrationCost
+      ? [
+          {
+            label: 'Base deposit',
+            value: formatAmount(baseDeposit, nativeCurrency),
+          },
+          {
+            label: 'Arbitration cost',
+            value: formatAmount(arbitrationCost, nativeCurrency),
+          },
+        ]
+      : [{ label: 'Deposit (base + arbitration cost)', value: total }]
+  const steps: OutcomeStep[] = [
+    {
+      title: `You deposit ${total} now`,
+      body: `The ${name} is published and a challenge window of ${period} opens.`,
+    },
+    {
+      title: 'Nobody challenges',
+      body: `After ${period} anyone can execute the request: the ${name} is registered and your deposit comes back in full.`,
+    },
+    {
+      title: 'Someone challenges',
+      branch: true,
+      body: 'Kleros jurors decide on the listing policy. The winner takes both deposits minus one arbitration cost; the loser loses the deposit.',
+    },
+  ]
+  const confirmBlocker = !fieldsComplete
+    ? 'Fill in every required field'
+    : gate.blocker
+
+  const navigation =
+    activeStage === 'preview' ? (
+      <Stack $gap={12}>
+        <WhatHappensNext
+          receipt={receipt}
+          total={total}
+          steps={steps}
+          confirmLabel="Submit"
+          onConfirm={confirm}
+          confirmDisabled={!!confirmBlocker || isSubmitting}
+          confirmBlocker={confirmBlocker}
+          loading={isSubmitting}
+          policy={`This is a deposit, not a fee. Amounts are in ${nativeCurrency}.`}
+        />
+        <SubmissionNavigation>
+          <Button type="button" $variant="secondary" onClick={goBack}>
+            Back
+          </Button>
+          {gate.controls && <Row $gap={8}>{gate.controls}</Row>}
+        </SubmissionNavigation>
+      </Stack>
+    ) : (
+      <SubmissionNavigation>
+        <Button type="button" $variant="secondary" onClick={goBack}>
+          {activeStage === 'field' ? 'Cancel' : 'Back'}
+        </Button>
+        <Button type="button" $variant="primary" onClick={goNext}>
+          {activeStage === 'field'
+            ? 'Continue to the policy'
+            : 'Review the submission'}
+        </Button>
+      </SubmissionNavigation>
     )
 
   const submitContent = (
@@ -782,48 +832,15 @@ const SubmitModal: React.FC<{
       fileURI={fileURI}
       activeStep={activeStep}
       fieldLabels={fieldLabels}
-      navigation={
-        <SubmissionNavigation>
-          <Button onClick={goBack}>
-            {activeStage === 'field' && activeFieldIndex === 0
-              ? 'Cancel'
-              : 'Previous'}
-          </Button>
-          {activeStage === 'preview' ? (
-            <EnsureAuth>
-              <div>
-                <Button
-                  key="challengeSubmit"
-                  type="primary"
-                  form={SUBMISSION_FORM_ID}
-                  htmlType="submit"
-                  disabled={!!insufficientBalance || !fieldsComplete}
-                  loading={isSubmitting}
-                >
-                  Submit
-                </Button>
-                {insufficientBalance && (
-                  <InsufficientBalanceText>
-                    Insufficient balance
-                  </InsufficientBalanceText>
-                )}
-              </div>
-            </EnsureAuth>
-          ) : (
-            <Button type="primary" onClick={goNext}>
-              Next
-            </Button>
-          )}
-        </SubmissionNavigation>
-      }
+      navigation={navigation}
     >
       <SubmissionForm
         columns={columns ?? []}
         activeStage={activeStage}
-        activeFieldIndex={activeFieldIndex}
         postSubmit={postSubmit}
         initialValues={initialValues}
         disabledFields={disabledFields ?? []}
+        fileURI={fileURI}
         deployedWithFactory={deployedWithFactory}
         deployedWithLightFactory={deployedWithLightFactory}
         deployedWithPermanentFactory={deployedWithPermanentFactory}
@@ -835,16 +852,9 @@ const SubmitModal: React.FC<{
   if (embedded) return submitContent
 
   return (
-    // @ts-ignore
-    <StyledModal
-      title={`Submit ${
-        (itemName && capitalizeFirstLetter(itemName)) || 'Item'
-      }`}
-      footer={null}
-      {...props}
-    >
+    <Dialog open={!!visible} onClose={onCancel} title={dialogTitle} width="lg">
       {submitContent}
-    </StyledModal>
+    </Dialog>
   )
 }
 

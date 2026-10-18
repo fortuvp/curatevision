@@ -1,27 +1,32 @@
 import React, { useCallback } from 'react'
-import styled, { css, DefaultTheme } from 'styled-components'
+import styled, { css } from 'styled-components'
+import { focusRing, joinClassNames } from './kit-styles'
 
+/* Menu rows like the app bar's menus: 40px, radius 4, selected = primary-soft. */
 const MenuWrapper = styled.ul<{ $mode?: string }>`
   list-style: none;
   margin: 0;
-  padding: 4px 0;
-  background: ${({ theme }) => theme.componentBackground};
-  border-radius: 4px;
-  min-width: 120px;
+  padding: 6px;
+  min-width: 160px;
+  background: var(--color-surface);
+  border-radius: var(--radius);
 
   ${({ $mode }) =>
     $mode === 'horizontal' &&
     css`
       display: flex;
       align-items: center;
+      gap: 4px;
       padding: 0;
-      border-bottom: 1px solid ${({ theme }) => theme.borderColor};
+      border-bottom: 1px solid var(--color-border);
+      border-radius: 0;
     `}
 
   ${({ $mode }) =>
     $mode === 'inline' &&
     css`
-      border-right: 1px solid ${({ theme }) => theme.borderColor};
+      border-right: 1px solid var(--color-border);
+      border-radius: 0;
     `}
 `
 
@@ -30,45 +35,56 @@ const MenuItemWrapper = styled.li<{
   $selected?: boolean
   $mode?: string
 }>`
-  padding: 8px 16px;
-  cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
-  color: ${({ $disabled, $selected, theme }) =>
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  color: ${({ $disabled, $selected }) =>
     $disabled
-      ? theme.disabledColor
+      ? 'var(--color-muted)'
       : $selected
-        ? theme.primaryColor
-        : theme.textPrimary};
-  font-size: 14px;
-  transition: all 0.2s;
+        ? 'var(--color-primary)'
+        : 'var(--color-text)'};
+  background: ${({ $selected }) =>
+    $selected ? 'var(--color-primary-soft)' : 'transparent'};
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: 500;
   white-space: nowrap;
-  opacity: ${({ $disabled }) => ($disabled ? 0.65 : 1)};
-  background: ${({ $selected, theme }) =>
-    $selected ? theme.dropdownHoverBg : 'transparent'};
+  cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
+  opacity: ${({ $disabled }) => ($disabled ? 0.55 : 1)};
+  transition:
+    background var(--motion),
+    color var(--motion);
+  ${focusRing}
 
   &:hover {
-    ${({ $disabled, theme }) =>
+    ${({ $disabled, $selected }) =>
       !$disabled &&
       css`
-        background: ${theme.dropdownHoverBg};
-        color: ${theme.primaryColor};
+        background: ${$selected
+          ? 'var(--color-primary-soft)'
+          : 'var(--color-raised)'};
       `}
   }
 
-  ${({ $mode }) =>
+  ${({ $mode, $selected }) =>
     $mode === 'horizontal' &&
     css`
-      padding: 0 20px;
-      height: 46px;
-      display: inline-flex;
-      align-items: center;
-      border-bottom: 2px solid transparent;
+      min-height: 44px;
       margin-bottom: -1px;
+      padding: 0 12px;
+      border-bottom: 2px solid
+        ${$selected ? 'var(--color-primary)' : 'transparent'};
+      border-radius: 0;
+      background: transparent;
 
-      ${({ $selected, theme }: { $selected?: boolean; theme: DefaultTheme }) =>
-        $selected &&
-        css`
-          border-bottom-color: ${theme.primaryColor};
-        `}
+      &:hover {
+        background: transparent;
+        color: ${$selected ? 'var(--color-primary)' : 'var(--color-text)'};
+      }
     `}
 `
 
@@ -104,14 +120,33 @@ const MenuItem: React.FC<MenuItemProps> = ({
     [disabled, onClick, $onMenuClick, $itemKey],
   )
 
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLLIElement>) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        handleClick(e as unknown as React.MouseEvent)
+      }
+    },
+    [handleClick],
+  )
+
   return (
     <MenuItemWrapper
+      role="menuitem"
+      tabIndex={disabled ? -1 : 0}
+      aria-disabled={disabled || undefined}
       $disabled={disabled}
       $selected={$selected}
       $mode={$mode}
       onClick={handleClick}
+      onKeyDown={handleKeyDown}
       style={style}
-      className={`ui-menu-item${className ? ` ${className}` : ''}`}
+      className={joinClassNames(
+        'ui-menu-item',
+        $selected && 'ui-menu-item-selected',
+        disabled && 'ui-menu-item-disabled',
+        className,
+      )}
     >
       {children}
     </MenuItemWrapper>
@@ -142,9 +177,10 @@ const Menu: MenuComponent = ({
   selectedKeys = [],
 }) => (
   <MenuWrapper
+    role="menu"
     $mode={mode}
     style={style}
-    className={`ui-menu${className ? ` ${className}` : ''}`}
+    className={joinClassNames('ui-menu', `ui-menu-${mode}`, className)}
   >
     {React.Children.map(children, (child) => {
       if (

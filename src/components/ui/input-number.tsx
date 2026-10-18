@@ -1,41 +1,47 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 import styled from 'styled-components'
+import { KitIcon } from './kit-icons'
+import { joinClassNames, monoData } from './kit-styles'
 
+/* Numeric field: 40px, radius 6, mono figures, stepper column on the right. */
 const Wrapper = styled.div`
+  position: relative;
   display: inline-flex;
   align-items: stretch;
-  position: relative;
-  border: 1px solid ${({ theme }) => theme.borderColor};
-  border-radius: 4px;
-  background: ${({ theme }) => theme.componentBackground};
-  transition: all 0.3s;
-  width: 90px;
+  width: 96px;
+  height: 40px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  transition: border-color var(--motion);
 
   &:hover:not(.disabled) {
-    border-color: ${({ theme }) => theme.primaryColor};
+    border-color: var(--color-border-strong);
   }
 
   &:focus-within:not(.disabled) {
-    border-color: ${({ theme }) => theme.primaryColor};
-    box-shadow: 0 0 0 2px ${({ theme }) => theme.focusShadowColor};
+    border-color: var(--color-primary);
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
   }
 
   &.disabled {
-    opacity: 0.65;
+    background: var(--color-raised);
     cursor: not-allowed;
-    background: ${({ theme }) => theme.elevatedBackground};
+    opacity: 0.55;
   }
 `
 
 const StyledInput = styled.input`
   flex: 1;
   min-width: 0;
-  border: none;
-  outline: none;
+  padding: 0 10px;
+  border: 0;
+  outline: 0;
   background: transparent;
-  color: ${({ theme }) => theme.textPrimary};
-  font-size: 14px;
-  padding: 4px 8px;
+  color: var(--color-text);
+  ${monoData}
   text-align: left;
   -moz-appearance: textfield;
 
@@ -45,52 +51,52 @@ const StyledInput = styled.input`
     margin: 0;
   }
 
+  &:focus-visible {
+    outline: none;
+  }
+
   &:disabled {
+    color: var(--color-muted);
     cursor: not-allowed;
-    color: ${({ theme }) => theme.disabledColor};
   }
 `
 
 const HandlerWrap = styled.div`
   display: flex;
   flex-direction: column;
-  width: 22px;
-  border-left: 1px solid ${({ theme }) => theme.borderColor};
   flex-shrink: 0;
+  width: 24px;
+  border-left: 1px solid var(--color-border);
 `
 
-const HandlerButton = styled.span`
+const HandlerButton = styled.button`
   display: flex;
   align-items: center;
   justify-content: center;
   flex: 1;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-muted);
   cursor: pointer;
   user-select: none;
-  font-size: 10px;
-  color: ${({ theme }) => theme.textSecondary};
-  transition: all 0.15s;
+  transition:
+    color var(--motion),
+    background var(--motion);
 
-  &:hover {
-    color: ${({ theme }) => theme.primaryColor};
-    background: ${({ theme }) => theme.elevatedBackground};
+  &:hover:not(:disabled) {
+    color: var(--color-text);
+    background: var(--color-raised);
   }
 
   &:first-child {
-    border-bottom: 1px solid ${({ theme }) => theme.borderColor};
-    border-radius: 0 4px 0 0;
+    border-bottom: 1px solid var(--color-border);
   }
 
-  &:last-child {
-    border-radius: 0 0 4px 0;
-  }
-
+  &:disabled,
   &.handler-disabled {
+    color: var(--color-faint);
     cursor: not-allowed;
-    opacity: 0.4;
-    &:hover {
-      color: ${({ theme }) => theme.textSecondary};
-      background: transparent;
-    }
   }
 `
 
@@ -124,8 +130,8 @@ const InputNumber: React.FC<InputNumberProps> = ({
   precision,
 }) => {
   const [internalValue, setInternalValue] = useState<number | string>(() => {
-    const init = controlledValue !== undefined ? controlledValue : defaultValue
-    return init !== undefined ? init : ''
+    const init = controlledValue === undefined ? defaultValue : controlledValue
+    return init === undefined ? '' : init
   })
   const isControlled = controlledValue !== undefined
   const value = isControlled ? controlledValue : internalValue
@@ -143,7 +149,7 @@ const InputNumber: React.FC<InputNumberProps> = ({
       let n = val
       if (min !== undefined && n < min) n = min
       if (max !== undefined && n > max) n = max
-      if (precision !== undefined) n = parseFloat(n.toFixed(precision))
+      if (precision !== undefined) n = Number.parseFloat(n.toFixed(precision))
       return n
     },
     [min, max, precision],
@@ -156,7 +162,7 @@ const InputNumber: React.FC<InputNumberProps> = ({
         if (onChange) onChange(undefined)
         return
       }
-      const num = typeof raw === 'string' ? parseFloat(raw) : raw
+      const num = typeof raw === 'string' ? Number.parseFloat(raw) : raw
       if (Number.isNaN(num)) return
       const clamped = clamp(num)
       if (!isControlled) setInternalValue(clamped)
@@ -181,11 +187,11 @@ const InputNumber: React.FC<InputNumberProps> = ({
   const handleBlur = useCallback(() => {
     if (value === '' || value === '-')
       applyValue(
-        defaultValue !== undefined
-          ? defaultValue
-          : min !== undefined
-            ? min
-            : '',
+        defaultValue === undefined
+          ? min === undefined
+            ? ''
+            : min
+          : defaultValue,
       )
   }, [value, defaultValue, min, applyValue])
 
@@ -210,33 +216,46 @@ const InputNumber: React.FC<InputNumberProps> = ({
   return (
     <Wrapper
       style={style}
-      className={`ui-input-number${disabled ? ' disabled' : ''}${className ? ` ${className}` : ''}`}
+      className={joinClassNames(
+        'ui-input-number',
+        disabled && 'disabled',
+        className,
+      )}
     >
       <StyledInput
         ref={inputRef}
+        className="ui-input-number-input"
         type="text"
-        inputMode="numeric"
-        value={displayValue !== undefined ? displayValue : ''}
+        inputMode="decimal"
+        value={displayValue === undefined ? '' : displayValue}
         onChange={handleChange}
         onBlur={handleBlur}
         disabled={disabled}
       />
-      <HandlerWrap>
+      <HandlerWrap className="ui-input-number-handlers">
         <HandlerButton
-          className={atMax || disabled ? 'handler-disabled' : ''}
-          onClick={!atMax && !disabled ? increment : undefined}
-          role="button"
-          aria-label="Increase Value"
+          type="button"
+          className={joinClassNames(
+            'ui-input-number-handler',
+            (atMax || disabled) && 'handler-disabled',
+          )}
+          disabled={atMax || disabled}
+          onClick={increment}
+          aria-label="Increase value"
         >
-          &#9650;
+          <KitIcon name="chevron-up" size={12} />
         </HandlerButton>
         <HandlerButton
-          className={atMin || disabled ? 'handler-disabled' : ''}
-          onClick={!atMin && !disabled ? decrement : undefined}
-          role="button"
-          aria-label="Decrease Value"
+          type="button"
+          className={joinClassNames(
+            'ui-input-number-handler',
+            (atMin || disabled) && 'handler-disabled',
+          )}
+          disabled={atMin || disabled}
+          onClick={decrement}
+          aria-label="Decrease value"
         >
-          &#9660;
+          <KitIcon name="chevron-down" size={12} />
         </HandlerButton>
       </HandlerWrap>
     </Wrapper>

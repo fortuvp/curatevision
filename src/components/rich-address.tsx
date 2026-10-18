@@ -5,45 +5,44 @@ import Icon from 'components/ui/Icon'
 import { parseRichAddress } from '../utils/rich-address'
 import { shortenAddress } from '../utils/string'
 
-const StyledSpan = styled.span`
-  color: ${({ theme }) => theme.errorColor};
+const Unknown = styled.span`
+  color: var(--color-danger);
+  overflow-wrap: anywhere;
 `
 
-const NotValidAddressAnchor = styled.a`
-  color: ${({ theme }) => theme.warningColor};
-  text-decoration: underline;
-`
-
-const ValidAddressAnchor = styled.a`
+const Anchor = styled.a<{ $invalid?: boolean }>`
+  color: ${({ $invalid }) =>
+    $invalid ? 'var(--color-warning)' : 'var(--color-primary)'};
+  font-family: var(--font-mono);
+  font-size: var(--fs-data);
+  line-height: var(--lh-data);
+  font-weight: 500;
   text-decoration: underline;
 `
 
 const RichAddress: React.FC<{ crude: string }> = ({ crude }) => {
   const richAddress = parseRichAddress(crude)
-  if (richAddress === null) {
-    console.log('Address has wrong format or unknown prepend', crude)
-    const errorMessage = `Unknown address "${crude}"`
-    return <StyledSpan>{errorMessage}</StyledSpan>
-  }
+  if (richAddress === null) return <Unknown>Unknown address “{crude}”</Unknown>
+
   const { address, reference, link, passedTest } = richAddress
   const labelText = `${reference.label}: `
   if (!passedTest)
     return (
-      <Tooltip title="Address is invalid">
+      <Tooltip title="This address is not valid">
         <Icon type="warning" style={{ color: 'inherit' }} />
         &nbsp;
-        <NotValidAddressAnchor href={link} rel="noreferrer" target="_blank">
+        <Anchor $invalid href={link} rel="noreferrer" target="_blank">
           {labelText}
           {shortenAddress(address)}
-        </NotValidAddressAnchor>
+        </Anchor>
       </Tooltip>
     )
 
   return (
-    <ValidAddressAnchor href={link} rel="noreferrer" target="_blank">
+    <Anchor href={link} rel="noreferrer" target="_blank">
       {labelText}
       {shortenAddress(address)}
-    </ValidAddressAnchor>
+    </Anchor>
   )
 }
 

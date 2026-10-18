@@ -1,42 +1,54 @@
 import React, { useEffect } from 'react'
-import styled from 'styled-components'
 import {
-  Card,
-  Button,
-  Row,
-  Col,
-  Select,
-  Form,
-  Divider,
-  Switch,
-  Tooltip,
-  Alert,
-} from 'components/ui'
-import Icon from 'components/ui/Icon'
-import { toast } from 'react-toastify'
-import {
-  withFormik,
   FieldArray,
-  Field,
-  type FormikProps,
-  type FieldProps,
+  withFormik,
   type FormikErrors,
+  type FormikProps,
+  type FormikTouched,
 } from 'formik'
-import type { StepProps, TcrState } from '.'
-import type { SelectChangeValue } from 'components/ui/Select'
-import { ItemTypes as AllItemTypes } from '@kleros/gtcr-encoder'
 import * as yup from 'yup'
-import CustomInput from 'components/custom-input'
-import ItemDetailsCard from 'components/item-details-card'
+import { toast } from 'react-toastify'
+import { ItemTypes as AllItemTypes } from '@kleros/gtcr-encoder'
 import objectWithoutKey from 'utils/object-without-key'
+import ItemDetailsCard from 'components/item-details-card'
+import { CurateIcon } from 'components/curate/icons'
+import {
+  Body,
+  Button,
+  IconButton,
+  Label,
+  Row,
+  Small,
+  Stack,
+  Subheading,
+  Surface,
+} from 'components/curate/primitives'
+import {
+  Field,
+  FieldGrid,
+  FormSection,
+  Input,
+  SectionHead,
+  Select,
+  SwitchInput,
+  SwitchRow,
+  SwitchText,
+} from './controls'
+import { NEW_COLUMN } from './defaults'
+import type { StepProps, TcrState } from '.'
 
-export const StyledAlert = styled(Alert)`
-  margin-bottom: 42px;
-`
+/*
+ * Step 2 of the Stake Curate factory: the fields every entry has. One
+ * surface per field (name, description, type, identifier switch, allowed
+ * file types, remove), which stacks cleanly at phone width, then a preview
+ * of the submission form the list will show.
+ */
 
 export const ItemTypes = objectWithoutKey(AllItemTypes, 'TWITTER_USER_ID')
 
 const { IMAGE, FILE, LONG_TEXT } = AllItemTypes
+
+const MAX_IDENTIFIERS = 5
 
 type ItemFormValues = TcrState
 type ItemParamsProps = StepProps & FormikProps<ItemFormValues>
@@ -44,17 +56,13 @@ type ItemParamsProps = StepProps & FormikProps<ItemFormValues>
 const ItemParams = ({
   handleSubmit,
   setFieldValue,
+  getFieldProps,
   formId,
   values: { columns },
   errors,
   touched,
-  ...rest
+  setTcrState,
 }: ItemParamsProps) => {
-  const { setTcrState } = rest
-  const { tcrState } = rest || {}
-  const { tcrLogo, tcrPrimaryDocument, tcrDescription, tcrTitle } =
-    tcrState || {}
-
   useEffect(() => {
     setTcrState((previousState) => ({
       ...previousState,
@@ -71,224 +79,184 @@ const ItemParams = ({
       : undefined
   }
 
-  const onTypeChange = (index: number, value: SelectChangeValue) => {
+  const columnTouched = (index: number, key: keyof Column): boolean => {
+    const cols = touched.columns
+    if (!Array.isArray(cols)) return false
+    const entry = cols[index] as FormikTouched<Column> | undefined
+    return !!entry?.[key]
+  }
+
+  const shownError = (index: number, key: keyof Column) =>
+    columnTouched(index, key) ? columnError(index, key) : undefined
+
+  const onTypeChange = (index: number, value: string) => {
     setFieldValue(`columns[${index}].type`, value)
-    if (value === LONG_TEXT)
-      // Long text fields cannot be identifiers.
-      setFieldValue(`columns[${index}].isIdentifier`, false)
-    if (value === IMAGE)
-      // Image fields cannot be identifiers.
+    // Long text and image fields cannot be identifiers.
+    if (value === LONG_TEXT || value === IMAGE)
       setFieldValue(`columns[${index}].isIdentifier`, false)
   }
 
+  const identifierCount = columns.filter(
+    (column) => !!column.isIdentifier,
+  ).length
+
   return (
-    <Card title="Choose the item parameters">
-      <>
-        <StyledAlert
-          description="The column order defined here will be used to display the items. In other words, if your item has an image or title, you probably want it to be the first columns displayed."
-          type="info"
-          showIcon
-          closable
-        />
-        <Row
-          gutter={{ xs: 3, sm: 6, md: 10 }}
-          type="flex"
-          justify="space-between"
-        >
-          <Col span={4}>
-            Name
-            <Tooltip title="This will be the field label displayed to users when submitting an item.">
-              &nbsp;
-              <Icon type="question-circle-o" />
-            </Tooltip>
-          </Col>
-          <Col span={6}>
-            Description
-            <Tooltip title="This will be the text displayed when the user clicks the '?' symbol near the field label.">
-              &nbsp;
-              <Icon type="question-circle-o" />
-            </Tooltip>
-          </Col>
-          <Col span={4}>
-            Type
-            <Tooltip title="This is the column type">
-              &nbsp;
-              <Icon type="question-circle-o" />
-            </Tooltip>
-          </Col>
-          <Col span={3}>
-            Indexed
-            <Tooltip title="Indexed fields are searcheable and displayed on the card in the items view (along with image field types). Toggle these for the fields you consider most important.">
-              &nbsp;
-              <Icon type="question-circle-o" />
-            </Tooltip>
-          </Col>
-          {columns.filter((col) => col.type === FILE).length > 0 ? (
-            <Col span={4}>
-              Allowed File Types
-              <Tooltip title="A list of space separated allowed file extensions (e.g.: pdf doc  mp3).">
-                &nbsp;
-                <Icon type="question-circle-o" />
-              </Tooltip>
-            </Col>
-          ) : (
-            <Col span={4} />
-          )}
-          {columns.length > 1 && <Col span={1} />}
-        </Row>
-      </>
-      <form id={formId} onSubmit={handleSubmit}>
-        <>
+    <Stack $gap={24}>
+      <form id={formId} noValidate onSubmit={handleSubmit}>
+        <Stack $gap={16}>
+          <FormSection>
+            <SectionHead>
+              <Label>Step 2 of 3</Label>
+              <Subheading>Item fields</Subheading>
+              <Body $muted>
+                Entries show their fields in this order, so put the image or
+                the title first. Identifier fields are searchable and appear on
+                the entry card; at least one is required, up to{' '}
+                {MAX_IDENTIFIERS}.
+              </Body>
+            </SectionHead>
+          </FormSection>
           <FieldArray name="columns">
             {({ push, remove }) => (
               <>
-                {columns &&
-                  columns.length > 0 &&
-                  columns.map((_, index) => (
-                    <Row
-                      gutter={{ xs: 3, sm: 6, md: 10 }}
-                      key={index}
-                      type="flex"
-                      justify="space-between"
-                    >
-                      <Col span={4}>
-                        <CustomInput
-                          name={`columns[${index}].label`}
-                          hasFeedback
-                          touched={
-                            touched.columns &&
-                            touched.columns[index] &&
-                            touched.columns[index].label
-                          }
-                          error={columnError(index, 'label')}
-                          {...rest}
-                        />
-                      </Col>
-                      <Col span={6}>
-                        <CustomInput
-                          name={`columns[${index}].description`}
-                          hasFeedback
-                          touched={
-                            touched.columns &&
-                            touched.columns[index] &&
-                            touched.columns[index].description
-                          }
-                          error={columnError(index, 'description')}
-                          {...rest}
-                        />
-                      </Col>
-                      <Col span={4}>
-                        <Field name={`columns[${index}].type`}>
-                          {({ field }: FieldProps) => (
-                            <Form.Item>
-                              <Select
-                                {...field}
-                                value={columns[index].type}
-                                onChange={(value) => onTypeChange(index, value)}
-                              >
-                                {Object.values(ItemTypes).map((itemType, i) => (
-                                  <Select.Option
-                                    value={String(itemType)}
-                                    key={i}
-                                  >
-                                    {String(itemType)}
-                                  </Select.Option>
-                                ))}
-                              </Select>
-                            </Form.Item>
+                {columns.map((column, index) => {
+                  const canBeIdentifier =
+                    (identifierCount < MAX_IDENTIFIERS ||
+                      !!column.isIdentifier) &&
+                    column.type !== LONG_TEXT &&
+                    column.type !== IMAGE &&
+                    column.type !== FILE
+                  const base = `column-${index}`
+                  return (
+                    <Surface key={index} $padding="compact">
+                      <Stack $gap={14}>
+                        <Row $justify="space-between" $gap={12}>
+                          <Label>Field {index + 1}</Label>
+                          {columns.length > 1 && (
+                            <IconButton
+                              type="button"
+                              aria-label={`Remove field ${index + 1}`}
+                              onClick={() => remove(index)}
+                            >
+                              <CurateIcon name="close" size={16} />
+                            </IconButton>
                           )}
-                        </Field>
-                      </Col>
-                      {(columns
-                        .map((column) => column.isIdentifier)
-                        .filter((isIdentifier) => !!isIdentifier).length < 5 ||
-                        columns[index].isIdentifier) &&
-                      columns[index].type !== LONG_TEXT &&
-                      columns[index].type !== IMAGE &&
-                      columns[index].type !== FILE ? ( // Image, file and long text cannot be identifiers.
-                        <Col span={3}>
-                          <Field name={`columns[${index}].isIdentifier`}>
-                            {({ field }: FieldProps) => (
-                              <Form.Item>
-                                <Switch
-                                  onChange={(value) =>
-                                    setFieldValue(
-                                      `columns[${index}].isIdentifier`,
-                                      value,
-                                    )
-                                  }
-                                  checked={field.value}
-                                  size="small"
-                                />
-                              </Form.Item>
+                        </Row>
+                        <FieldGrid>
+                          <Field
+                            id={`${base}-label`}
+                            label={`Field ${index + 1} name`}
+                            help="Shown as the field label when someone submits an item."
+                            error={shownError(index, 'label')}
+                          >
+                            {(aria) => (
+                              <Input
+                                {...aria}
+                                type="text"
+                                {...getFieldProps(`columns[${index}].label`)}
+                              />
                             )}
                           </Field>
-                        </Col>
-                      ) : (
-                        <Col span={3} />
-                      )}
-                      {columns[index].type === FILE ? (
-                        <Col span={4}>
-                          <CustomInput
-                            name={`columns[${index}].allowedFileTypes`}
-                            hasFeedback
-                            touched={
-                              touched.columns &&
-                              touched.columns[index] &&
-                              touched.columns[index].allowedFileTypes
-                            }
-                            error={columnError(index, 'allowedFileTypes')}
-                            {...rest}
-                          />
-                        </Col>
-                      ) : (
-                        <Col span={4} />
-                      )}
-                      {columns.length > 1 && (
-                        <Col span={1}>
-                          <Form.Item>
-                            <Icon
-                              className="dynamic-delete-button"
-                              type="minus-circle-o"
-                              onClick={() => remove(index)}
-                            />
-                          </Form.Item>
-                        </Col>
-                      )}
-                    </Row>
-                  ))}
-                <Button
-                  onClick={() =>
-                    push({ label: '', description: '', type: 'address' })
-                  }
-                  type="primary"
-                >
-                  Add Field
-                </Button>
+                          <Field
+                            id={`${base}-description`}
+                            label={`Field ${index + 1} description`}
+                            help="Shown next to the field as help text."
+                            error={shownError(index, 'description')}
+                          >
+                            {(aria) => (
+                              <Input
+                                {...aria}
+                                type="text"
+                                {...getFieldProps(
+                                  `columns[${index}].description`,
+                                )}
+                              />
+                            )}
+                          </Field>
+                          <Field
+                            id={`${base}-type`}
+                            label={`Field ${index + 1} type`}
+                          >
+                            {(aria) => (
+                              <Select
+                                {...aria}
+                                value={column.type}
+                                onChange={(event) =>
+                                  onTypeChange(index, event.target.value)
+                                }
+                              >
+                                {Object.values(ItemTypes).map((itemType) => (
+                                  <option
+                                    value={String(itemType)}
+                                    key={String(itemType)}
+                                  >
+                                    {String(itemType)}
+                                  </option>
+                                ))}
+                              </Select>
+                            )}
+                          </Field>
+                          {canBeIdentifier && (
+                            <SwitchRow htmlFor={`${base}-identifier`}>
+                              <SwitchText>
+                                Identifier
+                                <Small $muted>
+                                  Searchable and shown on the entry card.
+                                </Small>
+                              </SwitchText>
+                              <SwitchInput
+                                id={`${base}-identifier`}
+                                type="checkbox"
+                                role="switch"
+                                checked={!!column.isIdentifier}
+                                onChange={(event) =>
+                                  setFieldValue(
+                                    `columns[${index}].isIdentifier`,
+                                    event.target.checked,
+                                  )
+                                }
+                              />
+                            </SwitchRow>
+                          )}
+                          {column.type === FILE && (
+                            <Field
+                              id={`${base}-file-types`}
+                              label="Allowed file types"
+                              help="Extensions separated by spaces, for example: pdf doc mp3."
+                              error={shownError(index, 'allowedFileTypes')}
+                            >
+                              {(aria) => (
+                                <Input
+                                  {...aria}
+                                  type="text"
+                                  {...getFieldProps(
+                                    `columns[${index}].allowedFileTypes`,
+                                  )}
+                                />
+                              )}
+                            </Field>
+                          )}
+                        </FieldGrid>
+                      </Stack>
+                    </Surface>
+                  )
+                })}
+                <div>
+                  <Button
+                    type="button"
+                    $variant="secondary"
+                    onClick={() => push({ ...NEW_COLUMN })}
+                  >
+                    Add field
+                  </Button>
+                </div>
               </>
             )}
           </FieldArray>
-          <Divider />
-        </>
+        </Stack>
       </form>
-      <ItemDetailsCard
-        title="Preview"
-        columns={columns}
-        itemMetaEvidence={
-          false && {
-            // that false was isTCRofTCRs and i have no clue what the point of this is.
-            file: {
-              fileURI: tcrPrimaryDocument,
-              metadata: {
-                tcrTitle,
-                tcrDescription,
-                logoURI: tcrLogo,
-              },
-            },
-          }
-        }
-      />
-    </Card>
+      <ItemDetailsCard title="Preview" columns={columns} />
+    </Stack>
   )
 }
 
@@ -311,13 +279,13 @@ export default withFormik<StepProps, ItemFormValues>({
   mapPropsToValues: ({ tcrState }) => tcrState,
   handleSubmit: ({ columns }, { props: { postSubmit } }) => {
     if (!columns.some((c) => c.isIdentifier)) {
-      toast.warning('At least one ID field is required.')
+      toast.warning('At least one identifier field is required.')
       return
     }
     const usedLabels = new Set()
     for (const col of columns) {
       if (usedLabels.has(col.label)) {
-        toast.warning('Column names must be unique.')
+        toast.warning('Field names must be unique.')
         return
       }
       usedLabels.add(col.label)

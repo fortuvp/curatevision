@@ -1,200 +1,86 @@
-/* eslint-disable no-unused-vars */
 import React, {
-  useEffect,
-  useState,
-  useContext,
-  useMemo,
   useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
 } from 'react'
-import styled, { css } from 'styled-components'
-import { smallScreenStyle } from 'styles/small-screen-style'
-import {
-  Card,
-  Layout,
-  Spin,
-  Pagination,
-  Tag,
-  Select,
-  Switch,
-} from 'components/ui'
-import { useNavigate, useParams } from 'react-router-dom'
-import useUrlChainId from 'hooks/use-url-chain-id'
-import { BigNumber } from 'ethers'
-import localforage from 'localforage'
+import styled from 'styled-components'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { BigNumber, utils as ethersUtils } from 'ethers'
+import localforage from 'localforage'
 import { STALE_TIME } from 'consts'
-import ErrorPage from '../error-page'
+import useUrlChainId from 'hooks/use-url-chain-id'
+import useNow from 'hooks/use-now'
+import useStoredLayout from 'hooks/use-stored-layout'
+import useDocumentHead from 'hooks/use-document-head'
+import { useAttachment } from 'hooks/use-attachment'
 import { WalletContext } from 'contexts/wallet-context'
 import { LightTCRViewContext } from 'contexts/light-tcr-view-context'
-import SubmitModal from '../light-item-details/modals/submit'
-import SubmitConnectModal from '../light-item-details/modals/submit-connect'
-import {
-  filterLabelLight,
-  LIGHT_FILTER_KEYS,
-  searchStrToFilterObjLight,
-  updateLightFilter,
-} from 'utils/filters'
-import ItemCard, { type EnrichedItem } from './item-card'
-import type { V2Field } from 'components/curate/v2'
-import Banner from './banner'
-import { DISPUTE_STATUS } from 'utils/item-status'
-import { LIGHT_ITEMS_QUERY } from 'utils/graphql'
-import { parseIpfs } from 'utils/ipfs-parse'
 import { useGraphqlBatcher } from 'contexts/graphql-batcher'
+import { LIGHT_ITEMS_QUERY } from 'utils/graphql'
+import { searchStrToFilterObjLight, updateLightFilter } from 'utils/filters'
+import { DISPUTE_STATUS, STATUS_CODE } from 'utils/item-status'
+import { parseIpfs } from 'utils/ipfs-parse'
+import { formatDurationLong } from 'utils/time'
+import { getAddressPage } from 'utils/network-utils'
+import { ZERO_ADDRESS, capitalizeFirstLetter } from 'utils/string'
+import { truncateAtWord } from 'utils/truncate-at-word'
+import { NETWORKS_INFO } from 'config/networks'
+import { klerosAddresses } from 'config/tcr-addresses'
+import { getListOfListsAddresses } from 'config/list-of-lists'
 import useSeerMarketsData from 'components/custom-registries/seer/use-seer-markets-data'
 import { isSeerRegistry } from 'components/custom-registries/seer/is-seer-registry'
-import RegistryInfoPanel from 'components/curate/registry-info-panel'
 import ETHAmount from 'components/eth-amount'
-import { NETWORKS_INFO } from 'config/networks'
-import { getListOfListsAddresses } from 'config/list-of-lists'
-import humanizeDuration from 'humanize-duration'
-import { CurateIcon } from 'components/curate/icons'
+import { Pagination } from 'components/ui'
+import type { V2Field } from 'components/curate/v2'
 import {
-  ToolbarMeta,
-  ToolbarSearch,
-  ToolbarSearchInput,
-  V2RegistryViewMode,
-  ViewModeToggle,
-  itemMatchesSearch,
-} from 'components/curate/v2-registry-toolbar'
+  Button,
+  Grid,
+  Page,
+  SkeletonBlock,
+  Stack,
+  truncateMiddle,
+} from 'components/curate/primitives'
+import {
+  RegistryHeader,
+  type RegistryParameter,
+  type RegistryStat,
+} from 'components/curate/registry-header'
+import {
+  RegistryToolbar,
+  type FilterChip,
+} from 'components/curate/registry-toolbar'
+import {
+  EntryList,
+  tableColumns,
+  type EntryRow,
+} from 'components/curate/entry-list'
+import { lightEntryStatus } from 'components/curate/entry-status'
+import type { ExplainerStep } from 'components/curate/explainer'
+import ErrorPage from '../error-page'
+import SubmitModal from '../light-item-details/modals/submit'
+import SubmitConnectModal from '../light-item-details/modals/submit-connect'
+
+/*
+ * Light Curate registry page (/tcr/:chainId/:tcrAddress). The header carries
+ * the list's identity, the one action with its exact deposit, live counts and
+ * the parameters; the toolbar drives the URL filters; the entries render in
+ * the remembered layout with a dot, a label and the time left on every row.
+ */
 
 export const NSFW_FILTER_KEY = 'NSFW_FILTER_KEY'
-
-export const StyledTopPadding = styled.div`
-  padding-top: 24px;
-  display: flex;
-`
-
-export const StyledContent = styled(Layout.Content)`
-  word-break: break-word;
-`
-
-export const StyledLayoutContent = styled.div`
-  width: 100%;
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: 0 var(--horizontal-padding) 56px;
-  display: flex;
-  flex-direction: column;
-`
-
-export const FiltersContainer = styled.div`
-  display: flex;
-  width: 100%;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  margin-top: 24px;
-  padding: 16px 0;
-  border-bottom: 1px solid var(--klerosUIComponentsStroke);
-  background: transparent;
-
-  ${smallScreenStyle(
-    () => css`
-      flex-direction: column;
-      align-items: stretch;
-      gap: 12px;
-    `,
-  )}
-`
-
-export const StyledFilters = styled.div`
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-`
-
-export const StyledSelect = styled(Select)`
-  width: 120px;
-  margin-left: auto;
-  flex-shrink: 0;
-
-  .ui-select-selector {
-    min-height: 36px;
-  }
-
-  ${smallScreenStyle(
-    () => css`
-      &.ui-select {
-        margin-left: 0;
-      }
-    `,
-  )}
-`
-
-export const StyledTag = styled(Tag.CheckableTag)`
-  cursor: pointer;
-  transition: all 0.2s ease !important;
-
-  &.ui-tag-checkable {
-    background-color: ${({ theme, checked }) =>
-      checked ? theme.curateLiveSoft : 'transparent'} !important;
-    border: 1px solid
-      ${({ theme, checked }) =>
-        checked ? theme.primaryColor : theme.borderColor} !important;
-    color: ${({ theme, checked }) =>
-      checked ? theme.primaryColor : theme.textSecondary} !important;
-    height: 32px;
-    line-height: 30px;
-    border-radius: var(--radius-sm);
-    font-weight: 600;
-    cursor: pointer;
-  }
-
-  &.ui-tag-checkable:hover {
-    color: ${({ theme }) => theme.primaryColor} !important;
-    border-color: ${({ theme }) => theme.primaryColor} !important;
-    cursor: pointer;
-  }
-
-  &.ui-tag-checkable-checked {
-    background-color: var(--klerosUIComponentsMediumBlue) !important;
-    border-color: var(--klerosUIComponentsPrimaryBlue) !important;
-    color: var(--klerosUIComponentsPrimaryBlue) !important;
-  }
-`
-
-export const StyledPagination = styled(Pagination)`
-  justify-content: flex-end;
-  display: flex;
-  flex-wrap: wrap;
-  margin-top: 2em;
-`
-
-export const StyledGrid = styled.div<{ $viewMode?: V2RegistryViewMode }>`
-  display: ${({ $viewMode }) => ($viewMode === 'grid' ? 'grid' : 'flex')};
-  grid-template-columns: ${({ $viewMode }) =>
-    $viewMode === 'grid' ? 'repeat(auto-fill, minmax(246px, 1fr))' : 'none'};
-  flex-direction: column;
-  margin: 24px 0;
-  gap: ${({ $viewMode }) => ($viewMode === 'grid' ? '24px' : '8px')};
-`
-
-export const StyledSwitch = styled(Switch)`
-  &.ui-switch-checked {
-    background-color: ${({ theme }) => theme.buttonSecondaryBg};
-    margin-right: 8px;
-  }
-
-  &.ui-switch {
-    margin-right: 8px;
-  }
-`
-
-export const pagingItem = (
-  _: number,
-  type: string,
-  originalElement: React.ReactNode,
-) => {
-  if (type === 'prev') return <span>Previous</span>
-  if (type === 'next') return <span>Next</span>
-  return originalElement
-}
-
 export const ITEMS_PER_PAGE = 40
+
+/** Statuses hidden behind a reveal while the sensitive-content filter is on. */
+const HIDDEN_STATUS_CODES = new Set<number>([
+  STATUS_CODE.REJECTED,
+  STATUS_CODE.REMOVED,
+  STATUS_CODE.CHALLENGED,
+  STATUS_CODE.CROWDFUNDING,
+  STATUS_CODE.CROWDFUNDING_WINNER,
+])
 
 /** A dispute round exactly as the subgraph returns it (numbers as strings). */
 interface RawRound {
@@ -229,11 +115,132 @@ interface RawLightItem {
   [key: string]: unknown
 }
 
+interface RegistryCounters {
+  numberOfAbsent: string
+  numberOfRegistered: string
+  numberOfRegistrationRequested: string
+  numberOfClearingRequested: string
+  numberOfChallengedRegistrations: string
+  numberOfChallengedClearing: string
+}
+
+interface LightItemsResult {
+  lregistry?: RegistryCounters | null
+  litems?: RawLightItem[]
+}
+
+interface SeerMarket {
+  marketName?: string
+  outcomes?: string[]
+}
+
+/** A subgraph item with its decoded fields, as the list renders it. */
+interface RegistryItem {
+  tcrData: SubgraphItem & { mergedData?: V2Field[] }
+  columns: V2Field[]
+  errors: string[]
+  seerMarketData?: SeerMarket
+}
+
+const integer = new Intl.NumberFormat('en-US')
+
+/** "51.6 xDAI" from a wei amount, for hints and sentences. */
+const formatAmount = (
+  amount: BigNumber | undefined,
+  symbol: string,
+): string | undefined =>
+  amount
+    ? `${ethersUtils.formatEther(amount).replace(/\.?0+$/, '')} ${symbol}`
+    : undefined
+
+/**
+ * ERC-792 extra data as Kleros encodes it: the court id in the first 32
+ * bytes, the number of jurors in the next 32. Only meaningful when the
+ * list's arbitrator is the chain's Kleros arbitrator; other arbitrators may
+ * lay their extra data out differently, so callers check that first.
+ */
+const decodeCourt = (
+  extraData: string | undefined,
+): { courtId: string; jurors: string } | undefined => {
+  if (!extraData || !extraData.startsWith('0x')) return undefined
+  const hex = extraData.slice(2)
+  if (!/^[0-9a-fA-F]{128,}$/.test(hex)) return undefined
+  return {
+    courtId: BigNumber.from(`0x${hex.slice(0, 64)}`).toString(),
+    jurors: BigNumber.from(`0x${hex.slice(64, 128)}`).toString(),
+  }
+}
+
+/** "Tag" reads as "tag" in a sentence; acronyms such as "NFT" stay as they are. */
+const sentenceCase = (name: string): string =>
+  name.length > 1 && name[1] === name[1].toLowerCase()
+    ? name[0].toLowerCase() + name.slice(1)
+    : name
+
+const valueText = (value: unknown): string => {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'string' || typeof value === 'number')
+    return String(value)
+  if (Array.isArray(value)) return value.map(valueText).join(' ')
+  if (typeof value === 'object')
+    return Object.values(value as Record<string, unknown>)
+      .map(valueText)
+      .join(' ')
+  return ''
+}
+
+/** Matches the search box against the item id, its status and its values. */
+const itemMatchesSearch = (item: RegistryItem, rawSearch: string): boolean => {
+  const query = rawSearch.trim().toLowerCase()
+  if (!query) return true
+  const text = [
+    item.tcrData.itemID,
+    item.tcrData.ID,
+    item.tcrData.status,
+    item.columns.map((column) => column.value),
+    item.tcrData.mergedData?.map((field) => field.value),
+  ]
+    .map(valueText)
+    .join(' ')
+    .toLowerCase()
+  return text.includes(query)
+}
+
+const pagingItem = (
+  _page: number,
+  type: string,
+  originalElement: React.ReactNode,
+) => {
+  if (type === 'prev') return <span>Previous</span>
+  if (type === 'next') return <span>Next</span>
+  return originalElement
+}
+
+const AddressLink = styled.a`
+  color: var(--color-primary);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+`
+
+const Entries = styled.section`
+  margin-top: 0;
+`
+
+const PaginationRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-top: 16px;
+`
+
 const Items = () => {
   const navigate = useNavigate()
+  const { search } = useLocation()
   const { tcrAddress } = useParams()
   const chainId = useUrlChainId()
-  const search = window.location.search
   const timestamp = useContext(WalletContext)?.timestamp
   const tcrViewContext = useContext(LightTCRViewContext)
   const metaEvidence = tcrViewContext?.metaEvidence
@@ -242,6 +249,7 @@ const Items = () => {
   const gtcrView = tcrViewContext?.gtcrView
   const connectedTCRAddr = tcrViewContext?.connectedTCRAddr
   const submissionDeposit = tcrViewContext?.submissionDeposit
+  const submissionBaseDeposit = tcrViewContext?.submissionBaseDeposit
   const submissionChallengeDeposit = tcrViewContext?.submissionChallengeDeposit
   const removalDeposit = tcrViewContext?.removalDeposit
   const removalChallengeDeposit = tcrViewContext?.removalChallengeDeposit
@@ -249,29 +257,35 @@ const Items = () => {
   const arbitrator = tcrViewContext?.arbitrator
   const arbitratorExtraData = tcrViewContext?.arbitratorExtraData
   const governor = tcrViewContext?.governor
+  const openAttachment = useAttachment()
+  const now = useNow()
+  const [layout, setLayout] = useStoredLayout('entries', 'table')
+
   const [submissionFormOpen, setSubmissionFormOpen] = useState<
     boolean | undefined
   >()
   const [error, setError] = useState<string | undefined>()
-  const queryOptions = searchStrToFilterObjLight(search)
   const [nsfwFilterOn, setNSFWFilter] = useState(true)
   const [itemSearch, setItemSearch] = useState('')
-  const [viewMode, setViewMode] = useState<V2RegistryViewMode>('list')
   const [queryItemParams, setQueryItemParams] = useState<string[] | undefined>()
+  const [revealed, setRevealed] = useState<Set<string>>(() => new Set())
+  const [decodedItems, setDecodedItems] = useState<SubgraphItem[] | undefined>(
+    undefined,
+  )
+
   const toggleNSFWFilter = useCallback((checked: boolean) => {
     setNSFWFilter(checked)
     localforage.setItem(NSFW_FILTER_KEY, checked)
   }, [])
-  const [decodedItems, setDecodedItems] = useState<SubgraphItem[] | undefined>(
-    undefined,
-  )
+
   const seerMarketsData = useSeerMarketsData(
     chainId ?? 0,
     tcrAddress ?? '',
     decodedItems ?? [],
-  )
+  ) as Record<string, SeerMarket | undefined>
   const { graphqlBatcher } = useGraphqlBatcher()
 
+  const queryOptions = searchStrToFilterObjLight(search)
   const {
     oldestFirst,
     page,
@@ -350,7 +364,7 @@ const Items = () => {
 
   const itemsQuery = useQuery({
     queryKey: ['lightItems', queryVariables],
-    queryFn: () =>
+    queryFn: (): Promise<LightItemsResult> =>
       graphqlBatcher.fetch({
         id: crypto.randomUUID(),
         document: LIGHT_ITEMS_QUERY,
@@ -361,9 +375,11 @@ const Items = () => {
     staleTime: STALE_TIME,
   })
 
+  const counters = itemsQuery.data?.lregistry ?? undefined
+
   const itemCount = useMemo(() => {
-    if (!itemsQuery.data) return 0
-    const r = itemsQuery.data.lregistry
+    if (!counters) return 0
+    const r = counters
 
     // Count selected filters and sum their counts
     const hasAnyFilter =
@@ -404,7 +420,7 @@ const Items = () => {
     removalRequested,
     challengedSubmissions,
     challengedRemovals,
-    itemsQuery.data,
+    counters,
   ])
 
   useEffect(() => {
@@ -466,7 +482,6 @@ const Items = () => {
           disputeStatus,
           disputed,
           resolved,
-          data,
           decodedData: item.decodedData,
           mergedData: item.mergedData,
           disputeID,
@@ -485,7 +500,7 @@ const Items = () => {
       })
 
     // Render items immediately with whatever data the subgraph has.
-    const itemsWithDecoded = addDecodedFields(data.litems)
+    const itemsWithDecoded = addDecodedFields(data.litems ?? [])
     setDecodedItems(
       transformItems(itemsWithDecoded) as unknown as SubgraphItem[],
     )
@@ -545,72 +560,46 @@ const Items = () => {
     })()
   }, [])
 
-  // More data wrangling/bandaid to deal with legacy code.
-  // Most of this should be refactored or even better, deleted.
-  const items = useMemo(() => {
+  // Pair every subgraph item with the list's columns and, for Seer, its market.
+  const items = useMemo<RegistryItem[] | undefined>(() => {
     if (!metaEvidence || metaEvidence.address !== tcrAddress || !decodedItems)
-      return
+      return undefined
 
-    return decodedItems.map((item: SubgraphItem, i: number) => {
-      let decodedData: unknown[] | undefined
-      const errors: string[] = []
-      const columns = metaEvidence.metadata?.columns || []
-      try {
-        decodedData = item.decodedData
-        // eslint-disable-next-line no-unused-vars
-      } catch (err) {
-        errors.push(
-          `Error decoding item ${item.itemID} of list at ${tcrAddress}`,
-        )
-        console.warn(
-          `Error decoding item ${item.itemID} of list at ${tcrAddress}`,
-        )
-        console.warn(err)
-      }
+    const columns = metaEvidence.metadata?.columns || []
+    const seer =
+      tcrAddress != null &&
+      chainId != null &&
+      isSeerRegistry(tcrAddress, chainId)
 
-      // Return the item columns along with its TCR status data.
+    return decodedItems.map((item: SubgraphItem) => {
+      const decodedData = item.decodedData
       return {
-        tcrData: {
-          ...item, // Spread to convert from array to object.
-          decodedData,
-        },
-        columns: columns.map(
-          (col: Column, i: number) => ({
-            value: decodedData && decodedData[i],
-            ...col,
-          }),
-          { key: i },
-        ),
-        errors,
+        tcrData: { ...item, decodedData },
+        columns: columns.map((col: Column, index: number) => ({
+          value: decodedData && decodedData[index],
+          ...col,
+        })),
+        errors: [],
         seerMarketData:
-          tcrAddress != null &&
-          chainId != null &&
-          isSeerRegistry(tcrAddress, chainId) &&
-          (item.decodedData?.length ?? 0) > 1 &&
-          (seerMarketsData as Record<string, unknown>)[
-            String(item.decodedData?.[1]).toLowerCase()
-          ],
+          seer && (decodedData?.length ?? 0) > 1
+            ? seerMarketsData[String(decodedData?.[1]).toLowerCase()]
+            : undefined,
       }
-    }) as unknown as EnrichedItem[]
+    })
   }, [metaEvidence, tcrAddress, decodedItems, chainId, seerMarketsData])
 
   const visibleItems = useMemo(() => {
-    if (!items) return
+    if (!items) return undefined
 
     return [...items]
       .filter((item) => itemMatchesSearch(item, itemSearch))
-      .sort(
-        (
-          { tcrData: tcrDataA }: EnrichedItem,
-          { tcrData: tcrDataB }: EnrichedItem,
-        ) => {
-          // Display items with pending requests first.
-          if (!tcrDataA || !tcrDataB) return 0 // Handle errored TCRs.
-          if (!tcrDataA.resolved && tcrDataB.resolved) return -1
-          if (tcrDataA.resolved && !tcrDataB.resolved) return 1
-          return 0
-        },
-      )
+      .sort(({ tcrData: tcrDataA }, { tcrData: tcrDataB }) => {
+        // Display items with pending requests first.
+        if (!tcrDataA || !tcrDataB) return 0 // Handle errored TCRs.
+        if (!tcrDataA.resolved && tcrDataB.resolved) return -1
+        if (tcrDataA.resolved && !tcrDataB.resolved) return 1
+        return 0
+      })
   }, [itemSearch, items])
 
   // This component supports URL actions.
@@ -629,12 +618,329 @@ const Items = () => {
     setSubmissionFormOpen(true)
   }, [search])
 
+  /* ---------- Derived copy and figures ---------- */
+
+  const { metadata, fileURI } = metaEvidence || {}
+  const { isConnectedTCR, isTCRofTCRs, relTcrDisabled, logoURI } =
+    metadata || {}
+  const tcrTitle = metadata?.tcrTitle ?? metadata?.title ?? metaEvidence?.title
+  const tcrDescription =
+    metadata?.tcrDescription ??
+    metadata?.description ??
+    metaEvidence?.description
+  const normalizedDescription = tcrDescription
+    ? tcrDescription[tcrDescription.length - 1] === '.'
+      ? tcrDescription
+      : `${tcrDescription}.`
+    : ''
+  const rawItemName = metadata?.itemName ?? metaEvidence?.itemName
+  const rawItemNamePlural =
+    metadata?.itemNamePlural ?? metaEvidence?.itemNamePlural
+  const itemName = sentenceCase(rawItemName ?? 'entry')
+  // A list that names its items but not their plural gets a plain "s";
+  // a list that names neither falls back to "entries", never "entrys".
+  const itemNamePlural = sentenceCase(
+    rawItemNamePlural ?? (rawItemName ? `${rawItemName}s` : 'entries'),
+  )
+
+  const fullSeoTitle = tcrTitle
+    ? `${tcrTitle} - Kleros · Curate`
+    : 'Kleros · Curate'
+  const fullSeoMetaDescription = metadata
+    ? `Explore the ${tcrTitle} list on Kleros Curate: ${normalizedDescription}`
+    : 'Explore curated lists on Kleros Curate.'
+  useDocumentHead(
+    truncateAtWord(fullSeoTitle, 60),
+    truncateAtWord(fullSeoMetaDescription, 160),
+  )
+
+  const networkInfo = chainId
+    ? NETWORKS_INFO[chainId as keyof typeof NETWORKS_INFO]
+    : undefined
+  const nativeSymbol = networkInfo?.nativeCurrency.symbol ?? 'ETH'
+  const depositValue = (amount: BigNumber | undefined) =>
+    amount ? (
+      <ETHAmount
+        amount={amount}
+        decimals={18}
+        displayUnit={` ${nativeSymbol}`}
+      />
+    ) : undefined
+  const addressValue = (address: string | undefined) => {
+    if (!address) return undefined
+    const href = chainId
+      ? getAddressPage({ networkId: chainId, address })
+      : undefined
+    return href ? (
+      <AddressLink
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={address}
+      >
+        {truncateMiddle(address, 8, 6)}
+      </AddressLink>
+    ) : (
+      <span title={address}>{truncateMiddle(address, 8, 6)}</span>
+    )
+  }
+
+  // Court and juror figures are only read from the extra data when the
+  // list's arbitrator is this chain's Kleros arbitrator.
+  const klerosArbitrator = chainId
+    ? klerosAddresses[chainId]?.arbitrator
+    : undefined
+  const isKlerosArbitrator =
+    !!klerosArbitrator &&
+    !!arbitrator &&
+    klerosArbitrator.toLowerCase() === arbitrator.toLowerCase()
+  const court = isKlerosArbitrator
+    ? decodeCourt(arbitratorExtraData)
+    : undefined
+  const courtLabel = court
+    ? `Court ${court.courtId} · ${court.jurors} jurors`
+    : arbitratorExtraData
+      ? truncateMiddle(arbitratorExtraData, 10, 6)
+      : undefined
+  const challengePeriod = challengePeriodDuration
+    ? formatDurationLong(challengePeriodDuration.toNumber())
+    : undefined
+  const submissionTotal = formatAmount(submissionDeposit, nativeSymbol)
+  const submissionBase = formatAmount(submissionBaseDeposit, nativeSymbol)
+  const arbitration = formatAmount(arbitrationCost, nativeSymbol)
+  const challengeTotal = formatAmount(submissionChallengeDeposit, nativeSymbol)
+  /** "30 xDAI base deposit + 21.6 xDAI arbitration cost", shown with every total. */
+  const submissionBreakdown =
+    submissionBase && arbitration
+      ? `${submissionBase} base deposit + ${arbitration} arbitration cost`
+      : undefined
+  const rejectedOrRemoved = counters
+    ? integer.format(Number(counters.numberOfAbsent))
+    : undefined
+
+  const verified =
+    !!chainId &&
+    !!tcrAddress &&
+    getListOfListsAddresses(chainId).includes(tcrAddress.toLowerCase())
+
+  const stats: RegistryStat[] = useMemo(() => {
+    if (!counters)
+      return [
+        { label: 'Entries' },
+        { label: 'Open requests' },
+        { label: 'In court' },
+      ]
+    const inCourt =
+      Number(counters.numberOfChallengedRegistrations) +
+      Number(counters.numberOfChallengedClearing)
+    const openRequests =
+      Number(counters.numberOfRegistrationRequested) +
+      Number(counters.numberOfClearingRequested) +
+      inCourt
+    const entries =
+      Number(counters.numberOfAbsent) +
+      Number(counters.numberOfRegistered) +
+      openRequests
+    return [
+      { label: 'Entries', value: integer.format(entries) },
+      { label: 'Open requests', value: integer.format(openRequests) },
+      { label: 'In court', value: integer.format(inCourt) },
+    ]
+  }, [counters])
+
+  const parameters: RegistryParameter[] = [
+    {
+      label: 'Submission deposit',
+      value: depositValue(submissionDeposit),
+      hint: submissionBreakdown,
+    },
+    {
+      label: 'Challenge deposit',
+      value: depositValue(submissionChallengeDeposit),
+    },
+    { label: 'Removal deposit', value: depositValue(removalDeposit) },
+    {
+      label: 'Removal challenge deposit',
+      value: depositValue(removalChallengeDeposit),
+    },
+    { label: 'Challenge period', value: challengePeriod },
+    { label: 'Arbitration cost', value: depositValue(arbitrationCost) },
+    { label: 'Court', value: courtLabel },
+    { label: 'Arbitrator', value: addressValue(arbitrator) },
+    { label: 'Governor', value: addressValue(governor) },
+    {
+      label: 'Rejected or removed',
+      value: rejectedOrRemoved,
+      hint: 'Included in the Entries count',
+    },
+  ]
+
+  // The header already says the deposit comes back in full if nobody
+  // challenges; the steps carry the breakdown, the execution and the loss case.
+  const explainerSteps: ExplainerStep[] = [
+    {
+      title: 'Submit with a deposit',
+      body:
+        submissionTotal && submissionBreakdown
+          ? `You send ${submissionTotal} = ${submissionBreakdown}. If challenged and you lose, it goes to the challenger minus the arbitration cost.`
+          : submissionTotal
+            ? `You send ${submissionTotal}: the list’s base deposit plus the arbitration cost. If challenged and you lose, it goes to the challenger minus the arbitration cost.`
+            : 'You lock the list’s base deposit plus the arbitration cost. If challenged and you lose, it goes to the challenger minus the arbitration cost.',
+    },
+    {
+      title: challengePeriod
+        ? `Anyone can challenge for ${challengePeriod}`
+        : 'Anyone can challenge during the window',
+      body: challengeTotal
+        ? `Anyone who thinks your ${itemName} breaks the listing policy can lock ${challengeTotal} and give a reason. If nobody does, the request can be executed once the period ends: the ${itemName} is registered and your deposit comes back.`
+        : `Anyone who thinks your ${itemName} breaks the listing policy can lock a challenge deposit and give a reason. If nobody does, the request can be executed once the period ends: the ${itemName} is registered and your deposit comes back.`,
+    },
+    {
+      title: isKlerosArbitrator
+        ? 'Kleros jurors decide; the winner is paid'
+        : 'The arbitrator decides; the winner is paid',
+      body: court
+        ? `Kleros court ${court.courtId} draws ${court.jurors} jurors who decide whether the ${itemName} meets the listing policy. The winner takes the pool minus one arbitration cost; the loser’s deposit is lost.`
+        : isKlerosArbitrator
+          ? `A Kleros court decides whether the ${itemName} meets the listing policy. The winner takes the pool minus one arbitration cost; the loser’s deposit is lost.`
+          : `The list’s arbitrator decides whether the ${itemName} meets the listing policy. The winner takes the pool minus one arbitration cost; the loser’s deposit is lost.`,
+    },
+  ]
+
+  const onPrimary = () => {
+    if (chainId && tcrAddress) navigate(`/tcr/${chainId}/${tcrAddress}/submit`)
+    else setSubmissionFormOpen(true)
+  }
+  const onOpenPolicy = fileURI
+    ? () => openAttachment(parseIpfs(fileURI), true)
+    : undefined
+  const badgesListTo =
+    connectedTCRAddr && connectedTCRAddr !== ZERO_ADDRESS && !relTcrDisabled
+      ? `/tcr/${chainId}/${connectedTCRAddr}`
+      : undefined
+
+  const chips: FilterChip[] = [
+    {
+      key: 'absent',
+      label: 'Rejected or removed',
+      tone: 'off',
+      checked: !!absent,
+    },
+    {
+      key: 'registered',
+      label: 'Registered',
+      tone: 'registered',
+      checked: !!registered,
+    },
+    {
+      key: 'submitted',
+      label: 'Submitted',
+      tone: 'window',
+      checked: !!submitted,
+    },
+    {
+      key: 'removalRequested',
+      label: 'Removal requested',
+      tone: 'window',
+      checked: !!removalRequested,
+    },
+    {
+      key: 'challengedSubmissions',
+      label: 'Challenged submissions',
+      tone: 'contested',
+      checked: !!challengedSubmissions,
+    },
+    {
+      key: 'challengedRemovals',
+      label: 'Challenged removals',
+      tone: 'contested',
+      checked: !!challengedRemovals,
+    },
+  ]
+
+  const setFilter = (filter: string, checked: boolean) =>
+    navigate({
+      search: updateLightFilter({ prevQuery: search, filter, checked }),
+    })
+
+  const goToPage = (newPage: number) => {
+    const params = new URLSearchParams(search)
+    params.set('page', String(newPage))
+    navigate({ search: `?${params.toString()}` })
+  }
+
+  const hasSeerMarkets =
+    tcrAddress != null &&
+    chainId != null &&
+    isSeerRegistry(tcrAddress, chainId) &&
+    Object.keys(seerMarketsData).length > 0
+  const columns = useMemo(() => {
+    const base = tableColumns((metadata?.columns ?? []) as V2Field[])
+    // Seer registries also show the market name fetched for each entry.
+    return hasSeerMarkets ? [...base, { label: 'Market', type: 'text' }] : base
+  }, [metadata, hasSeerMarkets])
+
+  const entries: EntryRow[] = useMemo(() => {
+    if (!visibleItems || !tcrAddress) return []
+    return visibleItems.map((item) => {
+      const id = String(item.tcrData.itemID ?? item.tcrData.ID ?? '')
+      const status = lightEntryStatus(
+        item.tcrData,
+        timestamp,
+        challengePeriodDuration,
+      )
+      const fields: V2Field[] = [
+        ...(item.tcrData.mergedData?.length
+          ? item.tcrData.mergedData
+          : item.columns),
+      ]
+      if (item.seerMarketData?.marketName)
+        fields.push({
+          label: 'Market',
+          value: item.seerMarketData.marketName,
+          type: 'text',
+        })
+      const firstColumnValue = item.columns[0]?.value
+      const openListTo =
+        isTCRofTCRs && typeof firstColumnValue === 'string'
+          ? `/tcr/${chainId}/${firstColumnValue}`
+          : undefined
+      const hidden =
+        nsfwFilterOn &&
+        status?.code !== undefined &&
+        HIDDEN_STATUS_CODES.has(status.code) &&
+        !revealed.has(id)
+      return {
+        id,
+        href: `/tcr/${chainId}/${tcrAddress}/${id}`,
+        fields,
+        status,
+        openListTo,
+        hidden,
+        onReveal: hidden
+          ? () => setRevealed((prev) => new Set(prev).add(id))
+          : undefined,
+      }
+    })
+  }, [
+    visibleItems,
+    tcrAddress,
+    chainId,
+    timestamp,
+    challengePeriodDuration,
+    isTCRofTCRs,
+    nsfwFilterOn,
+    revealed,
+  ])
+
+  /* ---------- Error states ---------- */
+
   if (!tcrAddress)
     return (
       <ErrorPage
         code="404"
-        message="The gods are having trouble finding this list."
-        tip="Make sure your wallet is set to the correct network (is this on Gnosis Chain?)."
+        message="This list could not be found."
+        tip="Check the address, and that the chain in the URL is the one the list lives on."
       />
     )
 
@@ -645,265 +951,139 @@ const Items = () => {
         message={
           typeof tcrError === 'string'
             ? tcrError
-            : error || 'Decoding this item.'
+            : error || 'This list could not be loaded.'
         }
       />
     )
 
-  const { metadata } = metaEvidence || {}
-  const { isConnectedTCR } = metadata || {}
-  const nativeSymbol =
-    chainId && NETWORKS_INFO[chainId as keyof typeof NETWORKS_INFO]
-      ? ` ${
-          NETWORKS_INFO[chainId as keyof typeof NETWORKS_INFO].nativeCurrency
-            .symbol
-        }`
-      : ' ETH'
-  const depositValue = (amount: unknown) =>
-    amount ? (
-      <ETHAmount
-        amount={amount as string}
-        decimals={18}
-        displayUnit={nativeSymbol}
-      />
-    ) : undefined
-  const periodValue = (seconds: unknown) =>
-    seconds
-      ? humanizeDuration(Number(seconds) * 1000, {
-          largest: 2,
-          round: true,
-        })
-      : undefined
-  const verifiedSource =
-    !!chainId &&
-    !!tcrAddress &&
-    getListOfListsAddresses(chainId).includes(tcrAddress.toLowerCase())
-  const registryStats = itemsQuery.data?.lregistry
-  const totalRegistryItems = registryStats
-    ? Number(registryStats.numberOfAbsent) +
-      Number(registryStats.numberOfRegistered) +
-      Number(registryStats.numberOfRegistrationRequested) +
-      Number(registryStats.numberOfClearingRequested) +
-      Number(registryStats.numberOfChallengedRegistrations) +
-      Number(registryStats.numberOfChallengedClearing)
-    : undefined
-  const totalRegistryDisputes = registryStats
-    ? Number(registryStats.numberOfChallengedRegistrations) +
-      Number(registryStats.numberOfChallengedClearing)
-    : undefined
+  const listLoading = itemsQuery.isLoading || !metadata || !visibleItems
+  const showPagination = itemCount > ITEMS_PER_PAGE
 
   return (
-    <>
-      <Banner
-        metaEvidence={metaEvidence}
-        setSubmissionFormOpen={setSubmissionFormOpen}
-        connectedTCRAddr={connectedTCRAddr}
-        tcrAddress={tcrAddress}
-      />
-      <RegistryInfoPanel
+    <Page>
+      <RegistryHeader
+        title={tcrTitle}
+        description={
+          normalizedDescription
+            ? capitalizeFirstLetter(normalizedDescription)
+            : undefined
+        }
+        logoURI={logoURI}
         chainId={chainId ?? undefined}
         address={tcrAddress}
-        verified={verifiedSource}
-        fields={[
-          {
-            label: 'Total items',
-            icon: 'registry',
-            value:
-              totalRegistryItems !== undefined
-                ? String(totalRegistryItems)
-                : undefined,
-          },
-          {
-            label: 'Removed items',
-            icon: 'remove',
-            value: registryStats?.numberOfAbsent,
-          },
-          {
-            label: 'Disputes generated',
-            icon: 'dispute',
-            value:
-              totalRegistryDisputes !== undefined
-                ? String(totalRegistryDisputes)
-                : undefined,
-          },
-          {
-            label: 'Submission deposit',
-            icon: 'submit',
-            value: depositValue(submissionDeposit),
-            hint: 'Requester stake plus the current arbitration fee.',
-          },
-          {
-            label: 'Challenge deposit',
-            icon: 'challenge',
-            value: depositValue(submissionChallengeDeposit),
-            hint: 'Required to challenge a pending registration.',
-          },
-          {
-            label: 'Removal deposit',
-            icon: 'remove',
-            value: depositValue(removalDeposit),
-          },
-          {
-            label: 'Removal challenge',
-            icon: 'dispute',
-            value: depositValue(removalChallengeDeposit),
-          },
-          {
-            label: 'Challenge period',
-            icon: 'activity',
-            value: periodValue(challengePeriodDuration),
-          },
-          {
-            label: 'Arbitration fee',
-            icon: 'court',
-            value: depositValue(arbitrationCost),
-            hint: 'Arbitration fees are paid up front to open or continue a dispute. They are reimbursed to the side that wins, so parties acting in good faith should not ultimately bear them.',
-          },
-          {
-            label: 'Governor',
-            icon: 'verified',
-            value: governor ? String(governor) : undefined,
-          },
-          {
-            label: 'Arbitrator',
-            icon: 'court',
-            value: arbitrator ? String(arbitrator) : undefined,
-            hint: arbitratorExtraData
-              ? `Extra data ${String(arbitratorExtraData).slice(0, 18)}...`
-              : undefined,
-          },
-        ]}
+        verified={verified}
+        kindLabel="Light Curate"
+        itemName={itemName}
+        primaryLabel={`Submit ${itemName}`}
+        primaryAmount={
+          submissionDeposit ? (
+            <span title={submissionBreakdown}>
+              {depositValue(submissionDeposit)}
+            </span>
+          ) : undefined
+        }
+        onPrimary={onPrimary}
+        policyURI={fileURI}
+        onOpenPolicy={onOpenPolicy}
+        badgesListTo={badgesListTo}
+        stats={stats}
+        parameters={parameters}
+        explainerId={`registry-light-${tcrAddress.toLowerCase()}`}
+        explainerHeading="One deposit, one window, a court if needed."
+        explainerSteps={explainerSteps}
+        loading={!metadata}
       />
-      <StyledLayoutContent>
-        <StyledContent>
-          <Spin spinning={itemsQuery.isLoading || !metadata}>
-            <>
-              <FiltersContainer id="items-filters">
-                <ToolbarSearch>
-                  <CurateIcon name="search" size={18} />
-                  <ToolbarSearchInput
-                    aria-label="Search registry entries"
-                    placeholder="Search entries"
-                    value={itemSearch}
-                    onChange={(event) => setItemSearch(event.target.value)}
-                  />
-                </ToolbarSearch>
-                <StyledFilters>
-                  <StyledSwitch
-                    checkedChildren="NSFW Filter: On"
-                    unCheckedChildren="NSFW Filter: Off"
-                    checked={nsfwFilterOn}
-                    onChange={toggleNSFWFilter}
-                  />
-                  {Object.keys(queryOptions)
-                    .filter(
-                      (key) =>
-                        key !== LIGHT_FILTER_KEYS.PAGE &&
-                        key !== LIGHT_FILTER_KEYS.OLDEST_FIRST &&
-                        key !== 'mySubmissions' &&
-                        key !== 'myChallenges',
-                    )
-                    .map((key) =>
-                      filterLabelLight[key] ? (
-                        <StyledTag
-                          key={key}
-                          checked={!!queryOptions[key]}
-                          onChange={(checked) => {
-                            const newQueryStr = updateLightFilter({
-                              prevQuery: search,
-                              filter: key,
-                              checked,
-                            })
-                            navigate({
-                              search: newQueryStr,
-                            })
-                          }}
-                        >
-                          {filterLabelLight[key]}
-                        </StyledTag>
-                      ) : null,
-                    )}
-                </StyledFilters>
-                <ToolbarMeta>
-                  {visibleItems?.length ?? 0}/{itemCount || 0} shown
-                </ToolbarMeta>
-                <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
-                <StyledSelect
-                  defaultValue={oldestFirst ? 'oldestFirst' : 'newestFirst'}
-                  onChange={(val) => {
-                    const newQueryStr = updateLightFilter({
-                      prevQuery: search,
-                      filter: 'oldestFirst',
-                      checked: val === 'oldestFirst',
-                    })
-                    navigate({
-                      search: newQueryStr,
-                    })
-                  }}
-                >
-                  <Select.Option value="newestFirst">Newest</Select.Option>
-                  <Select.Option value="oldestFirst">Oldest</Select.Option>
-                </StyledSelect>
-              </FiltersContainer>
-              <StyledGrid id="items-grid-view" $viewMode={viewMode}>
-                {visibleItems
-                  ? visibleItems.map((item, i) => (
-                      <ItemCard
-                        item={item}
-                        key={i}
-                        metaEvidence={metaEvidence}
-                        chainId={chainId ?? undefined}
-                        tcrAddress={tcrAddress}
-                        challengePeriodDuration={challengePeriodDuration}
-                        timestamp={timestamp}
-                        forceReveal={!nsfwFilterOn}
-                        viewMode={viewMode}
-                      />
-                    ))
-                  : Array.from({ length: 8 }).map((_, i) => (
-                      <Card key={i} style={{ height: '100%' }} loading />
-                    ))}
-              </StyledGrid>
-              <StyledPagination
-                total={itemCount || 0}
-                current={Number(queryOptions.page)}
-                itemRender={pagingItem}
-                pageSize={ITEMS_PER_PAGE}
-                onChange={(newPage) => {
-                  navigate({
-                    search: /page=\d+/g.test(search)
-                      ? search.replace(/page=\d+/g, `page=${newPage}`)
-                      : `${search}&page=${newPage}`,
-                  })
-                }}
-              />
-            </>
-          </Spin>
-        </StyledContent>
-        {metaEvidence && metadata && (
-          <>
-            {isConnectedTCR ? (
-              <SubmitConnectModal
-                visible={submissionFormOpen}
-                onCancel={() => setSubmissionFormOpen(false)}
-                tcrAddress={tcrAddress}
-                gtcrView={gtcrView}
-              />
-            ) : (
-              <SubmitModal
-                visible={submissionFormOpen}
-                onCancel={() => setSubmissionFormOpen(false)}
-                submissionDeposit={submissionDeposit}
-                challengePeriodDuration={challengePeriodDuration}
-                tcrAddress={tcrAddress}
-                metaEvidence={metaEvidence}
-                initialValues={queryItemParams}
-              />
-            )}
-          </>
+
+      <RegistryToolbar
+        search={itemSearch}
+        onSearch={setItemSearch}
+        placeholder={`Search ${itemNamePlural}`}
+        chips={chips}
+        onChipChange={setFilter}
+        sort={oldestFirst ? 'oldest' : 'newest'}
+        onSortChange={(sort) => setFilter('oldestFirst', sort === 'oldest')}
+        layout={layout}
+        onLayoutChange={setLayout}
+        nsfwFilter={nsfwFilterOn}
+        onNsfwChange={toggleNSFWFilter}
+        shown={listLoading ? 0 : (visibleItems?.length ?? 0)}
+        total={itemCount}
+      />
+
+      <Entries
+        aria-label={capitalizeFirstLetter(itemNamePlural)}
+        aria-busy={listLoading}
+      >
+        {listLoading ? (
+          layout === 'cards' ? (
+            <Grid $min={260}>
+              {Array.from({ length: 6 }).map((_, index) => (
+                <SkeletonBlock key={index} $height="180px" />
+              ))}
+            </Grid>
+          ) : (
+            <Stack $gap={8}>
+              {Array.from({ length: 8 }).map((_, index) => (
+                <SkeletonBlock key={index} $height="44px" />
+              ))}
+            </Stack>
+          )
+        ) : (
+          <EntryList
+            layout={layout}
+            entries={entries}
+            columns={columns}
+            now={now}
+            itemName={itemName}
+            itemNamePlural={itemNamePlural}
+            emptyAction={
+              <Button
+                type="button"
+                $variant="primary"
+                $size="sm"
+                onClick={onPrimary}
+              >
+                Submit {itemName}
+              </Button>
+            }
+          />
         )}
-      </StyledLayoutContent>
-    </>
+        {showPagination && (
+          <PaginationRow>
+            <Pagination
+              total={itemCount}
+              current={Number(page)}
+              itemRender={pagingItem}
+              pageSize={ITEMS_PER_PAGE}
+              onChange={goToPage}
+            />
+          </PaginationRow>
+        )}
+      </Entries>
+
+      {metaEvidence && metadata && (
+        <>
+          {isConnectedTCR ? (
+            <SubmitConnectModal
+              visible={submissionFormOpen}
+              onCancel={() => setSubmissionFormOpen(false)}
+              tcrAddress={tcrAddress}
+              gtcrView={gtcrView}
+            />
+          ) : (
+            <SubmitModal
+              visible={submissionFormOpen}
+              onCancel={() => setSubmissionFormOpen(false)}
+              submissionDeposit={submissionDeposit}
+              challengePeriodDuration={challengePeriodDuration}
+              tcrAddress={tcrAddress}
+              metaEvidence={metaEvidence}
+              initialValues={queryItemParams}
+            />
+          )}
+        </>
+      )}
+    </Page>
   )
 }
 

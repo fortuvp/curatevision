@@ -1,5 +1,7 @@
 import React from 'react'
-import styled, { css } from 'styled-components'
+import styled from 'styled-components'
+import { KitIcon } from './kit-icons'
+import { joinClassNames } from './kit-styles'
 
 const SIZES: Record<string, number> = {
   small: 24,
@@ -12,43 +14,37 @@ const resolveSize = (size: number | string): number => {
   return SIZES[size] || SIZES.default
 }
 
-interface AvatarWrapperProps {
-  $size: number
-  $shape: string
-}
-
-const AvatarWrapper = styled.span<AvatarWrapperProps>`
+/* Raised surface with a hairline; a pill unless square is asked for. */
+const AvatarWrapper = styled.span<{ $size: number; $shape: string }>`
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
   overflow: hidden;
-  background: ${({ theme }) => theme.primaryColor};
-  color: var(--color-on-primary);
+  width: ${({ $size }) => $size}px;
+  height: ${({ $size }) => $size}px;
+  border: 1px solid var(--color-border);
+  border-radius: ${({ $shape }) =>
+    $shape === 'square' ? 'var(--radius-sm)' : 'var(--radius-pill)'};
+  background: var(--color-raised);
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: ${({ $size }) => Math.round($size * 0.4)}px;
+  font-weight: 500;
+  line-height: 1;
   white-space: nowrap;
   vertical-align: middle;
 
-  ${({ $size }) => css`
-    width: ${$size}px;
-    height: ${$size}px;
-    font-size: ${$size * 0.45}px;
-    line-height: ${$size}px;
-  `}
-
-  ${({ $shape }) =>
-    $shape === 'square'
-      ? css`
-          border-radius: 4px;
-        `
-      : css`
-          border-radius: 50%;
-        `}
+  svg {
+    display: block;
+  }
 `
 
 const AvatarImg = styled.img`
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  display: block;
 `
 
 interface AvatarProps {
@@ -71,15 +67,22 @@ const Avatar: React.FC<AvatarProps> = ({
   children,
 }) => {
   const px = resolveSize(size)
+  const iconSize = Math.round(px * 0.5)
+
+  let content: React.ReactNode = children
+  if (src) content = <AvatarImg src={src} alt="" />
+  else if (typeof icon === 'string')
+    content = <KitIcon name="file" size={iconSize} />
+  else if (icon) content = icon
 
   return (
     <AvatarWrapper
       $size={px}
       $shape={shape}
       style={style}
-      className={className}
+      className={joinClassNames('ui-avatar', className)}
     >
-      {src ? <AvatarImg src={src} alt="" /> : icon ? icon : children}
+      {content}
     </AvatarWrapper>
   )
 }

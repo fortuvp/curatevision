@@ -10,7 +10,6 @@ import { wagmiConfig } from 'config/wagmi'
 import {
   buildActivityHref,
   fetchDashboardData,
-  formatAgo,
   normalizeAddress,
   shortAddress,
   ZERO_ADDRESS,
@@ -22,9 +21,13 @@ import {
 } from 'pages/dashboard/types'
 
 const PROFILE_QUERY_TIMEOUT_MS = 10_000
-const PROFILE_LIMIT = 420
+/** Requests read per chain and registry type; the figures count these. */
+export const PROFILE_LIMIT = 420
+/** Most recent actions and disputes kept for the lists. */
+export const ACTIVITY_LIMIT = 120
+export const DISPUTE_LIMIT = 80
 const GOVERNANCE_SCAN_LIMIT = 240
-const SUPPORTED_CHAIN_IDS = [
+export const SUPPORTED_CHAIN_IDS = [
   NETWORKS.ethereum,
   NETWORKS.gnosis,
   NETWORKS.sepolia,
@@ -118,6 +121,7 @@ const PERMANENT_PROFILE_QUERY = gql`
       challenger
       disputeID
       disputeOutcome
+      resolutionTime
       challengerStake
       item {
         itemID
@@ -178,13 +182,27 @@ export interface GovernedRegistry extends DashboardRegistry {
   params?: GovernanceParams
 }
 
+/**
+ * An action together with the request state the indexers carry for it. The
+ * profile derives the status dot from these fields, never from the action
+ * kind alone, so the dot only claims what the data knows.
+ */
+export interface ProfileActivity extends DashboardActivity {
+  /** The request was challenged and sent to court. */
+  disputed?: boolean
+  /** The request executed or the court ruled; false while it is pending. */
+  resolved?: boolean
+  /** Ruling once resolved: Accept favors the requester, Reject the challenger, None is no ruling. */
+  disputeOutcome?: string
+}
+
 export interface AddressProfileData {
   address: string
   generatedAt: number
   stats: AddressStats
   badges: AddressBadge[]
-  activities: DashboardActivity[]
-  disputes: DashboardActivity[]
+  activities: ProfileActivity[]
+  disputes: ProfileActivity[]
   governedRegistries: GovernedRegistry[]
   chainBreakdown: Record<number, AddressStats>
 }
@@ -249,7 +267,7 @@ const requestToActivity = (
   requestEntity: any,
   kind: RegistryKind,
   address: string,
-): { activity: DashboardActivity; stats: Partial<AddressStats> } => {
+): { activity: ProfileActivity; stats: Partial<AddressStats> } => {
   const chainId = toNumber(requestEntity.chainId)
   const registryAddress = normalizeAddress(requestEntity.registry_id)
   const itemID = requestEntity.id?.split('@')?.[0]
@@ -296,6 +314,9 @@ const requestToActivity = (
           : 'Submitted entry',
       timestamp,
       href: buildActivityHref(chainId, registryAddress, itemID),
+      disputed,
+      resolved: Boolean(requestEntity.resolved),
+      disputeOutcome: requestEntity.disputeOutcome ?? undefined,
     },
     stats,
   }
@@ -304,7 +325,7 @@ const requestToActivity = (
 const permanentSubmissionToActivity = (
   submission: any,
   chainId: number,
-): DashboardActivity => {
+): ProfileActivity => {
   const registryAddress = normalizeAddress(submission.item?.registry?.id)
   return {
     id: `profile-permanent-submission-${chainId}-${submission.id}`,
@@ -323,8 +344,12 @@ const permanentSubmissionToActivity = (
 const permanentChallengeToActivity = (
   challenge: any,
   chainId: number,
-): DashboardActivity => {
+): ProfileActivity => {
   const registryAddress = normalizeAddress(challenge.item?.registry?.id)
+  // The permanent subgraph sets disputeOutcome (and resolutionTime) only
+  // once the court has ruled; before that the dispute is open.
+  const resolved =
+    Boolean(challenge.disputeOutcome) || toNumber(challenge.resolutionTime) > 0
   return {
     id: `profile-permanent-challenge-${chainId}-${challenge.id}`,
     chainId,
@@ -336,10 +361,13 @@ const permanentChallengeToActivity = (
     status: `Challenged dispute #${challenge.disputeID || 'pending'}`,
     timestamp: toNumber(challenge.createdAt),
     href: buildActivityHref(chainId, registryAddress, challenge.item?.itemID),
+    disputed: true,
+    resolved,
+    disputeOutcome: challenge.disputeOutcome ?? undefined,
   }
 }
 
-const abiForKind = (kind: RegistryKind): Abi => {
+export const abiForKind = (kind: RegistryKind): Abi => {
   if (kind === 'light') return lightAbi as Abi
   if (kind === 'permanent') return permanentAbi as Abi
   return classicAbi as Abi
@@ -488,8 +516,8 @@ export const fetchAddressProfileData = async (
   const address = normalizeAddress(rawAddress)
   const totals = emptyStats()
   const chainBreakdown: Record<number, AddressStats> = {}
-  const activities: DashboardActivity[] = []
-  const disputes: DashboardActivity[] = []
+  const activities: ProfileActivity[] = []
+  const disputes: ProfileActivity[] = []
 
   const envioResults = await Promise.all(
     SUPPORTED_CHAIN_IDS.map(async (chainId) => {
@@ -575,17 +603,13 @@ export const fetchAddressProfileData = async (
     generatedAt: Date.now(),
     stats: totals,
     badges: buildBadges(totals),
-    activities: activities.slice(0, 120),
-    disputes: disputes.slice(0, 80),
+    activities: activities.slice(0, ACTIVITY_LIMIT),
+    disputes: disputes.slice(0, DISPUTE_LIMIT),
     governedRegistries,
     chainBreakdown,
   }
 }
 
-export const profileUpdatedLabel = (generatedAt?: number) =>
-  generatedAt
-    ? `Updated ${formatAgo(Math.floor(generatedAt / 1000))}`
-    : 'Loading'
-
-export const chainName = (chainId: number) =>
-  NETWORKS_INFO[chainId as keyof typeof NETWORKS_INFO]?.name || String(chainId)
+export const chainName = (chainId: number): string =>
+  NETWORKS_INFO[chainId as keyof typeof NETWORKS_INFO]?.name ||
+  `Chain ${chainId}`

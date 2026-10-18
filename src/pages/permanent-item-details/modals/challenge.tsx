@@ -1,55 +1,70 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useState,
+} from 'react'
 import type { BigNumber } from 'ethers'
-import styled from 'styled-components'
-import { Modal, Typography, Button, Spin, Tooltip } from 'components/ui'
-import Icon from 'components/ui/Icon'
-import _gtcr from 'assets/abis/PermanentGTCR.json'
-import EnsureAuth from 'components/ensure-auth'
-import ETHAmount from 'components/eth-amount'
 import { useAccount, usePublicClient, useWalletClient, useChainId } from 'wagmi'
 import { simulateContract } from '@wagmi/core'
 import { erc20Abi, getAddress } from 'viem'
-import EvidenceForm, { type EvidenceFormValues } from 'components/evidence-form'
 import { useAtlasProvider } from '@kleros/kleros-app'
-import { uploadEvidence } from 'utils/upload-evidence'
+import _gtcr from 'assets/abis/PermanentGTCR.json'
+import EvidenceForm, { type EvidenceFormValues } from 'components/evidence-form'
 import ListingCriteriaLink from 'components/listing-criteria-link'
 import useNativeCurrency from 'hooks/native-currency'
 import useTokenSymbol from 'hooks/token-symbol'
-import TokenAmount from 'components/token-amount'
-import { ArbitrationFeeLabel } from 'components/arbitration-fee-tooltip'
+import { uploadEvidence } from 'utils/upload-evidence'
 import { wrapWithToast, errorToast } from 'utils/wrap-with-toast'
 import { parseWagmiError } from 'utils/parse-wagmi-error'
 import { wagmiConfig } from 'config/wagmi'
-import { DepositContainer, DepositRow, DepositLabel } from './submit'
+import {
+  Body,
+  Button,
+  Label,
+  Small,
+  Stack,
+  Subheading,
+} from 'components/curate/primitives'
+import { WhatHappensNext } from 'components/curate/what-happens-next'
+import {
+  FormBlock,
+  GateHelper,
+  ModalShell,
+  ModalSkeleton,
+  MULTIPLIER_DIVISOR,
+  PolicyText,
+  applyMultiplier,
+  nativeText,
+  tokenText,
+  useActionGate,
+} from './shell'
 
-export const StyledSpin = styled(Spin)`
-  height: 60px;
-  width: 100%;
-  align-items: center;
-  justify-content: center;
-  display: flex;
-`
-
-export const StyledModal = styled(Modal)`
-  & > .ui-modal-content {
-    border-top-left-radius: 14px;
-    border-top-right-radius: 14px;
-  }
-`
+/*
+ * Challenge a Stake Curate item. The challenger stakes a share of the item's
+ * stake in the list's ERC20 token (approve first) and pays the native
+ * arbitration cost that opens the dispute. What each side can win or lose is
+ * spelled out before anything is signed.
+ */
 
 interface ChallengeModalProps {
   item: SubgraphItem
   itemName?: string
   onCancel: () => void
   arbitrationCost?: BigNumber
+  visible?: boolean
+  title?: React.ReactNode
   [key: string]: unknown
 }
 
 const ChallengeModal = ({
   item,
+  itemName,
   onCancel,
   arbitrationCost,
-  ...rest
+  visible = false,
+  title,
 }: ChallengeModalProps) => {
   const registry = item.registry
   const registryAddress = registry?.id
@@ -61,6 +76,9 @@ const ChallengeModal = ({
   const { data: walletClient } = useWalletClient()
   const { uploadFile } = useAtlasProvider()
   const nativeCurrency = useNativeCurrency()
+  const gate = useActionGate('challenge', { needsSignIn: true })
+  // Per-instance form id: the list page mounts the same modal.
+  const formId = useId()
 
   const [balance, setBalance] = useState(0n)
   const [allowance, setAllowance] = useState(0n)
@@ -72,15 +90,18 @@ const ChallengeModal = ({
   const { symbol: tokenSymbol, decimals: tokenDecimals } =
     useTokenSymbol(tokenAddress)
 
-  const challengeStake = useMemo(() => {
-    const divisor = multiplierDivisor ?? 10_000n
-    if (divisor === 0n) return 0n
-    return (
-      (BigInt(item.stake || 0) *
-        BigInt(registry?.challengeStakeMultiplier || 0)) /
-      divisor
-    )
-  }, [item.stake, multiplierDivisor, registry?.challengeStakeMultiplier])
+  const name = itemName || 'item'
+
+  const challengeStake = useMemo(
+    () =>
+      applyMultiplier(
+        item.stake || 0,
+        registry?.challengeStakeMultiplier,
+        multiplierDivisor ?? MULTIPLIER_DIVISOR,
+      ),
+    [item.stake, multiplierDivisor, registry?.challengeStakeMultiplier],
+  )
+  const arbitrationWei = BigInt((arbitrationCost || 0).toString())
 
   const checkTokenStatus = useCallback(async () => {
     if (!account || !publicClient || !tokenAddress || !registryAddress) return
@@ -121,7 +142,7 @@ const ChallengeModal = ({
     checkTokenStatus()
   }, [checkTokenStatus])
 
-  // Reset loading states when modal is closed
+  // Reset loading states when the modal unmounts.
   useEffect(
     () => () => {
       setIsApproving(false)
@@ -176,7 +197,7 @@ const ChallengeModal = ({
   ])
 
   const challengeRequest = async ({
-    title,
+    title: evidenceTitle,
     description,
     evidenceAttachment,
   }: EvidenceFormValues) => {
@@ -191,7 +212,7 @@ const ChallengeModal = ({
     setIsChallenging(true)
     try {
       const ipfsEvidencePath = await uploadEvidence({
-        title: title || 'Challenge Justification',
+        title: evidenceTitle || 'Challenge justification',
         description: description ?? '',
         attachment: evidenceAttachment,
         uploadFile,
@@ -238,149 +259,137 @@ const ChallengeModal = ({
     setIsChallenging(false)
   }
 
+  const close = () => {
+    setIsApproving(false)
+    setIsChallenging(false)
+    onCancel()
+  }
+
+  const confirm = () => {
+    const form = document.getElementById(formId)
+    if (form instanceof HTMLFormElement) form.requestSubmit()
+  }
+
   const hasEnoughBalance = balance >= challengeStake
   const hasEnoughAllowance = allowance >= challengeStake
   const hasEnoughNativeBalance =
-    nativeBalance != null &&
-    nativeBalance >= BigInt((arbitrationCost || 0).toString())
+    nativeBalance !== undefined && nativeBalance >= arbitrationWei
 
-  const renderChallengeButton = () => {
-    if (checkingToken)
-      return (
-        <Button key="checking" loading>
-          Checking Token...
-        </Button>
-      )
+  const stakeText = tokenText(challengeStake, tokenDecimals, tokenSymbol)
+  const costText = nativeText(arbitrationWei, nativeCurrency)
+  const itemStakeText = tokenText(item.stake || 0, tokenDecimals, tokenSymbol)
+  const itemDeposit = item.arbitrationDeposit as string | undefined
+  const depositText = itemDeposit
+    ? nativeText(itemDeposit, nativeCurrency)
+    : 'its arbitration deposit'
+  const halfDepositText = itemDeposit
+    ? nativeText(BigInt(itemDeposit) / 2n, nativeCurrency)
+    : 'half of its arbitration deposit'
 
-    if (!hasEnoughBalance)
-      return (
-        <Button key="insufficient" disabled>
-          Insufficient {tokenSymbol} Balance
-        </Button>
-      )
-
-    if (!hasEnoughNativeBalance)
-      return (
-        <Button key="insufficientNative" disabled>
-          Not enough {nativeCurrency}
-        </Button>
-      )
-
-    if (!hasEnoughAllowance)
-      return (
-        <Button
-          key="approve"
-          type="primary"
-          onClick={handleApprove}
-          loading={isApproving}
-        >
-          Approve {tokenSymbol}
-        </Button>
-      )
-
-    return (
-      <Button
-        key="challengeSubmit"
-        type="primary"
-        form={EVIDENCE_FORM_ID}
-        htmlType="submit"
-        loading={isChallenging}
-      >
-        Challenge
-      </Button>
-    )
-  }
-
-  const EVIDENCE_FORM_ID = 'challengeEvidenceForm'
-  if (!arbitrationCost)
-    return (
-      <StyledModal title="Submit Item" {...rest}>
-        <StyledSpin />
-      </StyledModal>
-    )
+  const blocker = !gate.ready
+    ? gate.blocker
+    : checkingToken
+      ? 'Checking balances'
+      : !hasEnoughBalance
+        ? `Not enough ${tokenSymbol}: you hold ${tokenText(balance, tokenDecimals, tokenSymbol)}`
+        : !hasEnoughNativeBalance
+          ? `Not enough ${nativeCurrency} for the arbitration cost`
+          : !hasEnoughAllowance
+            ? `Approve ${tokenSymbol} first`
+            : undefined
+  const showApprove =
+    gate.ready && !checkingToken && hasEnoughBalance && !hasEnoughAllowance
 
   return (
-    <StyledModal
-      title="Challenge Item"
-      onCancel={() => {
-        setIsApproving(false)
-        setIsChallenging(false)
-        onCancel()
-      }}
-      footer={[
-        <Button
-          key="back"
-          onClick={() => {
-            setIsApproving(false)
-            setIsChallenging(false)
-            onCancel()
-          }}
-        >
-          Back
-        </Button>,
-        <EnsureAuth key="ensure-auth">{renderChallengeButton()}</EnsureAuth>,
-      ]}
-      {...rest}
+    <ModalShell
+      open={visible}
+      title={title ?? `Challenge ${name}`}
+      onClose={close}
     >
-      <Typography.Title level={4}>
-        Read the&nbsp;
-        <ListingCriteriaLink fileURI={fileURI}>
-          Listing Criteria
-        </ListingCriteriaLink>
-        .
-      </Typography.Title>
-      <Typography.Paragraph>
-        Explain to jurors why do you think this item should be removed:
-      </Typography.Paragraph>
-      <EvidenceForm onSubmit={challengeRequest} formID={EVIDENCE_FORM_ID} />
-      <Typography.Paragraph>
-        To challenge this item, a token stake and arbitration fee are required.
-        The winning side is reimbursed after the dispute is resolved.
-      </Typography.Paragraph>
-      <DepositContainer>
-        <DepositRow>
-          <DepositLabel>
-            Challenge Stake Deposit
-            <Tooltip title="The challenge stake deposit paid in tokens required to challenge this item.">
-              <Icon type="question-circle-o" />
-            </Tooltip>
-          </DepositLabel>
-          <TokenAmount
-            amount={challengeStake.toString()}
-            tokenDecimals={tokenDecimals}
-            precision={3}
-            displayUnit={` ${tokenSymbol}`}
+      {arbitrationCost ? (
+        <Stack $gap={16}>
+          <Body $muted>
+            Explain to the jurors why this {name} breaks the{' '}
+            <ListingCriteriaLink fileURI={fileURI}>
+              <PolicyText as="span">listing policy</PolicyText>
+            </ListingCriteriaLink>
+            . Your justification is published as evidence.
+          </Body>
+
+          <FormBlock>
+            <Subheading as="h3">Justification</Subheading>
+            <EvidenceForm onSubmit={challengeRequest} formID={formId} />
+          </FormBlock>
+
+          {showApprove && (
+            <Stack $gap={8}>
+              <Label>Step 1 of 2</Label>
+              <Small $muted>
+                Allow the list to take your stake. One transaction, then the
+                challenge itself.
+              </Small>
+              <Button
+                type="button"
+                $variant="primary"
+                $size="sm"
+                disabled={isApproving}
+                onClick={handleApprove}
+              >
+                {isApproving
+                  ? 'Waiting for your wallet…'
+                  : `Approve ${stakeText}`}
+              </Button>
+            </Stack>
+          )}
+          {gate.ready && hasEnoughAllowance && (
+            <Small $muted role="status">
+              {tokenSymbol} approved. Step 2 of 2 stakes it and opens the
+              dispute.
+            </Small>
+          )}
+
+          <WhatHappensNext
+            receipt={[
+              { label: 'Challenge stake', value: stakeText },
+              { label: 'Arbitration cost', value: costText },
+            ]}
+            total={`${stakeText} + ${costText}`}
+            steps={[
+              {
+                title: 'You stake and pay the arbitration cost',
+                body: `${stakeText} is locked as your stake and ${costText} pays the jurors. The ${name} becomes Disputed at once.`,
+              },
+              {
+                title: 'Jurors decide',
+                body: 'Both sides can add evidence while the case runs. A ruling can be appealed by funding the next round.',
+              },
+              {
+                title: 'You win',
+                body: `You receive the ${name}'s stake of ${itemStakeText}, your ${stakeText} back and ${depositText}. The ${name} leaves the list.`,
+              },
+              {
+                title: 'You lose',
+                branch: true,
+                body: `Your ${stakeText} is added to the ${name}'s stake and the ${costText} is not returned. The ${name} stays listed.`,
+              },
+              {
+                title: 'Jurors refuse to rule',
+                branch: true,
+                body: `Your ${stakeText} comes back, you receive ${halfDepositText}, and the ${name} is withdrawn from the list.`,
+              },
+            ]}
+            confirmLabel={`Challenge ${name}`}
+            onConfirm={confirm}
+            confirmDisabled={Boolean(blocker)}
+            confirmBlocker={blocker}
+            loading={isChallenging}
           />
-        </DepositRow>
-        <DepositRow>
-          <DepositLabel>
-            <ArbitrationFeeLabel />
-          </DepositLabel>
-          <ETHAmount
-            decimals={3}
-            amount={arbitrationCost.toString()}
-            displayUnit={` ${nativeCurrency}`}
-          />
-        </DepositRow>
-      </DepositContainer>
-      <DepositRow style={{ marginTop: 8 }}>
-        <DepositLabel>Total required</DepositLabel>
-        <span style={{ display: 'flex', alignItems: 'center' }}>
-          <TokenAmount
-            amount={challengeStake.toString()}
-            tokenDecimals={tokenDecimals}
-            precision={3}
-            displayUnit={` ${tokenSymbol}`}
-          />
-          <span style={{ margin: '0 6px' }}>+</span>
-          <ETHAmount
-            decimals={3}
-            amount={arbitrationCost.toString()}
-            displayUnit={` ${nativeCurrency}`}
-          />
-        </span>
-      </DepositRow>
-    </StyledModal>
+          <GateHelper gate={gate} />
+        </Stack>
+      ) : (
+        <ModalSkeleton />
+      )}
+    </ModalShell>
   )
 }
 

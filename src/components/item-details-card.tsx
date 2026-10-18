@@ -1,200 +1,125 @@
 import React, { useState, useEffect, useCallback, useContext } from 'react'
 import styled from 'styled-components'
-import { Card, Button, Result, Alert } from 'components/ui'
-import { Copiable } from '@kleros/ui-components-library'
 import { useAccount, usePublicClient, useWalletClient, useChainId } from 'wagmi'
 import { simulateContract } from '@wagmi/core'
-import { Link, useParams } from 'react-router-dom'
-import useUrlChainId from 'hooks/use-url-chain-id'
-import { abi as _batchWithdraw } from '@kleros/tcr/build/contracts/BatchWithdraw.json'
+import { useParams } from 'react-router-dom'
 import { BigNumber } from 'ethers'
+import { abi as _batchWithdraw } from '@kleros/tcr/build/contracts/BatchWithdraw.json'
+import { ItemTypes } from '@kleros/gtcr-encoder'
+import useUrlChainId from 'hooks/use-url-chain-id'
+import useNativeCurrency from 'hooks/native-currency'
+import { useAttachment } from 'hooks/use-attachment'
 import { TCRViewContext } from 'contexts/tcr-view-context'
-import TCRMetadataDisplay from './tcr-metadata-display'
 import { batchWithdrawAddresses } from 'config/tcr-addresses'
 import { wrapWithToast, errorToast } from 'utils/wrap-with-toast'
 import { parseWagmiError } from 'utils/parse-wagmi-error'
 import { wagmiConfig } from 'config/wagmi'
+import { parseIpfs } from 'utils/ipfs-parse'
 import SeerExtraDetails from 'components/custom-registries/seer/seer-item-details'
 import { isSeerRegistry } from 'components/custom-registries/seer/is-seer-registry'
-import { V2DetailFields, v2ToneFromLabel } from 'components/curate/v2'
-import { ItemTypes } from '@kleros/gtcr-encoder'
 import { CurateIcon } from 'components/curate/icons'
+import {
+  Body,
+  Button,
+  ButtonLink,
+  Data,
+  IconButton,
+  PanelHeader,
+  PanelTitle,
+  Row,
+  SkeletonBlock,
+  Small,
+  Stack,
+  Subheading,
+  Surface,
+  truncateMiddle,
+} from 'components/curate/primitives'
+import {
+  EntryFields,
+  type EntryField,
+} from 'components/curate/item-light-fields'
+import { Notice } from 'components/curate/item-light-notice'
+import { formatAmount } from 'components/curate/item-light-format'
 
-const V2ItemCard = styled.div`
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  height: auto;
-  margin-bottom: 16px;
-  overflow: hidden;
-  border: 1px solid var(--klerosUIComponentsStroke);
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-  border-bottom-color: transparent;
-  background: var(--klerosUIComponentsWhiteBackground);
-  box-shadow: var(--v2-shadow);
-`
+/*
+ * The entry's fields (DESIGN.md: every field as label/value rendered by
+ * type). For a list of lists it also shows the linked registry's identity.
+ * Classic lists keep the fee-reward withdrawal here. Shared by the Light,
+ * Classic and Stake item pages and by the factory previews.
+ */
 
-const WarningBar = styled.p`
-  width: 100%;
-  margin: 0;
-  padding: 4px 32px;
-  background: var(--klerosUIComponentsWarningLight);
-  color: var(--klerosUIComponentsWarning);
-  text-align: center;
-  font-size: 14px;
-  font-weight: 500;
-`
-
-const ItemCardTop = styled.div`
-  display: flex;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 12px 32px;
-
-  @media (max-width: 760px) {
-    padding: 16px;
-  }
-`
-
-const FieldsColumn = styled.div`
-  display: flex;
-  flex-grow: 1;
-  flex-direction: column;
-  flex-wrap: wrap;
+const RegistryBlock = styled.div`
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
   gap: 16px;
-  min-width: min(100%, 520px);
-  padding-top: 16px;
-`
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-border);
 
-const ItemMetaColumn = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 48px;
-  padding-top: 20px;
-  flex-shrink: 0;
-
-  @media (max-width: 760px) {
-    width: 100%;
-    justify-content: space-between;
-    gap: 20px;
+  @media (max-width: 520px) {
+    grid-template-columns: 1fr;
   }
 `
 
-const ItemIdLabel = styled.div`
-  color: var(--klerosUIComponentsPrimaryBlue);
-  font-size: 14px;
-  line-height: 18px;
-  cursor: default;
-`
-
-const StatusDisplay = styled.div<{ $tone: ReturnType<typeof v2ToneFromLabel> }>`
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  color: ${({ $tone }) =>
-    $tone === 'green'
-      ? 'var(--klerosUIComponentsSuccess)'
-      : $tone === 'red'
-        ? 'var(--klerosUIComponentsError)'
-        : $tone === 'purple'
-          ? 'var(--klerosUIComponentsSecondaryPurple)'
-          : 'var(--klerosUIComponentsPrimaryBlue)'};
-  font-size: 14px;
-  line-height: 18px;
-
-  label {
-    display: inline-flex;
-    align-items: center;
-    color: currentColor;
-    text-transform: capitalize;
-
-    &::before {
-      content: '';
-      display: inline-block;
-      width: 8px;
-      height: 8px;
-      margin-right: 8px;
-      border-radius: 50%;
-      background: currentColor;
-    }
-  }
-
-  small {
-    color: var(--klerosUIComponentsSecondaryText);
-  }
-`
-
-const ItemDivider = styled.hr`
-  height: 1px;
-  margin: 20px 32px 28px;
-  border: 0;
-  background: var(--klerosUIComponentsStroke);
-
-  @media (max-width: 760px) {
-    margin-inline: 16px;
-  }
-`
-
-const ItemCardBottom = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  justify-content: space-between;
-  padding: 0 32px 12px;
-
-  @media (max-width: 760px) {
-    padding: 0 16px 16px;
-  }
-`
-
-const DetailActions = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-left: auto;
-
-  @media (max-width: 760px) {
-    width: 100%;
-    justify-content: flex-start;
-  }
-`
-
-const OpenRegistryLink = styled(Link)`
+const LogoButton = styled.button<{ $image?: string }>`
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-height: 38px;
-  padding: 0 14px;
-  border: 1px solid var(--klerosUIComponentsPrimaryBlue);
-  border-radius: var(--radius-sm);
-  color: var(--klerosUIComponentsPrimaryBlue);
-  background: var(--klerosUIComponentsWhiteBackground);
-  text-decoration: none;
-  font-size: 14px;
-  line-height: 18px;
-  font-weight: 600;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: ${({ $image }) =>
+    $image ? `url(${$image}) center / contain no-repeat` : 'none'};
+  background-color: var(--color-raised);
+  color: var(--color-faint);
+  cursor: ${({ $image }) => ($image ? 'pointer' : 'default')};
+  overflow: hidden;
 
   &:hover {
-    color: var(--klerosUIComponentsWhiteBackground);
-    background: var(--klerosUIComponentsPrimaryBlue);
+    border-color: var(--color-border-strong);
   }
 `
 
-const MetadataBlock = styled.div`
+const Actions = styled.div`
   display: flex;
   flex-wrap: wrap;
-  gap: 16px 24px;
-  margin-bottom: 18px;
-  padding-bottom: 18px;
-  border-bottom: 1px solid var(--v2-stroke);
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border);
 `
 
-const StyledAlert = styled(Alert)`
-  margin-bottom: 12px;
-`
+const CopyId = ({ id }: { id: string }) => {
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    if (!copied) return
+    const timer = window.setTimeout(() => setCopied(false), 1500)
+    return () => window.clearTimeout(timer)
+  }, [copied])
+  return (
+    <Row $gap={4} title={id}>
+      <Small $muted>ID</Small>
+      <Data $muted>{truncateMiddle(id, 8, 6)}</Data>
+      <IconButton
+        type="button"
+        aria-label="Copy item ID"
+        onClick={() => {
+          navigator.clipboard
+            ?.writeText(id)
+            .then(() => setCopied(true))
+            .catch(() => setCopied(false))
+        }}
+      >
+        <CurateIcon name={copied ? 'check' : 'copy'} size={14} />
+      </IconButton>
+      {copied && (
+        <Small $muted role="status">
+          Copied
+        </Small>
+      )}
+    </Row>
+  )
+}
 
 /** What the item-details pages resolve for a child registry's meta evidence. */
 interface ItemMetaEvidenceState {
@@ -227,8 +152,10 @@ const ItemDetailsCard = ({
   const BATCH_WITHDRAW_ADDRESS = batchWithdrawAddresses[chainId]
   const { tcrAddress } = useParams()
   const urlChainId = useUrlChainId()
+  const nativeCurrency = useNativeCurrency()
+  const openAttachment = useAttachment()
 
-  // Fetch available rewards from fee contributions.
+  // Fetch available rewards from fee contributions (Classic view contract).
   useEffect(() => {
     ;(async () => {
       if (!tcrViewContext || !tcrViewContext.gtcrView || !account || !item)
@@ -297,15 +224,11 @@ const ItemDetailsCard = ({
     itemMetaEvidenceError instanceof Error
       ? itemMetaEvidenceError.message
       : String(itemMetaEvidenceError)
-  const statusLabel = item?.disputed
-    ? 'Disputed'
-    : String(item?.status || 'Unknown').replace(/([a-z])([A-Z])/g, '$1 $2')
-  const statusTone = v2ToneFromLabel(statusLabel)
   const childRegistryAddress =
     itemMetaData && item?.decodedData?.[0]
       ? String(item.decodedData[0])
       : undefined
-  const detailFields =
+  const detailFields: EntryField[] =
     columns
       ?.map((column, index) => ({
         ...column,
@@ -319,104 +242,135 @@ const ItemDetailsCard = ({
           type !== 'gtcr address'
         )
       }) || []
+  const errors = item?.errors ?? []
+  const withdrawable =
+    !!item &&
+    !!item.resolved &&
+    !!availableRewards &&
+    availableRewards.gt(BigNumber.from(0))
+  const logo = logoURI ? parseIpfs(logoURI) : undefined
 
-  if (!loading && item && (item.errors?.length ?? 0) > 0)
+  if (!loading && item && errors.length > 0)
     return (
-      <Result
-        id="item-details-card"
-        status="warning"
-        subTitle={item.errors?.map((e, i) => (
-          <p key={i}>{e}</p>
-        ))}
-        style={{ width: '100%' }}
-      />
+      <Surface id="item-details-card" $padding="standard">
+        <Stack $gap={10}>
+          <PanelTitle>{title || 'Fields'}</PanelTitle>
+          {errors.map((error, index) => (
+            <Notice key={index} tone="contested" role="alert">
+              {error}
+            </Notice>
+          ))}
+        </Stack>
+      </Surface>
     )
 
   if (loading)
-    return <Card id="item-details-card" loading style={{ width: '100%' }} />
+    return (
+      <Surface id="item-details-card" $padding="standard" aria-busy="true">
+        <Stack $gap={12}>
+          <SkeletonBlock $height="18px" $width="40%" />
+          <SkeletonBlock $height="20px" />
+          <SkeletonBlock $height="20px" $width="70%" />
+          <SkeletonBlock $height="20px" $width="55%" />
+        </Stack>
+      </Surface>
+    )
 
   return (
-    <V2ItemCard id="item-details-card" aria-label={title || undefined}>
-      {!!itemMetaEvidenceError && (
-        <StyledAlert
-          message={`Warning: Malformed submission, cannot display TCR information. Error: ${itemMetaEvidenceErrorMessage}`}
-          type="warning"
-          showIcon
-          closable
-        />
-      )}
-      {!item?.decodedData?.length && !columns?.length ? (
-        <WarningBar>
-          This item does not pass the validation checks. Please review
-          carefully.
-        </WarningBar>
-      ) : null}
-      {columns && (
-        <>
-          <ItemCardTop>
-            <FieldsColumn>
-              {itemMetaData && (
-                <MetadataBlock>
-                  <TCRMetadataDisplay
-                    logoURI={logoURI}
-                    tcrTitle={tcrTitle}
-                    fileURI={fileURI}
-                    tcrDescription={tcrDescription}
-                  />
-                </MetadataBlock>
-              )}
-              <V2DetailFields fields={detailFields} />
-            </FieldsColumn>
-            <ItemMetaColumn>
-              {item?.itemID && (
-                <Copiable
-                  copiableContent={item.itemID}
-                  info="Copy Item Id"
-                  iconPlacement="left"
-                >
-                  <ItemIdLabel>Item Id</ItemIdLabel>
-                </Copiable>
-              )}
-              <StatusDisplay $tone={statusTone}>
-                <label>{statusLabel}</label>
-              </StatusDisplay>
-            </ItemMetaColumn>
-          </ItemCardTop>
-          <ItemDivider />
-          <ItemCardBottom>
-            <DetailActions>
-              {childRegistryAddress && urlChainId && (
-                <OpenRegistryLink
-                  to={`/tcr/${urlChainId}/${childRegistryAddress}`}
-                >
-                  Open Registry
-                  <CurateIcon name="external" size={16} />
-                </OpenRegistryLink>
-              )}
-              {item &&
-                item.resolved &&
-                availableRewards &&
-                batchWithdrawClick &&
-                availableRewards.gt(BigNumber.from(0)) && (
-                  <Button onClick={batchWithdrawClick}>Withdraw Rewards</Button>
-                )}
-            </DetailActions>
-          </ItemCardBottom>
-        </>
-      )}
-      {tcrAddress !== undefined &&
-        urlChainId !== null &&
-        isSeerRegistry(tcrAddress, urlChainId) &&
-        item &&
-        typeof item.decodedData?.[0] === 'string' &&
-        typeof item.decodedData?.[1] === 'string' && (
-          <SeerExtraDetails
-            chainId={urlChainId}
-            contractAddress={item.decodedData[0]}
-            imagesIpfsHash={item.decodedData[1]}
-          />
+    <Surface
+      id="item-details-card"
+      $padding="standard"
+      aria-label={title || undefined}
+    >
+      <PanelHeader>
+        <PanelTitle>
+          <CurateIcon name="list" size={16} />
+          {title || 'Fields'}
+        </PanelTitle>
+        {item?.itemID && <CopyId id={item.itemID} />}
+      </PanelHeader>
+      <Stack $gap={16}>
+        {!!itemMetaEvidenceError && (
+          <Notice tone="contested" role="alert">
+            Malformed submission: the linked registry could not be read (
+            {itemMetaEvidenceErrorMessage}).
+          </Notice>
         )}
-    </V2ItemCard>
+        {!item?.decodedData?.length && !columns?.length ? (
+          <Notice tone="contested">
+            This entry does not pass the validation checks. Review it carefully.
+          </Notice>
+        ) : null}
+        {itemMetaData && (
+          <RegistryBlock>
+            <LogoButton
+              type="button"
+              $image={logo}
+              disabled={!logo}
+              aria-label="Open registry logo"
+              onClick={() => logo && openAttachment(logo)}
+            >
+              {!logo && <CurateIcon name="registry" size={24} />}
+            </LogoButton>
+            <Stack $gap={6}>
+              <Subheading>{tcrTitle}</Subheading>
+              {tcrDescription && <Body $muted>{tcrDescription}</Body>}
+              {fileURI && (
+                <div>
+                  <Button
+                    type="button"
+                    $variant="ghost"
+                    $size="sm"
+                    onClick={() => openAttachment(parseIpfs(fileURI), true)}
+                  >
+                    <CurateIcon name="policy" size={14} />
+                    Listing policy
+                  </Button>
+                </div>
+              )}
+            </Stack>
+          </RegistryBlock>
+        )}
+        {columns && <EntryFields fields={detailFields} />}
+        {(childRegistryAddress && urlChainId) || withdrawable ? (
+          <Actions>
+            {childRegistryAddress && urlChainId && (
+              <ButtonLink
+                to={`/tcr/${urlChainId}/${childRegistryAddress}`}
+                $variant="secondary"
+                $size="sm"
+              >
+                Open registry
+                <CurateIcon name="external" size={14} />
+              </ButtonLink>
+            )}
+            {withdrawable && (
+              <Button
+                type="button"
+                $variant="primary"
+                $size="sm"
+                onClick={batchWithdrawClick}
+              >
+                Withdraw rewards ·{' '}
+                {formatAmount(availableRewards, nativeCurrency)}
+              </Button>
+            )}
+          </Actions>
+        ) : null}
+        {tcrAddress !== undefined &&
+          urlChainId !== null &&
+          isSeerRegistry(tcrAddress, urlChainId) &&
+          item &&
+          typeof item.decodedData?.[0] === 'string' &&
+          typeof item.decodedData?.[1] === 'string' && (
+            <SeerExtraDetails
+              chainId={urlChainId}
+              contractAddress={item.decodedData[0]}
+              imagesIpfsHash={item.decodedData[1]}
+            />
+          )}
+      </Stack>
+    </Surface>
   )
 }
 

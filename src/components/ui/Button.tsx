@@ -1,109 +1,136 @@
 import React from 'react'
-import styled from 'styled-components'
+import styled, { css, type FlattenSimpleInterpolation } from 'styled-components'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import type { IconProp } from '@fortawesome/fontawesome-svg-core'
+import { joinClassNames, ringSpinner } from './kit-styles'
 
-const variantMap: Record<string, 'primary' | 'secondary' | 'tertiary'> = {
+/*
+ * Button (DESIGN.md, Components): primary (blue fill), secondary (surface,
+ * border), ghost (no border), danger (danger fill). Height 40, 32 small,
+ * radius 4, labels at 600. `type` keeps the legacy names and maps them onto
+ * those four looks; indigo is never used on buttons.
+ */
+
+type Variant = 'primary' | 'secondary' | 'ghost' | 'link' | 'danger'
+
+const variantMap: Record<string, Variant> = {
   default: 'secondary',
   primary: 'primary',
   secondary: 'secondary',
-  ghost: 'secondary',
-  link: 'secondary',
-  purple: 'tertiary',
-  danger: 'tertiary',
+  dashed: 'secondary',
+  ghost: 'ghost',
+  link: 'link',
+  purple: 'primary',
+  danger: 'danger',
+}
+
+const enabled =
+  '&:not(:disabled):not([aria-disabled="true"]):not([data-loading="true"])'
+
+const variantStyles: Record<Variant, FlattenSimpleInterpolation> = {
+  primary: css`
+    border-color: transparent;
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+
+    ${enabled}:hover {
+      background: var(--color-primary-hover);
+    }
+  `,
+  secondary: css`
+    border-color: var(--color-border-strong);
+    background: var(--color-surface);
+    color: var(--color-text);
+
+    ${enabled}:hover {
+      background: var(--color-raised);
+    }
+  `,
+  ghost: css`
+    border-color: transparent;
+    background: transparent;
+    color: var(--color-muted);
+
+    ${enabled}:hover {
+      color: var(--color-text);
+      background: var(--color-raised);
+    }
+  `,
+  link: css`
+    padding-inline: 0;
+    border-color: transparent;
+    background: transparent;
+    color: var(--color-primary);
+
+    ${enabled}:hover {
+      color: var(--color-primary-hover);
+    }
+  `,
+  danger: css`
+    border-color: transparent;
+    background: var(--color-danger);
+    color: var(--color-on-primary);
+
+    ${enabled}:hover {
+      filter: brightness(1.08);
+    }
+  `,
 }
 
 const ButtonScope = styled.span<{
   $block?: boolean
-  $link?: boolean
   $small?: boolean
   $shape?: string
-  $variant?: 'primary' | 'secondary' | 'tertiary'
+  $variant: Variant
 }>`
   display: ${({ $block }) => ($block ? 'flex' : 'inline-flex')};
   width: ${({ $block }) => ($block ? '100%' : 'auto')};
+  max-width: 100%;
+  vertical-align: middle;
 
   > .gtcr-v2-button {
     position: relative;
     box-sizing: border-box;
     display: inline-flex;
-    flex-direction: row;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    width: ${({ $block }) => ($block ? '100%' : 'fit-content')};
-    min-height: ${({ $small }) => ($small ? '32px' : '46px')};
-    padding: ${({ $small, $variant }) =>
-      $variant === 'secondary'
-        ? $small
-          ? '5px 23px'
-          : '10.5px 31px'
-        : $small
-          ? '6px 24px'
-          : '11.5px 32px'};
-    border: ${({ $variant }) =>
-      $variant === 'secondary'
-        ? '1px solid var(--klerosUIComponentsPrimaryBlue)'
-        : '1px solid transparent'};
-    border-radius: ${({ $shape }) => ($shape === 'round' ? '999px' : '3px')};
-    background: ${({ $variant }) =>
-      $variant === 'tertiary'
-        ? 'var(--klerosUIComponentsSecondaryPurple)'
-        : $variant === 'secondary'
-          ? 'var(--klerosUIComponentsWhiteBackground)'
-          : 'var(--klerosUIComponentsPrimaryBlue)'};
-    color: ${({ $variant }) =>
-      $variant === 'secondary'
-        ? 'var(--klerosUIComponentsPrimaryBlue)'
-        : 'var(--klerosUIComponentsWhiteBackground)'};
+    width: ${({ $block }) => ($block ? '100%' : 'auto')};
+    height: ${({ $small }) => ($small ? '32px' : '40px')};
+    padding: 0 ${({ $small }) => ($small ? '12px' : '16px')};
+    border: 1px solid transparent;
+    border-radius: ${({ $shape }) =>
+      $shape === 'round' || $shape === 'circle'
+        ? 'var(--radius-pill)'
+        : 'var(--radius-sm)'};
+    font-family: var(--font-sans);
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+    font-weight: 600;
+    white-space: nowrap;
+    text-decoration: none;
     cursor: pointer;
     appearance: none;
-    font: inherit;
-    transform: translateZ(0);
     transition:
-      background var(--klerosUIComponentsTransitionSpeed),
-      transform var(--klerosUIComponentsTransitionSpeed);
-    text-decoration: none;
+      background var(--motion),
+      border-color var(--motion),
+      color var(--motion);
+
+    ${({ $variant }) => variantStyles[$variant]}
   }
 
-  > .gtcr-v2-button:hover {
-    background: ${({ $variant }) =>
-      $variant === 'tertiary'
-        ? 'var(--klerosUIComponentsPrimaryPurple)'
-        : $variant === 'secondary'
-          ? 'var(--klerosUIComponentsMediumBlue)'
-          : 'var(--klerosUIComponentsSecondaryBlue)'};
-  }
-
-  > .gtcr-v2-button:active {
-    transform: scale(0.95);
-  }
-
-  > .gtcr-v2-button[disabled],
+  > .gtcr-v2-button:disabled,
   > .gtcr-v2-button[aria-disabled='true'],
   > .gtcr-v2-button[data-loading='true'] {
-    border-color: ${({ $variant }) =>
-      $variant === 'secondary'
-        ? 'var(--klerosUIComponentsStroke)'
-        : 'transparent'};
-    background: var(--klerosUIComponentsLightGrey);
     cursor: not-allowed;
+    opacity: 0.55;
   }
 
   .button-text {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
     gap: 8px;
-    color: ${({ $variant }) =>
-      $variant === 'secondary'
-        ? 'var(--klerosUIComponentsPrimaryBlue)'
-        : 'var(--klerosUIComponentsWhiteBackground)'};
-    text-align: center;
-    font-size: 16px;
-    line-height: 22px;
-    font-weight: 600;
-    white-space: nowrap;
+    min-width: 0;
 
     > svg {
       display: block;
@@ -118,11 +145,6 @@ const ButtonScope = styled.span<{
     flex-shrink: 0;
     width: 16px;
     height: 16px;
-    color: ${({ $variant }) =>
-      $variant === 'secondary'
-        ? 'var(--klerosUIComponentsPrimaryBlue)'
-        : 'var(--klerosUIComponentsWhiteBackground)'};
-    fill: currentColor;
 
     > svg {
       display: block;
@@ -132,60 +154,22 @@ const ButtonScope = styled.span<{
   }
 
   .button-loading {
-    width: 16px;
-    height: 16px;
-    border: 2px solid currentColor;
-    border-right-color: transparent;
-    border-radius: 50%;
-    animation: gtcr-button-spin 800ms linear infinite;
-  }
-
-  @keyframes gtcr-button-spin {
-    to {
-      transform: rotate(360deg);
-    }
+    ${ringSpinner}
+    width: 14px;
+    height: 14px;
   }
 
   ${({ $shape, $small }) =>
     $shape === 'circle' &&
-    `
+    css`
       > .gtcr-v2-button {
-        width: ${$small ? '32px' : '46px'};
-        min-width: ${$small ? '32px' : '46px'};
+        width: ${$small ? '32px' : '40px'};
+        min-width: ${$small ? '32px' : '40px'};
         padding: 0;
-        border-radius: 50%;
-      }
-
-      .button-svg {
-        margin-right: 0;
       }
 
       .button-text {
         display: none;
-      }
-    `}
-
-  > .gtcr-v2-button[disabled] .button-text,
-  > .gtcr-v2-button[aria-disabled='true'] .button-text,
-  > .gtcr-v2-button[data-loading='true'] .button-text,
-  > .gtcr-v2-button[disabled] .button-svg,
-  > .gtcr-v2-button[aria-disabled='true'] .button-svg,
-  > .gtcr-v2-button[data-loading='true'] .button-svg {
-    color: var(--klerosUIComponentsStroke);
-    fill: var(--klerosUIComponentsStroke);
-  }
-
-  ${({ $link }) =>
-    $link &&
-    `
-      > .gtcr-v2-button {
-        border: 0 !important;
-        padding-inline: 0 !important;
-        background: transparent !important;
-      }
-
-      > .gtcr-v2-button:hover {
-        background: transparent !important;
       }
     `}
 `
@@ -291,24 +275,26 @@ const Button: React.FC<ButtonProps> & { Group: React.FC<ButtonGroupProps> } = ({
       )}
     </IconWrap>
   ) : null
+  const innerClassName = joinClassNames('gtcr-v2-button', className)
 
   return (
     <ButtonScope
       $block={block}
-      $link={type === 'link' || type === 'ghost'}
       $shape={shape}
       $small={size === 'small'}
       $variant={variant}
-      className={className}
+      className={joinClassNames('ui-btn', `ui-btn-${variant}`, className)}
       style={style}
     >
       {href ? (
         <a
           id={id}
-          className={['gtcr-v2-button', className].filter(Boolean).join(' ')}
+          className={innerClassName}
           href={isDisabled ? undefined : href}
           target={target}
+          rel={target === '_blank' ? 'noopener noreferrer' : undefined}
           aria-disabled={isDisabled}
+          aria-busy={loading || undefined}
           data-loading={loading ? 'true' : undefined}
           onClick={handleClick}
           {...rest}
@@ -320,8 +306,9 @@ const Button: React.FC<ButtonProps> & { Group: React.FC<ButtonGroupProps> } = ({
       ) : (
         <button
           id={id}
-          className={['gtcr-v2-button', className].filter(Boolean).join(' ')}
+          className={innerClassName}
           disabled={isDisabled}
+          aria-busy={loading || undefined}
           data-loading={loading ? 'true' : undefined}
           type={htmlType}
           form={form}
@@ -338,7 +325,11 @@ const Button: React.FC<ButtonProps> & { Group: React.FC<ButtonGroupProps> } = ({
 }
 
 Button.Group = ({ children, style, className }: ButtonGroupProps) => (
-  <GroupWrapper style={style} className={className}>
+  <GroupWrapper
+    style={style}
+    className={joinClassNames('ui-btn-group', className)}
+    role="group"
+  >
     {children}
   </GroupWrapper>
 )

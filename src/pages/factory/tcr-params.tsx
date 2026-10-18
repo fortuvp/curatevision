@@ -1,186 +1,238 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react'
-import styled, { css } from 'styled-components'
-import { smallScreenStyle } from 'styles/small-screen-style'
-import { responsiveSize } from 'styles/responsive-size'
-import {
-  Card,
-  Tooltip,
-  Form,
-  Switch,
-  Alert,
-  Slider,
-  InputNumber,
-} from 'components/ui'
-import Icon from 'components/ui/Icon'
-import { toast } from 'react-toastify'
-import { withFormik, type FormikProps } from 'formik'
-import type { StepProps, TcrState } from '.'
-import * as yup from 'yup'
+import React, { useEffect, useState, useCallback, useId } from 'react'
+import styled from 'styled-components'
+import { withFormik, useField, type FormikProps } from 'formik'
 import { useDebounce } from 'use-debounce'
-import { ethers, BigNumber } from 'ethers'
-
-const { getAddress, parseEther } = ethers.utils
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { ethers, type BigNumber } from 'ethers'
+import { Roles } from '@kleros/kleros-app'
 import { useEthersProvider } from 'hooks/ethers-adapters'
-import CustomInput from 'components/custom-input'
-import { ItemTypes } from '@kleros/gtcr-encoder'
-import { Roles, useAtlasProvider } from '@kleros/kleros-app'
-import BaseDepositInput from 'components/base-deposit-input'
 import useArbitrationCost from 'hooks/arbitration-cost'
-import KlerosParams from './kleros-params'
-import ETHAmount from 'components/eth-amount'
-import useWindowDimensions from 'hooks/window-dimensions'
 import useNativeCurrency from 'hooks/native-currency'
-import { useNavigate } from 'react-router-dom'
 import useUrlChainId from 'hooks/use-url-chain-id'
 import { klerosAddresses } from 'config/tcr-addresses'
-import { parseIpfs } from 'utils/ipfs-parse'
-import { UploadButton, StyledUpload } from 'components/input-selector'
-import EnsureAuth from 'components/ensure-auth'
-import FactoryTypeSelect from 'components/factory-type-select'
+import { formatDurationLong } from 'utils/time'
+import {
+  Data,
+  KeyValueList,
+  Label,
+  Row,
+  SkeletonBlock,
+  Small,
+  Stack,
+} from 'components/curate/primitives'
+import KlerosParams from './kleros-params'
+import {
+  FormField,
+  Input,
+  Note,
+  RangeInput,
+  StepHeader,
+  SwitchField,
+  TextField,
+  TextLink,
+  UploadField,
+  formatNative,
+  totalDeposit,
+} from './fields'
+import { tcrSchemaFor, type FactorySection } from './schemas'
+import type { StepProps, TcrState } from '.'
 
-export const StyledAlert = styled(Alert)`
-  margin-bottom: 32px;
-`
+const { getAddress } = ethers.utils
 
-export const StyledTCRParamContainer = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
+/*
+ * Step 1, the list: name, description, logo, policy, deposits (with the
+ * court and jurors) and the item name, one section per visual step. Values
+ * sync into the cached wizard state as they change; Next submits the form
+ * and the section's own schema runs before the wizard advances.
+ */
 
-  ${smallScreenStyle(
-    () => css`
-      flex-direction: column;
-    `,
-  )}
-`
+export type { FactorySection } from './schemas'
 
-export const StyledUploadContainer = styled.div`
-  margin-right: ${responsiveSize(0, 12)};
-  max-width: ${responsiveSize(300, 450)};
-  color: ${({ theme }) => theme.textPrimary};
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+export const POLICY_EXAMPLE_URL =
+  'https://cdn.kleros.link/ipfs/QmUPsjDcKxNv6z6ktnmxkSb4LpqmQ7DT12yG5B73z9uLEy/curated-lists-primary-document.pdf'
 
-  label,
-  span {
-    color: ${({ theme }) => theme.textPrimary};
-  }
-
-  .ui-form-item-label label {
-    display: inline-flex;
-    align-items: center;
-  }
-
-  & > div {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-`
-
-export const StyledTCRInfoContainer = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  border-left: 1px solid ${({ theme }) => theme.borderColor};
-  padding-left: ${responsiveSize(6, 12)};
-`
-
-export const StyledDepositContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 24px;
-  color: ${({ theme }) => theme.textPrimary};
-
-  label {
-    color: ${({ theme }) => theme.textPrimary};
-  }
-`
-
-export const StyledSliderContainer = styled.div`
-  display: flex;
-`
-
-export const StyledP = styled.p`
-  color: ${({ theme }) => theme.textPrimary};
-  margin: 0;
-`
-
-export const StyledFontAwesomeIcon = styled(FontAwesomeIcon)`
-  margin-right: 12px;
-  color: ${({ theme }) => theme.textSecondary};
-`
-
-export const CheapestAndSafestContainer = styled.div`
-  display: flex;
-  flex: 1;
-  align-items: center;
-  margin-right: 24px;
-  color: ${({ theme }) => theme.textSecondary};
-`
-
-export const StyledImg = styled.img`
-  height: 70px;
-  object-fit: contain;
-`
-
-export const UploadSection = styled.div`
-  margin-bottom: 26px;
-  color: ${({ theme }) => theme.textPrimary};
-
-  label,
-  span {
-    color: ${({ theme }) => theme.textPrimary};
-  }
-`
-
-export type FactorySection =
-  | 'title'
-  | 'description'
-  | 'logo'
-  | 'policy'
-  | 'deposit'
-  | 'custom'
-
-const factorySectionTitles: Record<FactorySection, string> = {
-  title: 'Name',
-  description: 'Description',
-  logo: 'Logo',
-  policy: 'Policy',
-  deposit: 'Deposit',
-  custom: 'Custom item text',
+const SECTION_COPY: Record<
+  FactorySection,
+  { title: string; heading: string; lede: string }
+> = {
+  title: {
+    title: 'Name',
+    heading: 'Name the list',
+    lede: 'Keep it short: the name appears on phones, in notifications and on the list of lists.',
+  },
+  description: {
+    title: 'Description',
+    heading: 'Describe what belongs on it',
+    lede: 'One sentence on the kind of item the list holds and what the listing criteria are.',
+  },
+  logo: {
+    title: 'Logo',
+    heading: 'Add a logo',
+    lede: 'The logo identifies the list wherever it appears.',
+  },
+  policy: {
+    title: 'Policy',
+    heading: 'Attach the listing policy',
+    lede: 'The policy is the document jurors and challengers use to decide whether an item belongs on the list.',
+  },
+  deposit: {
+    title: 'Deposit',
+    heading: 'Set the deposits and the court',
+    lede: 'A submitter locks a deposit while the challenge period runs. It covers the arbitration cost and rewards a successful challenger; it comes back in full when nobody challenges.',
+  },
+  custom: {
+    title: 'Item name',
+    heading: 'Name the items',
+    lede: 'The word that replaces “item” in the interface and in notifications, for example “Submit a sock”.',
+  },
 }
 
-const FactorySectionCard = styled(Card)<{ $factorySection?: FactorySection }>`
-  ${({ $factorySection }) =>
-    $factorySection &&
-    css`
-      [data-factory-section] {
-        display: none;
-      }
-
-      [data-factory-section~='${$factorySection}'] {
-        display: block;
-      }
-
-      ${StyledTCRParamContainer} {
-        display: block;
-      }
-
-      ${StyledUploadContainer} {
-        max-width: min(100%, 440px);
-        margin: 0 auto;
-      }
-
-      ${StyledTCRInfoContainer} {
-        border-left: 0;
-        padding-left: 0;
-      }
-    `}
+const AmountInput = styled(Input)`
+  flex: 0 0 auto;
+  width: 96px;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 `
+
+const SliderEnds = styled.div`
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+`
+
+const DEPOSIT_MIN = 0
+const DEPOSIT_MAX = 30
+const DEPOSIT_STEP = 0.01
+
+const clampDeposit = (value: number) =>
+  Math.min(DEPOSIT_MAX, Math.max(DEPOSIT_MIN, value))
+
+/* ---------- Shared with the badges step ---------- */
+
+/** The exact amounts from the current values and the loaded arbitration cost. */
+export const DepositBreakdown = ({
+  submitterBase,
+  challengerBase,
+  arbitrationCost,
+  currency,
+  challengePeriodHours,
+}: {
+  submitterBase: unknown
+  challengerBase: unknown
+  arbitrationCost?: BigNumber | null
+  currency: string
+  challengePeriodHours: unknown
+}) => {
+  const cost = formatNative(arbitrationCost)
+  const submitterTotal = formatNative(
+    totalDeposit(submitterBase, arbitrationCost),
+  )
+  const challengerTotal = formatNative(
+    totalDeposit(challengerBase, arbitrationCost),
+  )
+  const hours = Number(challengePeriodHours)
+  const period =
+    Number.isFinite(hours) && hours > 0
+      ? formatDurationLong(hours * 60 * 60)
+      : null
+  const amount = (value: string | null) =>
+    value === null ? (
+      <SkeletonBlock $height="18px" $width="120px" />
+    ) : (
+      <Data>
+        {value} {currency}
+      </Data>
+    )
+
+  return (
+    <Note role="group" aria-label="Deposit breakdown">
+      <Label>What a submitter and a challenger send</Label>
+      <KeyValueList>
+        <dt>Submitter sends</dt>
+        <dd>
+          {amount(submitterTotal)}{' '}
+          <Small $muted>
+            = {String(submitterBase ?? 0)} base deposit + {cost ?? '…'}{' '}
+            arbitration cost
+          </Small>
+        </dd>
+        <dt>Challenger sends</dt>
+        <dd>
+          {amount(challengerTotal)}{' '}
+          <Small $muted>
+            = {String(challengerBase ?? 0)} base deposit + {cost ?? '…'}{' '}
+            arbitration cost
+          </Small>
+        </dd>
+        <dt>Unchallenged</dt>
+        <dd>
+          The submitter's deposit comes back in full
+          {period ? ` after the ${period} challenge period` : ''}.
+        </dd>
+        <dt>Challenged and lost</dt>
+        <dd>
+          The loser's deposit goes to the winner minus the arbitration cost,
+          which pays the jurors.
+        </dd>
+      </KeyValueList>
+    </Note>
+  )
+}
+
+/** A base deposit input with the total (base + arbitration cost) under it. */
+export const BaseDepositField = ({
+  name,
+  label,
+  help,
+  arbitrationCost,
+  currency,
+}: {
+  name: string
+  label: string
+  help: string
+  arbitrationCost?: BigNumber | null
+  currency: string
+}) => {
+  const [field] = useField<unknown>(name)
+  const total = formatNative(totalDeposit(field.value, arbitrationCost))
+  return (
+    <TextField
+      name={name}
+      label={label}
+      help={help}
+      numeric
+      placeholder="0.1"
+      unit={currency}
+      trailing={
+        <Small $muted>
+          Total with the arbitration cost: {total ?? '…'} {currency}
+        </Small>
+      }
+    />
+  )
+}
+
+/** The appeal stake multipliers, explained once for both lists. */
+export const AppealStakeNote = () => (
+  <Note>
+    <Label>Appeal stakes</Label>
+    <Small $muted>
+      To appeal, a side pays the juror fees of the next round plus a stake. The
+      stake of the side that finally loses rewards the people who funded the
+      winning side. Each stake is a percentage of the round's juror fees: a 100%
+      multiplier makes the stake equal to the fees. Large multipliers reward
+      crowdfunders but make appeals expensive; small ones make appeals cheap but
+      give crowdfunders little reason to take part. The side with the smaller
+      multiplier is favoured.
+    </Small>
+    <Small $muted>
+      Total appeal fee for one side = juror fees + juror fees × stake
+      multiplier.
+    </Small>
+  </Note>
+)
+
+/* ---------- The step ---------- */
 
 type TCRFormValues = Omit<TcrState, 'transactions'>
 type TCRParamsOuterProps = StepProps & { factorySection?: FactorySection }
@@ -191,24 +243,21 @@ const TCRParams = ({
   formId,
   factorySection,
   errors,
-  setFieldValue,
   touched,
+  values,
+  setFieldValue,
+  setFieldTouched,
+  setTcrState,
   defaultArbLabel,
   defaultArbDataLabel,
   defaultGovernorLabel,
-  ...rest
 }: TCRParamsProps) => {
-  const { values, setTcrState } = rest
-  const { width } = useWindowDimensions()
+  const ids = useId()
   const nativeCurrency = useNativeCurrency()
-  const { uploadFile } = useAtlasProvider()
-  const [uploading, setUploading] = useState<{
-    tcrLogo?: boolean
-    tcrPrimaryDocument?: boolean
-  }>({})
   const [advancedOptions, setAdvancedOptions] = useState(false)
-  const [depositVal, setDepositVal] = useState(0.05)
-  const navigate = useNavigate()
+  const [depositText, setDepositText] = useState(
+    String(values.submissionBaseDeposit ?? 0),
+  )
   const chainId = useUrlChainId()
   const chainProvider = useEthersProvider({ chainId: chainId ?? undefined })
   const [debouncedArbitrator] = useDebounce(values.arbitratorAddress, 1000)
@@ -224,7 +273,7 @@ const TCRParams = ({
     [setFieldValue],
   )
 
-  let isKlerosArbitrator
+  let isKlerosArbitrator: boolean
   try {
     isKlerosArbitrator =
       getAddress(debouncedArbitrator) === getAddress(klerosAddress ?? '')
@@ -239,649 +288,286 @@ const TCRParams = ({
     }))
   }, [values, setTcrState])
 
-  const fileUploadStatusChange = useCallback(
-    ({
-      file: { status },
-      file,
-    }: {
-      file: { status: string; type: string }
-    }) => {
-      if (status === 'done') toast.success(`File uploaded successfully.`)
-      else if (status === 'error') toast.error(`File upload failed.`)
-      else if (status === 'uploading')
-        if (
-          file.type === 'image/png' ||
-          file.type === 'image/svg+xml' ||
-          file.type === 'image/webp' ||
-          file.type === 'image/jpeg'
-        )
-          setUploading({ ...uploading, tcrLogo: true })
-        else setUploading({ ...uploading, tcrPrimaryDocument: true })
-
-      if (status === 'error' || status === 'done')
-        if (
-          file.type === 'image/png' ||
-          file.type === 'image/svg+xml' ||
-          file.type === 'image/webp' ||
-          file.type === 'image/jpeg'
-        )
-          setUploading({ ...uploading, tcrLogo: false })
-        else setUploading({ ...uploading, tcrPrimaryDocument: false })
-    },
-    [uploading],
-  )
-
-  const beforeImageUpload = useCallback((file: File) => {
-    const isSupportedImage =
-      file.type === 'image/png' ||
-      file.type === 'image/svg+xml' ||
-      file.type === 'image/webp' ||
-      file.type === 'image/jpeg'
-    if (!isSupportedImage) toast.error('Please use PNG, webp, jpeg or SVG.')
-
-    const isLt2M = file.size / 1024 / 1024 < 2
-    if (!isLt2M) toast.error('Image must be smaller than 2MB.')
-
-    return isSupportedImage && isLt2M
-  }, [])
-
-  const beforeFileUpload = useCallback((file: File) => {
-    const isPDF = file.type === 'application/pdf'
-    if (!isPDF) toast.error('Please upload file as PDF.')
-
-    const isLt4M = file.size / 1024 / 1024 < 4
-    if (!isLt4M) toast.error('File must be smaller than 4MB.')
-
-    return isPDF && isLt4M
-  }, [])
-
-  const customRequest = useCallback(
-    (fieldName: string, role: Roles) =>
-      async ({
-        file,
-        onSuccess,
-        onError,
-      }: {
-        file: File
-        onSuccess: (response: unknown, hash?: unknown) => void
-        onError: (error: unknown) => void
-      }) => {
-        try {
-          const fileURI = await uploadFile(file, role)
-          if (!fileURI) throw new Error('Failed to upload file to IPFS.')
-
-          setFieldValue(fieldName, fileURI)
-          onSuccess('ok', parseIpfs(fileURI))
-        } catch (err) {
-          console.error(err)
-          onError(err)
-        }
-      },
-    [setFieldValue, uploadFile],
-  )
+  const depositVal = clampDeposit(Number(values.submissionBaseDeposit) || 0)
 
   const onChangeDepositVal = useCallback(
-    (value: number | undefined) => {
-      if (value === undefined || Number.isNaN(value)) return
-
-      setDepositVal(value)
-      setFieldValue('submissionBaseDeposit', value)
-      setFieldValue('removalBaseDeposit', value)
-      setFieldValue('removalChallengeBaseDeposit', value)
+    (value: number) => {
+      if (Number.isNaN(value)) return
+      const next = clampDeposit(value)
+      setFieldValue('submissionBaseDeposit', next)
+      setFieldValue('removalBaseDeposit', next)
+      setFieldValue('removalChallengeBaseDeposit', next)
     },
     [setFieldValue],
   )
 
-  const totalDepositSlider = useMemo(() => {
-    if (!arbitrationCost) return null
-    const d = parseEther(Number(depositVal).toString())
-    const a = arbitrationCost || BigNumber.from(0)
-    return BigNumber.from(d).add(BigNumber.from(a))
-  }, [arbitrationCost, depositVal])
+  const show = (section: FactorySection) =>
+    !factorySection || factorySection === section
+  const copy = factorySection ? SECTION_COPY[factorySection] : null
 
   return (
-    <FactorySectionCard
-      $factorySection={factorySection}
-      title={
-        factorySection
-          ? factorySectionTitles[factorySection]
-          : 'Enter the list parameters'
-      }
-      extra={
-        <StyledP>
-          Factory Type:{' '}
-          <FactoryTypeSelect
-            current="light"
-            chainId={chainId ?? undefined}
-            navigate={navigate}
+    <form id={formId} onSubmit={handleSubmit} noValidate>
+      <Stack $gap={20}>
+        <StepHeader
+          heading={copy ? copy.heading : 'List details'}
+          lede={copy?.lede}
+        />
+
+        {show('title') && (
+          <TextField
+            name="tcrTitle"
+            label="Name"
+            placeholder="Red socks"
+            help="Up to 40 characters."
           />
-        </StyledP>
-      }
-    >
-      <Form layout="vertical" id={formId} onSubmit={handleSubmit}>
-        <StyledTCRParamContainer>
-          <StyledUploadContainer data-factory-section="logo policy">
-            <div data-factory-section="logo">
-              <div className="ui-col ui-form-item-label">
-                <label htmlFor="tcr-logo">
-                  <span>List Logo (transparent background): &nbsp;</span>
-                  <Tooltip title="The logo should be a 1:1 aspect ratio image with transparent background in SVG or PNG.">
-                    <Icon type="question-circle-o" />
-                  </Tooltip>
-                </label>
-              </div>
-              <EnsureAuth>
-                <StyledUpload
-                  name="primary-document"
-                  listType="picture-card"
-                  className="avatar-uploader"
-                  showUploadList={false}
-                  customRequest={customRequest('tcrLogo', Roles.Logo)}
-                  beforeUpload={beforeImageUpload}
-                  onChange={fileUploadStatusChange}
-                >
-                  {values.tcrLogo ? (
-                    <StyledImg src={parseIpfs(values.tcrLogo)} alt="avatar" />
-                  ) : (
-                    <UploadButton loading={uploading.tcrLogo ?? false} />
-                  )}
-                </StyledUpload>
-              </EnsureAuth>
-            </div>
-            <div data-factory-section="policy">
-              <div className="ui-col ui-form-item-label">
-                <label htmlFor="primary-document">
-                  <span>Acceptance Criteria (Primary Document)&nbsp;</span>
-                  <Tooltip title="The list primary document defines the acceptance criteria that jurors and challengers will use to evaluate submissions. Use the PDF file format.">
-                    <Icon type="question-circle-o" />
-                  </Tooltip>
-                </label>
-                <br />
-                Click{' '}
-                <a
-                  href="https://cdn.kleros.link/ipfs/QmUPsjDcKxNv6z6ktnmxkSb4LpqmQ7DT12yG5B73z9uLEy/curated-lists-primary-document.pdf"
+        )}
+
+        {show('description') && (
+          <TextField
+            name="tcrDescription"
+            label="Description"
+            placeholder="Images of red socks from various manufacturers"
+            help="Up to 255 characters."
+          />
+        )}
+
+        {show('logo') && (
+          <UploadField
+            id={`${ids}-logo`}
+            label="List logo"
+            help="A square image with a transparent background: PNG, SVG, WebP or JPEG, up to 2 MB."
+            kind="image"
+            role={Roles.Logo}
+            value={values.tcrLogo}
+            error={errors.tcrLogo}
+            showError={!!touched.tcrLogo}
+            what="the logo"
+            previewAlt="List logo"
+            onChange={(uri) => {
+              setFieldValue('tcrLogo', uri)
+              setFieldTouched('tcrLogo', true)
+            }}
+          />
+        )}
+
+        {show('policy') && (
+          <UploadField
+            id={`${ids}-policy`}
+            label="Listing policy (PDF)"
+            help={
+              <>
+                PDF, up to 4 MB.{' '}
+                <TextLink
+                  href={POLICY_EXAMPLE_URL}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  here
-                </a>{' '}
-                to see an example.
-              </div>
-              <EnsureAuth>
-                <StyledUpload
-                  name="primary-document"
-                  listType="picture-card"
-                  className="avatar-uploader"
-                  showUploadList={false}
-                  customRequest={customRequest(
-                    'tcrPrimaryDocument',
-                    Roles.Policy,
-                  )}
-                  beforeUpload={beforeFileUpload}
-                  onChange={fileUploadStatusChange}
-                >
-                  {values.tcrPrimaryDocument ? (
-                    <a href={parseIpfs(values.tcrPrimaryDocument)}>
-                      <Icon type="file-pdf" style={{ fontSize: '30px' }} />
-                    </a>
-                  ) : (
-                    <UploadButton
-                      loading={uploading.tcrPrimaryDocument ?? false}
-                    />
-                  )}
-                </StyledUpload>
-              </EnsureAuth>
-            </div>
-          </StyledUploadContainer>
-          <StyledTCRInfoContainer>
-            <div data-factory-section="title">
-              <CustomInput
-                name="tcrTitle"
-                placeholder="Red Socks"
-                label={
-                  <span>
-                    Title&nbsp;
-                    <Tooltip title="This will be the title of your list. Try to keep it as short as possible for increased compatibility with mobile devices, Twitter bots and push notifications. For example: Red Socks.">
-                      <Icon type="question-circle-o" />
-                    </Tooltip>
-                  </span>
-                }
-                error={errors.tcrTitle}
-                touched={touched.tcrTitle}
-                hasFeedback
-                {...rest}
-              />
-            </div>
-            <div data-factory-section="description">
-              <CustomInput
-                name="tcrDescription"
-                placeholder="A list of red socks"
-                hasFeedback
-                error={errors.tcrDescription}
-                touched={touched.tcrDescription}
-                label={
-                  <span>
-                    Description&nbsp;
-                    <Tooltip title="Enter a short sentence to describe the type of item that will be displayed in the list and what the listing criteria are. For example: Images of red socks from various manufacturers.">
-                      <Icon type="question-circle-o" />
-                    </Tooltip>
-                  </span>
-                }
-                {...rest}
-              />
-            </div>
-            <div data-factory-section="custom">
-              <CustomInput
-                style={{ marginBottom: 16 }}
-                name="itemName"
-                placeholder="sock"
-                hasFeedback
-                error={errors.itemName}
-                touched={touched.itemName}
-                label={
-                  <span>
-                    Item Name&nbsp;
-                    <Tooltip
-                      title={`Enter a noun that describes the item that will be listed. This will replace the word "item" in the list interface and notifications. For example: if you set this to the word "Socks", on the list interface you will see buttons such as "Submit Socks" and "Challenge Socks".`}
-                    >
-                      <Icon type="question-circle-o" />
-                    </Tooltip>
-                  </span>
-                }
-                {...rest}
-              />
-              <CustomInput
-                style={{ marginBottom: 0 }}
-                name="itemNamePlural"
-                placeholder="socks"
-                hasFeedback
-                error={errors.itemNamePlural}
-                touched={touched.itemNamePlural}
-                label={
-                  <span>
-                    Item Name Plural&nbsp;
-                    <Tooltip
-                      title={`This is the plural of the item name. In other words, if "Item Name" is "bus", this should be "buses"`}
-                    >
-                      <Icon type="question-circle-o" />
-                    </Tooltip>
-                  </span>
-                }
-                {...rest}
-              />
-            </div>
-          </StyledTCRInfoContainer>
-        </StyledTCRParamContainer>
-        {!advancedOptions && (
-          <StyledDepositContainer data-factory-section="deposit">
-            <label htmlFor="depositSlider">
-              Deposit&nbsp;
-              <Tooltip title="These are the funds users will have to deposit in order to make a submission into the list, which are sufficient to cover both arbitration fees paid to jurors and the rewards that users earn for a successful challenge. If the deposit is too low, incorrect submissions may not be flagged for dispute which could result in incorrect items being accepted in the list. If the deposit is too high, challengers will be likely to catch most malicious submissions, but people will only rarely submit to your list (so you may end up having a list that is difficult to attack but largely empty).">
-                <Icon type="question-circle-o" />
-              </Tooltip>
-              :{' '}
-              <ETHAmount
-                amount={totalDepositSlider}
-                decimals={3}
-                displayUnit={` ${nativeCurrency}`}
-              />
-            </label>
-            <StyledSliderContainer>
-              <CheapestAndSafestContainer>
-                {width > 480 && (
-                  <>
-                    <StyledFontAwesomeIcon icon="coins" />
-                    Cheapest
-                  </>
+                  See an example policy (PDF)
+                </TextLink>
+              </>
+            }
+            kind="pdf"
+            role={Roles.Policy}
+            value={values.tcrPrimaryDocument}
+            error={errors.tcrPrimaryDocument}
+            showError={!!touched.tcrPrimaryDocument}
+            what="the policy"
+            onChange={(uri) => {
+              setFieldValue('tcrPrimaryDocument', uri)
+              setFieldTouched('tcrPrimaryDocument', true)
+            }}
+          />
+        )}
+
+        {show('deposit') && (
+          <>
+            {!advancedOptions && (
+              <FormField
+                id={`${ids}-deposit`}
+                label="Submission deposit"
+                help="The base deposit a submitter locks. The same amount applies to removal requests and to challenging a removal; the arbitration cost is added on top."
+                error={errors.submissionBaseDeposit as string | undefined}
+                showError={!!touched.submissionBaseDeposit}
+              >
+                {(a11y) => (
+                  <Stack $gap={6}>
+                    <Row $gap={12}>
+                      <RangeInput
+                        type="range"
+                        min={DEPOSIT_MIN}
+                        max={DEPOSIT_MAX}
+                        step={DEPOSIT_STEP}
+                        value={depositVal}
+                        aria-label="Submission deposit"
+                        onChange={(event) => {
+                          setDepositText(event.target.value)
+                          onChangeDepositVal(Number(event.target.value))
+                        }}
+                      />
+                      <AmountInput
+                        {...a11y}
+                        type="text"
+                        inputMode="decimal"
+                        value={depositText}
+                        onChange={(event) => {
+                          setDepositText(event.target.value)
+                          const parsed = Number(event.target.value)
+                          if (event.target.value.trim() !== '')
+                            onChangeDepositVal(parsed)
+                        }}
+                        onBlur={() => setDepositText(String(depositVal))}
+                      />
+                      <Data $muted>{nativeCurrency}</Data>
+                    </Row>
+                    <SliderEnds>
+                      <Small $muted>Lower deposit, more submissions</Small>
+                      <Small $muted>Higher deposit, stronger protection</Small>
+                    </SliderEnds>
+                  </Stack>
                 )}
-                <Slider
-                  id="depositSlider"
-                  min={0}
-                  max={30}
-                  onChange={onChangeDepositVal}
-                  value={typeof depositVal === 'number' ? depositVal : 0}
-                  step={0.01}
-                  style={{ flex: 1, margin: '0 24px' }}
+              </FormField>
+            )}
+
+            <DepositBreakdown
+              submitterBase={values.submissionBaseDeposit}
+              challengerBase={values.submissionChallengeBaseDeposit}
+              arbitrationCost={arbitrationCost}
+              currency={nativeCurrency}
+              challengePeriodHours={values.challengePeriodDuration}
+            />
+
+            {isKlerosArbitrator ? (
+              <KlerosParams
+                arbitratorExtraData={values.arbitratorExtraData}
+                klerosAddress={debouncedArbitrator}
+                policyAddress={policyAddress}
+                setArbitratorExtraData={setArbitratorExtraData}
+                library={chainProvider}
+              />
+            ) : (
+              <TextField
+                name="arbitratorExtraData"
+                label="Arbitrator extra data"
+                placeholder="0x7331deadbeef..."
+                mono
+                help={`Hex extra data for the arbitrator (ERC 792). Default: ${defaultArbDataLabel ?? 'the chain default'}.`}
+              />
+            )}
+
+            <SwitchField
+              id={`${ids}-advanced`}
+              label="Advanced options"
+              help="Set each deposit separately, the challenge period, the governor, the arbitrator and the appeal stakes."
+              checked={advancedOptions}
+              onChange={setAdvancedOptions}
+            />
+
+            {advancedOptions && (
+              <>
+                <BaseDepositField
+                  name="submissionBaseDeposit"
+                  label="Submission deposit"
+                  help="Locked by a submitter and paid to a successful challenger. Too low and nobody checks submissions; too high and nobody submits."
+                  arbitrationCost={arbitrationCost}
+                  currency={nativeCurrency}
                 />
-                {width > 480 && (
-                  <>
-                    <StyledFontAwesomeIcon icon="shield-alt" /> Safest
-                  </>
-                )}
-              </CheapestAndSafestContainer>
-              <InputNumber
-                min={0}
-                max={30}
-                step={0.01}
-                value={depositVal}
-                onChange={onChangeDepositVal}
-              />
-            </StyledSliderContainer>
-          </StyledDepositContainer>
+                <BaseDepositField
+                  name="removalBaseDeposit"
+                  label="Removal deposit"
+                  help="Locked by whoever requests a removal and paid to a successful challenger. Too low and compliant items get removed; too high and non-compliant ones stay."
+                  arbitrationCost={arbitrationCost}
+                  currency={nativeCurrency}
+                />
+                <BaseDepositField
+                  name="submissionChallengeBaseDeposit"
+                  label="Submission challenge deposit"
+                  help="Included in what a challenger sends and paid to the submitter when the challenge fails. Usually zero: being listed is reward enough. Raise it if frivolous challenges are a concern; too high and incorrect items go unchallenged."
+                  arbitrationCost={arbitrationCost}
+                  currency={nativeCurrency}
+                />
+                <BaseDepositField
+                  name="removalChallengeBaseDeposit"
+                  label="Removal challenge deposit"
+                  help="Included in what a challenger to a removal sends and paid to the requester when the challenge fails. Too high and wrong removals go unchallenged; too low and nobody requests removals."
+                  arbitrationCost={arbitrationCost}
+                  currency={nativeCurrency}
+                />
+                <TextField
+                  name="challengePeriodDuration"
+                  label="Challenge period (hours)"
+                  placeholder="84"
+                  numeric
+                  unit="hours"
+                  help="How long a submission can be challenged before it is accepted and the deposit returned."
+                />
+                <TextField
+                  name="governorAddress"
+                  label="Governor"
+                  placeholder="0x7331deadbeef..."
+                  mono
+                  help={`Can change the deposits, the challenge period, the policy and the governor itself later. Default: ${defaultGovernorLabel ?? 'the chain default'}.`}
+                />
+                <TextField
+                  name="arbitratorAddress"
+                  label="Arbitrator"
+                  placeholder="0x7331deadbeef..."
+                  mono
+                  help={`The contract that resolves disputes about challenged submissions and removals. Default: ${defaultArbLabel ?? 'the chain default'}; any ERC 792 arbitrator works.`}
+                />
+                <AppealStakeNote />
+                <TextField
+                  name="sharedStakeMultiplier"
+                  label="Shared stake multiplier"
+                  placeholder="100"
+                  numeric
+                  unit="%"
+                  help="Stake both sides pay to fund an appeal when the round had no winner or loser, for example when the arbitrator refused to rule."
+                />
+                <TextField
+                  name="winnerStakeMultiplier"
+                  label="Winner stake multiplier"
+                  placeholder="100"
+                  numeric
+                  unit="%"
+                  help="Stake the winner of the previous round pays to fund its side of an appeal."
+                />
+                <TextField
+                  name="loserStakeMultiplier"
+                  label="Loser stake multiplier"
+                  placeholder="200"
+                  numeric
+                  unit="%"
+                  help="Stake the loser of the previous round pays to fund its side of an appeal."
+                />
+              </>
+            )}
+          </>
         )}
-        <div data-factory-section="deposit">
-          {isKlerosArbitrator === false ? (
-            <CustomInput
-              name="arbitratorExtraData"
-              placeholder="0x7331deadbeef..."
-              hasFeedback
-              error={errors.arbitratorExtraData}
-              touched={touched.arbitratorExtraData}
-              label={
-                <span>
-                  Arbitrator Extra Data&nbsp;
-                  <Tooltip
-                    title={`The extra data for the arbitrator. See ERC 792 for more information. Default: ${defaultArbDataLabel}`}
-                  >
-                    <Icon type="question-circle-o" />
-                  </Tooltip>
-                </span>
-              }
-              {...rest}
+
+        {show('custom') && (
+          <>
+            <TextField
+              name="itemName"
+              label="Item name"
+              placeholder="sock"
+              help="A noun for one entry, up to 20 characters. Buttons then read “Submit a sock”."
             />
-          ) : (
-            <KlerosParams
-              arbitratorExtraData={values.arbitratorExtraData}
-              klerosAddress={debouncedArbitrator}
-              policyAddress={policyAddress}
-              setArbitratorExtraData={setArbitratorExtraData}
-              library={chainProvider}
+            <TextField
+              name="itemNamePlural"
+              label="Plural"
+              placeholder="socks"
+              help="The plural of the item name, up to 20 characters."
             />
-          )}
-          <Form.Item
-            label="Advanced options"
-            style={{ marginBottom: '12px', display: 'flex' }}
-          >
-            <Switch
-              onChange={() => setAdvancedOptions((toggle) => !toggle)}
-              style={{ marginLeft: '8px' }}
-            />
-          </Form.Item>
-        </div>
-        {advancedOptions && (
-          <div data-factory-section="deposit">
-            <BaseDepositInput
-              name="submissionBaseDeposit"
-              error={errors.submissionBaseDeposit}
-              touched={touched.submissionBaseDeposit}
-              arbitrationCost={arbitrationCost}
-              label={
-                <span>
-                  Submission Challenge Bounty&nbsp;
-                  <Tooltip title="This is the deposit required to submit an item to the list and also the amount awarded to successful challengers. If the value is too low, challengers may not have enough incentive to look for flaws in the submissions and bad ones could make it through. If it is too high, submitters may not have enough incentive to send items which may result in an empty list.">
-                    <Icon type="question-circle-o" />
-                  </Tooltip>
-                </span>
-              }
-              {...rest}
-            />
-            <BaseDepositInput
-              name="removalBaseDeposit"
-              error={errors.removalBaseDeposit}
-              touched={touched.removalBaseDeposit}
-              arbitrationCost={arbitrationCost}
-              label={
-                <span>
-                  Removal Challenge Bounty&nbsp;
-                  <Tooltip title="This is the deposit required to remove an item and also the amount awarded to successful challengers. If the value is too low, people will not have enough incentive to look for flaws in removal requests and compliant items could be removed from the list. If it is too high, people will be afraid to remove items so a non compliant submission could stay longer than it should.">
-                    <Icon type="question-circle-o" />
-                  </Tooltip>
-                </span>
-              }
-              {...rest}
-            />
-            <BaseDepositInput
-              name="submissionChallengeBaseDeposit"
-              error={errors.submissionChallengeBaseDeposit}
-              touched={touched.submissionChallengeBaseDeposit}
-              arbitrationCost={arbitrationCost}
-              label={
-                <span>
-                  Incorrect Challenge Compensation&nbsp;
-                  <Tooltip title="This amount, which is included in the deposits that challengers must make, is given to the submitter in the event that a challenged submission is ultimately ruled to be correct. One typically wants Incorrect Challenge Compensation to be zero, because being on the list should be an adequate incentive for submitters. However, if you anticipate frivolous challenges being a problem, a higher Incorrect Challenge Compensation can help protect against this. If Incorrect Challenge Compensation is too high, users will be disincentivized from challenging and incorrect entries may make it onto the list unchallenged.">
-                    <Icon type="question-circle-o" />
-                  </Tooltip>
-                </span>
-              }
-              {...rest}
-            />
-            <BaseDepositInput
-              name="removalChallengeBaseDeposit"
-              error={errors.removalChallengeBaseDeposit}
-              touched={touched.removalChallengeBaseDeposit}
-              arbitrationCost={arbitrationCost}
-              label={
-                <span>
-                  Incorrect Removal Challenge Compensation&nbsp;
-                  <Tooltip title="This amount, which is included in the deposits that challengers to removal requests must make, is given to the removal requestor in the event that a challenged removal request is ultimately ruled to be correct. If Incorrect Removal Challenge Compensation is too high, users will be disincentivized from challenging removal requests and correct entries may be removed from the list unchallenged. If Incorrect Removal Challenge Compensation is too low, users may not be adequately incentivized to submit removal requests, and incorrect entries may remain on the list longer than they should.">
-                    <Icon type="question-circle-o" />
-                  </Tooltip>
-                </span>
-              }
-              {...rest}
-            />
-            <CustomInput
-              name="challengePeriodDuration"
-              placeholder="84"
-              addonAfter="Hours"
-              error={errors.challengePeriodDuration}
-              touched={touched.challengePeriodDuration}
-              type={ItemTypes.NUMBER}
-              step={1}
-              label={
-                <span>
-                  Challenge Period Duration (hours) &nbsp;
-                  <Tooltip title="The length of time (in hours) that a submission can be challenged before it it automatically accepted onto the list and the submitter's deposit is refunded.">
-                    <Icon type="question-circle-o" />
-                  </Tooltip>
-                </span>
-              }
-              {...rest}
-            />
-            <CustomInput
-              name="governorAddress"
-              placeholder="0x7331deadbeef..."
-              hasFeedback
-              error={errors.governorAddress}
-              touched={touched.governorAddress}
-              label={
-                <span>
-                  Governor&nbsp;
-                  <Tooltip
-                    title={`The address of the governor to use for this list. It can update parameters such as the challenge period duration, deposits, primary document, etc. This address can also be used to transfer the role of governor to another address. By default this is set to ${defaultGovernorLabel}`}
-                  >
-                    <Icon type="question-circle-o" />
-                  </Tooltip>
-                </span>
-              }
-              {...rest}
-            />
-            <CustomInput
-              name="arbitratorAddress"
-              placeholder="0x7331deadbeef..."
-              hasFeedback
-              error={errors.arbitratorAddress}
-              touched={touched.arbitratorAddress}
-              label={
-                <span>
-                  Arbitrator&nbsp;
-                  <Tooltip
-                    title={`This is the contract address of the arbitrator that will resolve disputes regarding whether challenged submissions and challenged removal requests belong on this list. By default it is set to ${defaultArbLabel}, but you could use any other arbitrator complying with the ERC 792 standard.`}
-                  >
-                    <Icon type="question-circle-o" />
-                  </Tooltip>
-                </span>
-              }
-              {...rest}
-            />
-            <StyledAlert
-              message={
-                <div>
-                  To appeal, in addition to paying enough fees to cover the
-                  payment to the jurors in case the appeal is lost, parties must
-                  also pay an additional stake. The stake of the side that
-                  ultimately loses the dispute is used as the reward given to
-                  the appeal fee contributors that funded the side that
-                  ultimately wins the dispute.
-                  <br />
-                  <br />
-                  This amount is calculated proportionally to the total juror
-                  fees required for appeal using the multipliers below, given in
-                  percentage. For example, a multiplier of 10% will result in
-                  the stake being 10% of the total juror fees.
-                  <br />
-                  <br />
-                  If you choose very large stake multipliers, the expected
-                  returns of crowdfunders will improve, but appeal fee
-                  requirements may become so large as to be a barrier. If you
-                  choose very small stake multipliers, total appeal fees are
-                  reduced, but crowdfunders may not be sufficiently incentivized
-                  to participate. Different multipliers can be chosen for the
-                  sides that won and lost the previous appeal round. The more
-                  one of these multipliers is larger than the other, the more
-                  the side with the smaller multiplier is favoured.
-                </div>
-              }
-              type="info"
-              showIcon
-            />
-            <StyledAlert
-              message="The total fee required to fully fund one side of an appeal is: Total Appeal Fee = Total Juror Fees + Total Juror Fees * Stake Multiplier"
-              type="info"
-              showIcon
-            />
-            <CustomInput
-              name="sharedStakeMultiplier"
-              placeholder="100"
-              error={errors.sharedStakeMultiplier}
-              touched={touched.sharedStakeMultiplier}
-              type={ItemTypes.NUMBER}
-              addonAfter="%"
-              label={
-                <span>
-                  Shared stake multiplier&nbsp;
-                  <Tooltip title="This is the multiplier for the stake both parties must pay to fully fund their side of an appeal when there isn't a winner or loser (e.g. when the arbitrator refused to rule).">
-                    <Icon type="question-circle-o" />
-                  </Tooltip>
-                </span>
-              }
-              {...rest}
-            />
-            <CustomInput
-              name="winnerStakeMultiplier"
-              placeholder="100"
-              error={errors.winnerStakeMultiplier}
-              touched={touched.winnerStakeMultiplier}
-              type={ItemTypes.NUMBER}
-              addonAfter="%"
-              label={
-                <span>
-                  Winner stake multiplier&nbsp;
-                  <Tooltip title="This is the multiplier for the fee stake the winner of a round must pay to fully fund his side of an appeal.">
-                    <Icon type="question-circle-o" />
-                  </Tooltip>
-                </span>
-              }
-              {...rest}
-            />
-            <CustomInput
-              name="loserStakeMultiplier"
-              placeholder="200"
-              error={errors.loserStakeMultiplier}
-              touched={touched.loserStakeMultiplier}
-              type={ItemTypes.NUMBER}
-              addonAfter="%"
-              label={
-                <span>
-                  Loser stake multiplier&nbsp;
-                  <Tooltip title="This is the multiplier for the fee stake the loser of a round must pay to fully fund his side of an appeal.">
-                    <Icon type="question-circle-o" />
-                  </Tooltip>
-                </span>
-              }
-              {...rest}
-            />
-          </div>
+          </>
         )}
-      </Form>
-    </FactorySectionCard>
+      </Stack>
+    </form>
   )
 }
 
-const validationSchema = yup.object().shape({
-  tcrTitle: yup
-    .string()
-    .required('A title is required.')
-    .max(40, 'Title must be less than 40 characters long.'),
-  tcrDescription: yup
-    .string()
-    .required('A description is required.')
-    .max(255, 'Description must be less than 255 characters long.'),
-  arbitratorAddress: yup
-    .string()
-    .required('An arbitrator address is required.')
-    .max(42, 'Ethereum addresses are 42 characters long.'),
-  arbitratorExtraData: yup
-    .string()
-    .required('The arbitrator extra data is required.'),
-  governorAddress: yup
-    .string()
-    .required('A governor address is required.')
-    .max(42, 'Ethereum addresses are 42 characters long.'),
-  itemName: yup
-    .string()
-    .required('An item name is required.')
-    .max(20, 'The item name must be less than 20 characters long.'),
-  itemNamePlural: yup
-    .string()
-    .required('The plural of the item name is required.')
-    .max(20, 'The item name must be less than 20 characters long.'),
-  submissionBaseDeposit: yup
-    .number()
-    .typeError('Amount should be a number.')
-    .required('A value is required.')
-    .min(0, 'The amount must not be negative.'),
-  removalBaseDeposit: yup
-    .number()
-    .typeError('Amount should be a number.')
-    .required('A value is required.')
-    .min(0, 'The amount must not be negative.'),
-  submissionChallengeBaseDeposit: yup
-    .number()
-    .typeError('Amount should be a number.')
-    .required('A value is required.')
-    .min(0, 'The amount must not be negative.'),
-  removalChallengeBaseDeposit: yup
-    .number()
-    .typeError('Amount should be a number.')
-    .required('A value is required.')
-    .min(0, 'The amount must not be negative.'),
-  challengePeriodDuration: yup
-    .number()
-    .typeError('Amount should be a number.')
-    .required('A value is required.')
-    .min(0, 'The amount must not be negative.'),
-  tcrPrimaryDocument: yup.string().required('A primary document is required.'),
-  tcrLogo: yup.string().required('A logo is required.'),
-  sharedStakeMultiplier: yup
-    .number()
-    .typeError('Amount should be a number.')
-    .min(0, 'The stake multiplier cannot be negative.')
-    .required('A value is required'),
-  winnerStakeMultiplier: yup
-    .number()
-    .typeError('Amount should be a number.')
-    .min(0, 'The stake multiplier cannot be negative.')
-    .required('A value is required'),
-  loserStakeMultiplier: yup
-    .number()
-    .typeError('Amount should be a number.')
-    .min(0, 'The stake multiplier cannot be negative.')
-    .required('A value is required'),
-})
-
 export default withFormik<TCRParamsOuterProps, TCRFormValues>({
-  validationSchema,
+  validationSchema: ({ factorySection }: TCRParamsOuterProps) =>
+    tcrSchemaFor(factorySection),
   mapPropsToValues: ({ tcrState }) => {
     const { transactions: _transactions, ...values } = tcrState
     return values

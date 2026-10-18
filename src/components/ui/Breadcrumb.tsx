@@ -1,36 +1,53 @@
 import React from 'react'
 import styled from 'styled-components'
+import { joinClassNames } from './kit-styles'
 
 const BreadcrumbWrapper = styled.nav`
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  font-size: 14px;
-  line-height: 1.5;
+  min-width: 0;
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
 `
 
 const BreadcrumbSeparator = styled.span`
   margin: 0 8px;
-  color: ${({ theme }) => theme.textSecondary};
+  color: var(--color-faint);
 `
 
 const BreadcrumbItemWrapper = styled.span<{ $isLast?: boolean }>`
-  color: ${({ $isLast, theme }) =>
-    $isLast ? theme.textPrimary : theme.textSecondary};
-  transition: color 0.2s;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  color: ${({ $isLast }) =>
+    $isLast ? 'var(--color-text)' : 'var(--color-muted)'};
+  font-weight: ${({ $isLast }) => ($isLast ? 500 : 400)};
+  transition: color var(--motion);
 
   a {
     color: inherit;
     text-decoration: none;
-    transition: color 0.2s;
+    transition: color var(--motion);
 
     &:hover {
-      color: ${({ theme }) => theme.primaryColor};
+      color: var(--color-primary);
     }
   }
+`
 
-  &:not(:last-child):hover {
-    color: ${({ theme }) => theme.primaryColor};
+const ItemButton = styled.button`
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: color var(--motion);
+
+  &:hover {
+    color: var(--color-primary);
   }
 `
 
@@ -38,6 +55,8 @@ interface BreadcrumbItemProps {
   children?: React.ReactNode
   href?: string
   onClick?: (e: React.MouseEvent) => void
+  style?: React.CSSProperties
+  className?: string
   $isLast?: boolean
 }
 
@@ -45,28 +64,24 @@ const BreadcrumbItem: React.FC<BreadcrumbItemProps> = ({
   children,
   href,
   onClick,
+  style,
+  className,
   $isLast,
 }) => (
-  <BreadcrumbItemWrapper $isLast={$isLast} className="ui-breadcrumb-item">
+  <BreadcrumbItemWrapper
+    $isLast={$isLast}
+    style={style}
+    className={joinClassNames('ui-breadcrumb-item', className)}
+    aria-current={$isLast ? 'page' : undefined}
+  >
     {href ? (
       <a href={href} onClick={onClick}>
         {children}
       </a>
     ) : onClick ? (
-      <button
-        type="button"
-        onClick={onClick}
-        style={{
-          background: 'none',
-          border: 'none',
-          padding: 0,
-          cursor: 'pointer',
-          font: 'inherit',
-          color: 'inherit',
-        }}
-      >
+      <ItemButton type="button" onClick={onClick}>
         {children}
-      </button>
+      </ItemButton>
     ) : (
       <span>{children}</span>
     )}
@@ -97,7 +112,8 @@ const Breadcrumb: BreadcrumbComponent = ({
   return (
     <BreadcrumbWrapper
       style={style}
-      className={`ui-breadcrumb${className ? ` ${className}` : ''}`}
+      className={joinClassNames('ui-breadcrumb', className)}
+      aria-label="Breadcrumb"
     >
       {items.map((child, index) => {
         const isLast = index === items.length - 1
@@ -106,7 +122,14 @@ const Breadcrumb: BreadcrumbComponent = ({
             {React.cloneElement(child as React.ReactElement<any>, {
               $isLast: isLast,
             })}
-            {!isLast && <BreadcrumbSeparator>{separator}</BreadcrumbSeparator>}
+            {!isLast && (
+              <BreadcrumbSeparator
+                className="ui-breadcrumb-separator"
+                aria-hidden
+              >
+                {separator}
+              </BreadcrumbSeparator>
+            )}
           </React.Fragment>
         )
       })}

@@ -1,110 +1,45 @@
 import React from 'react'
 import styled from 'styled-components'
-import { Button } from 'components/ui'
-import EnsureAuth from 'components/ensure-auth'
 import EvidenceForm, { type EvidenceFormValues } from 'components/evidence-form'
 import { CurateIcon } from 'components/curate/icons'
+import {
+  Button,
+  PanelHeader,
+  PanelTitle,
+  Row,
+  Small,
+  Surface,
+} from 'components/curate/primitives'
+import { useActionGate } from 'components/curate/item-light-gate'
 
-const ComposerShell = styled.section`
-  position: sticky;
-  bottom: 16px;
-  z-index: 3;
-  margin-top: 18px;
-  padding: 16px;
-  border: 1px solid var(--v2-stroke);
-  border-radius: var(--radius-sm);
-  background: var(--v2-card);
-  box-shadow: var(--v2-shadow-hover);
+/*
+ * Inline evidence composer at the end of an entry's history: the evidence
+ * form, the one submit button, and the blocker named when it is disabled
+ * (connect, sign in for the upload, switch network).
+ */
 
-  @media (max-width: 720px) {
-    bottom: 8px;
-    margin-top: 14px;
-    padding: 12px;
-  }
-`
-
-const ComposerHeader = styled.div`
+const Shell = styled(Surface)`
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 14px;
-
-  @media (max-width: 640px) {
-    flex-direction: column;
-  }
-`
-
-const ComposerTitle = styled.div`
-  display: grid;
+  flex-direction: column;
   gap: 4px;
-  min-width: 0;
-
-  strong {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--v2-text);
-    font-size: 15px;
-    line-height: 20px;
-    font-weight: 600;
-  }
-
-  span {
-    color: var(--v2-muted);
-    font-size: 13px;
-    line-height: 18px;
-  }
+  scroll-margin-bottom: 96px;
 `
 
-const ComposerBody = styled.div`
-  display: grid;
-  gap: 12px;
-
-  .ui-form-item {
-    margin-bottom: 12px;
-  }
-
-  input,
-  textarea {
-    border-radius: var(--radius-sm) !important;
-    background: var(--v2-soft) !important;
-    color: var(--v2-text) !important;
-  }
-
-  textarea {
-    min-height: 94px;
-    resize: vertical;
-  }
-
-  .ui-upload.ui-upload-select-picture-card {
-    border-radius: var(--radius-sm) !important;
-    background: var(--v2-soft) !important;
-  }
-`
-
-const ComposerFooter = styled.div`
+const Footer = styled.div`
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 4px;
-  padding-top: 12px;
-  border-top: 1px solid var(--v2-stroke);
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
 
-  small {
-    color: var(--v2-muted);
-    font-size: 12px;
-    line-height: 16px;
-  }
-
-  @media (max-width: 640px) {
-    align-items: stretch;
+  @media (max-width: 560px) {
     flex-direction: column;
+    align-items: stretch;
 
-    > span,
-    button,
-    a {
+    button {
       width: 100%;
     }
   }
@@ -124,41 +59,57 @@ const InlineEvidenceComposer = ({
   formKey,
   isSubmitting,
   onSubmit,
-}: InlineEvidenceComposerProps) => (
-  <ComposerShell id={id} tabIndex={-1}>
-    <ComposerHeader>
-      <ComposerTitle>
-        <strong>
-          <CurateIcon name="policy" size={16} />
-          Evidence thread
-        </strong>
-        <span>Add context while keeping the request history in view.</span>
-      </ComposerTitle>
-    </ComposerHeader>
-    <ComposerBody>
+}: InlineEvidenceComposerProps) => {
+  const gate = useActionGate({ verb: 'submit evidence', needsAuth: true })
+  const disabled = !!isSubmitting || !gate.ready
+
+  return (
+    <Shell
+      id={id}
+      tabIndex={-1}
+      $padding="compact"
+      role="region"
+      aria-label="Add evidence"
+    >
+      <PanelHeader>
+        <div>
+          <PanelTitle>
+            <CurateIcon name="policy" size={16} />
+            Add evidence
+          </PanelTitle>
+          <Small $muted>
+            Published on-chain and attached to this entry for jurors and
+            curators to read.
+          </Small>
+        </div>
+      </PanelHeader>
       <EvidenceForm
         key={formKey}
         onSubmit={onSubmit}
         formID={formID}
         detailed
       />
-      <ComposerFooter>
-        <small>
-          Evidence is published onchain and becomes part of this item.
-        </small>
-        <EnsureAuth>
+      <Footer>
+        <Small $muted role="status">
+          {gate.blocker ??
+            'Publishing costs gas only; evidence needs no deposit.'}
+        </Small>
+        <Row $gap={8} $wrap>
+          {gate.controls}
           <Button
-            type="primary"
+            type="submit"
             form={formID}
-            htmlType="submit"
-            loading={isSubmitting}
+            $variant="primary"
+            disabled={disabled}
+            aria-disabled={disabled}
+            title={gate.blocker}
           >
-            Submit evidence
+            {isSubmitting ? 'Waiting for your wallet…' : 'Submit evidence'}
           </Button>
-        </EnsureAuth>
-      </ComposerFooter>
-    </ComposerBody>
-  </ComposerShell>
-)
+        </Row>
+      </Footer>
+    </Shell>
+  )
+}
 
 export default InlineEvidenceComposer

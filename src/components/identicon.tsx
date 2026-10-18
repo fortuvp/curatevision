@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { Popover, Form, Input, Button, Alert } from 'components/ui'
+import { Popover, Form, Input, Alert } from 'components/ui'
 import { withFormik, Field, FormikProps, FieldProps } from 'formik'
 import { useWeb3Context } from 'hooks/use-web3-context'
 import { useDisconnect } from 'wagmi'
@@ -7,55 +7,53 @@ import ReactBlockies from 'react-blockies'
 import styled from 'styled-components'
 import * as yup from 'yup'
 import localforage from 'localforage'
+import { ethers, BigNumber } from 'ethers'
+import useNativeCurrency from 'hooks/native-currency'
+import { Button, Data, Label, Small, Stack } from 'components/curate/primitives'
 import ETHAddress from './eth-address'
 import ETHAmount from './eth-amount'
-import { ethers, BigNumber } from 'ethers'
 
 const { randomBytes } = ethers.utils
-import useNativeCurrency from 'hooks/native-currency'
 
-const StyledDiv = styled.div`
-  height: 32px;
-  line-height: 100%;
-  width: 32px;
-`
-const StyledReactBlockies = styled(ReactBlockies)<{ large?: boolean }>`
-  border-radius: ${({ large }) => (large ? '4' : '16')}px;
+/*
+ * Account avatar and menu (DESIGN.md): the blockies avatar is a pill at
+ * 32px (a 6px card at the large size); the menu is a floating panel with
+ * mono labels, the address and balance in mono, the email form, and a
+ * danger button to disconnect.
+ */
+
+const AvatarFrame = styled.span<{ $large?: boolean }>`
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: ${({ $large }) => ($large ? '98px' : '32px')};
+  height: ${({ $large }) => ($large ? '98px' : '32px')};
+  overflow: hidden;
+  border-radius: ${({ $large }) =>
+    $large ? 'var(--radius)' : 'var(--radius-pill)'};
 `
 
-const PopoverMenu = styled.div`
-  margin: -12px -16px;
+const AvatarButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  cursor: pointer;
+`
+
+const Menu = styled.div`
+  margin: -12px -14px;
   min-width: 260px;
 `
 
-const MenuSection = styled.div`
-  padding: 12px 16px;
+const MenuSection = styled(Stack)`
+  padding: 12px 14px;
 
   &:not(:last-child) {
-    border-bottom: 1px solid ${({ theme }) => theme.borderColor};
+    border-bottom: 1px solid var(--color-border);
   }
-`
-
-const MenuLabel = styled.div`
-  font-size: 11px;
-  font-weight: 600;
-  color: ${({ theme }) => theme.textSecondary};
-  margin-bottom: 6px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-`
-
-const StyledAlertInfo = styled(Alert)`
-  margin-bottom: 16px;
-  margin-top: 8px;
-`
-
-const StyledAlertPopup = styled(Alert)`
-  margin-bottom: 16px !important;
-`
-
-const StyledSaveButton = styled(Button)`
-  margin-top: 8px;
 `
 
 interface EmailFormValues {
@@ -85,7 +83,11 @@ const EmailForm = ({
           validateStatus={errors.email && touched.email ? 'error' : undefined}
           hasFeedback
         >
-          <Input placeholder="alice@pm.me" {...field} />
+          <Input
+            placeholder="you@example.org"
+            aria-label="Email address"
+            {...field}
+          />
         </Form.Item>
       )}
     </Field>
@@ -95,8 +97,8 @@ const EmailForm = ({
 const validationSchema = yup.object().shape({
   email: yup
     .string()
-    .email('Invalid email.')
-    .required('A valid email is required.'),
+    .email('Enter a valid email address.')
+    .required('An email address is required.'),
 })
 
 const EnhancedEmailForm = withFormik<EmailFormOuterProps, EmailFormValues>({
@@ -110,20 +112,6 @@ const EnhancedEmailForm = withFormik<EmailFormOuterProps, EmailFormValues>({
 const EMAIL_FORM_ID = 'emailForm'
 const CACHED_SETTINGS = 'CACHED_SETTINGS'
 
-const StyledDisconnectButton = styled(Button)`
-  width: 100%;
-  background: transparent !important;
-  color: ${({ theme }) => theme.errorColor} !important;
-  border-color: ${({ theme }) => theme.errorColor} !important;
-
-  &:hover,
-  &:focus {
-    color: var(--color-on-primary) !important;
-    background-color: ${({ theme }) => theme.errorColor} !important;
-    border-color: ${({ theme }) => theme.errorColor} !important;
-  }
-`
-
 interface IdenticonProps {
   className?: string
   large?: boolean
@@ -134,6 +122,7 @@ const Identicon = ({ className, large }: IdenticonProps) => {
   const { disconnect } = useDisconnect()
   const nativeCurrency = useNativeCurrency()
 
+  const [menuOpen, setMenuOpen] = useState(false)
   const [balance, setBalance] = useState<BigNumber>()
   const [emailStatus, setEmailStatus] = useState<
     'loading' | 'success' | 'error'
@@ -232,85 +221,95 @@ const Identicon = ({ className, large }: IdenticonProps) => {
 
   if (!account) return null
 
-  const blockiesContent = (
-    <StyledDiv className={className} id="react-blockies-identicon">
-      <StyledReactBlockies
-        large={large}
+  const avatar = (
+    <AvatarFrame
+      className={className}
+      $large={large}
+      id="react-blockies-identicon"
+      aria-hidden="true"
+    >
+      <ReactBlockies
         scale={large ? 7 : 4}
         seed={account.toLowerCase()}
         size={large ? 14 : 8}
       />
-    </StyledDiv>
+    </AvatarFrame>
   )
 
-  return large ? (
-    blockiesContent
-  ) : (
+  if (large) return avatar
+
+  return (
     <Popover
-      arrowPointAtCenter
       content={
-        <PopoverMenu>
-          <MenuSection>
-            <MenuLabel>Address</MenuLabel>
-            <ETHAddress address={account} />
+        <Menu>
+          <MenuSection $gap={4}>
+            <Label>Address</Label>
+            <Data>
+              <ETHAddress address={account} />
+            </Data>
           </MenuSection>
-          {account && (
-            <MenuSection>
-              <MenuLabel>{nativeCurrency}</MenuLabel>
-              <ETHAmount amount={balance} decimals={4} />
-            </MenuSection>
-          )}
+          <MenuSection $gap={4}>
+            <Label>Balance</Label>
+            <Data>
+              <ETHAmount amount={balance} displayUnit={` ${nativeCurrency}`} />
+            </Data>
+          </MenuSection>
           {process.env.REACT_APP_NOTIFICATIONS_API_URL && networkId && (
-            <MenuSection>
-              <MenuLabel>Email Notifications</MenuLabel>
+            <MenuSection $gap={8}>
+              <Label>Email notifications</Label>
               <EnhancedEmailForm
                 onSubmit={submitEmail}
                 formID={EMAIL_FORM_ID}
                 initialValues={fetchedEmailSettings}
               />
-              <StyledAlertInfo
-                message={
-                  <div>
-                    Note that it is necessary to subscribe for each chain.
-                  </div>
-                }
-                type="info"
-                showIcon
-              />
+              <Small $muted>Subscriptions are per chain.</Small>
               {emailStatus && emailStatus !== 'loading' && (
-                <StyledAlertPopup
+                <Alert
                   closable
                   type={emailStatus}
                   message={
                     emailStatus === 'error'
-                      ? 'Failed to save settings.'
+                      ? 'Settings could not be saved.'
                       : 'Settings saved.'
                   }
                 />
               )}
-              <StyledSaveButton
-                key="submitEmail"
-                type="primary"
+              <Button
+                type="submit"
                 form={EMAIL_FORM_ID}
-                htmlType="submit"
-                loading={emailStatus === 'loading'}
+                $variant="primary"
+                $size="sm"
                 disabled={emailStatus === 'loading'}
               >
-                {emailStatus === 'loading' ? '' : 'Save'}
-              </StyledSaveButton>
+                {emailStatus === 'loading' ? 'Saving…' : 'Save'}
+              </Button>
             </MenuSection>
           )}
           <MenuSection>
-            <StyledDisconnectButton onClick={() => disconnect()}>
+            <Button
+              type="button"
+              $variant="danger"
+              $block
+              onClick={() => disconnect()}
+            >
               Disconnect
-            </StyledDisconnectButton>
+            </Button>
           </MenuSection>
-        </PopoverMenu>
+        </Menu>
       }
       placement="bottomRight"
       trigger="click"
+      visible={menuOpen}
+      onVisibleChange={setMenuOpen}
     >
-      {blockiesContent}
+      <AvatarButton
+        type="button"
+        aria-label="Account menu"
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+      >
+        {avatar}
+      </AvatarButton>
     </Popover>
   )
 }

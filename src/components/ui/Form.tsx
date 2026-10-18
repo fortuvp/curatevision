@@ -1,5 +1,6 @@
 import React from 'react'
 import styled, { css } from 'styled-components'
+import { joinClassNames } from './kit-styles'
 
 const StyledForm = styled.form<{ $layout?: string }>`
   ${({ $layout }) =>
@@ -8,74 +9,81 @@ const StyledForm = styled.form<{ $layout?: string }>`
       .ui-form-item {
         flex-direction: row;
         align-items: center;
+        gap: 12px;
       }
       .ui-form-item-label {
         flex: 0 0 auto;
-        margin-right: 8px;
+        min-width: 96px;
         margin-bottom: 0;
-        min-width: 80px;
         text-align: right;
       }
       .ui-form-item-control {
         flex: 1;
+        min-width: 0;
       }
     `}
 `
 
+/* Field block: label (13/18 at 500), control, help line; status tints the control's border. */
 const FormItemWrapper = styled.div<{ $validateStatus?: string }>`
-  margin-bottom: 24px;
   display: flex;
   flex-direction: column;
+  margin-bottom: 16px;
 
-  ${({ $validateStatus, theme }) =>
+  ${({ $validateStatus }) =>
     $validateStatus === 'error' &&
     css`
       .ui-form-item-control input,
       .ui-form-item-control textarea,
       .ui-form-item-control .ui-select-trigger {
-        border-color: ${theme.errorColor} !important;
+        border-color: var(--color-danger) !important;
       }
     `}
 
-  ${({ $validateStatus, theme }) =>
+  ${({ $validateStatus }) =>
     $validateStatus === 'success' &&
     css`
       .ui-form-item-control input,
       .ui-form-item-control textarea,
       .ui-form-item-control .ui-select-trigger {
-        border-color: ${theme.successColor} !important;
+        border-color: var(--color-success) !important;
       }
     `}
 `
 
 const Label = styled.label<{ $required?: boolean }>`
-  color: ${({ theme }) => theme.textPrimary};
-  font-size: 14px;
-  margin-bottom: 8px;
-  line-height: 1.5;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+  color: var(--color-text);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  font-weight: 500;
 
   ${({ $required }) =>
     $required &&
     css`
       &::before {
-        content: '* ';
-        color: ${({ theme }) => theme.errorColor};
+        content: '*';
+        color: var(--color-danger);
       }
     `}
 `
 
 const HelpText = styled.div<{ $isError?: boolean }>`
-  font-size: 12px;
-  min-height: 22px;
-  line-height: 1.5;
-  padding-top: 2px;
-  color: ${({ $isError, theme }) =>
-    $isError ? theme.errorColor : theme.textSecondary};
-  transition: color 0.3s;
+  min-height: var(--lh-small);
+  margin-top: 4px;
+  color: ${({ $isError }) =>
+    $isError ? 'var(--color-danger)' : 'var(--color-muted)'};
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  transition: color var(--motion);
 `
 
 const ControlWrapper = styled.div`
   position: relative;
+  min-width: 0;
 `
 
 interface FormProps {
@@ -123,7 +131,7 @@ const Form: FormComponent = ({
       id={id}
       $layout={layout}
       style={style}
-      className={`ui-form${className ? ` ${className}` : ''}`}
+      className={joinClassNames('ui-form', `ui-form-${layout}`, className)}
     >
       {children}
     </StyledForm>
@@ -143,7 +151,11 @@ const FormItem: React.FC<FormItemProps> = ({
   <FormItemWrapper
     $validateStatus={validateStatus}
     style={style}
-    className={`ui-form-item${className ? ` ${className}` : ''}`}
+    className={joinClassNames(
+      'ui-form-item',
+      validateStatus && `ui-form-item-${validateStatus}`,
+      className,
+    )}
   >
     {label && (
       <Label className="ui-form-item-label" $required={required}>
@@ -152,7 +164,18 @@ const FormItem: React.FC<FormItemProps> = ({
       </Label>
     )}
     <ControlWrapper className="ui-form-item-control">{children}</ControlWrapper>
-    {help && <HelpText $isError={validateStatus === 'error'}>{help}</HelpText>}
+    {help && (
+      <HelpText
+        className={joinClassNames(
+          'ui-form-item-help',
+          validateStatus === 'error' && 'ui-form-item-error',
+        )}
+        $isError={validateStatus === 'error'}
+        aria-live="polite"
+      >
+        {help}
+      </HelpText>
+    )}
   </FormItemWrapper>
 )
 

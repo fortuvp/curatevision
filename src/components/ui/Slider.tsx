@@ -1,73 +1,102 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import styled from 'styled-components'
+import { joinClassNames } from './kit-styles'
 
-const SliderWrapper = styled.div`
+/*
+ * Slider: a 4px rail on the raised surface, the filled part in the action
+ * color, a 16px pill thumb; the native range input stays on top for input.
+ */
+const SliderWrapper = styled.div<{ $disabled?: boolean }>`
   position: relative;
+  display: flex;
+  align-items: center;
   width: 100%;
-  padding: 4px 0;
+  height: 24px;
+  opacity: ${({ $disabled }) => ($disabled ? 0.5 : 1)};
 `
 
-const StyledRange = styled.input<{ $percent: number }>`
+const Rail = styled.div`
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--color-raised);
+  transform: translateY(-50%);
+  pointer-events: none;
+`
+
+const Fill = styled.div<{ $percent: number }>`
+  height: 100%;
+  width: ${({ $percent }) => $percent}%;
+  border-radius: 2px;
+  background: var(--color-primary);
+`
+
+const StyledRange = styled.input`
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 24px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
   -webkit-appearance: none;
   appearance: none;
-  width: 100%;
-  height: 4px;
-  border-radius: 2px;
-  outline: none;
-  cursor: ${({ disabled }) => (disabled ? 'not-allowed' : 'pointer')};
-  opacity: ${({ disabled }) => (disabled ? 0.4 : 1)};
-  background: ${({ theme, $percent }) =>
-    `linear-gradient(
-      to right,
-      ${theme.primaryColor} 0%,
-      ${theme.primaryColor} ${$percent}%,
-      ${theme.elevatedBackground} ${$percent}%,
-      ${theme.elevatedBackground} 100%
-    )`};
-  border: 1px solid ${({ theme }) => theme.borderColor};
-  transition: opacity 0.2s;
 
-  &::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: var(--color-surface);
-    border: 2px solid ${({ theme }) => theme.primaryColor};
-    cursor: ${({ disabled }) => (disabled ? 'not-allowed' : 'pointer')};
-    transition:
-      box-shadow 0.2s,
-      border-color 0.2s;
-    box-shadow: var(--shadow-card);
-
-    &:hover {
-      box-shadow: 0 0 0 4px ${({ theme }) => theme.focusShadowColor};
-    }
+  &:disabled {
+    cursor: not-allowed;
   }
 
-  &::-moz-range-thumb {
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: var(--color-surface);
-    border: 2px solid ${({ theme }) => theme.primaryColor};
-    cursor: ${({ disabled }) => (disabled ? 'not-allowed' : 'pointer')};
-    transition:
-      box-shadow 0.2s,
-      border-color 0.2s;
-    box-shadow: var(--shadow-card);
+  &:focus-visible {
+    outline: none;
+  }
 
-    &:hover {
-      box-shadow: 0 0 0 4px ${({ theme }) => theme.focusShadowColor};
-    }
+  &::-webkit-slider-runnable-track {
+    height: 4px;
+    border: 0;
+    background: transparent;
   }
 
   &::-moz-range-track {
     height: 4px;
-    border-radius: 2px;
+    border: 0;
     background: transparent;
-    border: none;
+  }
+
+  &::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    margin-top: -6px;
+    border: 2px solid var(--color-primary);
+    border-radius: var(--radius-pill);
+    background: var(--color-surface);
+    cursor: inherit;
+    transition: box-shadow var(--motion);
+  }
+
+  &::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--color-primary);
+    border-radius: var(--radius-pill);
+    background: var(--color-surface);
+    cursor: inherit;
+    transition: box-shadow var(--motion);
+  }
+
+  &:hover:not(:disabled)::-webkit-slider-thumb,
+  &:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 4px var(--color-primary-soft);
+  }
+
+  &:hover:not(:disabled)::-moz-range-thumb,
+  &:focus-visible::-moz-range-thumb {
+    box-shadow: 0 0 0 4px var(--color-primary-soft);
   }
 `
 
@@ -98,11 +127,11 @@ const Slider: React.FC<SliderProps> = ({
   defaultValue,
 }) => {
   const [internalValue, setInternalValue] = useState(
-    controlledValue !== undefined
-      ? controlledValue
-      : defaultValue !== undefined
-        ? defaultValue
-        : min,
+    controlledValue === undefined
+      ? defaultValue === undefined
+        ? min
+        : defaultValue
+      : controlledValue,
   )
 
   const isControlled = controlledValue !== undefined
@@ -122,11 +151,26 @@ const Slider: React.FC<SliderProps> = ({
     [isControlled, onChange],
   )
 
-  const percent = max !== min ? ((currentValue - min) / (max - min)) * 100 : 0
+  const percent =
+    max === min
+      ? 0
+      : Math.min(100, Math.max(0, ((currentValue - min) / (max - min)) * 100))
 
   return (
-    <SliderWrapper style={style} className={className}>
+    <SliderWrapper
+      style={style}
+      className={joinClassNames(
+        'ui-slider',
+        disabled && 'ui-slider-disabled',
+        className,
+      )}
+      $disabled={disabled}
+    >
+      <Rail className="ui-slider-rail" aria-hidden>
+        <Fill className="ui-slider-fill" $percent={percent} />
+      </Rail>
       <StyledRange
+        className="ui-slider-input"
         type="range"
         id={id}
         min={min}
@@ -135,7 +179,6 @@ const Slider: React.FC<SliderProps> = ({
         value={currentValue}
         onChange={handleChange}
         disabled={disabled}
-        $percent={percent}
       />
     </SliderWrapper>
   )

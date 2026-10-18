@@ -1,79 +1,60 @@
 import React, { useState, useCallback, useEffect } from 'react'
-import styled, { css } from 'styled-components'
+import styled from 'styled-components'
+import { joinClassNames, monoLabel } from './kit-styles'
 
-interface SwitchButtonStyledProps {
-  $checked: boolean
-  $size?: string
-}
-
-const SwitchButton = styled.button<SwitchButtonStyledProps>`
+/*
+ * Switch: a 36x20 pill (28x16 small) with the handle in on-primary; the
+ * track is the action color when on and the faint text role when off.
+ */
+const SwitchButton = styled.button<{ $checked: boolean; $size?: string }>`
   position: relative;
   display: inline-flex;
   align-items: center;
-  min-width: ${({ $size }) => ($size === 'small' ? '28px' : '44px')};
-  height: ${({ $size }) => ($size === 'small' ? '16px' : '22px')};
-  border: none;
-  border-radius: 100px;
-  cursor: pointer;
-  transition: all 0.2s;
+  flex: 0 0 auto;
+  min-width: ${({ $size }) => ($size === 'small' ? '28px' : '36px')};
+  height: ${({ $size }) => ($size === 'small' ? '16px' : '20px')};
   padding: 0;
-  outline: none;
-  box-sizing: border-box;
-
-  background: ${({ $checked, theme }) =>
-    $checked ? theme.primaryColor : theme.switchOffBg};
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: ${({ $checked }) =>
+    $checked ? 'var(--color-primary)' : 'var(--color-faint)'};
+  vertical-align: middle;
+  cursor: pointer;
+  transition: background var(--motion);
 
   &:hover:not(:disabled) {
-    background: ${({ $checked, theme }) =>
-      $checked ? theme.switchHoverBg : theme.switchOffBg};
+    background: ${({ $checked }) =>
+      $checked ? 'var(--color-primary-hover)' : 'var(--color-muted)'};
   }
 
-  &:focus-visible {
-    box-shadow: 0 0 0 2px ${({ theme }) => theme.focusShadowColor};
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
   }
-
-  ${({ disabled }) =>
-    disabled &&
-    css`
-      cursor: not-allowed;
-      opacity: 0.4;
-    `}
 `
 
-interface HandleStyledProps {
-  $checked: boolean
-  $size?: string
-}
-
-const Handle = styled.span<HandleStyledProps>`
+const Handle = styled.span<{ $checked: boolean; $size?: string }>`
   position: absolute;
   top: 2px;
   left: ${({ $checked, $size }) => {
     if ($checked)
-      return $size === 'small' ? 'calc(100% - 14px)' : 'calc(100% - 20px)'
-
+      return $size === 'small' ? 'calc(100% - 14px)' : 'calc(100% - 18px)'
     return '2px'
   }};
-  width: ${({ $size }) => ($size === 'small' ? '12px' : '18px')};
-  height: ${({ $size }) => ($size === 'small' ? '12px' : '18px')};
-  border-radius: 50%;
-  background: ${({ theme }) => theme.switchHandleBg};
-  transition: left 0.2s;
-  box-shadow: var(--shadow-card);
+  width: ${({ $size }) => ($size === 'small' ? '12px' : '16px')};
+  height: ${({ $size }) => ($size === 'small' ? '12px' : '16px')};
+  border-radius: var(--radius-pill);
+  background: var(--color-on-primary);
+  transition: left var(--motion);
 `
 
-interface InnerTextStyledProps {
-  $checked: boolean
-  $size?: string
-}
-
-const InnerText = styled.span<InnerTextStyledProps>`
-  font-size: ${({ $size }) => ($size === 'small' ? '9px' : '12px')};
-  color: ${({ $checked, theme }) =>
-    $checked ? theme.textOnPrimary : theme.switchHandleBg};
+const InnerText = styled.span<{ $checked: boolean; $size?: string }>`
+  ${monoLabel}
+  letter-spacing: 0;
+  color: var(--color-on-primary);
   padding: ${({ $checked, $size }) => {
-    const handleSpace = $size === 'small' ? '16px' : '24px'
-    return $checked ? `0 ${handleSpace} 0 6px` : `0 6px 0 ${handleSpace}`
+    const handleSpace = $size === 'small' ? '18px' : '22px'
+    return $checked ? `0 ${handleSpace} 0 8px` : `0 8px 0 ${handleSpace}`
   }};
   white-space: nowrap;
   user-select: none;
@@ -134,12 +115,17 @@ const Switch: React.FC<SwitchProps> = ({
       disabled={disabled}
       onClick={handleClick}
       style={style}
-      className={className}
+      className={joinClassNames(
+        'ui-switch',
+        checked && 'ui-switch-checked',
+        size === 'small' && 'ui-switch-small',
+        className,
+      )}
     >
-      <InnerText $checked={checked} $size={size}>
+      <InnerText className="ui-switch-inner" $checked={checked} $size={size}>
         {checked ? checkedChildren : unCheckedChildren}
       </InnerText>
-      <Handle $checked={checked} $size={size} />
+      <Handle className="ui-switch-handle" $checked={checked} $size={size} />
     </SwitchButton>
   )
 }

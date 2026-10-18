@@ -1,62 +1,57 @@
-import { Card, Button, Alert, Steps } from 'components/ui'
-import Icon from 'components/ui/Icon'
-import { Link } from 'react-router-dom'
 import React, { useState } from 'react'
-import { parseEther, decodeEventLog, type Address } from 'viem'
-import { useAccount, usePublicClient, useWalletClient, useChainId } from 'wagmi'
-import { simulateContract } from '@wagmi/core'
 import styled from 'styled-components'
-import _GTCRFactory from 'assets/abis/PermanentGTCRFactory.json'
+import { parseEther, decodeEventLog, type Address } from 'viem'
+import {
+  useAccount,
+  useChainId,
+  usePublicClient,
+  useSwitchChain,
+  useWalletClient,
+} from 'wagmi'
+import { simulateContract } from '@wagmi/core'
 import { Roles, useAtlasProvider } from '@kleros/kleros-app'
+import _GTCRFactory from 'assets/abis/PermanentGTCRFactory.json'
 import { JSON_UPLOAD_ROLE } from 'utils/atlas-roles'
 import { isVowel } from 'utils/string'
 import { wrapWithToast, errorToast } from 'utils/wrap-with-toast'
 import { parseWagmiError } from 'utils/parse-wagmi-error'
 import { wagmiConfig } from 'config/wagmi'
-import useWindowDimensions from 'hooks/window-dimensions'
-import EnsureAuth from 'components/ensure-auth'
-import useLightTcrView from 'hooks/light-tcr-view'
+import { NETWORKS_INFO } from 'config/networks'
 import {
   defaultEvidenceDisplayUriPermanent,
   defaultTcrAddresses,
   pgtcrFactoryAddresses,
 } from 'config/tcr-addresses'
+import useLightTcrView from 'hooks/light-tcr-view'
+import useNativeCurrency from 'hooks/native-currency'
+import useTokenSymbol from 'hooks/token-symbol'
+import EnsureAuth from 'components/ensure-auth'
+import {
+  Body,
+  Button,
+  ButtonLink,
+  Data,
+  KeyValueList,
+  Label,
+  Row,
+  Small,
+  Stack,
+  Status,
+  Subheading,
+  Surface,
+  truncateMiddle,
+} from 'components/curate/primitives'
+import { FormSection, SectionHead } from './controls'
+import { formatHours, readExtraData } from './format'
 import type { StepProps, TcrState } from '.'
 
-export const StyledDiv = styled.div`
-  word-break: break-all;
-`
-
-export const StyledSteps = styled(Steps)`
-  margin: 24px 0;
-`
-
-export const StyledAlert = styled(Alert)`
-  margin-bottom: 24px;
-`
-
-export const StyledCard = styled(Card)`
-  & > .ui-card-body {
-    display: flex;
-    flex-direction: column;
-  }
-`
-
-export const StyledActions = styled.div`
-  display: flex;
-  justify-content: flex-end;
-`
-
-export const StyledButton = styled(Button)`
-  margin-left: 12px;
-  text-transform: capitalize;
-`
-
-export const StyledSpan = styled.span`
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-`
+/*
+ * Step 3 of the Stake Curate factory: a review of every parameter the
+ * factory will receive, the deploy button with its blocker named, the
+ * transaction state as a status line, and the new list's address once it
+ * is live. Addresses come from the wizard's chain (the URL), and the button
+ * asks to switch when the wallet is elsewhere.
+ */
 
 const getTcrMetaEvidence = async (
   tcrState: TcrState,
@@ -138,24 +133,85 @@ const getTcrMetaEvidence = async (
   }
 }
 
+const pickAddress = (args: unknown): string | undefined =>
+  args && typeof args === 'object' && '_address' in args
+    ? ((args as { _address?: string })._address ?? undefined)
+    : undefined
+
+type Phase = 'idle' | 'uploading' | 'wallet' | 'mining' | 'done' | 'error'
+
+const Review = styled(KeyValueList)`
+  dd {
+    font-family: var(--font-mono);
+    font-size: var(--fs-data);
+    line-height: 20px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+`
+
+const LiveAddress = styled(Data)`
+  display: block;
+  overflow-wrap: anywhere;
+`
+
+const Actions = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+`
+
 type DeployProps = StepProps
 
 const Deploy = ({ setTxState, tcrState, setTcrState }: DeployProps) => {
-  const chainId = useChainId()
-  const { address: account } = useAccount()
+  const targetChainId = tcrState.chainId
+  const walletChainId = useChainId()
+  const { address: account, isConnected } = useAccount()
+  const { isVerified, uploadFile } = useAtlasProvider()
+  const { switchChain, isPending: switching } = useSwitchChain()
   const publicClient = usePublicClient()
   const { data: walletClient } = useWalletClient()
-  const { width } = useWindowDimensions()
-  const [currentStep, setCurrentStep] = useState(0)
+  const nativeCurrency = useNativeCurrency()
+  const { symbol: tokenSymbol } = useTokenSymbol(
+    tcrState.tokenAddress || undefined,
+  )
+  const [phase, setPhase] = useState<Phase>('idle')
+  const [failure, setFailure] = useState('')
   const [txSubmitted, setTxSubmitted] = useState<string>()
-  const [, setDeployedTCRAddress] = useState<string>()
-  const [, setSubmissionFormOpen] = useState(false)
-  const factoryAddress = pgtcrFactoryAddresses[chainId]
-  const defaultTCRAddress = defaultTcrAddresses[chainId]
+  const factoryAddress =
+    targetChainId === undefined ? undefined : pgtcrFactoryAddresses[targetChainId]
+  const defaultTCRAddress =
+    targetChainId === undefined ? undefined : defaultTcrAddresses[targetChainId]
   const evidenceDisplayInterfaceURI =
-    defaultEvidenceDisplayUriPermanent[chainId]
+    targetChainId === undefined
+      ? undefined
+      : defaultEvidenceDisplayUriPermanent[targetChainId]
   const { metaEvidence } = useLightTcrView(defaultTCRAddress ?? '')
-  const { uploadFile } = useAtlasProvider()
+  const chainName =
+    targetChainId === undefined
+      ? 'this chain'
+      : (NETWORKS_INFO[targetChainId as keyof typeof NETWORKS_INFO]?.name ??
+        `chain ${targetChainId}`)
+
+  const deployedAddress =
+    (txSubmitted && tcrState.transactions[txSubmitted]?.contractAddress) || ''
+  const busy = phase === 'uploading' || phase === 'wallet' || phase === 'mining'
+  const wrongChain =
+    isConnected && targetChainId !== undefined && walletChainId !== targetChainId
+
+  const configError = factoryAddress
+    ? evidenceDisplayInterfaceURI
+      ? ''
+      : `No evidence display is configured for ${chainName}, so lists cannot be deployed there yet.`
+    : `No Stake Curate factory is configured for ${chainName}, so lists cannot be deployed there.`
+
+  let blocker = ''
+  if (configError) blocker = configError
+  else if (phase === 'done') blocker = 'This list is deployed'
+  else if (!isConnected) blocker = 'Connect wallet to deploy'
+  else if (wrongChain) blocker = `Switch to ${chainName} to deploy`
+  else if (!isVerified) blocker = 'Sign in to deploy'
 
   const onDeploy = async () => {
     if (
@@ -163,16 +219,22 @@ const Deploy = ({ setTxState, tcrState, setTcrState }: DeployProps) => {
       !evidenceDisplayInterfaceURI ||
       !publicClient ||
       !walletClient
-    )
+    ) {
+      setPhase('error')
+      setFailure(configError || 'Your wallet is not ready. Reconnect and try again.')
       return
+    }
     const factory = factoryAddress as Address
     try {
+      setFailure('')
+      setPhase('uploading')
       const { ipfsMetaEvidencePath } = await getTcrMetaEvidence(
         tcrState,
         evidenceDisplayInterfaceURI,
         uploadFile,
       )
 
+      setPhase('wallet')
       const { request } = await simulateContract(wagmiConfig, {
         address: factory,
         abi: _GTCRFactory,
@@ -201,12 +263,11 @@ const Deploy = ({ setTxState, tcrState, setTcrState }: DeployProps) => {
         account,
       })
 
-      setCurrentStep(1)
-
-      const result = await wrapWithToast(
-        () => walletClient.writeContract(request),
-        publicClient,
-      )
+      const result = await wrapWithToast(async () => {
+        const hash = await walletClient.writeContract(request)
+        setPhase('mining')
+        return hash
+      }, publicClient)
 
       if (result.status && result.result) {
         const txHash = result.result.transactionHash
@@ -228,10 +289,6 @@ const Deploy = ({ setTxState, tcrState, setTcrState }: DeployProps) => {
             })
             .find((parsed) => parsed && parsed.eventName === 'NewGTCR')
 
-          const pickAddress = (args: unknown): string | undefined =>
-            args && typeof args === 'object' && '_address' in args
-              ? ((args as { _address?: string })._address ?? undefined)
-              : undefined
           if (newGTCRLog) contractAddress = pickAddress(newGTCRLog.args)
         } catch (err) {
           console.error('Error parsing deploy logs:', err)
@@ -239,6 +296,7 @@ const Deploy = ({ setTxState, tcrState, setTcrState }: DeployProps) => {
 
         setTxState({
           txHash,
+          networkId: targetChainId,
           status: 'mined',
           contractAddress,
         })
@@ -246,117 +304,183 @@ const Deploy = ({ setTxState, tcrState, setTcrState }: DeployProps) => {
           ...prevState,
           finished: true,
         }))
-        setCurrentStep(2)
-        setDeployedTCRAddress(contractAddress)
+        setPhase('done')
+      } else {
+        setPhase('error')
+        setFailure('The transaction did not go through.')
       }
     } catch (err) {
       console.error('Error deploying list:', err)
-      errorToast(parseWagmiError(err))
+      const message = parseWagmiError(err)
+      errorToast(message)
+      setPhase('error')
+      setFailure(message)
     }
   }
 
+  const extra = readExtraData(tcrState.arbitratorExtraData)
+  const fields = tcrState.columns.map((column) => column.label).filter(Boolean)
+
   return (
-    <>
-      <StyledCard title="Deploy the list">
-        {currentStep === 0 && (
-          <StyledAlert
-            showIcon
-            type="info"
-            closable
-            message="On your marks..."
-            description="When you are ready, click deploy. You may also want to add it to The Registry so people can find it. If so, don't close the window and wait for the transaction to mine."
-          />
-        )}
-        {currentStep === 1 && (
-          <StyledAlert
-            showIcon
-            type="info"
-            closable
-            message="Deploy in progress. Please do not close the window until the process is finished."
-          />
-        )}
-        <StyledSteps
-          current={currentStep}
-          direction={width < 750 ? 'vertical' : 'horizontal'}
-        >
-          <Steps.Step
-            title="Start"
-            description={currentStep > 0 && 'Finished'}
-            icon={<Icon type="fire" />}
-          />
-          <Steps.Step
-            title="Deploying list"
-            description={currentStep > 1 && 'Finished'}
-            icon={
-              currentStep < 1 ? (
-                <Icon type="star" />
-              ) : currentStep === 1 ? (
-                <Icon type="loading" />
-              ) : (
-                <Icon type="check" />
-              )
-            }
-          />
-          <Steps.Step title="Finished!" icon={<Icon type="flag" />} />
-        </StyledSteps>
-        {currentStep === 2 && (
-          <StyledAlert
-            type="success"
-            showIcon
-            message="Success!"
-            description={
-              <>
-                <StyledDiv>
-                  Your list was created at the following address:{' '}
-                  <Link
-                    to={`/tcr/${chainId}/${
-                      (txSubmitted &&
-                        tcrState.transactions[txSubmitted]?.contractAddress) ||
-                      ''
-                    }`}
+    <Stack $gap={24}>
+      <FormSection>
+        <SectionHead>
+          <Label>Step 3 of 3</Label>
+          <Subheading>Deploy the list</Subheading>
+          <Body $muted>
+            The factory on {chainName} deploys the list in one transaction. It
+            takes no deposit; you pay the network fee. Check the parameters
+            first: the governor can change most of them later, the stake token
+            cannot be changed.
+          </Body>
+        </SectionHead>
+        <Review>
+          <dt>List</dt>
+          <dd>{tcrState.tcrTitle}</dd>
+          <dt>Items</dt>
+          <dd>
+            {tcrState.itemName} / {tcrState.itemNamePlural}
+          </dd>
+          <dt>Fields</dt>
+          <dd>{fields.join(', ')}</dd>
+          <dt>Stake token</dt>
+          <dd title={tcrState.tokenAddress}>
+            {tokenSymbol} · {truncateMiddle(tcrState.tokenAddress || '')}
+          </dd>
+          <dt>Minimum stake</dt>
+          <dd>
+            {tcrState.submissionMinDeposit} {tokenSymbol}
+          </dd>
+          <dt>Challenger stake</dt>
+          <dd>{tcrState.challengeStakeMultiplier}% of the entry&apos;s stake</dd>
+          <dt>Submission period</dt>
+          <dd>{formatHours(tcrState.submissionPeriodDuration)}</dd>
+          <dt>Reinclusion period</dt>
+          <dd>{formatHours(tcrState.reinclusionPeriodDuration)}</dd>
+          <dt>Withdrawing period</dt>
+          <dd>{formatHours(tcrState.withdrawingPeriodDuration)}</dd>
+          <dt>Parameters cooldown</dt>
+          <dd>{formatHours(tcrState.arbitrationParamsCooldown)}</dd>
+          <dt>Court</dt>
+          <dd>
+            {extra
+              ? `Court ${extra.courtID} · ${extra.numberOfJurors} juror${extra.numberOfJurors === 1 ? '' : 's'}`
+              : truncateMiddle(tcrState.arbitratorExtraData || '', 10, 6)}
+          </dd>
+          <dt>Arbitrator</dt>
+          <dd title={tcrState.arbitratorAddress}>
+            {truncateMiddle(tcrState.arbitratorAddress)}
+          </dd>
+          <dt>Governor</dt>
+          <dd title={tcrState.governorAddress}>
+            {truncateMiddle(tcrState.governorAddress)}
+          </dd>
+          <dt>Appeal multipliers</dt>
+          <dd>
+            shared {tcrState.sharedStakeMultiplier}% · winner{' '}
+            {tcrState.winnerStakeMultiplier}% · loser{' '}
+            {tcrState.loserStakeMultiplier}%
+          </dd>
+        </Review>
+        <Small $muted>
+          Arbitration deposits on this list are paid in {nativeCurrency}; stakes
+          in {tokenSymbol}.
+        </Small>
+      </FormSection>
+
+      <FormSection>
+        {phase === 'done' ? (
+          <Surface $padding="compact" $raised>
+            <Stack $gap={12}>
+              <Status tone="registered" label="Deployed" />
+              <Subheading>Your list is live at</Subheading>
+              <LiveAddress>{deployedAddress}</LiveAddress>
+              <Row $gap={8} $wrap>
+                {targetChainId !== undefined && deployedAddress && (
+                  <ButtonLink
+                    to={`/tcr/${targetChainId}/${deployedAddress}`}
+                    $variant="primary"
                   >
-                    {(txSubmitted &&
-                      tcrState.transactions[txSubmitted]?.contractAddress) ||
-                      ''}
-                  </Link>
-                  .
-                </StyledDiv>
-                <StyledDiv>
-                  You may want to bookmark its address or, if it adheres to the
-                  listing criteria,{' '}
-                  <Button
-                    type="link"
-                    onClick={() => setSubmissionFormOpen(true)}
-                    style={{ padding: 0 }}
+                    Open {tcrState.tcrTitle}
+                  </ButtonLink>
+                )}
+                {targetChainId !== undefined && defaultTCRAddress && (
+                  <ButtonLink
+                    to={`/tcr/${targetChainId}/${defaultTCRAddress}`}
+                    $variant="secondary"
                   >
-                    submit it to{' '}
-                    {metaEvidence?.metadata?.tcrTitle || 'Curated Lists'} so
-                    other users can find it.
-                  </Button>
-                </StyledDiv>
-              </>
-            }
-          />
-        )}
-        {currentStep === 0 && (
-          <StyledSpan>
-            <StyledActions>
-              <EnsureAuth>
-                <StyledButton
-                  type="primary"
-                  onClick={onDeploy}
-                  icon={
-                    currentStep === 0 || currentStep === 2 ? 'fire' : 'loading'
-                  }
+                    Open {metaEvidence?.metadata?.tcrTitle || 'Curated Lists'}{' '}
+                    to submit this list
+                  </ButtonLink>
+                )}
+              </Row>
+              <Small $muted>
+                Bookmark the address. Submitting the list to the list of lists
+                helps other people find it.
+              </Small>
+            </Stack>
+          </Surface>
+        ) : (
+          <Stack $gap={12}>
+            <Actions>
+              <Button
+                type="button"
+                $variant="primary"
+                disabled={!!blocker || busy}
+                aria-disabled={!!blocker || busy}
+                title={blocker || undefined}
+                onClick={onDeploy}
+              >
+                {busy ? 'Deploying…' : 'Deploy the list'}
+              </Button>
+              {!configError &&
+                (!isConnected || (!wrongChain && !isVerified)) && (
+                  <EnsureAuth>{null}</EnsureAuth>
+                )}
+              {!configError && wrongChain && targetChainId !== undefined && (
+                <Button
+                  type="button"
+                  $variant="secondary"
+                  disabled={switching}
+                  onClick={() => switchChain({ chainId: targetChainId })}
                 >
-                  Deploy!
-                </StyledButton>
-              </EnsureAuth>
-            </StyledActions>
-          </StyledSpan>
+                  {switching ? 'Waiting…' : `Switch to ${chainName}`}
+                </Button>
+              )}
+            </Actions>
+            <div role="status">
+              {phase === 'uploading' && (
+                <Status
+                  tone="window"
+                  label="Uploading"
+                  detail="the list metadata to IPFS"
+                />
+              )}
+              {phase === 'wallet' && (
+                <Status
+                  tone="window"
+                  label="Waiting for your wallet"
+                  detail="confirm the deployment"
+                />
+              )}
+              {phase === 'mining' && (
+                <Status
+                  tone="window"
+                  label="Deploying"
+                  detail="waiting for the transaction; keep this page open"
+                />
+              )}
+              {phase === 'error' && (
+                <Status tone="off" label="Deployment failed" detail={failure} />
+              )}
+              {!busy && phase !== 'error' && blocker && (
+                <Small $muted>{blocker}</Small>
+              )}
+            </div>
+          </Stack>
         )}
-      </StyledCard>
-    </>
+      </FormSection>
+    </Stack>
   )
 }
 

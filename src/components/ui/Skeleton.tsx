@@ -1,61 +1,56 @@
 import React from 'react'
-import styled, { css, keyframes } from 'styled-components'
+import styled, { css } from 'styled-components'
+import { joinClassNames, skeletonBlock } from './kit-styles'
 
-const shimmer = keyframes`
-  0% { background-position: -400px 0; }
-  100% { background-position: 400px 0; }
-`
-
-const shimmerMixin = css`
-  background: linear-gradient(
-    90deg,
-    ${({ theme }) => theme.skeletonBase} 25%,
-    ${({ theme }) => theme.skeletonHighlight} 37%,
-    ${({ theme }) => theme.skeletonBase} 63%
-  );
-  background-size: 400px 100%;
-  animation: ${shimmer} 1.4s ease infinite;
-`
-
-const staticMixin = css`
-  background: ${({ theme }) => theme.skeletonBase};
+/* Loading placeholders on the raised surface, swept by the surface color. */
+const staticBlock = css`
+  &::after {
+    animation: none;
+  }
 `
 
 const SkeletonWrapper = styled.div`
   display: flex;
   gap: 16px;
-  padding: 12px 0;
   width: 100%;
+  padding: 12px 0;
 `
 
 const AvatarPlaceholder = styled.div<{ $active: boolean }>`
+  ${skeletonBlock}
+  flex: 0 0 auto;
   width: 40px;
   height: 40px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  ${({ $active }) => ($active ? shimmerMixin : staticMixin)}
+  border-radius: var(--radius-pill);
+  ${({ $active }) => !$active && staticBlock}
 `
 
 const ContentArea = styled.div`
   flex: 1;
+  min-width: 0;
 `
 
 const TitleBar = styled.div<{ $active: boolean; $width?: string }>`
+  ${skeletonBlock}
   height: 16px;
-  margin-bottom: 16px;
-  border-radius: 4px;
   width: ${({ $width }) => $width || '38%'};
-  ${({ $active }) => ($active ? shimmerMixin : staticMixin)}
+  margin-bottom: 12px;
+  ${({ $active }) => !$active && staticBlock}
+
+  &:last-child {
+    margin-bottom: 0;
+  }
 `
 
 const ParagraphLine = styled.div<{ $active: boolean }>`
-  height: 16px;
-  margin-bottom: 12px;
-  border-radius: 4px;
-  ${({ $active }) => ($active ? shimmerMixin : staticMixin)}
+  ${skeletonBlock}
+  height: 14px;
+  margin-bottom: 10px;
+  ${({ $active }) => !$active && staticBlock}
 
   &:last-child {
     width: 61%;
+    margin-bottom: 0;
   }
 `
 
@@ -86,11 +81,11 @@ const Skeleton: React.FC<SkeletonProps> = ({
   const rawTitleWidth =
     title && typeof title === 'object' ? title.width : undefined
   const titleWidth =
-    typeof rawTitleWidth !== 'number'
-      ? rawTitleWidth
-      : Number.isNaN(rawTitleWidth)
+    typeof rawTitleWidth === 'number'
+      ? Number.isNaN(rawTitleWidth)
         ? undefined
         : `${rawTitleWidth}px`
+      : rawTitleWidth
 
   const paraRows =
     paragraph === false
@@ -100,9 +95,19 @@ const Skeleton: React.FC<SkeletonProps> = ({
         : 3
 
   return (
-    <SkeletonWrapper style={style} className={className}>
-      {avatar && <AvatarPlaceholder $active={active} />}
-      <ContentArea>
+    <SkeletonWrapper
+      style={style}
+      className={joinClassNames(
+        'ui-skeleton',
+        active && 'ui-skeleton-active',
+        className,
+      )}
+      aria-busy="true"
+    >
+      {avatar && (
+        <AvatarPlaceholder className="ui-skeleton-avatar" $active={active} />
+      )}
+      <ContentArea className="ui-skeleton-content">
         {title !== false && (
           <TitleBar
             className="ui-skeleton-title"
@@ -110,7 +115,7 @@ const Skeleton: React.FC<SkeletonProps> = ({
             $width={titleWidth}
           />
         )}
-        {Array.from({ length: paraRows }).map((_, i) => (
+        {Array.from({ length: paraRows }, (_, i) => (
           <ParagraphLine
             className="ui-skeleton-paragraph"
             key={i}
