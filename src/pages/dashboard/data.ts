@@ -553,6 +553,13 @@ const readMetaEvidence = async (
   Pick<DashboardRegistry, 'title' | 'description' | 'logoURI'>
 > | null> => {
   if (!uri) return null
+  // Placeholder URIs (e.g. "/ipfs/dev-…/…json" on test registries) are not
+  // content addresses; the gateway answers 400, so do not ask.
+  const cid = uri
+    .replace(/^ipfs:\/\//, '')
+    .replace(/^\/ipfs\//, '')
+    .split('/')[0]
+  if (!/^(Qm[1-9A-HJ-NP-Za-km-z]{44}|b[a-z2-7]{50,})$/.test(cid)) return null
 
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), METADATA_TIMEOUT_MS)
@@ -563,7 +570,14 @@ const readMetaEvidence = async (
     })
     if (!response.ok) return null
 
-    const file = await response.json()
+    // Some registries point their MetaEvidence at a non-JSON object (e.g. a
+    // dag-cbor node); treat those as "no metadata" instead of throwing.
+    let file: any
+    try {
+      file = await response.json()
+    } catch {
+      return null
+    }
     const evidence = file?.data ?? file
     const metadata = evidence?.metadata ?? file?.metadata ?? {}
     const rawTitle =
