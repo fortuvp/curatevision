@@ -72,6 +72,12 @@ export const BarPrimaryButton = styled.button`
   border: 1px solid transparent;
   border-radius: var(--radius-pill);
   background: var(--color-primary-fill);
+
+  @media (max-width: 600px) {
+    width: 38px;
+    padding: 0;
+    justify-content: center;
+  }
   color: var(--color-on-primary);
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, white 28%, transparent),

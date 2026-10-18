@@ -142,6 +142,18 @@ const LogoLink = styled(Link)`
     height: 26px;
     width: auto;
   }
+
+  /* Phones: keep only the hexagon mark (the first ~37 of 130 units). */
+  @media (max-width: 600px) {
+    width: 24px;
+    overflow: hidden;
+
+    svg {
+      flex: 0 0 auto;
+      width: 84px;
+      max-width: none;
+    }
+  }
 `
 
 const StakeTag = styled.span`
@@ -154,6 +166,17 @@ const StakeTag = styled.span`
   font-size: 10px;
   letter-spacing: var(--tracking-label);
   text-transform: uppercase;
+`
+
+const ConnectLabel = styled.span`
+  @media (max-width: 600px) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
 `
 
 const ChainLabel = styled.span`
@@ -479,7 +502,7 @@ const AppBar = () => {
               onClick={() => open({ view: 'Connect' })}
             >
               <CurateIcon name="wallet" size={16} />
-              Connect
+              <ConnectLabel>Connect</ConnectLabel>
             </BarPrimaryButton>
           )}
           <ThemeMenu />
