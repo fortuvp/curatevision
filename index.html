@@ -60,22 +60,33 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,500;1,400&display=swap"
       rel="stylesheet"
     />
     <title>The verification layer | Kleros Curate</title>
   </head>
   <body>
     <script>
-      // Prevent flash of light theme on load - check dark mode preference immediately
+      // Apply the saved theme before React mounts, so the page never flashes.
+      // Modes: system (default) | light | dark | kleros. See DESIGN.md.
       ;(function () {
-        var saved = localStorage.getItem('kleros-curate-theme')
-        var isDark = saved !== 'light'
-        if (isDark) {
-          document.body.setAttribute('data-theme', 'dark')
-          document.body.style.backgroundColor = '#020611'
-          document.documentElement.classList.add('dark')
+        var backgrounds = { light: '#f4f6f9', dark: '#0a0e14', kleros: '#1b003f' }
+        var mode = 'system'
+        try {
+          var saved = localStorage.getItem('kleros-curate-theme')
+          if (saved === 'light' || saved === 'dark' || saved === 'kleros' || saved === 'system')
+            mode = saved
+        } catch (e) {}
+        var resolved = mode
+        if (mode === 'system') {
+          var prefersDark =
+            window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+          resolved = prefersDark ? 'dark' : 'light'
         }
+        document.body.setAttribute('data-theme', resolved)
+        document.body.style.backgroundColor = backgrounds[resolved]
+        document.body.style.colorScheme = resolved === 'light' ? 'light' : 'dark'
+        if (resolved !== 'light') document.documentElement.classList.add('dark')
       })()
     </script>
     <noscript>You need to enable JavaScript to run this app.</noscript>
