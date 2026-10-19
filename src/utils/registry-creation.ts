@@ -1,7 +1,6 @@
 import { ethers } from 'ethers'
 import { registryFactories } from 'config/tcr-addresses'
-import { SUPPORTED_CHAINS } from 'config/chains'
-import { getAlchemyRpcUrl } from 'config/rpc'
+import { getRpcUrls } from 'config/rpc'
 
 /*
  * Real creation times for Light and Classic lists: the block timestamp of the
@@ -62,13 +61,9 @@ const writeCache = (chainId: number, cache: ChainCache) => {
   }
 }
 
-const rpcUrls = (chainId: number): string[] => {
-  const publicUrl = SUPPORTED_CHAINS.find((c) => Number(c.id) === chainId)
-    ?.rpcUrls.default.http[0]
-  return [getAlchemyRpcUrl(chainId), publicUrl].filter(
-    (url): url is string => typeof url === 'string' && url.length > 0,
-  )
-}
+// The app's own endpoint order: on Gnosis the public node comes first, since
+// Alchemy refuses log ranges over 10,000 blocks there.
+const rpcUrls = getRpcUrls
 
 const rpc = async <T>(url: string, body: object | object[]): Promise<T> => {
   const controller = new AbortController()

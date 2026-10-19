@@ -59,6 +59,10 @@ const getOrderedRpcEndpoints = (chainId: number): RpcEndpoint[] => {
     : [...alchemyEndpoint, ...publicEndpoint]
 }
 
+/** The same endpoints as the transports, in the same order, as bare URLs. */
+export const getRpcUrls = (chainId: number): string[] =>
+  getOrderedRpcEndpoints(chainId).map(({ url }) => url)
+
 export const transports: Record<number, Transport> = Object.fromEntries(
   SUPPORTED_CHAINS.map((chain) => [
     chain.id,
