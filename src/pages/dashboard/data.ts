@@ -18,13 +18,17 @@ import {
   DashboardUser,
   RegistryKind,
   TrustStatus,
+  UnchallengedRow,
 } from './types'
-import { entryCount } from './view'
+import { entryCount, openWindows, rowsPlaced, windowsPending } from './view'
+import { readChallengePeriods } from './challenge-windows'
 
 export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 const DAY = 24 * 60 * 60
 const DASHBOARD_QUERY_TIMEOUT_MS = 10_000
 const METADATA_TIMEOUT_MS = 2_000
+/** How long the challenge-period reads may take before they count as unknown. */
+const CHALLENGE_WINDOWS_BUDGET_MS = 7_000
 const LEADERBOARD_PAGE_SIZE = 1000
 const LEADERBOARD_MAX_PAGES = 5
 /** Registries read per page; a full page means there may be more. */
@@ -34,6 +38,8 @@ const REGISTRY_MAX_PAGES = 10
 const OPEN_REQUEST_LIMIT = 1000
 /** Unchallenged requests read per chain for the cards (the count is separate). */
 const UNCHALLENGED_CARD_LIMIT = 40
+/** Cards read per chain for the requests whose window closes soonest. */
+const CLOSING_SOON_LIMIT = 24
 /** Rulings read per chain over the 30-day window. */
 const DECIDED_LIMIT = 200
 /** Latest requests read per chain and kind for the activity feeds. */
@@ -114,6 +120,23 @@ const LIGHT_ITEM_PREVIEW = `
 const CLASSIC_ITEM = `
   item {
     itemID
+  }
+`
+
+/** The cards of chosen requests, by request id (Light and Classic). */
+const ENVIO_REQUEST_CARDS_QUERY = gql`
+  query EnvioRequestCards($lightIds: [String!]!, $classicIds: [String!]!) {
+    light: LRequest(where: { id: { _in: $lightIds } }) {
+      ${REQUEST_FIELDS}
+      registry {
+        title
+      }
+      ${LIGHT_ITEM_PREVIEW}
+    }
+    classic: Request(where: { id: { _in: $classicIds } }) {
+      ${REQUEST_FIELDS}
+      ${CLASSIC_ITEM}
+    }
   }
 `
 
@@ -241,6 +264,8 @@ const ENVIO_DASHBOARD_QUERY = gql`
       id
       registry_id
       disputed
+      submissionTime
+      deposit
     }
     openClassicRequests: Request(
       limit: ${OPEN_REQUEST_LIMIT}
@@ -249,6 +274,8 @@ const ENVIO_DASHBOARD_QUERY = gql`
       id
       registry_id
       disputed
+      submissionTime
+      deposit
     }
     openLightDisputes: LRequest(
       limit: 400
@@ -885,6 +912,10 @@ const requestToActivity = (
     disputeID: requestEntity.disputeID
       ? String(requestEntity.disputeID)
       : undefined,
+    deposit:
+      requestEntity.deposit !== undefined && requestEntity.deposit !== null
+        ? String(requestEntity.deposit)
+        : undefined,
     status: outcome
       ? outcomeLabel(outcome)
       : isChallenge
@@ -1034,6 +1065,8 @@ interface NormalizedChain {
   /** Unresolved requests with no challenge on this chain. */
   unchallengedCount: number
   unchallengedCapped: boolean
+  /** The same requests' ids, lists, submission times and deposits. */
+  unchallengedRows: UnchallengedRow[]
   decided: DashboardActivity[]
   decidedCapped: boolean
   openDisputes: DashboardActivity[]
@@ -1144,9 +1177,15 @@ const normalizeEnvio = (payload: any, chainId: number): NormalizedChain => {
   ]
 
   const openRequestRows = [
-    ...(payload.openLightRequests ?? []),
-    ...(payload.openClassicRequests ?? []),
-  ] as DashboardRequestRow[]
+    ...(payload.openLightRequests ?? []).map((row: DashboardRequestRow) => ({
+      ...row,
+      kind: 'light',
+    })),
+    ...(payload.openClassicRequests ?? []).map((row: DashboardRequestRow) => ({
+      ...row,
+      kind: 'classic',
+    })),
+  ] as (DashboardRequestRow & { kind: 'light' | 'classic' })[]
   const openRequestsByRegistry = new Map<string, number>()
   for (const row of openRequestRows) {
     const address = normalizeAddress(row.registry_id)
@@ -1175,6 +1214,15 @@ const normalizeEnvio = (payload: any, chainId: number): NormalizedChain => {
     unchallenged: toActivities('unchallengedLight', 'unchallengedClassic'),
     unchallengedCount: openRequestRows.filter((row) => !row.disputed).length,
     unchallengedCapped: openRequestsCapped,
+    unchallengedRows: openRequestRows
+      .filter((row) => !row.disputed && row.id)
+      .map((row) => ({
+        id: String(row.id),
+        registry: normalizeAddress(row.registry_id),
+        submittedAt: toNumber(row.submissionTime),
+        deposit: String(row.deposit ?? '0'),
+        kind: row.kind,
+      })),
     decided,
     decidedCapped:
       (payload.decidedLight ?? []).length >= DECIDED_LIMIT ||
@@ -1281,6 +1329,7 @@ const normalizePermanent = (
     unchallenged: [],
     unchallengedCount: 0,
     unchallengedCapped: false,
+    unchallengedRows: [],
     decided: (payload.decidedChallenges ?? []).map(toActivity),
     decidedCapped: (payload.decidedChallenges ?? []).length >= DECIDED_LIMIT,
     openDisputes: (payload.openChallenges ?? []).map(toActivity),
@@ -1706,12 +1755,107 @@ const readRemainingRegistries = async (
 
 /** The app's load: every chain, list metadata, creation-time refresh. */
 export const fetchDashboardData = (): Promise<DashboardData> =>
-  loadDashboardData({ refreshCreationTimes: true })
+  loadDashboardData({ refreshCreationTimes: true, challengeWindows: true })
+
+/** A promise that settles to null past its budget. */
+const withBudget = <T>(promise: Promise<T>, ms: number): Promise<T | null> => {
+  let timer: number | undefined
+  return Promise.race([
+    promise,
+    new Promise<null>((resolve) => {
+      timer = window.setTimeout(() => resolve(null), ms)
+    }),
+  ]).finally(() => window.clearTimeout(timer))
+}
+
+/**
+ * One chain's challenge windows: each list's period read on chain, then the
+ * cards of the requests whose window closes soonest. A period that did not
+ * load is left out, never guessed; the cards are read only when every
+ * request on the chain could be placed, so their order is exact.
+ */
+const readChainWindows = async (
+  chainId: number,
+  rows: UnchallengedRow[],
+): Promise<{
+  periods: Record<string, number>
+  closingSoon?: DashboardActivity[]
+}> => {
+  const read = await readChallengePeriods(
+    chainId,
+    rows.map((row) => row.registry),
+  ).catch(() => new Map<string, number>())
+  const periods = Object.fromEntries(read)
+  if (!rowsPlaced(rows, periods)) return { periods }
+  const soonest = openWindows(rows, periods, Math.floor(Date.now() / 1000))
+    .slice(0, CLOSING_SOON_LIMIT)
+    .map(({ row }) => row)
+  if (soonest.length === 0) return { periods, closingSoon: [] }
+  const payload = await safeRequest<any>(
+    subgraphUrl[chainId],
+    ENVIO_REQUEST_CARDS_QUERY,
+    {
+      lightIds: soonest
+        .filter((row) => row.kind === 'light')
+        .map((row) => row.id),
+      classicIds: soonest
+        .filter((row) => row.kind === 'classic')
+        .map((row) => row.id),
+    },
+  )
+  if (!payload) return { periods }
+  const cards = new Map<string, DashboardActivity>()
+  for (const row of (payload.light ?? []) as DashboardRequestRow[])
+    cards.set(`light-${row.id}`, requestToActivity(row, 'light'))
+  for (const row of (payload.classic ?? []) as DashboardRequestRow[])
+    cards.set(`classic-${row.id}`, requestToActivity(row, 'classic'))
+  return {
+    periods,
+    closingSoon: soonest
+      .map((row) => cards.get(`${row.kind}-${row.id}`))
+      .filter((card): card is DashboardActivity => !!card),
+  }
+}
+
+/**
+ * A second try at the challenge windows a load could not place (a slow or
+ * failing node), outside the load's time budget: reads the chains still
+ * missing a period or their closing-soon cards and returns the data with
+ * them filled in. Periods read before come from the read cache.
+ */
+export const completeChallengeWindows = async (
+  data: DashboardData,
+): Promise<DashboardData> => {
+  const chains = Object.keys(data.unchallengedRows)
+    .map(Number)
+    .filter((chainId) => windowsPending(data, chainId))
+  if (chains.length === 0) return data
+  const next: DashboardData = {
+    ...data,
+    challengePeriods: { ...data.challengePeriods },
+    closingSoon: { ...data.closingSoon },
+  }
+  await Promise.all(
+    chains.map(async (chainId) => {
+      const placed = await readChainWindows(
+        chainId,
+        data.unchallengedRows[chainId] ?? [],
+      )
+      next.challengePeriods[chainId] = {
+        ...data.challengePeriods[chainId],
+        ...placed.periods,
+      }
+      if (placed.closingSoon) next.closingSoon[chainId] = placed.closingSoon
+    }),
+  )
+  return next
+}
 
 export const loadDashboardData = async ({
   refreshCreationTimes,
   chains = SUPPORTED_CHAIN_IDS,
   enrichMetadata = true,
+  challengeWindows: readWindows = false,
 }: {
   /** Scan chain logs in the background for list creation times. */
   refreshCreationTimes: boolean
@@ -1719,6 +1863,8 @@ export const loadDashboardData = async ({
   chains?: number[]
   /** Read missing list metadata from IPFS (titles, logos). */
   enrichMetadata?: boolean
+  /** Read each list's challenge period on chain to place open requests. */
+  challengeWindows?: boolean
 }): Promise<DashboardData> => {
   const since = windowStart(Math.floor(Date.now() / 1000))
   // Chains where any query failed or timed out: their figures are partial.
@@ -1748,6 +1894,21 @@ export const loadDashboardData = async ({
             chainId,
           )
         : null
+    }),
+  )
+
+  // Chain reads run alongside the Stake and curator queries below, and
+  // never hold the page: past their budget a chain's windows count as
+  // unknown (the dashboard then tries again on its own).
+  const windowsRead = Promise.all(
+    chains.map((chainId, index) => {
+      const result = envioResults[index]
+      return readWindows && result
+        ? withBudget(
+            readChainWindows(chainId, result.unchallengedRows),
+            CHALLENGE_WINDOWS_BUDGET_MS,
+          )
+        : Promise.resolve(null)
     }),
   )
 
@@ -1828,6 +1989,19 @@ export const loadDashboardData = async ({
   const { users, series, seriesByChain, seriesTruncated } =
     await fetchCuratorLeaderboard(since, chains, failed)
 
+  const windows = await windowsRead
+  const unchallengedRows: DashboardData['unchallengedRows'] = {}
+  const challengePeriods: DashboardData['challengePeriods'] = {}
+  const closingSoon: DashboardData['closingSoon'] = {}
+  chains.forEach((chainId, index) => {
+    const envio = envioResults[index]
+    if (envio) unchallengedRows[chainId] = envio.unchallengedRows
+    const placed = windows[index]
+    if (!placed) return
+    challengePeriods[chainId] = placed.periods
+    if (placed.closingSoon) closingSoon[chainId] = placed.closingSoon
+  })
+
   return {
     generatedAt: Date.now(),
     since,
@@ -1840,6 +2014,9 @@ export const loadDashboardData = async ({
       allResults.flatMap((result) => result.unchallenged),
     ),
     unchallengedCount,
+    unchallengedRows,
+    challengePeriods,
+    closingSoon,
     decided: newestFirst(allResults.flatMap((result) => result.decided)),
     decidedCapped,
     openDisputes,

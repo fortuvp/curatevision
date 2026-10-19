@@ -1,5 +1,5 @@
 import { NETWORKS_INFO } from 'config/networks'
-import type { BoardCard } from 'components/curate/status-board'
+import type { StatusTone } from 'components/curate/primitives'
 import { formatAgo } from 'utils/time'
 import type {
   DashboardActivity,
@@ -7,6 +7,7 @@ import type {
   DashboardDay,
   DashboardRegistry,
   RegistryKind,
+  UnchallengedRow,
 } from './types'
 
 /* Pure view helpers for the dashboard: filters, sorts and board mapping. */
@@ -20,13 +21,13 @@ export const SUPPORTED_CHAIN_IDS = Object.values(NETWORKS_INFO).map((info) =>
   Number(info.chainId),
 )
 
-/** Sepolia is a testnet: it is selectable, but never part of "all". */
+/** Sepolia is a testnet: it is selectable, but never part of "All chains". */
 export const TESTNET_CHAIN_IDS = [11155111]
 export const MAINNET_CHAIN_IDS = SUPPORTED_CHAIN_IDS.filter(
   (chainId) => !TESTNET_CHAIN_IDS.includes(chainId),
 )
 
-/** Chains a filter value covers: 'all' means every mainnet. */
+/** Chains a filter value covers: 'all' ("All chains") means every mainnet. */
 export const scopeChains = (chain: ChainFilter): number[] =>
   chain === 'all' ? MAINNET_CHAIN_IDS : [chain]
 
@@ -66,11 +67,57 @@ export const entryCount = (registry: DashboardRegistry): number =>
     ? registry.itemCount + registry.pendingCount
     : registry.itemCount
 
+/*
+ * Challenge windows. A Light or Classic request can be challenged while
+ * now <= submissionTime + its list's challengePeriodDuration (the
+ * contracts' own check, against the list's current period); past that it
+ * only waits to be executed. Periods are read on chain (data.ts).
+ */
+
+/** True when every row's list period is known, so each can be placed. */
+export const rowsPlaced = (
+  rows: UnchallengedRow[],
+  periods: Record<string, number> | undefined,
+): boolean =>
+  !!periods &&
+  rows.every((row) => row.submittedAt > 0 && periods[row.registry] >= 0)
+
+/** The rows still inside their window at `now`, closing soonest first. */
+export const openWindows = (
+  rows: UnchallengedRow[],
+  periods: Record<string, number>,
+  now: number,
+): { row: UnchallengedRow; closes: number }[] =>
+  rows
+    .filter((row) => periods[row.registry] >= 0 && row.submittedAt > 0)
+    .map((row) => ({ row, closes: row.submittedAt + periods[row.registry] }))
+    .filter(({ closes }) => now <= closes)
+    .sort((a, b) => a.closes - b.closes || a.row.id.localeCompare(b.row.id))
+
+/** True when a chain's unchallenged requests can all be placed in their windows. */
+export const chainWindowsKnown = (
+  data: DashboardData,
+  chainId: number,
+): boolean => {
+  const rows = data.unchallengedRows?.[chainId] ?? []
+  return rows.length === 0 || rowsPlaced(rows, data.challengePeriods?.[chainId])
+}
+
+/** True when a chain still misses a period or its closing-soon cards. */
+export const windowsPending = (data: DashboardData, chainId: number): boolean =>
+  (data.unchallengedRows?.[chainId]?.length ?? 0) > 0 &&
+  (!chainWindowsKnown(data, chainId) || !data.closingSoon?.[chainId])
+
 /**
  * Every figure the dashboard (and the landing page) shows for a scope of
  * chains, from one load of the data: one definition for both pages.
+ * `now` (unix seconds) places unchallenged requests in their windows.
  */
-export const scopedFigures = (data: DashboardData, chains: number[]) => {
+export const scopedFigures = (
+  data: DashboardData,
+  chains: number[],
+  now: number = Math.floor(Date.now() / 1000),
+) => {
   const scoped = data.registries.filter((r) => chains.includes(r.chainId))
   let curators = 0
   let challenges = 0
@@ -93,6 +140,33 @@ export const scopedFigures = (data: DashboardData, chains: number[]) => {
     unchallenged += data.unchallengedCount[chainId]?.count ?? 0
     unchallengedCapped ||= !!data.unchallengedCount[chainId]?.capped
   }
+  /*
+   * The unchallenged requests split by their challenge window: still open
+   * (anyone can challenge and win the deposit) or past it (nobody can
+   * challenge any more; they only wait to be executed). Only when every one
+   * of them could be placed: otherwise the windows are unknown. The
+   * deposits of the open ones are summed per chain (each in its own coin).
+   */
+  const windowsKnown = chains.every((chainId) =>
+    chainWindowsKnown(data, chainId),
+  )
+  let inWindow = 0
+  let pastWindow = 0
+  const inWindowDeposits: Record<number, bigint> = {}
+  if (windowsKnown)
+    for (const chainId of chains) {
+      const rows = data.unchallengedRows?.[chainId] ?? []
+      const open = openWindows(
+        rows,
+        data.challengePeriods?.[chainId] ?? {},
+        now,
+      )
+      inWindow += open.length
+      pastWindow += rows.length - open.length
+      for (const { row } of open)
+        inWindowDeposits[chainId] =
+          (inWindowDeposits[chainId] ?? 0n) + BigInt(row.deposit || '0')
+    }
   return {
     registries: scoped.length,
     verified: scoped.filter((r) => r.trustStatus === 'verified').length,
@@ -104,6 +178,10 @@ export const scopedFigures = (data: DashboardData, chains: number[]) => {
     inCourt: data.openDisputes.filter((a) => chains.includes(a.chainId)).length,
     unchallenged,
     unchallengedCapped,
+    windowsKnown,
+    inWindow,
+    pastWindow,
+    inWindowDeposits,
     decidedCapped: chains.some((chainId) => data.decidedCapped[chainId]),
     curators,
     challenges,
@@ -208,20 +286,68 @@ export const filterRegistries = (
   })
 }
 
+/** One row of the Happening now board. */
+export interface DashboardCard {
+  id: string
+  /** Registry logo (IPFS or http URL), shown as the row avatar. */
+  logo?: string | null
+  href: string
+  registry: string
+  /** List address (lowercase), to tell lists apart. */
+  registryAddress: string
+  identifiers: { label: string; value: string }[]
+  chainId: number
+  actor?: string
+  /** "submitted 3h ago", "challenged 2 years ago" */
+  when: string
+  /** "Dispute", "Kept by ruling"; empty for none. */
+  detail: string
+  /** An identifier set in mono after the detail, e.g. "#1040". */
+  detailId?: string
+  tone: StatusTone
+  /** Submission or removal request (Light and Classic). */
+  request?: 'submission' | 'removal'
+  /** The request's base deposit in wei: what a winning challenger takes. */
+  deposit?: string
+  /** The request's challenge window, when its list's period is known. */
+  windowStart?: number
+  windowEnd?: number
+  /** When the row's event happened (unix seconds), for the time line. */
+  at: number
+}
+
+const DAY = 86400
+
+/** "3h ago", "12d 4h ago"; past two months "5 months ago", "2 years ago". */
+export const formatAgoLong = (timestamp: number, now: number): string => {
+  const days = Math.floor((now - timestamp) / DAY)
+  if (days < 60) return formatAgo(timestamp, now)
+  if (days < 365) return `${Math.floor(days / 30)} months ago`
+  const years = Math.floor(days / 365)
+  return years === 1 ? 'a year ago' : `${years} years ago`
+}
+
 const toCard = (
   activity: DashboardActivity,
   now: number,
   verb: string,
   detail: string = activity.status,
-): BoardCard => ({
+  window?: { start: number; end: number },
+): DashboardCard => ({
   id: activity.id,
   href: activity.href,
   registry: activity.registryTitle,
+  registryAddress: activity.registryAddress,
   identifiers: activity.previewProps ?? [],
   chainId: activity.chainId,
   actor: activity.actor,
-  when: `${verb} ${formatAgo(activity.timestamp, now)}`,
+  when: `${verb} ${formatAgoLong(activity.timestamp, now)}`,
+  at: activity.timestamp,
   detail,
+  request: activity.requestType,
+  deposit: activity.deposit,
+  windowStart: window?.start,
+  windowEnd: window?.end,
   tone:
     activity.kind === 'resolution'
       ? activity.outcome === 'registered' || activity.outcome === 'kept'
@@ -234,19 +360,26 @@ const toCard = (
         : 'window',
 })
 
+/** A list that holds open requests, with how many. */
+export interface OpenList {
+  chainId: number
+  registry: string
+  count: number
+}
+
 /**
- * The three attention columns, all in the page's chain scope:
- *  - unchallenged: unresolved requests nobody has challenged. The indexer
- *    has no challenge period, so a card never claims its window is still
- *    open (the item page has the countdown); some may be waiting to be
- *    executed.
- *  - in court: every dispute open right now.
+ * The board, all in the page's chain scope:
+ *  - open: when every window is known, the requests still inside their
+ *    challenge window, closing soonest first, as far as the loaded cards
+ *    keep that order exact; otherwise the newest unchallenged requests,
+ *    with no claim about their window.
+ *  - openLists: every list holding those requests, most first (the whole
+ *    count, not only the loaded cards).
+ *  - live: every dispute open right now.
  *  - decided: every ruling in the 30-day window.
  */
 export const buildBoard = (
-  unchallenged: DashboardActivity[],
-  decided: DashboardActivity[],
-  openDisputes: DashboardActivity[],
+  data: DashboardData,
   now: number,
   chains: number[],
 ) => {
@@ -260,28 +393,89 @@ export const buildBoard = (
       return true
     }
   }
-  const open = unchallenged
-    .filter(inScope)
-    .filter(unique())
-    .map((activity) =>
-      toCard(
-        activity,
+  const verb = (activity: DashboardActivity) =>
+    activity.requestType === 'removal' ? 'removal asked' : 'submitted'
+  const windowsKnown = chains.every((chainId) =>
+    chainWindowsKnown(data, chainId),
+  )
+
+  let open: DashboardCard[]
+  if (windowsKnown) {
+    const placed = chains.map((chainId) => {
+      const periods = data.challengePeriods?.[chainId] ?? {}
+      const soon = data.closingSoon?.[chainId]
+      const cards = (
+        soon ?? data.unchallenged.filter((a) => a.chainId === chainId)
+      )
+        .filter(unique())
+        .map((activity) => {
+          const period = periods[activity.registryAddress]
+          return {
+            activity,
+            start: activity.timestamp,
+            end: period >= 0 ? activity.timestamp + period : -1,
+          }
+        })
+        .filter(({ start, end }) => start > 0 && now <= end)
+      const total = openWindows(
+        data.unchallengedRows?.[chainId] ?? [],
+        periods,
         now,
-        activity.kind === 'removal' ? 'removal asked' : 'submitted',
-        '',
-      ),
-    )
-  const inCourt = openDisputes
+      ).length
+      // Past the last loaded card a chain may close others first: rows
+      // from other chains stop there, so the order shown stays exact.
+      const bound =
+        soon && total > cards.length && cards.length > 0
+          ? Math.max(...cards.map(({ end }) => end))
+          : Infinity
+      return { cards, bound }
+    })
+    const cutoff = Math.min(...placed.map(({ bound }) => bound))
+    open = placed
+      .flatMap(({ cards }) => cards)
+      .filter(({ end }) => end <= cutoff)
+      .sort((a, b) => a.end - b.end)
+      .map(({ activity, start, end }) =>
+        toCard(activity, now, verb(activity), '', { start, end }),
+      )
+  } else
+    open = data.unchallenged
+      .filter(inScope)
+      .filter(unique())
+      .map((activity) => toCard(activity, now, verb(activity), ''))
+
+  const byList = new Map<string, OpenList>()
+  for (const chainId of chains) {
+    const rows = data.unchallengedRows?.[chainId] ?? []
+    const counted = windowsKnown
+      ? openWindows(rows, data.challengePeriods?.[chainId] ?? {}, now).map(
+          ({ row }) => row,
+        )
+      : rows
+    for (const row of counted) {
+      const key = `${chainId}:${row.registry}`
+      const list = byList.get(key) ?? {
+        chainId,
+        registry: row.registry,
+        count: 0,
+      }
+      list.count += 1
+      byList.set(key, list)
+    }
+  }
+  const openLists = [...byList.values()].sort((a, b) => b.count - a.count)
+
+  const live = data.openDisputes
     .filter(inScope)
     .filter(unique())
     .map((activity) => ({
       ...toCard(activity, now, 'challenged', 'Dispute'),
       detailId: activity.disputeID ? `#${activity.disputeID}` : undefined,
     }))
-  const rulings = decided
+  const rulings = data.decided
     .filter(inScope)
     .filter((activity) => activity.kind === 'resolution')
     .filter(unique())
     .map((activity) => toCard(activity, now, 'decided'))
-  return { open, inCourt, decided: rulings }
+  return { open, openLists, windowsKnown, live, decided: rulings }
 }

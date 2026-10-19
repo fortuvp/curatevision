@@ -41,9 +41,26 @@ export interface DashboardActivity {
   /** Court outcome once a dispute is resolved (kind 'resolution'). */
   outcome?: 'kept' | 'registered' | 'removed' | 'rejected' | 'no-ruling'
   disputeID?: string
+  /**
+   * The request's base deposit in wei (Light and Classic): what a winning
+   * challenger takes, on top of getting their own deposit back.
+   */
+  deposit?: string
   status: string
   timestamp: number
   href: string
+}
+
+/** An unresolved request nobody has challenged (Light and Classic). */
+export interface UnchallengedRow {
+  id: string
+  /** List address, lowercase. */
+  registry: string
+  /** Unix seconds. */
+  submittedAt: number
+  /** Base deposit in wei. */
+  deposit: string
+  kind: 'light' | 'classic'
 }
 
 export interface DashboardUser {
@@ -110,6 +127,21 @@ export interface DashboardData {
   unchallenged: DashboardActivity[]
   /** Per chain: unresolved requests with no challenge, and whether the count hit the query cap. */
   unchallengedCount: Record<number, { count: number; capped: boolean }>
+  /** Per chain: every unresolved request with no challenge (up to the count's cap). */
+  unchallengedRows: Record<number, UnchallengedRow[]>
+  /**
+   * Per chain, each list's challenge period in seconds, read on chain (the
+   * indexers do not store it), by lowercase list address. A chain is absent
+   * when its periods were not read (the landing page skips them) or the
+   * read ran out of time; a list is absent when its period did not load.
+   */
+  challengePeriods: Record<number, Record<string, number>>
+  /**
+   * Per chain, the cards of the requests whose challenge window closes
+   * soonest (still open when the data loaded), closing order. Present only
+   * when every period on the chain loaded and the cards were read.
+   */
+  closingSoon: Record<number, DashboardActivity[]>
   /** Every ruling in the window, newest first. */
   decided: DashboardActivity[]
   /** Per chain: true when the rulings query hit its row limit. */

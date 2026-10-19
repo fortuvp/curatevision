@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react'
 import styled, { keyframes } from 'styled-components'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import useDocumentHead from 'hooks/use-document-head'
 import useNow from 'hooks/use-now'
 import { parseIpfs } from 'utils/ipfs-parse'
@@ -17,6 +17,8 @@ import {
   Label,
   Page,
   SegmentedControl,
+  SelectMenu,
+  type SelectMenuOption,
   SkeletonBlock,
   Small,
   StatusDot,
@@ -26,16 +28,18 @@ import {
   VisuallyHidden,
   truncateMiddle,
 } from 'components/curate/primitives'
-import { StatusBoard } from 'components/curate/status-board'
 import { OrbitChart } from 'components/curate/orbit-chart'
 import { ActivityWave } from 'components/curate/motion/activity-wave'
 import { Odometer } from 'components/curate/motion/odometer'
 import { RingGauge } from 'components/curate/motion/ring-gauge'
 import { AnimatedNumber } from 'components/curate/motion/animated-number'
 import { reveal } from 'components/curate/motion/reveal'
-import { fetchDashboardData } from './data'
-import type { DashboardRegistry } from './types'
+import { completeChallengeWindows, fetchDashboardData } from './data'
+import { HappeningNow, type OpenListChip } from './happening-now'
+import { VerifiedRing } from './verified-ring'
+import type { DashboardData, DashboardRegistry } from './types'
 import {
+  MAINNET_CHAIN_IDS,
   SUPPORTED_CHAIN_IDS,
   TESTNET_CHAIN_IDS,
   buildBoard,
@@ -48,7 +52,9 @@ import {
   scopedSeries,
   sortRegistries,
   validChain,
+  windowsPending,
   type ChainFilter,
+  type DashboardCard,
 } from './view'
 
 /*
@@ -58,6 +64,10 @@ import {
  */
 
 const integer = new Intl.NumberFormat('en-US')
+const listFormat = new Intl.ListFormat('en', {
+  style: 'long',
+  type: 'conjunction',
+})
 const formatInt = (value: number) => integer.format(Math.round(value))
 const plural = (value: number, one: string, many: string) =>
   `${formatInt(value)} ${value === 1 ? one : many}`
@@ -77,6 +87,31 @@ const LIST_PALETTE = [
   'var(--viz-2)',
   'var(--viz-3)',
   'var(--viz-4)',
+]
+
+/**
+ * The page's chain scopes: "All chains" (every mainnet; a testnet is never
+ * part of it), then each chain, the testnet last and tagged.
+ */
+const scopeOptions: SelectMenuOption<string>[] = [
+  {
+    value: 'all',
+    label: 'All chains',
+    hint: listFormat.format(
+      MAINNET_CHAIN_IDS.map((id) => chainInfo(id)?.name ?? String(id)),
+    ),
+    icon: 'chain',
+  },
+  ...SUPPORTED_CHAIN_IDS.map((chainId) => {
+    const testnet = TESTNET_CHAIN_IDS.includes(chainId)
+    return {
+      value: String(chainId),
+      label: chainInfo(chainId)?.name ?? String(chainId),
+      icon: <ChainLogo chainId={chainId} size={18} />,
+      tag: testnet ? 'testnet' : undefined,
+      divider: testnet,
+    }
+  }).sort((a, b) => Number(Boolean(a.tag)) - Number(Boolean(b.tag))),
 ]
 
 const mediaUrl = (uri?: string | null): string | null => {
@@ -190,6 +225,21 @@ const ScopeBar = styled.div`
   margin-bottom: 22px;
   padding-bottom: 18px;
   border-bottom: 1px solid var(--glass-border);
+
+  /* Phones: the four chains do not fit a segmented track; a menu does. */
+  .scope-narrow {
+    display: none;
+  }
+
+  @media (max-width: 560px) {
+    .scope-wide {
+      display: none;
+    }
+
+    .scope-narrow {
+      display: inline-flex;
+    }
+  }
 `
 
 const FeaturedTop = styled.div`
@@ -369,6 +419,16 @@ const SectionTitle = styled.h2`
   line-height: 34px;
   font-weight: 500;
   letter-spacing: -0.03em;
+`
+
+const BoardSkeleton = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
 `
 
 const Split = styled.div`
@@ -570,6 +630,34 @@ const Dashboard = () => {
   const data = query.data
   const loading = query.isLoading || !data
 
+  /*
+   * When a load could not place every challenge window in time (a slow or
+   * failing node), read them once more on its own, outside the load's
+   * budget, and fill the result into the dashboard's data: the guide's
+   * live figure reads the same query.
+   */
+  const queryClient = useQueryClient()
+  const windowsMissing =
+    !!data &&
+    Object.keys(data.unchallengedRows ?? {}).some((chainId) =>
+      windowsPending(data, Number(chainId)),
+    )
+  const windowsRetry = useQuery({
+    queryKey: ['curateDashboardWindows', data?.generatedAt],
+    queryFn: async () => {
+      if (!data) return false
+      const next = await completeChallengeWindows(data)
+      queryClient.setQueryData<DashboardData>(['curateDashboard'], (current) =>
+        current?.generatedAt === data.generatedAt ? next : current,
+      )
+      return true
+    },
+    enabled: windowsMissing,
+    staleTime: Infinity,
+    retry: false,
+  })
+  const checkingWindows = windowsMissing && windowsRetry.isFetching
+
   const setChain = (value: string) => {
     const next = new URLSearchParams(searchParams)
     if (value === 'all') next.delete('chain')
@@ -578,47 +666,65 @@ const Dashboard = () => {
   }
 
   const chains = useMemo(() => scopeChains(chain), [chain])
-  // Links to Browse keep the page's scope ("Mainnets" is Ethereum + Gnosis).
+  // What "All chains" covers, named under the switch: "Ethereum and Gnosis".
+  const scopeName = listFormat.format(
+    chains.map((chainId) => chainInfo(chainId)?.name ?? String(chainId)),
+  )
+  // Links to Browse keep the page's scope ("All chains" is Ethereum + Gnosis).
   const browseScope = `chain=${chains.join(',')}`
   const scoped = useMemo(
     () => (data?.registries ?? []).filter((r) => chains.includes(r.chainId)),
     [data, chains],
   )
 
-  const board = useMemo(() => {
-    if (!data) return { open: [], inCourt: [], decided: [] }
-    const logos = new Map(
-      data.registries.map((registry) => [
-        `${registry.chainId}:${registry.address}`,
-        mediaUrl(registry.logoURI),
-      ]),
-    )
-    const withLogo = (cards: ReturnType<typeof buildBoard>['open']) =>
-      cards.map((card) => ({
-        ...card,
-        logo: logos.get(
-          `${card.chainId}:${card.href.split('/')[3]?.toLowerCase()}`,
-        ),
-      }))
-    const built = buildBoard(
-      data.unchallenged,
-      data.decided,
-      data.openDisputes,
-      now,
-      chains,
-    )
-    return {
-      open: withLogo(built.open),
-      inCourt: withLogo(built.inCourt),
-      decided: withLogo(built.decided),
-    }
-  }, [data, now, chains])
-
   /** Every figure on the page describes the same scope. */
   const figures = useMemo(
-    () => (data ? scopedFigures(data, chains) : undefined),
-    [data, chains],
+    () => (data ? scopedFigures(data, chains, now) : undefined),
+    [data, chains, now],
   )
+
+  const board = useMemo(() => {
+    if (!data)
+      return {
+        open: [],
+        openLists: [] as OpenListChip[],
+        live: [],
+        decided: [],
+      }
+    // Each row wears its list's logo and its best known name.
+    const lists = new Map(
+      data.registries.map((registry) => [
+        `${registry.chainId}:${registry.address}`,
+        registry,
+      ]),
+    )
+    const withList = (cards: DashboardCard[]) =>
+      cards.map((card) => {
+        const registry = lists.get(`${card.chainId}:${card.registryAddress}`)
+        return {
+          ...card,
+          registry: registry?.title || card.registry,
+          logo: mediaUrl(registry?.logoURI),
+        }
+      })
+    const built = buildBoard(data, now, chains)
+    return {
+      open: withList(built.open),
+      // Each list's own page, filtered to its open requests, oldest first.
+      openLists: built.openLists.map((list) => {
+        const registry = lists.get(`${list.chainId}:${list.registry}`)
+        return {
+          key: `${list.chainId}:${list.registry}`,
+          title: registry?.title || truncateMiddle(list.registry),
+          logo: mediaUrl(registry?.logoURI),
+          count: list.count,
+          href: `/tcr/${list.chainId}/${list.registry}?submitted=true&removalRequested=true&oldestFirst=true`,
+        }
+      }),
+      live: withList(built.live),
+      decided: withList(built.decided),
+    }
+  }, [data, now, chains])
 
   const series = useMemo(
     () => (data ? scopedSeries(data, chains) : []),
@@ -795,22 +901,28 @@ const Dashboard = () => {
         style={{ ['--i' as string]: 4 }}
       >
         <ScopeBar>
-          {testnet && (
-            <Label $tone="faint" style={{ marginRight: 'auto' }}>
-              Test network
-            </Label>
-          )}
+          <Label $tone="faint" style={{ marginRight: 'auto' }}>
+            {chain === 'all' ? scopeName : testnet ? 'Test network' : ''}
+          </Label>
           <SegmentedControl
-            ariaLabel="Scope"
+            className="scope-wide"
+            ariaLabel="Chains"
             value={chain === 'all' ? 'all' : String(chain)}
             onChange={setChain}
-            options={[
-              { value: 'all', label: 'Mainnets' },
-              ...SUPPORTED_CHAIN_IDS.map((chainId) => ({
-                value: String(chainId),
-                label: chainInfo(chainId)?.name ?? String(chainId),
-              })),
-            ]}
+            options={scopeOptions.map(({ value, label, tag }) => ({
+              value,
+              label,
+              tag,
+            }))}
+          />
+          <SelectMenu
+            className="scope-narrow"
+            label="Chains"
+            hideLabel
+            align="end"
+            value={chain === 'all' ? 'all' : String(chain)}
+            onChange={setChain}
+            options={scopeOptions}
           />
         </ScopeBar>
         <FeaturedTop>
@@ -915,24 +1027,45 @@ const Dashboard = () => {
             </Legend>
           </div>
         </GaugeCard>
-        <GaugeCard $padding="none" style={{ ['--i' as string]: 6 }}>
-          <RingGauge
-            key={`v-${chains.join('-')}`}
-            size={168}
-            ratio={
-              figures?.registries ? figures.verified / figures.registries : 0
-            }
-            from="var(--status-registered)"
-            to="var(--aurora-b)"
-            label={`Verified registries: ${figures?.verified ?? 0} of ${figures?.registries ?? 0}`}
-            caption="of lists verified"
-          />
-          <div>
+        <GaugeCard $padding="none" $stack style={{ ['--i' as string]: 6 }}>
+          {loading || !figures ? (
+            <SkeletonBlock
+              $width="148px"
+              $height="148px"
+              style={{ borderRadius: '50%' }}
+            />
+          ) : (
+            <VerifiedRing
+              key={`v-${chains.join('-')}`}
+              size={168}
+              verified={figures.verified}
+              total={figures.registries}
+              label={`Verified registries: ${formatInt(figures.verified)} of ${formatInt(figures.registries)} lists are a Kleros list of lists or listed on one; ${formatInt(figures.registries - figures.verified)} are not.`}
+            />
+          )}
+          <div style={{ minWidth: 0, flex: 1 }}>
             <h3>Verified registries</h3>
-            <Small $muted>
-              {figures
-                ? `${formatInt(figures.verified)} of ${formatInt(figures.registries)} are Kleros lists of lists or listed on one.`
-                : '—'}
+            <Legend aria-label="Verified registries">
+              <li>
+                <i
+                  style={{ background: 'var(--status-registered)' }}
+                  aria-hidden
+                />
+                <span>Verified</span>
+                <b>{figures ? formatInt(figures.verified) : '—'}</b>
+              </li>
+              <li>
+                <i style={{ background: 'var(--color-faint)' }} aria-hidden />
+                <span>Not verified</span>
+                <b>
+                  {figures
+                    ? formatInt(figures.registries - figures.verified)
+                    : '—'}
+                </b>
+              </li>
+            </Legend>
+            <Small $faint as="p" style={{ margin: '10px 0 0' }}>
+              Verified: a Kleros list of lists, or listed on one
             </Small>
           </div>
         </GaugeCard>
@@ -946,8 +1079,8 @@ const Dashboard = () => {
             to="var(--color-danger)"
             label={
               figures
-                ? `Challenges won in the last 30 days: ${figures.won} of ${figures.decided} decided; jurors sided with the challenger. ${inCourtNow} still in court.`
-                : 'Challenges won in the last 30 days'
+                ? `Challenges opened in the last 30 days: ${figures.won} of ${figures.decided} decided won; jurors sided with the challenger. ${inCourtNow} still in court.`
+                : 'Challenges opened in the last 30 days that won'
             }
             caption={figures?.decided ? 'of decided won' : 'none decided'}
           />
@@ -956,11 +1089,14 @@ const Dashboard = () => {
             <Small $muted>
               {figures
                 ? figures.challenges === 0
-                  ? 'No challenges in the last 30 days.'
+                  ? 'None opened yet.'
                   : figures.decided === 0
-                    ? `${plural(inCourtNow, 'challenge', 'challenges')} in the last 30 days, all still in court.`
-                    : `${formatInt(figures.won)} of ${formatInt(figures.decided)} decided · ${formatInt(inCourtNow)} still in court · last 30 days.`
+                    ? `${plural(inCourtNow, 'challenge', 'challenges')}, all still in court.`
+                    : `${formatInt(figures.won)} won of ${formatInt(figures.decided)} decided · ${formatInt(inCourtNow)} still in court.`
                 : '—'}
+            </Small>
+            <Small $faint as="p" style={{ margin: '10px 0 0' }}>
+              Challenges opened in the last 30 days
             </Small>
           </div>
         </GaugeCard>
@@ -969,45 +1105,25 @@ const Dashboard = () => {
       <SectionHead>
         <SectionTitle>Happening now</SectionTitle>
       </SectionHead>
-      {loading ? (
-        <Split style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
-          <SkeletonBlock $height="320px" />
-          <SkeletonBlock $height="320px" />
-          <SkeletonBlock $height="320px" />
-        </Split>
+      {loading || !figures ? (
+        <BoardSkeleton>
+          <SkeletonBlock $height="380px" />
+          <SkeletonBlock $height="380px" />
+        </BoardSkeleton>
       ) : (
-        <StatusBoard
-          limit={4}
-          columns={[
-            {
-              id: 'open',
-              title: 'Unchallenged',
-              hint: 'Open requests, not in court',
-              tone: 'window',
-              cards: board.open,
-              count: figures?.unchallenged,
-              capped: figures?.unchallengedCapped,
-              moreHref: `/browse?sort=activity&${browseScope}`,
-              empty: 'No open requests',
-            },
-            {
-              id: 'court',
-              title: 'In court',
-              hint: 'Disputes open now',
-              tone: 'contested',
-              cards: board.inCourt,
-              empty: 'No disputes open',
-            },
-            {
-              id: 'decided',
-              title: 'Decided',
-              hint: 'Rulings · last 30 days',
-              tone: 'registered',
-              cards: board.decided,
-              capped: figures?.decidedCapped,
-              empty: 'No rulings in the last 30 days',
-            },
-          ]}
+        <HappeningNow
+          open={board.open}
+          live={board.live}
+          decided={board.decided}
+          figures={figures}
+          openLists={board.openLists}
+          now={now}
+          checking={checkingWindows}
+          stakeHref={
+            scoped.some((registry) => registry.kind === 'permanent')
+              ? `/browse?kind=permanent&${browseScope}`
+              : undefined
+          }
         />
       )}
 
