@@ -1,8 +1,22 @@
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import svgr from 'vite-plugin-svgr'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
 import tsconfigPaths from 'vite-tsconfig-paths'
+
+// The standalone landing page lives in public/landing/. Static hosts serve
+// /landing/ as its index; the dev server would hand it to the SPA instead.
+const landingIndex = (): Plugin => ({
+  name: 'landing-index',
+  configureServer(server) {
+    server.middlewares.use((req, _res, next) => {
+      const [path, query] = (req.url ?? '').split('?')
+      if (path === '/landing' || path === '/landing/')
+        req.url = `/landing/index.html${query ? `?${query}` : ''}`
+      next()
+    })
+  },
+})
 
 export default defineConfig(({ mode }) => {
   // Load .env files and map REACT_APP_* vars to process.env.* for legacy compat
@@ -13,6 +27,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [
+      landingIndex(),
       react(),
       svgr({ include: '**/*.svg' }),
       tsconfigPaths(),
