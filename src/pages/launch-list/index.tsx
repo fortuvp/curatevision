@@ -882,7 +882,7 @@ const LaunchListPage = () => {
         <Choice
           kind="standard"
           family="Light Curate"
-          summary={`The submitter's deposit, in ${symbol}, comes back in full after the ${formatDurationLong(challengePeriod)} challenge period; a challenger who shows within that period that the entry breaks the rules earns its base deposit.`}
+          summary={`When the entry follows the rules, the submitter's deposit, in ${symbol}, comes back in full after the ${formatDurationLong(challengePeriod)} challenge period; a challenger who shows within that period that it breaks them earns its base deposit.`}
           checked={kind === 'standard'}
           onChoose={choose}
           chainId={chainId}

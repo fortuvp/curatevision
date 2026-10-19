@@ -14,6 +14,7 @@ import {
   quietButton,
   quietButtonHover,
   recessTrack,
+  slidingThumbMotion,
 } from 'components/ui/kit-styles'
 
 /*
@@ -501,46 +502,66 @@ export const IconButton = styled.button<{ $active?: boolean }>`
   }
 `
 
-/** 24px pill chip, sans label; selected = primary-soft fill and primary-on-soft text. */
+/*
+ * 24px pill chip, sans label. A selected chip speaks the selector language,
+ * never a blue tint: it sits on the raised glass thumb of a chosen segment
+ * (litThumb) with its lamp, the 2px line of light under the label, and the
+ * label in full text (10:1 or more in every theme). The conic lit edge is
+ * kept for primary actions and the Kleros Verified pill, so a selected chip
+ * never reads as that badge of approval.
+ */
+const selectedChip = css`
+  position: relative;
+  border-color: transparent;
+  color: var(--color-text);
+  ${litThumb}
+`
+
 const chipStyles = css<{ $selected?: boolean }>`
   display: inline-flex;
   align-items: center;
   gap: 6px;
   height: 24px;
   padding: 0 10px;
-  border: 1px solid
-    ${({ $selected }) =>
-      $selected
-        ? 'color-mix(in srgb, var(--color-primary) 40%, transparent)'
-        : 'var(--glass-border)'};
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-pill);
-  background: ${({ $selected }) =>
-    $selected ? 'var(--color-primary-soft)' : 'var(--glass)'};
-  color: ${({ $selected }) =>
-    $selected ? 'var(--color-primary-on-soft)' : 'var(--color-muted)'};
+  background: var(--glass);
+  color: var(--color-muted);
   font-family: var(--font-label);
   font-size: 11px;
   line-height: var(--lh-label);
   font-weight: 500;
   letter-spacing: 0.02em;
   white-space: nowrap;
+
+  ${({ $selected }) => $selected && selectedChip}
 `
 
 export const Chip = styled.span<{ $selected?: boolean }>`
   ${chipStyles}
 `
 
-export const ChipButton = styled.button<{ $selected?: boolean }>`
+/** A chip that toggles; `$selected` lights it and reads as aria-pressed. */
+export const ChipButton = styled.button.attrs<{ $selected?: boolean }>(
+  ({ $selected }) => ({
+    'aria-pressed': $selected === undefined ? undefined : $selected,
+  }),
+)<{ $selected?: boolean }>`
   ${chipStyles}
   height: 28px;
   cursor: pointer;
   transition:
     background var(--motion),
-    color var(--motion);
+    color var(--motion),
+    box-shadow var(--motion);
 
   &:hover {
-    color: ${({ $selected }) =>
-      $selected ? 'var(--color-primary-on-soft)' : 'var(--color-text)'};
+    color: var(--color-text);
+    ${({ $selected }) =>
+      !$selected &&
+      css`
+        background: var(--color-raised);
+      `}
   }
 `
 
@@ -560,15 +581,11 @@ export const ChainChip = ({
   )
 }
 
+/* Each mark's plate is opaque (see chain-logo), so the overlap reads cleanly. */
 const StackWrap = styled.span<{ $size: number }>`
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
-
-  > span {
-    background-color: var(--color-surface);
-    background-image: linear-gradient(var(--color-raised), var(--color-raised));
-  }
 
   > span + span {
     margin-left: ${({ $size }) => -Math.round($size * 0.38)}px;
@@ -594,6 +611,15 @@ export const ChainStack = ({
   </StackWrap>
 )
 
+/** Width of the fade at a scrolling track's hidden end. */
+const EDGE_FADE = 28
+/*
+ * How much of the next option a scrolling track keeps in view beside the
+ * chosen one: more than the fade, so the chosen option never sits under it
+ * and the neighbour's label shows, cut by the fade.
+ */
+const EDGE_PEEK = 44
+
 /*
  * Selectors (round 2): a recessed track with a raised, lit glass thumb.
  * `Segmented` and `Segment` are the static parts (the active segment draws
@@ -616,7 +642,77 @@ export const Segmented = styled.div`
   &::-webkit-scrollbar {
     display: none;
   }
+
+  /*
+   * A track too wide for its space scrolls sideways with no scrollbar, so
+   * each end that hides options fades out (useEdgeFade sets data-fade):
+   * the word cut by the fade says there is more that way.
+   */
+  &[data-fade] {
+    --fade-start: 0px;
+    --fade-end: 0px;
+    -webkit-mask-image: linear-gradient(
+      90deg,
+      transparent,
+      #000 var(--fade-start),
+      #000 calc(100% - var(--fade-end)),
+      transparent
+    );
+    mask-image: linear-gradient(
+      90deg,
+      transparent,
+      #000 var(--fade-start),
+      #000 calc(100% - var(--fade-end)),
+      transparent
+    );
+  }
+
+  &[data-fade~='start'] {
+    --fade-start: ${EDGE_FADE}px;
+  }
+
+  &[data-fade~='end'] {
+    --fade-end: ${EDGE_FADE}px;
+  }
 `
+
+/**
+ * Keeps `data-fade` on a sideways-scrolling track up to date: "start" when
+ * options are hidden before the left edge, "end" when some are hidden past
+ * the right one, nothing when everything fits. It follows scrolling, the
+ * track's size and each option's size (counts arriving, fonts loading).
+ */
+const useEdgeFade = (
+  ref: React.RefObject<HTMLElement | null>,
+  layoutKey: string,
+) => {
+  React.useLayoutEffect(() => {
+    const node = ref.current
+    if (!node) return
+    const update = () => {
+      const hidden = node.scrollWidth - node.clientWidth
+      const edges = [
+        node.scrollLeft > 1 && 'start',
+        node.scrollLeft < hidden - 1 && 'end',
+      ]
+        .filter(Boolean)
+        .join(' ')
+      if (edges) node.dataset.fade = edges
+      else delete node.dataset.fade
+    }
+    update()
+    node.addEventListener('scroll', update, { passive: true })
+    if (typeof ResizeObserver === 'undefined')
+      return () => node.removeEventListener('scroll', update)
+    const observer = new ResizeObserver(update)
+    observer.observe(node)
+    for (const child of node.children) observer.observe(child)
+    return () => {
+      node.removeEventListener('scroll', update)
+      observer.disconnect()
+    }
+  }, [ref, layoutKey])
+}
 
 export const Segment = styled.button<{
   $active?: boolean
@@ -674,27 +770,7 @@ const SlidingThumb = styled.span`
   z-index: -1;
   border-radius: var(--radius-pill);
   ${litThumb}
-
-  /* Stretchy: the edge in the direction of travel leads, the other follows. */
-  &[data-dir='right'] {
-    transition:
-      right 260ms var(--ease-spring),
-      left 360ms var(--ease-spring) 40ms;
-  }
-
-  &[data-dir='left'] {
-    transition:
-      left 260ms var(--ease-spring),
-      right 360ms var(--ease-spring) 40ms;
-  }
-
-  &[data-instant] {
-    transition: none;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    transition: none !important;
-  }
+  ${slidingThumbMotion}
 `
 
 /** A segment's count: small tabular figure, brighter on the chosen segment. */
@@ -780,6 +856,9 @@ export function SegmentedControl<T extends string>({
     dir?: 'left' | 'right'
     instant?: boolean
   }>()
+  // Places the thumb under the chosen segment. Only a move animates, and
+  // only when the choice changed; anything else (counts arriving, fonts
+  // loading, a resize) re-places it in the same frame, glued to its label.
   const measure = React.useCallback((instant: boolean) => {
     const node = track.current
     const checked = node?.querySelector<HTMLButtonElement>(
@@ -792,12 +871,7 @@ export function SegmentedControl<T extends string>({
     const left = checked.offsetLeft
     const right = node.clientWidth - left - checked.offsetWidth
     setThumb((previous) => {
-      if (
-        previous &&
-        previous.left === left &&
-        previous.right === right &&
-        Boolean(previous.instant) === instant
-      )
+      if (previous && previous.left === left && previous.right === right)
         return previous
       const dir =
         previous && left !== previous.left
@@ -809,15 +883,76 @@ export function SegmentedControl<T extends string>({
       return { left, right, dir, instant: instant || !previous }
     })
   }, [])
-  React.useLayoutEffect(() => measure(false), [measure, value, options.length])
-  // Re-measure without animating when the track resizes (late web fonts).
+  // Everything that can move a segment without resizing the track: the
+  // labels, counts and tags (a count arriving widens its label inside a
+  // track capped by max-width on phones), and which options there are.
+  const layoutKey = options
+    .map((option) =>
+      [
+        option.value,
+        option.label,
+        option.count ?? '',
+        option.tag ?? '',
+        option.hideLabel ? 1 : 0,
+      ].join('\u001F'),
+    )
+    .join('\u001E')
+  const placedValue = React.useRef(value)
+  React.useLayoutEffect(() => {
+    const moved = placedValue.current !== value
+    placedValue.current = value
+    measure(!moved)
+    // A track that scrolls (phones) keeps the chosen option in view with a
+    // little of each neighbour beside it (EDGE_PEEK, cut by the edge fade):
+    // on arrival (a link to the fourth option), on a change, and when
+    // counts arriving push it out.
+    const reveal = () => {
+      const node = track.current
+      const checked = node?.querySelector<HTMLElement>('[aria-checked="true"]')
+      if (!node || !checked) return
+      const hidden = node.scrollWidth - node.clientWidth
+      if (hidden <= 0) return
+      const peek = Math.max(
+        0,
+        Math.min(EDGE_PEEK, (node.clientWidth - checked.offsetWidth) / 2),
+      )
+      const start = checked.offsetLeft - peek
+      const end = checked.offsetLeft + checked.offsetWidth + peek
+      const target =
+        start < node.scrollLeft
+          ? start
+          : end > node.scrollLeft + node.clientWidth
+            ? end - node.clientWidth
+            : node.scrollLeft
+      const left = Math.round(Math.max(0, Math.min(hidden, target)))
+      if (Math.abs(left - node.scrollLeft) < 1) return
+      const smooth =
+        moved &&
+        !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      node.scrollTo({ left, behavior: smooth ? 'smooth' : 'auto' })
+    }
+    // The first placement lands before paint. A new pick scrolls on the
+    // next frame, after any layout effect of the page around it.
+    if (!moved) {
+      reveal()
+      return undefined
+    }
+    const frame = requestAnimationFrame(reveal)
+    return () => cancelAnimationFrame(frame)
+  }, [measure, value, layoutKey])
+  useEdgeFade(track, layoutKey)
+  // Re-place without animating when the track or any segment resizes
+  // (late web fonts, a label that changes width, a media query).
   React.useEffect(() => {
     const node = track.current
     if (!node || typeof ResizeObserver === 'undefined') return
     const observer = new ResizeObserver(() => measure(true))
     observer.observe(node)
+    node
+      .querySelectorAll<HTMLElement>('[role="radio"]')
+      .forEach((segment) => observer.observe(segment))
     return () => observer.disconnect()
-  }, [measure])
+  }, [measure, layoutKey])
   // Radio group keys: arrows and Home/End move the selection and the focus.
   const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     const index = options.findIndex((option) => option.value === value)
@@ -934,8 +1069,22 @@ export function ToggleGroup<T extends string>({
   size?: 'sm' | 'md'
   className?: string
 }) {
+  const track = React.useRef<HTMLDivElement>(null)
+  useEdgeFade(
+    track,
+    options
+      .map((option) =>
+        [option.value, option.label, option.count ?? ''].join('\u001F'),
+      )
+      .join('\u001E'),
+  )
   return (
-    <Segmented role="group" aria-label={ariaLabel} className={className}>
+    <Segmented
+      ref={track}
+      role="group"
+      aria-label={ariaLabel}
+      className={className}
+    >
       {options.map((option) => {
         const pressed = value.includes(option.value)
         return (

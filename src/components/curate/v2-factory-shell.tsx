@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react'
 import styled, { css } from 'styled-components'
 import { CurateIcon } from 'components/curate/icons'
-import { litThumb } from 'components/ui/kit-styles'
+import { ctaFill, litEdgeBackground, litThumb } from 'components/ui/kit-styles'
 import { reveal } from 'components/curate/motion/reveal'
 import {
   Button,
@@ -582,13 +582,17 @@ const markerTone: Record<FactoryGroupStatus, ReturnType<typeof css>> = {
     background: var(--color-surface);
     color: var(--color-primary);
   `,
+  /* The step in hand: the primary glass and its lit edge, never a flat fill. */
   active: css`
-    border-color: color-mix(in srgb, var(--color-primary) 60%, transparent);
-    background: var(--color-primary-fill);
-    color: var(--color-on-primary);
+    --edge-angle: 210deg;
+    border-color: transparent;
+    border-width: var(--edge-width, 1px);
+    background: ${litEdgeBackground(ctaFill)};
+    color: var(--cta-ink);
     box-shadow:
+      inset 0 1px 0 var(--cta-highlight),
       0 0 0 6px var(--color-primary-soft),
-      0 10px 28px -8px var(--color-primary);
+      0 10px 28px -8px var(--cta-glow);
   `,
   complete: css`
     border-color: color-mix(in srgb, var(--color-primary) 45%, transparent);

@@ -172,6 +172,36 @@ export const litThumb = css`
   }
 `
 
+/**
+ * Motion for a lit thumb that slides between options, placed with `left`
+ * and `right` and told which way it travels (`data-dir="left|right"`): the
+ * edge in the direction of travel leads and the other follows 40ms later,
+ * so the thumb stretches a little and settles. `data-instant` places it
+ * without moving (the first placement, a resize, counts arriving).
+ * SegmentedControl and Pagination share it.
+ */
+export const slidingThumbMotion = css`
+  &[data-dir='right'] {
+    transition:
+      right 260ms var(--ease-spring),
+      left 360ms var(--ease-spring) 40ms;
+  }
+
+  &[data-dir='left'] {
+    transition:
+      left 260ms var(--ease-spring),
+      right 360ms var(--ease-spring) 40ms;
+  }
+
+  &[data-instant] {
+    transition: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none !important;
+  }
+`
+
 /** Glass popover (select menus, app bar menus): translucent, blurred, hairline. */
 export const glassPopover = css`
   border: 1px solid var(--color-border-strong);
@@ -218,7 +248,7 @@ export const floatingEntrance = (up = false) => css`
   }
 `
 
-/** A menu row, as in the app bar menus: 40px, radius 12, primary-soft when chosen. */
+/** A menu row, as in the app bar menus: 40px, radius 12; the chosen row reads in full text with a check. */
 export const menuRow = css`
   display: flex;
   align-items: center;

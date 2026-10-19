@@ -14,15 +14,19 @@ import {
   figureData,
   joinClassNames,
   kitTransition,
+  litThumb,
   motionOk,
+  recessTrack,
+  slidingThumbMotion,
 } from './kit-styles'
 
 /*
- * Pagination, v2: ghost pills with tabular figures. The current page sits in
- * a tinted pill that slides from page to page; previous and next are round.
- * The pager always stays on one line: under 480px it keeps only the first,
- * current and last pages (with ellipses), and the size changer takes its
- * own row.
+ * Pagination, round 2 ("Lit edge", DESIGN.md): the page numbers sit in a
+ * recessed track and the current page on the raised, lit glass thumb that
+ * SegmentedControl uses, sliding from page to page with the same stretchy
+ * spring; previous and next are round quiet buttons either side. The pager
+ * always stays on one line: under 480px it keeps only the first, current
+ * and last pages (with ellipses), and the size changer takes its own row.
  */
 const COMPACT_QUERY = '(max-width: 479px)'
 
@@ -34,15 +38,26 @@ const Wrapper = styled.nav`
   user-select: none;
 `
 
-/* The pill row; the sliding indicator is positioned against it. */
 const Pager = styled.div`
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+  min-width: 0;
+`
+
+/* The recessed track; the thumb is positioned against it. */
+const PageTrack = styled.div`
   position: relative;
   isolation: isolate;
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
+  padding: 3px;
+  border-radius: var(--radius-pill);
+  ${recessTrack}
 `
 
 const SizeRow = styled.div`
@@ -53,36 +68,25 @@ const SizeRow = styled.div`
   }
 `
 
-/* The tinted pill behind the current page; it glides when the page changes. */
-const Indicator = styled.span<{ $instant?: boolean }>`
+/* The lit thumb under the current page; it slides when the page changes. */
+const Thumb = styled.span`
   position: absolute;
-  top: 0;
-  left: 0;
+  top: 3px;
+  bottom: 3px;
   z-index: -1;
-  height: 36px;
   border-radius: var(--radius-pill);
-  background: var(--color-primary-soft);
-  box-shadow: inset 0 0 0 1px
-    color-mix(in srgb, var(--color-primary) 40%, transparent);
   pointer-events: none;
-  transition: ${({ $instant }) =>
-    $instant
-      ? 'none'
-      : 'transform var(--dur-control) var(--ease-spring), width var(--dur-control) var(--ease-spring)'};
-
-  @media (prefers-reduced-motion: reduce) {
-    transition: none;
-  }
+  ${litThumb}
+  ${slidingThumbMotion}
 `
 
 const pageButtonBase = css`
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-width: 36px;
-  height: 36px;
-  padding: 0 10px;
+  padding: 0;
   border: 1px solid transparent;
   border-radius: var(--radius-pill);
   background: transparent;
@@ -97,11 +101,6 @@ const pageButtonBase = css`
     'transform',
   )};
 
-  &:hover:not(:disabled):not(.active) {
-    color: var(--color-text);
-    background: var(--color-raised);
-  }
-
   ${motionOk(css`
     &:active:not(:disabled) {
       transform: scale(0.95);
@@ -114,23 +113,47 @@ const pageButtonBase = css`
   }
 `
 
+/* Previous and next: round, quiet, the track's height. */
+const NavButton = styled.button`
+  ${pageButtonBase}
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border-color: var(--glass-border);
+
+  &:hover:not(:disabled) {
+    color: var(--color-text);
+    border-color: var(--color-border-strong);
+    background: var(--color-raised);
+  }
+`
+
+/* A page in the track. Its label brightens on hover; the thumb marks the current one. */
 const PageButton = styled.button`
   ${pageButtonBase}
+  min-width: 32px;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
 
-  &.ui-pagination-prev,
-  &.ui-pagination-next {
-    border-color: var(--glass-border);
+  &:hover:not(:disabled) {
+    color: var(--color-text);
   }
 
-  /* Primary-on-soft ink keeps the current page at 4.5:1 on its tint. */
+  /* The track has no clip, but its pills sit 2px apart: the ring stays inside. */
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: -2px;
+  }
+
   &.active {
-    color: var(--color-primary-on-soft);
-    background: var(--color-primary-soft);
+    color: var(--color-text);
   }
 
-  /* With the sliding pill drawn, the current page only changes its ink. */
-  [data-sliding='true'] > &.active {
-    background: transparent;
+  /* Before the thumb is measured (or if a custom item hides it), the
+     current page draws its own. */
+  [data-sliding='false'] > &.active {
+    ${litThumb}
   }
 `
 
@@ -138,8 +161,8 @@ const Ellipsis = styled.span`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 28px;
-  height: 36px;
+  min-width: 24px;
+  height: 32px;
   color: var(--color-faint);
   ${figureData}
 `
@@ -311,46 +334,52 @@ const Pagination: React.FC<PaginationProps> = ({
     [current, totalPages, compact],
   )
 
-  // Measure the current page button so the tinted pill can slide to it.
-  const navRef = useRef<HTMLDivElement>(null)
-  const firstMeasure = useRef(true)
-  const [pill, setPill] = useState<{
-    x: number
-    y: number
-    width: number
+  // Place the thumb under the current page. It slides only when the page
+  // changes; a resize, late fonts or a switch between the full and compact
+  // ranges re-place it in the same frame.
+  const trackRef = useRef<HTMLDivElement>(null)
+  const [thumb, setThumb] = useState<{
+    left: number
+    right: number
+    dir?: 'left' | 'right'
     instant: boolean
   }>()
-  const measurePill = useCallback((instant: boolean) => {
-    const node = navRef.current?.querySelector<HTMLElement>(
-      '[aria-current="page"]',
-    )
-    setPill(
-      node
-        ? {
-            x: node.offsetLeft,
-            y: node.offsetTop,
-            width: node.offsetWidth,
-            instant,
-          }
-        : undefined,
-    )
+  const measureThumb = useCallback((instant: boolean) => {
+    const track = trackRef.current
+    const node = track?.querySelector<HTMLElement>('[aria-current="page"]')
+    if (!track || !node || node.offsetParent !== track) {
+      setThumb(undefined)
+      return
+    }
+    const left = node.offsetLeft
+    const right = track.clientWidth - left - node.offsetWidth
+    setThumb((previous) => {
+      if (previous && previous.left === left && previous.right === right)
+        return previous
+      const dir =
+        previous && left !== previous.left
+          ? left > previous.left
+            ? 'right'
+            : 'left'
+          : previous?.dir
+      return { left, right, dir, instant: instant || !previous }
+    })
   }, [])
+  const placedPage = useRef(current)
   useLayoutEffect(() => {
     if (simple) return
-    measurePill(firstMeasure.current)
-    firstMeasure.current = false
-  }, [current, totalPages, simple, measurePill])
-  // Switching between the full and compact range moves every pill.
-  useLayoutEffect(() => {
-    if (!simple) measurePill(true)
-  }, [compact, simple, measurePill])
-  // A window resize can rewrap the pills: follow them without animating.
+    const moved = placedPage.current !== current
+    placedPage.current = current
+    measureThumb(!moved)
+  }, [current, totalPages, compact, simple, measureThumb])
   useEffect(() => {
-    if (simple) return undefined
-    const onResize = () => measurePill(true)
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [simple, measurePill])
+    const track = trackRef.current
+    if (simple || !track || typeof ResizeObserver === 'undefined')
+      return undefined
+    const observer = new ResizeObserver(() => measureThumb(true))
+    observer.observe(track)
+    return () => observer.disconnect()
+  }, [simple, measureThumb])
 
   if (simple)
     return (
@@ -362,7 +391,7 @@ const Pagination: React.FC<PaginationProps> = ({
           className,
         )}
       >
-        <PageButton
+        <NavButton
           type="button"
           className="ui-pagination-prev"
           disabled={current <= 1}
@@ -370,7 +399,7 @@ const Pagination: React.FC<PaginationProps> = ({
           aria-label="Previous page"
         >
           <KitIcon name="chevron-left" size={14} />
-        </PageButton>
+        </NavButton>
         <SimpleInput
           value={current}
           aria-label="Page"
@@ -381,7 +410,7 @@ const Pagination: React.FC<PaginationProps> = ({
         />
         <span>/</span>
         <span>{totalPages}</span>
-        <PageButton
+        <NavButton
           type="button"
           className="ui-pagination-next"
           disabled={current >= totalPages}
@@ -389,7 +418,7 @@ const Pagination: React.FC<PaginationProps> = ({
           aria-label="Next page"
         >
           <KitIcon name="chevron-right" size={14} />
-        </PageButton>
+        </NavButton>
       </SimplePagination>
     )
 
@@ -399,22 +428,8 @@ const Pagination: React.FC<PaginationProps> = ({
       className={joinClassNames('ui-pagination', className)}
       aria-label="Pagination"
     >
-      <Pager
-        ref={navRef}
-        className="ui-pagination-pager"
-        data-sliding={pill ? 'true' : undefined}
-      >
-        {pill && (
-          <Indicator
-            aria-hidden
-            $instant={pill.instant}
-            style={{
-              width: pill.width,
-              transform: `translate(${pill.x}px, ${pill.y}px)`,
-            }}
-          />
-        )}
-        <PageButton
+      <Pager className="ui-pagination-pager">
+        <NavButton
           type="button"
           className="ui-pagination-prev"
           disabled={current <= 1}
@@ -426,43 +441,57 @@ const Pagination: React.FC<PaginationProps> = ({
             'prev',
             <KitIcon name="chevron-left" size={14} />,
           )}
-        </PageButton>
+        </NavButton>
 
-        {pages.map((page, idx) => {
-          if (typeof page === 'string')
-            return (
-              <Ellipsis
-                key={page + idx}
-                className="ui-pagination-ellipsis"
-                aria-hidden
-              >
-                …
-              </Ellipsis>
-            )
-
-          return (
-            <React.Fragment key={page}>
-              {renderItem(
-                page,
-                'page',
-                <PageButton
-                  type="button"
-                  className={joinClassNames(
-                    'ui-pagination-item',
-                    page === current && 'active',
-                  )}
-                  aria-current={page === current ? 'page' : undefined}
-                  aria-label={`Page ${page}`}
-                  onClick={() => goTo(page)}
+        <PageTrack
+          ref={trackRef}
+          className="ui-pagination-track"
+          data-sliding={thumb ? 'true' : 'false'}
+        >
+          {thumb && (
+            <Thumb
+              aria-hidden
+              data-dir={thumb.dir}
+              data-instant={thumb.instant ? '' : undefined}
+              style={{ left: thumb.left, right: thumb.right }}
+            />
+          )}
+          {pages.map((page, idx) => {
+            if (typeof page === 'string')
+              return (
+                <Ellipsis
+                  key={page + idx}
+                  className="ui-pagination-ellipsis"
+                  aria-hidden
                 >
-                  {page}
-                </PageButton>,
-              )}
-            </React.Fragment>
-          )
-        })}
+                  …
+                </Ellipsis>
+              )
 
-        <PageButton
+            return (
+              <React.Fragment key={page}>
+                {renderItem(
+                  page,
+                  'page',
+                  <PageButton
+                    type="button"
+                    className={joinClassNames(
+                      'ui-pagination-item',
+                      page === current && 'active',
+                    )}
+                    aria-current={page === current ? 'page' : undefined}
+                    aria-label={`Page ${page}`}
+                    onClick={() => goTo(page)}
+                  >
+                    {page}
+                  </PageButton>,
+                )}
+              </React.Fragment>
+            )
+          })}
+        </PageTrack>
+
+        <NavButton
           type="button"
           className="ui-pagination-next"
           disabled={current >= totalPages}
@@ -474,7 +503,7 @@ const Pagination: React.FC<PaginationProps> = ({
             'next',
             <KitIcon name="chevron-right" size={14} />,
           )}
-        </PageButton>
+        </NavButton>
       </Pager>
 
       {showSizeChanger && (

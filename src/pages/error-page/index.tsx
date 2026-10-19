@@ -1,4 +1,10 @@
-import React, { useContext, useEffect } from 'react'
+import React, {
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import styled, { keyframes } from 'styled-components'
 import { ErrorBoundaryContext } from 'react-error-boundary'
 import useDocumentHead from 'hooks/use-document-head'
@@ -40,10 +46,17 @@ const draw = keyframes`
   to { opacity: 1; transform: scaleX(1); }
 `
 
+/*
+ * The stage fills the viewport between what sits above it (the app bar) and
+ * the footer, and not a pixel more: both are measured (useFitViewport), as
+ * the footer stacks on phones and the crash screen has neither. Until then
+ * it assumes the desktop bar and footer, 65px each.
+ */
 const Stage = styled(Page)`
   display: grid;
   place-items: center;
-  min-height: calc(100vh - var(--app-bar-height) - 64px);
+  min-height: calc(100vh - var(--above, 65px) - var(--below, 65px));
+  min-height: calc(100svh - var(--above, 65px) - var(--below, 65px));
   padding-top: 32px;
   padding-bottom: 64px;
 `
@@ -315,7 +328,56 @@ const useNoIndex = (active: boolean) => {
   }, [active])
 }
 
+/**
+ * Measures what sits above the stage and the footer below it, so the stage
+ * can fill the rest of the viewport exactly; follows resizes.
+ */
+const useFitViewport = () => {
+  const stage = useRef<HTMLElement>(null)
+  const [fit, setFit] = useState<{ above: number; below: number }>()
+  useLayoutEffect(() => {
+    const node = stage.current
+    if (!node) return
+    const footer = document.querySelector('footer')
+    const read = () => {
+      const above = Math.round(
+        node.getBoundingClientRect().top + window.scrollY,
+      )
+      const below =
+        footer && !node.contains(footer)
+          ? Math.ceil(footer.getBoundingClientRect().height)
+          : 0
+      setFit((previous) =>
+        previous?.above === above && previous.below === below
+          ? previous
+          : { above, below },
+      )
+    }
+    read()
+    window.addEventListener('resize', read)
+    const observer =
+      typeof ResizeObserver === 'undefined'
+        ? undefined
+        : new ResizeObserver(read)
+    // The footer stacks on phones; a banner can appear above the app bar.
+    if (footer) observer?.observe(footer)
+    observer?.observe(document.body)
+    return () => {
+      window.removeEventListener('resize', read)
+      observer?.disconnect()
+    }
+  }, [])
+  const style = fit
+    ? ({
+        '--above': `${fit.above}px`,
+        '--below': `${fit.below}px`,
+      } as React.CSSProperties)
+    : undefined
+  return [stage, style] as const
+}
+
 const ErrorPage = ({ code, title, message, tip, onHome }: ErrorPageProps) => {
+  const [stageRef, stageStyle] = useFitViewport()
   // Set only when this page is an error boundary's fallback.
   const boundary = useContext(ErrorBoundaryContext)
   const goHome =
@@ -352,7 +414,7 @@ const ErrorPage = ({ code, title, message, tip, onHome }: ErrorPageProps) => {
   const next = () => ({ ['--i' as string]: index++ })
 
   return (
-    <Stage>
+    <Stage ref={stageRef} style={stageStyle}>
       <Moment>
         {numeric ? (
           <CodeStage data-digits>
