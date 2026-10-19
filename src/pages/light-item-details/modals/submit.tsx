@@ -40,7 +40,11 @@ import {
 } from 'components/curate/what-happens-next'
 import { Dialog } from 'components/curate/item-light-dialog'
 import { gatedConfirm, useActionGate } from 'components/curate/item-light-gate'
-import { formatAmount, formatEther } from 'components/curate/item-light-format'
+import {
+  formatAmount,
+  formatEther,
+  groupThousands,
+} from 'components/curate/item-light-format'
 
 /*
  * Submit an entry to a Light Curate list in three steps: fill in the fields,
@@ -288,7 +292,7 @@ export const SubmissionFlowScaffold = ({
           <DepositFigure
             title={formatAmount(submissionDeposit.toString(), nativeCurrency)}
           >
-            {formatEther(submissionDeposit.toString())}
+            {groupThousands(formatEther(submissionDeposit.toString()))}
             <small>{nativeCurrency}</small>
           </DepositFigure>
           <Small $muted>

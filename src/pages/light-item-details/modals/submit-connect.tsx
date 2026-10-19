@@ -73,6 +73,12 @@ const MatchRow = styled.div`
   }
 `
 
+const MatchCell = styled.div`
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+`
+
 interface SubmitConnectModalProps {
   onCancel: () => void
   initialValues?: string[]
@@ -457,8 +463,8 @@ const SubmitConnectModal = (props: SubmitConnectModalProps) => {
           {badgeTCRMetadata && (
             <Stack $gap={10}>
               <Small $muted>
-                Match at least one identifier column of the parent list for each
-                badge column you want compared.
+                For each badge column, pick the parent list column it should
+                match. Only identifier columns can be matched.
               </Small>
               {(badgeTCRMetadata.columns ?? []).map((column, i) => {
                 const selectId = `connect-match-${i}`
@@ -476,22 +482,32 @@ const SubmitConnectModal = (props: SubmitConnectModalProps) => {
                       {column.label}
                     </FieldLabel>
                     {tcrMetaEvidence?.metadata ? (
-                      <ColumnSelect
-                        id={selectId}
-                        aria-labelledby={`${selectId}-label`}
-                        defaultValue={0}
-                        disabled={!column.isIdentifier}
-                        onChange={(value) => handleChange(i, Number(value))}
-                      >
-                        {[
-                          { label: NONE },
-                          ...(tcrMetaEvidence.metadata.columns ?? []),
-                        ].map((parentColumn, j) => (
-                          <Select.Option value={j} key={j}>
-                            {parentColumn.label}
-                          </Select.Option>
-                        ))}
-                      </ColumnSelect>
+                      <MatchCell>
+                        <ColumnSelect
+                          id={selectId}
+                          aria-labelledby={`${selectId}-label`}
+                          aria-describedby={
+                            column.isIdentifier ? undefined : `${selectId}-why`
+                          }
+                          defaultValue={0}
+                          disabled={!column.isIdentifier}
+                          onChange={(value) => handleChange(i, Number(value))}
+                        >
+                          {[
+                            { label: NONE },
+                            ...(tcrMetaEvidence.metadata.columns ?? []),
+                          ].map((parentColumn, j) => (
+                            <Select.Option value={j} key={j}>
+                              {parentColumn.label}
+                            </Select.Option>
+                          ))}
+                        </ColumnSelect>
+                        {!column.isIdentifier && (
+                          <Small $muted id={`${selectId}-why`}>
+                            Not an identifier column, so it is not matched.
+                          </Small>
+                        )}
+                      </MatchCell>
                     ) : (
                       <SkeletonBlock $height="40px" />
                     )}

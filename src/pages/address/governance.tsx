@@ -28,7 +28,7 @@ import {
   TextInput,
   truncateMiddle,
 } from 'components/curate/primitives'
-import { NETWORKS_INFO } from 'config/networks'
+import { getNativeCurrency } from 'config/chains'
 import { klerosAddresses } from 'config/tcr-addresses'
 import { appKitModal, wagmiConfig } from 'config/wagmi'
 import { useEthersProvider } from 'hooks/ethers-adapters'
@@ -70,9 +70,8 @@ interface ParamConfig {
   hint?: string
 }
 
-const nativeSymbol = (chainId: number) =>
-  NETWORKS_INFO[chainId as keyof typeof NETWORKS_INFO]?.nativeCurrency.symbol ||
-  'ETH'
+// The shared helper, so Gnosis reads "xDAI" here like everywhere else.
+const nativeSymbol = (chainId: number) => getNativeCurrency(chainId).symbol
 
 const formatParamValue = (
   value: string | undefined,
@@ -749,7 +748,7 @@ const ArbitrationGovernanceField = ({
           </TwoUp>
           {selectedCourt && (
             <Small $muted>
-              {selectedCourt.description ||
+              {selectedCourt.summary ||
                 `${selectedCourt.label} handles disputes sent to this court.`}{' '}
               Fee per juror:{' '}
               <Data $weight={500}>
