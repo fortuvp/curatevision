@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useCallback } from 'react'
-import styled, { css } from 'styled-components'
-import { joinClassNames } from './kit-styles'
+import styled, { css, keyframes } from 'styled-components'
+import { joinClassNames, kitTransition } from './kit-styles'
 
 type RadioValue = string | number | boolean | undefined
 
@@ -19,8 +19,8 @@ const RadioWrapper = styled.label<{ $disabled?: boolean }>`
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  margin-right: 8px;
+  gap: 10px;
+  margin-right: 12px;
   color: var(--color-text);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
@@ -38,20 +38,28 @@ const HiddenRadioInput = styled.input`
   pointer-events: none;
 `
 
-/* 16px pill; checked = action-color ring with an 8px action dot inside. */
+const dotIn = keyframes`
+  from { transform: scale(0.2); }
+  to { transform: scale(1); }
+`
+
+/* 18px ring; checked = action-color ring with a glowing dot that springs in. */
 const RadioDot = styled.span<{ $checked?: boolean }>`
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   border: 1px solid
     ${({ $checked }) =>
-      $checked ? 'var(--color-primary)' : 'var(--color-border-strong)'};
+      $checked
+        ? 'color-mix(in srgb, var(--color-primary) 70%, transparent)'
+        : 'var(--color-border-strong)'};
   border-radius: var(--radius-pill);
-  background: var(--color-surface);
-  transition: border-color var(--motion);
+  background: ${({ $checked }) =>
+    $checked ? 'var(--color-primary-soft)' : 'var(--color-raised)'};
+  transition: ${kitTransition('border-color', 'background')};
 
   &::after {
     content: '';
@@ -60,6 +68,14 @@ const RadioDot = styled.span<{ $checked?: boolean }>`
     height: 8px;
     border-radius: var(--radius-pill);
     background: var(--color-primary);
+    box-shadow: 0 0 8px var(--color-primary);
+    animation: ${dotIn} 280ms var(--ease-spring) both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::after {
+      animation: none;
+    }
   }
 
   ${HiddenRadioInput}:focus-visible + & {
@@ -147,7 +163,10 @@ const Radio: RadioComponent = ({
 
 // --- Radio.Button ---
 
-/* Joined 32px segments; the chosen one is outlined (or filled) in the action color. */
+/*
+ * Segments of a pill track (the segmented control); the chosen one lifts
+ * onto a raised pill, or the action fill when the group is solid.
+ */
 const RadioButtonStyled = styled.label<{
   $checked?: boolean
   $disabled?: boolean
@@ -158,30 +177,29 @@ const RadioButtonStyled = styled.label<{
   align-items: center;
   justify-content: center;
   height: 32px;
-  margin-left: -1px;
-  padding: 0 12px;
-  border: 1px solid var(--color-border-strong);
-  background: var(--color-surface);
-  color: var(--color-text);
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-muted);
   font-size: var(--fs-small);
   line-height: var(--lh-small);
   font-weight: 500;
   white-space: nowrap;
   cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
-  opacity: ${({ $disabled }) => ($disabled ? 0.55 : 1)};
+  opacity: ${({ $disabled }) => ($disabled ? 0.5 : 1)};
   user-select: none;
-  transition:
-    background var(--motion),
-    border-color var(--motion),
-    color var(--motion);
+  transition: ${kitTransition('background', 'color', 'box-shadow')};
 
-  &:first-child {
-    margin-left: 0;
-    border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  /* The chosen pill: a lifted tint in dark themes, white in light. */
+  --segment-on: color-mix(in srgb, var(--color-text) 10%, transparent);
+
+  body[data-theme='light'] & {
+    --segment-on: var(--color-surface);
   }
 
-  &:last-child {
-    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  &:hover {
+    color: var(--color-text);
   }
 
   &:focus-within {
@@ -195,15 +213,21 @@ const RadioButtonStyled = styled.label<{
     ($buttonStyle === 'solid'
       ? css`
           z-index: 1;
-          border-color: var(--color-primary);
-          background: var(--color-primary);
+          background: var(--color-primary-fill);
           color: var(--color-on-primary);
+          box-shadow: 0 6px 18px -8px var(--color-primary);
+
+          &:hover {
+            color: var(--color-on-primary);
+          }
         `
       : css`
           z-index: 1;
-          border-color: var(--color-primary);
-          background: var(--color-primary-soft);
-          color: var(--color-primary);
+          background: var(--segment-on);
+          color: var(--color-text);
+          box-shadow:
+            inset 0 1px 0 var(--glass-highlight),
+            0 1px 2px color-mix(in srgb, var(--stage) 50%, transparent);
         `)}
 `
 
@@ -248,10 +272,19 @@ const RadioButton: React.FC<RadioButtonProps> = ({
 
 // --- Radio.Group ---
 
+/* A group of Radio.Button segments sits in a recessed pill track. */
 const GroupWrapper = styled.div`
   display: inline-flex;
   align-items: center;
   flex-wrap: wrap;
+  gap: 2px;
+
+  &:has(> .ui-radio-button) {
+    padding: 3px;
+    border-radius: var(--radius-pill);
+    background: var(--color-raised);
+    box-shadow: inset 0 0 0 1px var(--glass-border);
+  }
 `
 
 const RadioGroup: React.FC<RadioGroupProps> = ({

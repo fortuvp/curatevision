@@ -1,10 +1,11 @@
 import React from 'react'
 import styled, { css } from 'styled-components'
-import { joinClassNames, skeletonBlock } from './kit-styles'
+import { joinClassNames, kitTransition, skeletonBlock } from './kit-styles'
 
 /*
- * Card (DESIGN.md, Elevation): a surface on the page with a hairline and
- * radius 6; depth comes from the border, the token shadow is none in dark.
+ * Card, v2: the glass surface (18px radius, hairline, top highlight). The
+ * head is a display-type title over a hairline; hoverable cards lift 1px
+ * and brighten their border.
  */
 const StyledCard = styled.div<{ $bordered?: boolean; $hoverable?: boolean }>`
   position: relative;
@@ -12,13 +13,13 @@ const StyledCard = styled.div<{ $bordered?: boolean; $hoverable?: boolean }>`
   overflow: hidden;
   background: var(--color-surface);
   border: 1px solid
-    ${({ $bordered }) => ($bordered ? 'var(--color-border)' : 'transparent')};
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-card);
+    ${({ $bordered }) => ($bordered ? 'var(--glass-border)' : 'transparent')};
+  border-radius: var(--radius-lg);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    var(--shadow-card);
   color: var(--color-text);
-  transition:
-    border-color var(--motion),
-    box-shadow var(--motion);
+  transition: ${kitTransition('border-color', 'box-shadow', 'transform')};
 
   ${({ $hoverable }) =>
     $hoverable &&
@@ -27,7 +28,10 @@ const StyledCard = styled.div<{ $bordered?: boolean; $hoverable?: boolean }>`
 
       &:hover {
         border-color: var(--color-border-strong);
-        box-shadow: var(--shadow-card-hover);
+        box-shadow:
+          inset 0 1px 0 var(--glass-highlight),
+          var(--shadow-card-hover);
+        transform: translateY(-1px);
       }
     `}
 `
@@ -35,9 +39,9 @@ const StyledCard = styled.div<{ $bordered?: boolean; $hoverable?: boolean }>`
 const CardHead = styled.div`
   display: flex;
   align-items: center;
-  min-height: 56px;
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--color-border);
+  min-height: 60px;
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--glass-border);
 `
 
 const CardHeadWrapper = styled.div`
@@ -54,9 +58,11 @@ const CardHeadTitle = styled.div`
   min-width: 0;
   overflow: hidden;
   color: var(--color-text);
-  font-size: var(--fs-subheading);
-  line-height: var(--lh-subheading);
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 26px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
   white-space: nowrap;
   text-overflow: ellipsis;
 `
@@ -70,31 +76,30 @@ const CardExtra = styled.div`
 `
 
 const CardBody = styled.div`
-  padding: 20px;
+  padding: 20px 22px 22px;
   color: var(--color-text);
 `
 
 const CardActions = styled.div`
   display: flex;
   align-items: stretch;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--glass-border);
 
   > * {
     display: inline-flex;
     flex: 1;
     align-items: center;
     justify-content: center;
-    min-height: 44px;
+    min-height: 48px;
     padding: 0 12px;
     color: var(--color-muted);
+    font-weight: 500;
     text-align: center;
     cursor: pointer;
-    transition:
-      color var(--motion),
-      background var(--motion);
+    transition: ${kitTransition('color', 'background')};
 
     &:not(:last-child) {
-      border-right: 1px solid var(--color-border);
+      border-right: 1px solid var(--glass-border);
     }
 
     &:hover {
@@ -106,7 +111,8 @@ const CardActions = styled.div`
 
 const SkeletonLine = styled.div<{ $width?: string }>`
   ${skeletonBlock}
-  height: 14px;
+  height: 12px;
+  border-radius: var(--radius-pill);
   width: ${({ $width }) => $width || '100%'};
   margin-bottom: 12px;
 
@@ -147,7 +153,7 @@ const MetaTitle = styled.div`
   color: var(--color-text);
   font-size: var(--fs-body-lg);
   line-height: var(--lh-body-lg);
-  font-weight: 600;
+  font-weight: 500;
   white-space: nowrap;
   text-overflow: ellipsis;
 `

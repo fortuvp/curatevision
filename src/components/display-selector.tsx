@@ -1,12 +1,12 @@
 import React, { useState } from 'react'
 import styled from 'styled-components'
-import { Typography } from 'components/ui'
 import { ItemTypes } from '@kleros/gtcr-encoder'
 import { parseIpfs } from 'utils/ipfs-parse'
 import { isSafeNavigationUrl } from 'utils/url-validation'
 import { useAttachment } from 'hooks/use-attachment'
 import { buttonReset } from 'styles/button-reset'
-import { Data, SkeletonBlock, Small } from 'components/curate/primitives'
+import { CurateIcon } from 'components/curate/icons'
+import { SkeletonBlock, Small } from 'components/curate/primitives'
 import GTCRAddress from './gtcr-address'
 import RichAddress from './rich-address'
 import ETHAddress from './eth-address'
@@ -15,61 +15,173 @@ import FileDisplay from './file-display'
 import TruncatedLink from './truncated-link'
 
 /*
- * Renders one entry field by its MetaEvidence type. Empty values show a
- * faint placeholder; nothing is substituted for data the entry does not have.
+ * Renders one entry field by its MetaEvidence type. Addresses are mono with
+ * copy and explorer, links name their domain, images sit in a rounded frame
+ * that zooms on hover, long text fades out behind an expander. Empty values
+ * show a faint placeholder; nothing is substituted for data the entry does
+ * not have.
  */
 
-const StyledLink = styled.a`
-  color: var(--color-primary);
-  text-decoration: none;
+const Plain = styled.span`
   overflow-wrap: anywhere;
+`
 
-  &:hover {
-    text-decoration: underline;
+const Num = styled.span`
+  font-family: var(--font-figure);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+`
+
+const Flag = styled.span<{ $on: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: ${({ $on }) => ($on ? 'var(--color-text)' : 'var(--color-muted)')};
+  font-weight: 500;
+
+  svg {
+    color: ${({ $on }) =>
+      $on ? 'var(--status-registered)' : 'var(--color-faint)'};
   }
+`
+
+/* Inline, so on a long wrapping URL the arrow follows the last word. */
+const StyledLink = styled.a`
+  && {
+    color: var(--color-primary);
+    text-decoration: underline;
+    text-decoration-color: transparent;
+    text-underline-offset: 3px;
+    overflow-wrap: anywhere;
+    transition:
+      color var(--motion),
+      text-decoration-color var(--motion);
+  }
+
+  > svg {
+    display: inline-block;
+    margin-left: 4px;
+    vertical-align: -1px;
+    opacity: 0.7;
+    transition: transform 240ms var(--ease-out);
+  }
+
+  &&:hover {
+    color: var(--color-primary-hover);
+    text-decoration-color: currentColor;
+  }
+
+  &:hover > svg {
+    transform: translate(1px, -1px);
+  }
+`
+
+/* ---------- Images ---------- */
+
+const ImageFrame = styled.span`
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 100px;
+  height: 100px;
+  overflow: hidden;
+  vertical-align: middle;
+  border-radius: var(--radius);
+  background: var(--color-raised);
+  box-shadow:
+    inset 0 0 0 1px var(--glass-border),
+    inset 0 1px 0 var(--glass-highlight);
+  isolation: isolate;
+
+  img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    padding: 6px;
+    object-fit: contain;
+    opacity: 0;
+    transition:
+      opacity 360ms var(--ease-out),
+      transform 520ms var(--ease-out);
+  }
+
+  img[data-loaded='true'] {
+    opacity: 1;
+  }
+
+  &:hover img {
+    transform: scale(1.08);
+  }
+
+  > [data-skeleton] {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+  }
+`
+
+/* The expand mark that fades in over an image that opens in the viewer. */
+const Expand = styled.span`
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--color-bg) 72%, transparent);
+  box-shadow: inset 0 0 0 1px var(--glass-border);
+  color: var(--color-text);
+  opacity: 0;
+  transform: scale(0.85);
+  transition:
+    opacity var(--motion),
+    transform 240ms var(--ease-out);
 `
 
 const ImageLinkButton = styled.button`
   ${buttonReset}
   display: inline-flex;
-  align-items: center;
   vertical-align: middle;
   border-radius: var(--radius);
-  transition: opacity var(--motion);
+  cursor: zoom-in;
 
-  &:hover {
-    opacity: 0.85;
+  &:hover ${Expand}, &:focus-visible ${Expand} {
+    opacity: 1;
+    transform: none;
+  }
+
+  &:hover ${ImageFrame} {
+    box-shadow:
+      inset 0 0 0 1px var(--color-border-strong),
+      inset 0 1px 0 var(--glass-highlight);
   }
 `
 
-const ImageFrame = styled.div`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 100px;
-  height: 100px;
-  vertical-align: middle;
-`
-
-const ImagePlaceholder = styled.span`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 100px;
-  height: 100px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  background: var(--color-raised);
+const Broken = styled.span`
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
   color: var(--color-faint);
 `
 
-const StyledImage = styled.img`
-  width: 100px;
-  height: 100px;
-  padding: 4px;
-  border-radius: var(--radius);
-  object-fit: contain;
-`
+const ExpandIcon = () => (
+  <svg
+    width="12"
+    height="12"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    aria-hidden="true"
+  >
+    <path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7" />
+  </svg>
+)
 
 const ImageIcon = () => (
   <svg
@@ -100,26 +212,33 @@ const ImageWithLoading = ({ src, alt, linkImage }: ImageWithLoadingProps) => {
 
   if (error)
     return (
-      <ImageFrame>
-        <ImagePlaceholder title="Image could not be loaded">
+      <ImageFrame title="Image could not be loaded">
+        <Broken>
           <ImageIcon />
-        </ImagePlaceholder>
+        </Broken>
       </ImageFrame>
     )
 
   const content = (
     <ImageFrame>
-      {loading && <SkeletonBlock $width="100px" $height="100px" />}
-      <StyledImage
+      {loading && (
+        <SkeletonBlock data-skeleton $width="100px" $height="100px" />
+      )}
+      <img
         src={src}
         alt={alt}
-        style={{ display: loading ? 'none' : 'block' }}
+        data-loaded={!loading}
         onLoad={() => setLoading(false)}
         onError={() => {
           setLoading(false)
           setError(true)
         }}
       />
+      {linkImage && !loading && (
+        <Expand aria-hidden>
+          <ExpandIcon />
+        </Expand>
+      )}
     </ImageFrame>
   )
 
@@ -128,7 +247,10 @@ const ImageWithLoading = ({ src, alt, linkImage }: ImageWithLoadingProps) => {
       <ImageLinkButton
         type="button"
         aria-label="Open image"
-        onClick={() => openAttachment(src)}
+        onClick={(event) => {
+          event.stopPropagation()
+          openAttachment(src)
+        }}
       >
         {content}
       </ImageLinkButton>
@@ -176,17 +298,29 @@ const DisplaySelector = ({
         <Small $faint>No address</Small>
       )
     case ItemTypes.TEXT:
-      return <Typography.Text>{value}</Typography.Text>
+      return <Plain>{value}</Plain>
     case ItemTypes.NUMBER:
       return value === null || value === undefined ? (
         <Small $faint>No value</Small>
       ) : (
-        <Data>{String(value)}</Data>
+        <Num>{String(value)}</Num>
       )
-    case ItemTypes.BOOLEAN:
-      return <Data>{String(value) === 'true' ? 'Yes' : 'No'}</Data>
+    case ItemTypes.BOOLEAN: {
+      const on = String(value) === 'true'
+      return (
+        <Flag $on={on}>
+          <CurateIcon name={on ? 'check' : 'close'} size={14} />
+          {on ? 'Yes' : 'No'}
+        </Flag>
+      )
+    }
     case ItemTypes.LONG_TEXT:
-      return <LongText value={value ? String(value) : null} />
+      return (
+        <LongText
+          value={value ? String(value) : null}
+          compact={truncateLinks}
+        />
+      )
     case ItemTypes.FILE:
       return (
         <FileDisplay
@@ -209,12 +343,12 @@ const DisplaySelector = ({
       const fullUrl = protocolRegex.test(String(value))
         ? String(value)
         : `https://${value}`
-      if (!isSafeNavigationUrl(fullUrl))
-        return <Typography.Text>{value}</Typography.Text>
+      if (!isSafeNavigationUrl(fullUrl)) return <Plain>{value}</Plain>
       if (truncateLinks) return <TruncatedLink url={fullUrl} />
       return (
         <StyledLink href={fullUrl} target="_blank" rel="noopener noreferrer">
           {value}
+          <CurateIcon name="external" size={12} />
         </StyledLink>
       )
     }

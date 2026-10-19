@@ -22,10 +22,9 @@ import {
   Body,
   Button,
   ButtonLink,
+  Chip,
   Data,
   IconButton,
-  PanelHeader,
-  PanelTitle,
   Row,
   SkeletonBlock,
   Small,
@@ -42,8 +41,8 @@ import { Notice } from 'components/curate/item-light-notice'
 import { formatAmount } from 'components/curate/item-light-format'
 
 /*
- * The entry's fields (DESIGN.md: every field as label/value rendered by
- * type). For a list of lists it also shows the linked registry's identity.
+ * The entry's fields: every field as a label/value row rendered by its
+ * type, separated by hairlines. For a list of lists it also shows the linked registry's identity.
  * Classic lists keep the fee-reward withdrawal here. Shared by the Light,
  * Classic and Stake item pages and by the factory previews.
  */
@@ -79,6 +78,28 @@ const LogoButton = styled.button<{ $image?: string }>`
   &:hover {
     border-color: var(--color-border-strong);
   }
+`
+
+const Head = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-bottom: 8px;
+`
+
+const PanelName = styled.h2`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
 `
 
 const Actions = styled.div`
@@ -254,7 +275,7 @@ const ItemDetailsCard = ({
     return (
       <Surface id="item-details-card" $padding="standard">
         <Stack $gap={10}>
-          <PanelTitle>{title || 'Fields'}</PanelTitle>
+          <PanelName>{title || 'Fields'}</PanelName>
           {errors.map((error, index) => (
             <Notice key={index} tone="contested" role="alert">
               {error}
@@ -282,13 +303,13 @@ const ItemDetailsCard = ({
       $padding="standard"
       aria-label={title || undefined}
     >
-      <PanelHeader>
-        <PanelTitle>
-          <CurateIcon name="list" size={16} />
+      <Head>
+        <PanelName>
           {title || 'Fields'}
-        </PanelTitle>
+          {detailFields.length > 0 && <Chip>{detailFields.length}</Chip>}
+        </PanelName>
         {item?.itemID && <CopyId id={item.itemID} />}
-      </PanelHeader>
+      </Head>
       <Stack $gap={16}>
         {!!itemMetaEvidenceError && (
           <Notice tone="contested" role="alert">

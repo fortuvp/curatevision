@@ -1,9 +1,15 @@
 import React from 'react'
 import styled, { css } from 'styled-components'
-import { joinClassNames, toneColor, toneFor, type Tone } from './kit-styles'
+import {
+  haloDot,
+  joinClassNames,
+  toneColor,
+  toneFor,
+  type Tone,
+} from './kit-styles'
 
 /*
- * Timeline: 8px dots in the status roles on a hairline rail. `color` takes a
+ * Timeline, v2: 8px haloed dots in the status roles on a fading rail. `color` takes a
  * status word (registered, window, contested, off, neutral) or a legacy
  * color word; anything else is used as given.
  */
@@ -16,7 +22,7 @@ const TimelineWrapper = styled.ul`
 
 const TimelineItemWrapper = styled.li`
   position: relative;
-  padding: 0 0 20px 24px;
+  padding: 0 0 22px 26px;
 
   &:last-child {
     padding-bottom: 0;
@@ -25,11 +31,11 @@ const TimelineItemWrapper = styled.li`
 
 const TimelineTail = styled.div`
   position: absolute;
-  top: 16px;
+  top: 18px;
   left: 3.5px;
   width: 1px;
-  height: calc(100% - 16px);
-  background: var(--color-border);
+  height: calc(100% - 20px);
+  background: linear-gradient(var(--color-border-strong), var(--glass-border));
 
   ${TimelineItemWrapper}:last-child & {
     display: none;
@@ -44,10 +50,7 @@ const TimelineDot = styled.div<{
   position: absolute;
   left: 0;
   top: 6px;
-  width: 8px;
-  height: 8px;
-  border-radius: var(--radius-pill);
-  background: ${({ $tone, $raw }) => $raw || toneColor($tone)};
+  ${({ $tone, $raw }) => haloDot($raw || toneColor($tone))}
 
   ${({ $custom }) =>
     $custom &&
@@ -61,6 +64,7 @@ const TimelineDot = styled.div<{
       height: auto;
       border-radius: 0;
       background: var(--color-surface);
+      box-shadow: none;
       color: var(--color-muted);
       transform: translateX(-50%);
     `}

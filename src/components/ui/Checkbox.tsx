@@ -1,13 +1,13 @@
 import React, { useState, useCallback } from 'react'
-import styled from 'styled-components'
+import styled, { keyframes } from 'styled-components'
 import { KitIcon } from './kit-icons'
-import { joinClassNames } from './kit-styles'
+import { joinClassNames, kitTransition } from './kit-styles'
 
 const Wrapper = styled.label<{ $disabled?: boolean }>`
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   color: var(--color-text);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
@@ -25,28 +25,55 @@ const HiddenInput = styled.input`
   pointer-events: none;
 `
 
-/* 16px box, radius 4; checked = action fill with the mark in on-primary. */
+const markIn = keyframes`
+  from { transform: scale(0.4); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+`
+
+/* 18px box, radius 6; checked = action fill with a glow, the mark springs in. */
 const Indicator = styled.span<{ $checked?: boolean }>`
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   border: 1px solid
     ${({ $checked }) =>
-      $checked ? 'var(--color-primary)' : 'var(--color-border-strong)'};
-  border-radius: var(--radius-sm);
+      $checked
+        ? 'color-mix(in srgb, var(--color-primary) 60%, transparent)'
+        : 'var(--color-border-strong)'};
+  border-radius: 6px;
   background: ${({ $checked }) =>
-    $checked ? 'var(--color-primary)' : 'var(--color-surface)'};
+    $checked ? 'var(--color-primary-fill)' : 'var(--color-raised)'};
+  box-shadow: ${({ $checked }) =>
+    $checked ? '0 0 12px -3px var(--color-primary)' : 'none'};
   color: var(--color-on-primary);
-  transition:
-    background var(--motion),
-    border-color var(--motion);
+  transition: ${kitTransition('background', 'border-color', 'box-shadow')};
+
+  svg {
+    animation: ${markIn} 260ms var(--ease-spring) both;
+  }
+
+  --checkbox-hover-border: ${({ $checked }) =>
+    $checked
+      ? 'color-mix(in srgb, var(--color-primary) 80%, transparent)'
+      : 'var(--color-muted)'};
+
+  /* Static selector: the per-state color travels in the custom property. */
+  ${Wrapper}:hover & {
+    border-color: var(--checkbox-hover-border);
+  }
 
   ${HiddenInput}:focus-visible + & {
     outline: 2px solid var(--color-primary);
     outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    svg {
+      animation: none;
+    }
   }
 `
 

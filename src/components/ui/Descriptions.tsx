@@ -1,6 +1,6 @@
 import React, { Children, useMemo } from 'react'
 import styled, { css } from 'styled-components'
-import { joinClassNames, monoLabel } from './kit-styles'
+import { joinClassNames, kitLabel } from './kit-styles'
 
 interface DescriptionsItemProps {
   label?: React.ReactNode
@@ -20,19 +20,24 @@ const DescriptionsWrapper = styled.div`
 `
 
 const Title = styled.div`
-  margin-bottom: 12px;
+  margin-bottom: 14px;
   color: var(--color-text);
-  font-size: var(--fs-subheading);
-  line-height: var(--lh-subheading);
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 26px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
 `
 
-/* ---- Bordered layout: a key/value table with 44px rows (40px small) ---- */
+/*
+ * ---- Bordered layout, v2: key/value rows in one raised well, split by
+ * hairlines only (no cell grid). Rows are 48px (40px small). ----
+ */
 const BorderedTableWrapper = styled.div`
   overflow-x: auto;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  background: var(--color-surface);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  background: var(--color-raised);
 `
 
 const BorderedTable = styled.table`
@@ -40,82 +45,81 @@ const BorderedTable = styled.table`
   border-collapse: collapse;
 `
 
-const rowHeight = ($size?: string) => ($size === 'small' ? '40px' : '44px')
+const rowHeight = ($size?: string) => ($size === 'small' ? '40px' : '48px')
 
 const BorderedLabelCell = styled.th<{ $size?: string }>`
   height: ${({ $size }) => rowHeight($size)};
-  padding: 0 12px;
-  border: 1px solid var(--color-border);
-  background: var(--color-raised);
+  padding: 0 16px;
+  border-bottom: 1px solid var(--glass-border);
+  background: transparent;
+  /* Muted, not faint: small text on the raised well needs the stronger role. */
   color: var(--color-muted);
-  ${monoLabel}
+  ${kitLabel}
   text-align: left;
   vertical-align: middle;
   white-space: nowrap;
   width: 1%;
 
-  tr:first-child & {
-    border-top: 0;
-  }
   tr:last-child & {
     border-bottom: 0;
-  }
-  &:first-child {
-    border-left: 0;
   }
 `
 
 const BorderedContentCell = styled.td<{ $size?: string }>`
   height: ${({ $size }) => rowHeight($size)};
-  padding: ${({ $size }) => ($size === 'small' ? '8px 12px' : '10px 12px')};
-  border: 1px solid var(--color-border);
+  padding: ${({ $size }) => ($size === 'small' ? '8px 16px' : '12px 16px')};
+  border-bottom: 1px solid var(--glass-border);
   color: var(--color-text);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
+  font-variant-numeric: tabular-nums;
   vertical-align: middle;
   overflow-wrap: anywhere;
 
-  tr:first-child & {
-    border-top: 0;
-  }
   tr:last-child & {
     border-bottom: 0;
   }
-  &:last-child {
-    border-right: 0;
-  }
 `
 
-/* ---- Plain layout: mono label above the value, in a column grid ---- */
+/* ---- Plain layout: a small label above each value, in a column grid ---- */
 const ListGrid = styled.div<{ $columns?: number }>`
   display: grid;
   grid-template-columns: ${({ $columns }) =>
     `repeat(${$columns || 1}, minmax(0, 1fr))`};
-  gap: 12px 16px;
+  gap: 16px 20px;
+
+  @media (max-width: 599px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
 `
 
 const ListItem = styled.div<{ $span?: number }>`
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   min-width: 0;
   ${({ $span }) =>
     $span &&
     $span > 1 &&
     css`
       grid-column: span ${$span};
+
+      @media (max-width: 599px) {
+        grid-column: auto;
+      }
     `}
 `
 
 const ListLabel = styled.span`
-  ${monoLabel}
-  color: var(--color-muted);
+  ${kitLabel}
+  color: var(--color-faint);
 `
 
 const ListContent = styled.span`
   color: var(--color-text);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
+  font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 `
 

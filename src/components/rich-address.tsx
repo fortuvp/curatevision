@@ -1,48 +1,73 @@
 import React from 'react'
 import styled from 'styled-components'
 import { Tooltip } from 'components/ui'
-import Icon from 'components/ui/Icon'
+import { ChromeAddress } from 'components/curate/chrome-address'
+import { StatusDot, truncateMiddle } from 'components/curate/primitives'
 import { parseRichAddress } from '../utils/rich-address'
-import { shortenAddress } from '../utils/string'
+
+/*
+ * A multichain address ("eip155:100:0x…"): the network label as a small pill,
+ * the address in mono linking to that network's explorer, plus copy. An
+ * address that fails its network's format is marked with a warning dot.
+ */
 
 const Unknown = styled.span`
-  color: var(--color-danger);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
   overflow-wrap: anywhere;
+
+  > span:first-child {
+    transform: translateY(-1px);
+  }
 `
 
-const Anchor = styled.a<{ $invalid?: boolean }>`
-  color: ${({ $invalid }) =>
-    $invalid ? 'var(--color-warning)' : 'var(--color-primary)'};
-  font-family: var(--font-mono);
-  font-size: var(--fs-data);
-  line-height: var(--lh-data);
-  font-weight: 500;
-  text-decoration: underline;
+const Flagged = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
 `
 
 const RichAddress: React.FC<{ crude: string }> = ({ crude }) => {
   const richAddress = parseRichAddress(crude)
-  if (richAddress === null) return <Unknown>Unknown address “{crude}”</Unknown>
+  if (richAddress === null)
+    return (
+      <Unknown>
+        <StatusDot $tone="off" aria-hidden />
+        <span>Unknown address “{crude}”</span>
+      </Unknown>
+    )
 
   const { address, reference, link, passedTest } = richAddress
-  const labelText = `${reference.label}: `
   if (!passedTest)
     return (
       <Tooltip title="This address is not valid">
-        <Icon type="warning" style={{ color: 'inherit' }} />
-        &nbsp;
-        <Anchor $invalid href={link} rel="noreferrer" target="_blank">
-          {labelText}
-          {shortenAddress(address)}
-        </Anchor>
+        <Flagged>
+          <StatusDot $tone="contested" aria-hidden />
+          <ChromeAddress
+            address={address}
+            href={link}
+            prefix={reference.label}
+            display={truncateMiddle(address, 6, 4)}
+            invalid
+          />
+        </Flagged>
       </Tooltip>
     )
 
   return (
-    <Anchor href={link} rel="noreferrer" target="_blank">
-      {labelText}
-      {shortenAddress(address)}
-    </Anchor>
+    <ChromeAddress
+      address={address}
+      href={link}
+      prefix={reference.label}
+      display={truncateMiddle(address, 6, 4)}
+    />
   )
 }
 

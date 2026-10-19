@@ -24,42 +24,55 @@ const StyledForm = styled.form<{ $layout?: string }>`
     `}
 `
 
-/* Field block: label (13/18 at 500), control, help line; status tints the control's border. */
+/*
+ * Field block, v2: a 12/500 label above the field, the control, then one help
+ * line. An error tints the field's hairline and ring in the danger role and
+ * the help line names the problem; success tints them in the registered role.
+ */
+const statusField = (color: string) => css`
+  .ui-form-item-control input,
+  .ui-form-item-control textarea,
+  .ui-form-item-control .ui-select-trigger {
+    border-color: color-mix(in srgb, ${color} 60%, transparent) !important;
+  }
+
+  && .ui-form-item-control :is(input, textarea).ui-input.ui-input,
+  && .ui-form-item-control .ui-input-group,
+  && .ui-form-item-control .ui-input-number,
+  && .ui-form-item-control .ui-select-trigger {
+    border-color: color-mix(in srgb, ${color} 60%, transparent) !important;
+  }
+
+  && .ui-form-item-control :is(input, textarea).ui-input.ui-input:focus,
+  && .ui-form-item-control .ui-input-group:focus-within,
+  && .ui-form-item-control .ui-input-number:focus-within,
+  && .ui-form-item-control .ui-select-trigger[aria-expanded='true'] {
+    box-shadow: 0 0 0 4px color-mix(in srgb, ${color} 16%, transparent) !important;
+  }
+`
+
 const FormItemWrapper = styled.div<{ $validateStatus?: string }>`
   display: flex;
   flex-direction: column;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 
   ${({ $validateStatus }) =>
-    $validateStatus === 'error' &&
-    css`
-      .ui-form-item-control input,
-      .ui-form-item-control textarea,
-      .ui-form-item-control .ui-select-trigger {
-        border-color: var(--color-danger) !important;
-      }
-    `}
+    $validateStatus === 'error' && statusField('var(--color-danger)')}
 
   ${({ $validateStatus }) =>
-    $validateStatus === 'success' &&
-    css`
-      .ui-form-item-control input,
-      .ui-form-item-control textarea,
-      .ui-form-item-control .ui-select-trigger {
-        border-color: var(--color-success) !important;
-      }
-    `}
+    $validateStatus === 'success' && statusField('var(--color-success)')}
 `
 
 const Label = styled.label<{ $required?: boolean }>`
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin-bottom: 6px;
-  color: var(--color-text);
-  font-size: var(--fs-small);
-  line-height: var(--lh-small);
+  margin-bottom: 8px;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 16px;
   font-weight: 500;
+  letter-spacing: 0.01em;
 
   ${({ $required }) =>
     $required &&
@@ -72,13 +85,16 @@ const Label = styled.label<{ $required?: boolean }>`
 `
 
 const HelpText = styled.div<{ $isError?: boolean }>`
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
   min-height: var(--lh-small);
-  margin-top: 4px;
+  margin-top: 6px;
   color: ${({ $isError }) =>
-    $isError ? 'var(--color-danger)' : 'var(--color-muted)'};
-  font-size: var(--fs-small);
-  line-height: var(--lh-small);
-  transition: color var(--motion);
+    $isError ? 'var(--color-danger)' : 'var(--color-faint)'};
+  font-size: 12px;
+  line-height: 16px;
+  transition: color var(--dur-hover) var(--ease-out);
 `
 
 const ControlWrapper = styled.div`

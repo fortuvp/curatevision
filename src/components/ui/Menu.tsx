@@ -1,15 +1,15 @@
 import React, { useCallback } from 'react'
 import styled, { css } from 'styled-components'
-import { focusRing, joinClassNames } from './kit-styles'
+import { focusRing, joinClassNames, menuRow } from './kit-styles'
 
-/* Menu rows like the app bar's menus: 40px, radius 4, selected = primary-soft. */
+/* Menu rows like the app bar's menus: 40px, radius 12, selected = primary-soft. */
 const MenuWrapper = styled.ul<{ $mode?: string }>`
   list-style: none;
   margin: 0;
   padding: 6px;
   min-width: 160px;
-  background: var(--color-surface);
-  border-radius: var(--radius);
+  background: transparent;
+  border-radius: var(--radius-lg);
 
   ${({ $mode }) =>
     $mode === 'horizontal' &&
@@ -18,14 +18,14 @@ const MenuWrapper = styled.ul<{ $mode?: string }>`
       align-items: center;
       gap: 4px;
       padding: 0;
-      border-bottom: 1px solid var(--color-border);
+      border-bottom: 1px solid var(--glass-border);
       border-radius: 0;
     `}
 
   ${({ $mode }) =>
     $mode === 'inline' &&
     css`
-      border-right: 1px solid var(--color-border);
+      border-right: 1px solid var(--glass-border);
       border-radius: 0;
     `}
 `
@@ -35,12 +35,7 @@ const MenuItemWrapper = styled.li<{
   $selected?: boolean
   $mode?: string
 }>`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 40px;
-  padding: 4px 10px;
-  border-radius: var(--radius-sm);
+  ${menuRow}
   color: ${({ $disabled, $selected }) =>
     $disabled
       ? 'var(--color-muted)'
@@ -49,15 +44,9 @@ const MenuItemWrapper = styled.li<{
         : 'var(--color-text)'};
   background: ${({ $selected }) =>
     $selected ? 'var(--color-primary-soft)' : 'transparent'};
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
-  font-weight: 500;
   white-space: nowrap;
   cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
-  opacity: ${({ $disabled }) => ($disabled ? 0.55 : 1)};
-  transition:
-    background var(--motion),
-    color var(--motion);
+  opacity: ${({ $disabled }) => ($disabled ? 0.5 : 1)};
   ${focusRing}
 
   &:hover {

@@ -1,49 +1,64 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 import styled from 'styled-components'
 import { KitIcon } from './kit-icons'
-import { joinClassNames, monoData } from './kit-styles'
+import {
+  fieldFocus,
+  fieldHover,
+  fieldSurface,
+  joinClassNames,
+  kitTransition,
+} from './kit-styles'
 
-/* Numeric field: 40px, radius 6, mono figures, stepper column on the right. */
+/*
+ * Numeric field, v2: the raised 44px field with tabular figures and a quiet
+ * stepper column on the right; focus tints the fill and rings it in blue.
+ */
 const Wrapper = styled.div`
+  ${fieldSurface}
   position: relative;
   display: inline-flex;
   align-items: stretch;
-  width: 96px;
-  height: 40px;
+  width: 112px;
+  height: 44px;
   overflow: hidden;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  background: var(--color-surface);
-  transition: border-color var(--motion);
 
   &:hover:not(.disabled) {
-    border-color: var(--color-border-strong);
+    ${fieldHover}
   }
 
   &:focus-within:not(.disabled) {
-    border-color: var(--color-primary);
-    outline: 2px solid var(--color-primary);
-    outline-offset: 2px;
+    ${fieldFocus}
   }
 
   &.disabled {
-    background: var(--color-raised);
+    background: transparent;
     cursor: not-allowed;
-    opacity: 0.55;
+    opacity: 0.5;
   }
 `
 
+/* The wrapper is the field; the inner input stays bare against the global field rules. */
 const StyledInput = styled.input`
   flex: 1;
   min-width: 0;
-  padding: 0 10px;
+  padding: 0 12px;
   border: 0;
   outline: 0;
-  background: transparent;
   color: var(--color-text);
-  ${monoData}
+  font-family: var(--font-figure);
+  font-size: var(--fs-body-lg);
+  line-height: var(--lh-body-lg);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
   text-align: left;
   -moz-appearance: textfield;
+
+  && {
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
 
   &::-webkit-outer-spin-button,
   &::-webkit-inner-spin-button {
@@ -51,7 +66,7 @@ const StyledInput = styled.input`
     margin: 0;
   }
 
-  &:focus-visible {
+  &&:focus-visible {
     outline: none;
   }
 
@@ -65,8 +80,9 @@ const HandlerWrap = styled.div`
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  width: 24px;
-  border-left: 1px solid var(--color-border);
+  width: 28px;
+  padding: 3px 3px 3px 0;
+  gap: 2px;
 `
 
 const HandlerButton = styled.button`
@@ -76,26 +92,25 @@ const HandlerButton = styled.button`
   flex: 1;
   padding: 0;
   border: 0;
+  border-radius: 6px;
   background: transparent;
-  color: var(--color-muted);
+  color: var(--color-faint);
   cursor: pointer;
   user-select: none;
-  transition:
-    color var(--motion),
-    background var(--motion);
+  transition: ${kitTransition('color', 'background', 'transform')};
 
   &:hover:not(:disabled) {
     color: var(--color-text);
     background: var(--color-raised);
   }
 
-  &:first-child {
-    border-bottom: 1px solid var(--color-border);
+  &:active:not(:disabled) {
+    transform: scale(0.92);
   }
 
   &:disabled,
   &.handler-disabled {
-    color: var(--color-faint);
+    opacity: 0.4;
     cursor: not-allowed;
   }
 `

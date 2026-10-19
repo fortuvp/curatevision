@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import styled from 'styled-components'
+import styled, { keyframes } from 'styled-components'
 import { Link } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { getPublicClient, simulateContract } from '@wagmi/core'
@@ -16,18 +16,14 @@ import {
   ChainChip,
   Chip,
   Data,
-  Grid,
-  Heading,
   IconButton,
-  KeyValueList,
   Label,
-  PanelHeader,
   Row,
+  SkeletonBlock,
   Small,
   Stack,
   StatusDot,
   Subheading,
-  Surface,
   TextInput,
   truncateMiddle,
 } from 'components/curate/primitives'
@@ -37,6 +33,7 @@ import { appKitModal, wagmiConfig } from 'config/wagmi'
 import { useEthersProvider } from 'hooks/ethers-adapters'
 import useCourtPolicies from 'hooks/use-court-policies'
 import { formatDate } from 'utils/time'
+import { parseIpfs } from 'utils/ipfs-parse'
 import { jurorsAndCourtIDFromExtraData } from 'utils/string'
 import { JSON_UPLOAD_ROLE } from 'utils/atlas-roles'
 import { errorToast, wrapWithToast } from 'utils/wrap-with-toast'
@@ -285,6 +282,18 @@ const buildArbitratorExtraData = (courtID: string, jurors: string) =>
 
 /* ---------- Dialog shell ---------- */
 
+const backdropIn = keyframes`
+  from { opacity: 0; }
+`
+
+const dialogIn = keyframes`
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+`
+
+const sheetIn = keyframes`
+  from { transform: translateY(100%); }
+`
+
 const Layer = styled.div`
   position: fixed;
   inset: 0;
@@ -304,25 +313,39 @@ const Layer = styled.div`
 const Backdrop = styled.div`
   position: fixed;
   inset: 0;
-  background: var(--color-bg);
-  opacity: 0.82;
+  background: color-mix(in srgb, var(--stage) 62%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: ${backdropIn} 240ms ease both;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
 `
 
 const Dialog = styled.div`
   position: relative;
   width: 100%;
   max-width: 760px;
+  border: 1px solid var(--glass-border);
+  border-radius: 24px;
   background: var(--color-surface);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-overlay);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    var(--shadow-overlay);
   outline: none;
+  animation: ${dialogIn} 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
 
   @media (max-width: 720px) {
     max-width: none;
     max-height: 92vh;
     overflow-y: auto;
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-radius: 24px 24px 0 0;
+    animation: ${sheetIn} 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
   }
 `
 
@@ -331,15 +354,27 @@ const DialogHead = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--color-border);
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--glass-border);
+
+  h3 {
+    font-family: var(--font-display);
+    font-size: 22px;
+    line-height: 28px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+  }
 `
 
 const DialogBody = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 20px;
+  gap: 20px;
+  padding: 20px 24px 24px;
+
+  @media (max-width: 720px) {
+    padding: 16px;
+  }
 `
 
 /** What Tab can land on inside the dialog; the dialog itself (tabindex -1) is excluded. */
@@ -435,8 +470,8 @@ const Field = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 14px 0;
-  border-top: 1px solid var(--color-border);
+  padding: 16px 0;
+  border-top: 1px solid var(--glass-border);
 `
 
 const FieldLabel = styled.label`
@@ -469,11 +504,11 @@ const TwoUp = styled.div`
 
 const SelectInput = styled.select`
   width: 100%;
-  height: 40px;
+  height: 44px;
   padding: 0 12px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius);
-  background: var(--color-surface);
+  background: var(--color-raised);
   color: var(--color-text);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
@@ -486,6 +521,7 @@ const SelectInput = styled.select`
   &:focus {
     outline: none;
     border-color: var(--color-primary);
+    box-shadow: 0 0 0 4px var(--color-primary-soft);
   }
 
   &:disabled {
@@ -510,8 +546,8 @@ const GateRow = styled.div`
   flex-wrap: wrap;
   gap: 8px 16px;
   padding: 12px 16px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
   background: var(--color-raised);
 `
 
@@ -1040,50 +1076,219 @@ const CourtDisplay = ({ registry }: { registry: GovernedRegistry }) => {
     <>
       {court?.label || 'Court'}
       {` · ID ${decoded.courtID}`}
-      {decoded.numberOfJurors ? ` · ${decoded.numberOfJurors} jurors` : ''}
+      {decoded.numberOfJurors
+        ? ` · ${decoded.numberOfJurors} ${Number(decoded.numberOfJurors) === 1 ? 'juror' : 'jurors'}`
+        : ''}
     </>
   )
 }
 
 /* ---------- Panel ---------- */
 
+const GovList = styled.ul`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+`
+
+const GovRow = styled.li`
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1.2fr) minmax(0, 1.4fr) auto;
+  align-items: center;
+  gap: 16px 20px;
+  min-height: 76px;
+  padding: 16px 16px 16px 14px;
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  background: var(--color-raised);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  transition:
+    border-color 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  &:hover {
+    border-color: var(--color-border-strong);
+    box-shadow:
+      inset 0 1px 0 var(--glass-highlight),
+      var(--shadow-card-hover);
+  }
+
+  @media (max-width: 980px) {
+    grid-template-columns: 40px minmax(0, 1fr);
+
+    > :nth-child(n + 3) {
+      grid-column: 1 / -1;
+    }
+  }
+`
+
+const GovName = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+
+  small {
+    color: var(--color-faint);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 16px;
+  }
+`
+
 const RegistryTitle = styled(Link)`
   display: block;
   overflow: hidden;
   color: var(--color-text);
-  font-weight: 600;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 500;
   text-decoration: none;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: color var(--motion);
 
   &:hover {
     color: var(--color-primary);
   }
 `
 
-const Card = styled(Surface)`
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+const Facts = styled.dl`
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) auto auto;
+  gap: 4px 24px;
+  margin: 0;
+  min-width: 0;
+
+  div {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  dd {
+    margin: 0;
+    overflow: hidden;
+    color: var(--color-text);
+    font-size: var(--fs-small);
+    line-height: var(--lh-small);
+    font-variant-numeric: tabular-nums;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 560px) {
+    grid-template-columns: minmax(0, 1fr) auto;
+
+    div:first-child {
+      grid-column: 1 / -1;
+    }
+  }
 `
 
-const Actions = styled.div`
+const GovActions = styled.div`
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
-  margin-top: auto;
-  padding-top: 12px;
-  border-top: 1px solid var(--color-border);
+
+  @media (max-width: 980px) {
+    justify-content: flex-start;
+  }
 `
+
+const GovLogo = styled.span<{ $image?: string | null }>`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  background: ${({ $image }) =>
+    $image ? `url("${$image}") center / cover` : 'var(--color-surface)'};
+  color: var(--color-faint);
+`
+
+const GovHead = styled.div`
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin: 72px 0 20px;
+
+  h2 {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin: 0;
+    color: var(--color-text);
+    font-family: var(--font-display);
+    font-size: 30px;
+    line-height: 34px;
+    font-weight: 500;
+    letter-spacing: -0.03em;
+  }
+
+  h2 small {
+    color: var(--color-faint);
+    font-family: var(--font-figure);
+    font-size: 16px;
+    line-height: 1;
+    letter-spacing: 0;
+    font-variant-numeric: tabular-nums;
+  }
+
+  p {
+    flex-basis: 100%;
+    margin: -4px 0 0;
+    color: var(--color-muted);
+    font-size: var(--fs-small);
+    line-height: var(--lh-small);
+  }
+
+  @media (max-width: 720px) {
+    margin-top: 48px;
+
+    h2 {
+      font-size: 26px;
+      line-height: 30px;
+    }
+  }
+`
+
+const GovEmpty = styled.p`
+  margin: 0;
+  padding: 18px 20px;
+  border: 1px dashed var(--glass-border);
+  border-radius: 14px;
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+`
+
+const logoUrl = (uri?: string | null): string | null => {
+  if (!uri) return null
+  if (/^https?:\/\//i.test(uri)) return uri
+  return parseIpfs(uri)
+}
 
 export const GovernancePanel = ({
   registries,
   profileAddress,
   loading,
+  isZero = false,
 }: {
   registries: GovernedRegistry[]
   profileAddress: string
   loading?: boolean
+  /** The zero address: its lists can no longer change parameters. */
+  isZero?: boolean
 }) => {
   const { address: connectedAddress, isConnected } = useAccount()
   const [selected, setSelected] = useState<GovernedRegistry | null>(null)
@@ -1094,76 +1299,95 @@ export const GovernancePanel = ({
 
   return (
     <section aria-label="Governed lists">
-      <PanelHeader>
-        <div>
-          <Heading>
-            Governed lists
-            {!loading && registries.length > 0 && (
-              <Data $muted $weight={400} style={{ marginLeft: 8 }}>
-                {formatInt(registries.length)}
-              </Data>
-            )}
-          </Heading>
-          <Small $muted>
-            Lists whose governor is this address. Deposits, periods, court and
-            policy can be changed only from the governor wallet.
-          </Small>
-        </div>
-      </PanelHeader>
+      <GovHead>
+        <h2>
+          Governed lists
+          {!loading && registries.length > 0 && (
+            <small>{formatInt(registries.length)}</small>
+          )}
+        </h2>
+        <p>
+          {isZero && registries.length > 0
+            ? 'Lists whose governor is the zero address: nobody can change their parameters any more.'
+            : 'Lists whose governor is this address. Only the governor wallet can change their deposits, periods, court and policy.'}
+        </p>
+      </GovHead>
 
       {loading ? (
-        <Small $muted>Scanning indexed lists for this governor…</Small>
+        <GovList aria-busy="true">
+          <Small $muted role="status">
+            Scanning indexed lists for this governor…
+          </Small>
+          <SkeletonBlock $height="76px" style={{ borderRadius: 14 }} />
+        </GovList>
       ) : registries.length === 0 ? (
-        <Small $muted>
+        <GovEmpty>
           No indexed list names this address as governor. A list appears here
           once the profile scan can read its governor.
-        </Small>
+        </GovEmpty>
       ) : (
-        <Grid $min={300}>
+        <GovList>
           {registries.map((registry) => {
             const editable =
               isOwner && normalizeAddress(registry.governor) === connected
             const href = `/tcr/${registry.chainId}/${registry.address}`
+            const image = logoUrl(registry.logoURI)
             return (
-              <Card key={registry.id} $padding="compact" as="article">
-                <div style={{ minWidth: 0 }}>
+              <GovRow key={registry.id}>
+                <GovLogo $image={image} aria-hidden>
+                  {!image && <CurateIcon name="registry" size={17} />}
+                </GovLogo>
+                <GovName>
                   <RegistryTitle to={href}>{registry.title}</RegistryTitle>
-                  <Small $faint>
-                    {kindLabel(registry.kind)} ·{' '}
-                    {truncateMiddle(registry.address)}
-                  </Small>
-                </div>
-                <Row $gap={6} $wrap>
-                  <ChainChip chainId={registry.chainId} size="sm" />
-                  {editable && (
-                    <Chip>
-                      <StatusDot $tone="registered" aria-hidden /> You govern
-                      this list
-                    </Chip>
-                  )}
-                </Row>
-                <KeyValueList>
-                  <dt>Created</dt>
-                  <dd>
-                    <Data>
+                  <Row $gap={6} $wrap>
+                    <ChainChip chainId={registry.chainId} size="sm" />
+                    <small>
+                      {kindLabel(registry.kind)} ·{' '}
+                      {truncateMiddle(registry.address)}
+                    </small>
+                    {editable && (
+                      <Chip>
+                        <StatusDot $tone="registered" aria-hidden /> You govern
+                        this list
+                      </Chip>
+                    )}
+                  </Row>
+                </GovName>
+                <Facts>
+                  <div>
+                    <Label as="dt" $tone="faint">
+                      Court
+                    </Label>
+                    <dd>
+                      <CourtDisplay registry={registry} />
+                    </dd>
+                  </div>
+                  <div>
+                    <Label as="dt" $tone="faint">
+                      Entries
+                    </Label>
+                    <dd>{formatInt(registry.itemCount)}</dd>
+                  </div>
+                  <div>
+                    <Label as="dt" $tone="faint">
+                      Created
+                    </Label>
+                    <dd>
                       {registry.createdAt
                         ? formatDate(registry.createdAt)
                         : '—'}
-                    </Data>
-                  </dd>
-                  <dt>Court</dt>
-                  <dd>
-                    <Data>
-                      <CourtDisplay registry={registry} />
-                    </Data>
-                  </dd>
-                  <dt>Entries</dt>
-                  <dd>
-                    <Data>{formatInt(registry.itemCount)}</Data>
-                  </dd>
-                </KeyValueList>
-                <Actions>
-                  {editable ? (
+                    </dd>
+                  </div>
+                </Facts>
+                <GovActions>
+                  {isZero ? (
+                    // Nobody holds the zero address's key: there is no
+                    // update to offer, only the list to open.
+                    <Chip title="The governor is the zero address, so these parameters can no longer change">
+                      <StatusDot $tone="neutral" aria-hidden />
+                      Governance renounced
+                    </Chip>
+                  ) : editable ? (
                     <Button
                       type="button"
                       $variant="primary"
@@ -1175,7 +1399,7 @@ export const GovernancePanel = ({
                   ) : isConnected ? (
                     <Button
                       type="button"
-                      $variant="primary"
+                      $variant="secondary"
                       $size="sm"
                       disabled
                       title="Connect the governor wallet to update this list"
@@ -1185,21 +1409,21 @@ export const GovernancePanel = ({
                   ) : (
                     <Button
                       type="button"
-                      $variant="primary"
+                      $variant="secondary"
                       $size="sm"
                       onClick={() => appKitModal?.open({ view: 'Connect' })}
                     >
                       Connect wallet to update
                     </Button>
                   )}
-                  <ButtonLink to={href} $variant="secondary" $size="sm">
+                  <ButtonLink to={href} $variant="ghost" $size="sm">
                     Open list
                   </ButtonLink>
-                </Actions>
-              </Card>
+                </GovActions>
+              </GovRow>
             )
           })}
-        </Grid>
+        </GovList>
       )}
 
       {selected && (

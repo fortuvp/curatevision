@@ -7,6 +7,7 @@ import type {
   RegistryKind,
 } from 'pages/dashboard/types'
 import type { StatusTone } from 'components/curate/primitives'
+import { TESTNET_CHAIN_IDS } from 'pages/dashboard/view'
 
 /*
  * Pure view helpers for /browse: URL parameter parsing, filters, sorts and
@@ -24,6 +25,19 @@ export type BrowseSort =
 
 export const PAGE_SIZE = 15
 
+/**
+ * The creation date a row may show: only while sorting by newest, and only
+ * when it is the list's real creation block (the factory event), not its
+ * first request.
+ */
+export const shownCreation = (
+  registry: DashboardRegistry,
+  sort: BrowseSort,
+): number | null =>
+  sort === 'recent-creation' && registry.createdAtExact && registry.createdAt
+    ? registry.createdAt
+    : null
+
 export const SUPPORTED_CHAIN_IDS = Object.values(NETWORKS_INFO).map((info) =>
   Number(info.chainId),
 )
@@ -33,6 +47,43 @@ export const chainInfo = (chainId: number) =>
 
 export const chainName = (chainId: number): string =>
   chainInfo(chainId)?.name ?? `Chain ${chainId}`
+
+const listFormat = new Intl.ListFormat('en-GB', {
+  style: 'long',
+  type: 'conjunction',
+})
+
+const isTestnet = (chainId: number) => TESTNET_CHAIN_IDS.includes(chainId)
+
+/** The chains a `chain` filter covers: none chosen means every chain. */
+export const scopeChainIds = (chains: number[]): number[] =>
+  chains.length === 0 ? SUPPORTED_CHAIN_IDS : chains
+
+/** A chain's name, marked as a testnet where it is one ("Sepolia testnet"). */
+const scopeName = (chainId: number): string =>
+  isTestnet(chainId) ? `${chainName(chainId)} testnet` : chainName(chainId)
+
+/** "Ethereum, Gnosis and Sepolia testnet" for no chain filter, else the chosen chains. */
+export const scopeText = (chains: number[]): string =>
+  listFormat.format(scopeChainIds(chains).map(scopeName))
+
+/**
+ * What a share of registries is a share of: "of 390 registries · incl.
+ * Sepolia testnet" when a testnet is in scope next to mainnets, so the figure
+ * is not mistaken for the mainnet share the home page shows.
+ */
+export const shareCaption = (total: number, chains: number[]): string => {
+  const scoped = scopeChainIds(chains)
+  const testnets = scoped.filter(isTestnet)
+  const count = `of ${new Intl.NumberFormat('en-US').format(total)} ${
+    total === 1 ? 'registry' : 'registries'
+  }`
+  if (testnets.length === 0) return count
+  const names = listFormat.format(testnets.map(scopeName))
+  return testnets.length === scoped.length
+    ? `${count} on ${names}`
+    : `${count} · incl. ${names}`
+}
 
 /** Chains that have a Kleros Verified list of lists a registry can be submitted to. */
 export const VERIFICATION_CHAIN_IDS = Object.keys(
@@ -93,6 +144,18 @@ export const toggleKind = (
   kinds.includes(kind)
     ? kinds.filter((value) => value !== kind)
     : [...kinds, kind]
+
+/**
+ * Every entry a registry holds, whatever its status, so the figure matches
+ * the registry page's own "Entries". Light lists report registered and absent
+ * entries in `itemCount` and their entries with an open request in
+ * `pendingCount`; Classic (`numberOfItems`) and Stake (submitted plus absent)
+ * already count every entry in `itemCount`.
+ */
+export const entryCount = (registry: DashboardRegistry): number =>
+  registry.kind === 'light'
+    ? registry.itemCount + registry.pendingCount
+    : registry.itemCount
 
 /**
  * What a registry's `pendingCount` counts: open requests for Light and
@@ -167,7 +230,7 @@ export const sortRegistries = (
         b.activeCount - a.activeCount ||
         (b.lastActivityAt || 0) - (a.lastActivityAt || 0)
       )
-    if (sort === 'items') return b.itemCount - a.itemCount
+    if (sort === 'items') return entryCount(b) - entryCount(a)
     if (sort === 'disputes')
       return b.disputeCount - a.disputeCount || b.activeCount - a.activeCount
     if (sort === 'name') return a.title.localeCompare(b.title)
@@ -175,12 +238,12 @@ export const sortRegistries = (
       return (
         (b.createdAt || 0) - (a.createdAt || 0) ||
         (b.lastActivityAt || 0) - (a.lastActivityAt || 0) ||
-        b.itemCount - a.itemCount
+        entryCount(b) - entryCount(a)
       )
     return (
       (b.lastActivityAt || 0) - (a.lastActivityAt || 0) ||
       b.activeCount - a.activeCount ||
-      b.itemCount - a.itemCount
+      entryCount(b) - entryCount(a)
     )
   })
 
@@ -202,7 +265,7 @@ export const summarize = (
       .length,
     discovery: scoped.filter((registry) => registry.trustStatus !== 'verified')
       .length,
-    entries: scoped.reduce((sum, registry) => sum + registry.itemCount, 0),
+    entries: scoped.reduce((sum, registry) => sum + entryCount(registry), 0),
     openRequests: scoped.reduce(
       (sum, registry) =>
         registry.kind === 'permanent' ? sum : sum + registry.pendingCount,

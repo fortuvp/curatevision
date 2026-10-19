@@ -1,5 +1,5 @@
 import React, { useCallback, useId, useRef, useState } from 'react'
-import styled from 'styled-components'
+import styled, { css } from 'styled-components'
 import { useField } from 'formik'
 import { toast } from 'react-toastify'
 import { ethers, BigNumber, type BigNumberish } from 'ethers'
@@ -10,23 +10,24 @@ import { NETWORKS_INFO } from 'config/networks'
 import useUrlChainId from 'hooks/use-url-chain-id'
 import { parseIpfs } from 'utils/ipfs-parse'
 import { errorToast, infoToast, successToast } from 'utils/wrap-with-toast'
+import { CurateIcon } from 'components/curate/icons'
+import { reveal } from 'components/curate/motion/reveal'
 import {
-  Body,
   Button,
   Data,
   Label,
   Row,
   Small,
-  Subheading,
   TextInput,
+  truncateMiddle,
 } from 'components/curate/primitives'
 
 /*
- * The wizard's form controls, on the primitives: a labelled field with
- * visible help text (no hover tooltips) and the validation message inline,
- * text and number inputs, a native select, a switch, a range slider and the
- * IPFS upload through Atlas. Formik binding goes through `useField`, so the
- * steps keep their `withFormik` wrappers and yup schemas.
+ * The wizard's form controls: a labelled field with one line of plain help
+ * and the validation message inline, text and number inputs, a select, a
+ * switch, a range slider with a lit fill and the IPFS upload through Atlas.
+ * Formik binding goes through `useField`, so the steps keep their
+ * `withFormik` wrappers and yup schemas.
  */
 
 /* ---------- Amounts ---------- */
@@ -58,19 +59,30 @@ export const totalDeposit = (
   }
 }
 
+/** For a count-up: intermediate values at the amount's precision, then the exact string. */
+export const amountFormat = (exact: string) => {
+  const decimals = Math.min(6, (exact.split('.')[1] ?? '').length)
+  const target = Number(exact)
+  return (n: number) => (n === target ? exact : n.toFixed(decimals))
+}
+
 /* ---------- Layout ---------- */
 
 const Shell = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  min-width: 0;
+`
+
+const FieldHead = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
 `
 
 const FieldLabel = styled.label`
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
   color: var(--color-text);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
@@ -79,17 +91,30 @@ const FieldLabel = styled.label`
 
 export const Help = styled.p`
   margin: 0;
-  max-width: 68ch;
+  max-width: 72ch;
   color: var(--color-muted);
   font-size: var(--fs-small);
   line-height: var(--lh-small);
 `
 
 export const ErrorText = styled.p`
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0;
   color: var(--color-danger);
   font-size: var(--fs-small);
   line-height: var(--lh-small);
+
+  &::before {
+    content: '';
+    flex: 0 0 auto;
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-pill);
+    background: var(--color-danger);
+    box-shadow: 0 0 0 3px var(--color-danger-soft);
+  }
 `
 
 export const Input = styled(TextInput)`
@@ -97,10 +122,14 @@ export const Input = styled(TextInput)`
     border-color: var(--color-danger);
   }
 
+  &[aria-invalid='true']:focus {
+    box-shadow: 0 0 0 4px var(--color-danger-soft);
+  }
+
   &:disabled {
-    background: var(--color-raised);
     color: var(--color-muted);
     cursor: not-allowed;
+    opacity: 0.7;
   }
 `
 
@@ -110,18 +139,88 @@ export const MonoInput = styled(Input)`
   font-variant-numeric: tabular-nums;
 `
 
-export const Select = styled.select`
+/** Two columns from 720px up; fields inside a step sit side by side. */
+export const FieldGrid = styled.div<{ $columns?: 2 | 3 }>`
+  display: grid;
+  grid-template-columns: repeat(
+    ${({ $columns }) => $columns ?? 2},
+    minmax(0, 1fr)
+  );
+  gap: 20px 24px;
+
+  @media (max-width: 720px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+`
+
+/** Shown only where the sticky preview is not beside the form. */
+export const NarrowOnly = styled.div`
+  display: none;
+
+  @media (max-width: 1080px) {
+    display: block;
+  }
+`
+
+/** The step body: each child rises in, staggered, when a step opens. */
+export const StepBody = styled.div<{ $gap?: number }>`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ $gap }) => $gap ?? 24}px;
+
+  > * {
+    ${reveal}
+  }
+
+  > *:nth-child(1) {
+    --i: 0;
+  }
+  > *:nth-child(2) {
+    --i: 1;
+  }
+  > *:nth-child(3) {
+    --i: 2;
+  }
+  > *:nth-child(4) {
+    --i: 3;
+  }
+  > *:nth-child(n + 5) {
+    --i: 4;
+  }
+`
+
+const SelectShell = styled.span`
+  position: relative;
+  display: block;
   width: 100%;
-  height: 40px;
   min-width: 0;
-  padding: 0 12px;
-  border: 1px solid var(--color-border);
+
+  svg {
+    position: absolute;
+    top: 50%;
+    right: 14px;
+    color: var(--color-faint);
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+`
+
+const SelectControl = styled.select`
+  width: 100%;
+  height: 44px;
+  min-width: 0;
+  padding: 0 40px 0 14px;
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius);
-  background: var(--color-surface);
+  background: var(--color-raised);
   color: var(--color-text);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
-  transition: border-color var(--motion);
+  appearance: none;
+  cursor: pointer;
+  transition:
+    border-color var(--motion),
+    box-shadow var(--motion);
 
   &:hover {
     border-color: var(--color-border-strong);
@@ -130,14 +229,29 @@ export const Select = styled.select`
   &:focus {
     outline: none;
     border-color: var(--color-primary);
+    box-shadow: 0 0 0 4px var(--color-primary-soft);
   }
 
   &:disabled {
-    background: var(--color-raised);
     color: var(--color-muted);
     cursor: not-allowed;
+    opacity: 0.7;
+  }
+
+  option {
+    background: var(--color-surface);
+    color: var(--color-text);
   }
 `
+
+export const Select = (
+  props: React.SelectHTMLAttributes<HTMLSelectElement>,
+) => (
+  <SelectShell>
+    <SelectControl {...props} />
+    <CurateIcon name="chevron-down" size={16} />
+  </SelectShell>
+)
 
 const UnitRow = styled.div`
   display: flex;
@@ -149,21 +263,102 @@ const UnitRow = styled.div`
   }
 `
 
-/** Range slider: the thumb is a control, so it takes the action color. */
-export const RangeInput = styled.input`
+const thumb = css`
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--color-primary);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  box-shadow:
+    0 0 0 4px var(--color-primary-soft),
+    0 0 14px color-mix(in srgb, var(--color-primary) 60%, transparent);
+  transition: transform var(--motion);
+`
+
+const RangeControl = styled.input`
   flex: 1;
   min-width: 0;
   height: 24px;
   margin: 0;
-  accent-color: var(--color-primary);
+  background: transparent;
+  appearance: none;
   cursor: pointer;
+
+  &::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: var(--radius-pill);
+    background: linear-gradient(
+      90deg,
+      var(--aurora-b),
+      var(--color-primary) var(--fill, 0%),
+      var(--color-raised) var(--fill, 0%)
+    );
+    box-shadow: inset 0 0 0 1px var(--glass-border);
+  }
+
+  &::-moz-range-track {
+    height: 6px;
+    border-radius: var(--radius-pill);
+    background: var(--color-raised);
+    box-shadow: inset 0 0 0 1px var(--glass-border);
+  }
+
+  &::-moz-range-progress {
+    height: 6px;
+    border-radius: var(--radius-pill);
+    background: linear-gradient(90deg, var(--aurora-b), var(--color-primary));
+  }
+
+  &::-webkit-slider-thumb {
+    margin-top: -7px;
+    appearance: none;
+    ${thumb}
+  }
+
+  &::-moz-range-thumb {
+    ${thumb}
+  }
+
+  &:hover::-webkit-slider-thumb,
+  &:focus-visible::-webkit-slider-thumb {
+    transform: scale(1.12);
+  }
+
+  &:focus {
+    outline: none;
+  }
+
+  &:focus-visible::-webkit-slider-thumb {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
 `
+
+/** Range slider: the filled part of the track lights up to the thumb. */
+export const RangeInput = (
+  props: React.InputHTMLAttributes<HTMLInputElement>,
+) => {
+  const min = Number(props.min ?? 0)
+  const max = Number(props.max ?? 100)
+  const value = Number(props.value ?? min)
+  const fill =
+    max > min
+      ? Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100))
+      : 0
+  return (
+    <RangeControl
+      {...props}
+      type="range"
+      style={{ ...props.style, ['--fill' as string]: `${fill}%` }}
+    />
+  )
+}
 
 const SwitchRow = styled.label`
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 20px;
   cursor: pointer;
 `
 
@@ -182,37 +377,44 @@ const SwitchInput = styled.input`
   appearance: none;
   position: relative;
   flex: 0 0 auto;
-  width: 44px;
+  width: 42px;
   height: 24px;
   margin: 0;
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-pill);
   background: var(--color-raised);
   cursor: pointer;
   transition:
     background var(--motion),
-    border-color var(--motion);
+    border-color var(--motion),
+    box-shadow var(--motion);
 
   &::after {
     content: '';
     position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 18px;
-    height: 18px;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
     border-radius: var(--radius-pill);
-    background: var(--color-surface);
-    box-shadow: var(--shadow-card);
-    transition: transform var(--motion);
+    background: var(--color-muted);
+    transition:
+      transform 320ms cubic-bezier(0.34, 1.4, 0.64, 1),
+      background var(--motion);
+  }
+
+  &:hover {
+    border-color: var(--color-border-strong);
   }
 
   &:checked {
-    border-color: var(--color-primary);
-    background: var(--color-primary);
+    border-color: color-mix(in srgb, var(--color-primary) 60%, transparent);
+    background: var(--color-primary-fill);
+    box-shadow: 0 6px 18px -8px var(--color-primary);
   }
 
   &:checked::after {
-    transform: translateX(20px);
+    transform: translateX(18px);
     background: var(--color-on-primary);
   }
 
@@ -220,34 +422,113 @@ const SwitchInput = styled.input`
     cursor: not-allowed;
     opacity: 0.55;
   }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::after {
+      transition: none;
+    }
+  }
 `
 
-const DropZone = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 16px;
-  border: 1px dashed var(--color-border-strong);
+const UploadRow = styled.div<{ $empty: boolean }>`
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 12px 12px 12px;
+  border: 1px ${({ $empty }) => ($empty ? 'dashed' : 'solid')}
+    ${({ $empty }) =>
+      $empty ? 'var(--color-border-strong)' : 'var(--glass-border)'};
   border-radius: var(--radius);
-  background: var(--color-surface);
+  background: var(--color-raised);
+  transition: border-color var(--motion);
+
+  &:hover {
+    border-color: var(--color-border-strong);
+  }
 
   &[aria-invalid='true'] {
     border-color: var(--color-danger);
   }
+
+  @media (max-width: 520px) {
+    grid-template-columns: 48px minmax(0, 1fr);
+
+    > :last-child {
+      grid-column: 1 / -1;
+    }
+  }
 `
 
-const Preview = styled.img`
-  display: block;
-  max-width: 100%;
-  max-height: 120px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-raised);
-  object-fit: contain;
+const Thumb = styled.span`
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-faint);
+
+  img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  @media (max-width: 520px) {
+    width: 48px;
+    height: 48px;
+  }
+`
+
+const UploadMeta = styled.span`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+
+  strong {
+    color: var(--color-text);
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+    font-weight: 500;
+  }
 `
 
 const HiddenInput = styled.input`
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+`
+
+/**
+ * An image from IPFS or a list's meta-evidence, rendered as <img> (never
+ * interpolated into CSS); if it fails to load, the fallback shows instead.
+ */
+export const SafeImage = ({
+  src,
+  alt,
+  fallback,
+}: {
+  src?: string
+  alt: string
+  fallback: React.ReactNode
+}) => {
+  const [failed, setFailed] = useState<string>()
+  if (!src || failed === src) return <>{fallback}</>
+  return <img src={src} alt={alt} onError={() => setFailed(src)} />
+}
+
+/** Text for screen readers only (a dash's meaning, an icon's name). */
+export const VisuallyHidden = styled.span`
   position: absolute;
   width: 1px;
   height: 1px;
@@ -266,15 +547,34 @@ export const TextLink = styled.a`
   }
 `
 
-/** A raised block of explanatory copy inside a step. */
+/** A quiet raised block inside a step (no border, no nested panel). */
 export const Note = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 12px 14px;
-  border: 1px solid var(--color-border);
+  padding: 14px 16px;
   border-radius: var(--radius);
   background: var(--color-raised);
+`
+
+/** Hairline between groups of fields, with an optional small label. */
+export const Divider = ({ label }: { label?: React.ReactNode }) => (
+  <DividerShell role="separator">
+    {label && <Label $tone="faint">{label}</Label>}
+  </DividerShell>
+)
+
+const DividerShell = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--glass-border);
+  }
 `
 
 /* ---------- Step header ---------- */
@@ -282,9 +582,25 @@ export const Note = styled.div`
 const HeaderShell = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--color-border);
+  gap: 8px;
+`
+
+const StepTitle = styled.h2`
+  margin: 0;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: clamp(24px, 1vw + 16px, 30px);
+  line-height: 1.12;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+`
+
+const StepLede = styled.p`
+  margin: 0;
+  max-width: 60ch;
+  color: var(--color-muted);
+  font-size: var(--fs-body-lg);
+  line-height: var(--lh-body-lg);
 `
 
 export const StepHeader = ({
@@ -297,9 +613,9 @@ export const StepHeader = ({
   lede?: React.ReactNode
 }) => (
   <HeaderShell>
-    {eyebrow && <Label>{eyebrow}</Label>}
-    <Subheading>{heading}</Subheading>
-    {lede && <Body $muted>{lede}</Body>}
+    {eyebrow && <Label $tone="primary">{eyebrow}</Label>}
+    <StepTitle>{heading}</StepTitle>
+    {lede && <StepLede>{lede}</StepLede>}
   </HeaderShell>
 )
 
@@ -334,8 +650,10 @@ export const FormField = ({
     undefined
   return (
     <Shell>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      {help && <Help id={helpId}>{help}</Help>}
+      <FieldHead>
+        <FieldLabel htmlFor={id}>{label}</FieldLabel>
+        {help && <Help id={helpId}>{help}</Help>}
+      </FieldHead>
       {children({
         id,
         'aria-invalid': invalid || undefined,
@@ -397,7 +715,7 @@ export const TextField = ({
               onChange={field.onChange}
               onBlur={field.onBlur}
             />
-            {unit && <Data $muted>{unit}</Data>}
+            {unit && <Small $muted>{unit}</Small>}
           </UnitRow>
           {trailing}
         </>
@@ -498,6 +816,7 @@ export const useWalletGate = ({
           $size="sm"
           onClick={() => appKitModal?.open({ view: 'Connect' })}
         >
+          <CurateIcon name="wallet" size={14} />
           Connect wallet
         </Button>
       ),
@@ -560,6 +879,14 @@ const rejectUpload = (file: File, kind: 'image' | 'pdf'): string => {
   return ''
 }
 
+/** "/ipfs/Qm…/logo.png" → "Qm…/logo.png", for the mono line under an upload. */
+const shortPath = (value: string): string => {
+  const path = value.replace(/^\/?ipfs\//, '').replace(/^ipfs:\/\//, '')
+  const [cid, ...rest] = path.split('/')
+  const name = rest.join('/')
+  return `${truncateMiddle(cid, 6, 4)}${name ? `/${name}` : ''}`
+}
+
 export const UploadField = ({
   id,
   label,
@@ -594,6 +921,7 @@ export const UploadField = ({
   const gate = useWalletGate({ verb: `upload ${what}` })
   const invalid = !!showError && !!error
   const uri = value ? parseIpfs(value) : ''
+  const noun = what.replace(/^the /, '')
 
   const pick = useCallback(
     async (file: File) => {
@@ -630,45 +958,60 @@ export const UploadField = ({
     >
       {(a11y) => (
         <>
-          <DropZone aria-invalid={invalid || undefined}>
-            {uri && kind === 'image' && (
-              <Preview src={uri} alt={previewAlt ?? 'Uploaded image'} />
+          <UploadRow $empty={!uri} aria-invalid={invalid || undefined}>
+            {kind === 'image' ? (
+              <Thumb>
+                <SafeImage
+                  src={uri || undefined}
+                  alt={previewAlt ?? 'Uploaded image'}
+                  fallback={<CurateIcon name="registry" size={20} />}
+                />
+              </Thumb>
+            ) : (
+              <Thumb aria-hidden>
+                <CurateIcon name="policy" size={20} />
+              </Thumb>
             )}
-            {uri && kind === 'pdf' && (
-              <Small>
-                <TextLink
-                  href={uri}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={`Open the uploaded ${what.replace(/^the /, '')} (PDF)`}
-                >
-                  Open the uploaded file (PDF)
-                </TextLink>
-              </Small>
-            )}
-            {gate.blocker ? (
-              <Row $gap={10} $wrap>
-                {gate.control}
-                <Small $muted role="status">
-                  {gate.blocker}
+            <UploadMeta>
+              <strong>
+                {uploading
+                  ? 'Uploading to IPFS…'
+                  : uri
+                    ? kind === 'pdf'
+                      ? 'Policy on IPFS'
+                      : 'Logo on IPFS'
+                    : `No ${noun} yet`}
+              </strong>
+              {uri ? (
+                kind === 'pdf' ? (
+                  <TextLink
+                    href={uri}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={value}
+                    aria-label={`Open the uploaded ${noun} (PDF)`}
+                  >
+                    <Data style={{ color: 'inherit' }}>{shortPath(value)}</Data>
+                  </TextLink>
+                ) : (
+                  <Data $muted title={value}>
+                    {shortPath(value)}
+                  </Data>
+                )
+              ) : (
+                <Small $faint>
+                  {kind === 'image'
+                    ? `PNG, SVG, WebP or JPEG · under ${IMAGE_MAX_MB} MB`
+                    : `PDF · under ${PDF_MAX_MB} MB`}
                 </Small>
+              )}
+            </UploadMeta>
+            {gate.blocker ? (
+              <Row $gap={8} $justify="flex-end">
+                {gate.control}
               </Row>
             ) : (
-              <Row $gap={8} $wrap>
-                <Button
-                  type="button"
-                  $variant="secondary"
-                  $size="sm"
-                  disabled={uploading}
-                  aria-describedby={a11y['aria-describedby']}
-                  onClick={() => inputRef.current?.click()}
-                >
-                  {uploading
-                    ? 'Uploading…'
-                    : uri
-                      ? 'Replace'
-                      : `Choose ${what.replace(/^the /, 'the ')}`}
-                </Button>
+              <Row $gap={6} $justify="flex-end" $wrap>
                 {uri && (
                   <Button
                     type="button"
@@ -683,12 +1026,21 @@ export const UploadField = ({
                     Remove
                   </Button>
                 )}
+                <Button
+                  type="button"
+                  $variant="secondary"
+                  $size="sm"
+                  disabled={uploading}
+                  aria-describedby={a11y['aria-describedby']}
+                  onClick={() => inputRef.current?.click()}
+                >
+                  {uploading
+                    ? 'Uploading…'
+                    : uri
+                      ? 'Replace'
+                      : `Choose ${what}`}
+                </Button>
               </Row>
-            )}
-            {uploading && (
-              <Small $muted role="status">
-                Uploading to IPFS…
-              </Small>
             )}
             <HiddenInput
               ref={inputRef}
@@ -703,7 +1055,17 @@ export const UploadField = ({
                 if (picked) pick(picked)
               }}
             />
-          </DropZone>
+          </UploadRow>
+          {gate.blocker && (
+            <Small $muted role="status">
+              {gate.blocker}
+            </Small>
+          )}
+          {uploading && (
+            <Small $muted role="status">
+              Uploading to IPFS…
+            </Small>
+          )}
           {rejection && <ErrorText role="alert">{rejection}</ErrorText>}
         </>
       )}

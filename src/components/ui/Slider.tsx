@@ -1,18 +1,21 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import styled from 'styled-components'
+import styled, { css } from 'styled-components'
 import { joinClassNames } from './kit-styles'
 
 /*
- * Slider: a 4px rail on the raised surface, the filled part in the action
- * color, a 16px pill thumb; the native range input stays on top for input.
+ * Slider, v2: a 6px pill rail; the chosen part is the action fill with a
+ * soft glow, the thumb is an 18px knob with a blue ring that grows on hover
+ * and springs on press. The native range input stays on top for input, so
+ * keyboard and screen readers work as before. The fill is the measure: the
+ * chosen value within min..max.
  */
 const SliderWrapper = styled.div<{ $disabled?: boolean }>`
   position: relative;
   display: flex;
   align-items: center;
   width: 100%;
-  height: 24px;
-  opacity: ${({ $disabled }) => ($disabled ? 0.5 : 1)};
+  height: 28px;
+  opacity: ${({ $disabled }) => ($disabled ? 0.45 : 1)};
 `
 
 const Rail = styled.div`
@@ -20,10 +23,10 @@ const Rail = styled.div`
   left: 0;
   right: 0;
   top: 50%;
-  height: 4px;
-  overflow: hidden;
-  border-radius: 2px;
+  height: 6px;
+  border-radius: var(--radius-pill);
   background: var(--color-raised);
+  box-shadow: inset 0 0 0 1px var(--glass-border);
   transform: translateY(-50%);
   pointer-events: none;
 `
@@ -31,15 +34,37 @@ const Rail = styled.div`
 const Fill = styled.div<{ $percent: number }>`
   height: 100%;
   width: ${({ $percent }) => $percent}%;
-  border-radius: 2px;
-  background: var(--color-primary);
+  border-radius: var(--radius-pill);
+  background: var(--color-primary-fill);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--color-primary) 55%, transparent);
+`
+
+const thumb = css`
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--color-primary);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  box-shadow:
+    0 0 0 0 var(--color-primary-soft),
+    0 2px 8px color-mix(in srgb, var(--stage) 50%, transparent);
+  cursor: inherit;
+  transition:
+    box-shadow var(--dur-hover) var(--ease-out),
+    transform var(--dur-control) var(--ease-spring);
+`
+
+const thumbHover = css`
+  box-shadow:
+    0 0 0 6px var(--color-primary-soft),
+    0 2px 8px color-mix(in srgb, var(--stage) 50%, transparent);
 `
 
 const StyledRange = styled.input`
   position: relative;
   z-index: 1;
   width: 100%;
-  height: 24px;
+  height: 28px;
   margin: 0;
   background: transparent;
   cursor: pointer;
@@ -55,13 +80,13 @@ const StyledRange = styled.input`
   }
 
   &::-webkit-slider-runnable-track {
-    height: 4px;
+    height: 6px;
     border: 0;
     background: transparent;
   }
 
   &::-moz-range-track {
-    height: 4px;
+    height: 6px;
     border: 0;
     background: transparent;
   }
@@ -69,34 +94,31 @@ const StyledRange = styled.input`
   &::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    width: 16px;
-    height: 16px;
     margin-top: -6px;
-    border: 2px solid var(--color-primary);
-    border-radius: var(--radius-pill);
-    background: var(--color-surface);
-    cursor: inherit;
-    transition: box-shadow var(--motion);
+    ${thumb}
   }
 
   &::-moz-range-thumb {
-    width: 12px;
-    height: 12px;
-    border: 2px solid var(--color-primary);
-    border-radius: var(--radius-pill);
-    background: var(--color-surface);
-    cursor: inherit;
-    transition: box-shadow var(--motion);
+    box-sizing: border-box;
+    ${thumb}
   }
 
   &:hover:not(:disabled)::-webkit-slider-thumb,
   &:focus-visible::-webkit-slider-thumb {
-    box-shadow: 0 0 0 4px var(--color-primary-soft);
+    ${thumbHover}
   }
 
   &:hover:not(:disabled)::-moz-range-thumb,
   &:focus-visible::-moz-range-thumb {
-    box-shadow: 0 0 0 4px var(--color-primary-soft);
+    ${thumbHover}
+  }
+
+  &:active:not(:disabled)::-webkit-slider-thumb {
+    transform: scale(1.15);
+  }
+
+  &:active:not(:disabled)::-moz-range-thumb {
+    transform: scale(1.15);
   }
 `
 

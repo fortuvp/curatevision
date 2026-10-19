@@ -9,27 +9,44 @@ import * as yup from 'yup'
 import localforage from 'localforage'
 import { ethers, BigNumber } from 'ethers'
 import useNativeCurrency from 'hooks/native-currency'
-import { Button, Data, Label, Small, Stack } from 'components/curate/primitives'
+import { Button, Label, Small, Stack } from 'components/curate/primitives'
+import { CurateIcon } from 'components/curate/icons'
 import ETHAddress from './eth-address'
 import ETHAmount from './eth-amount'
 
 const { randomBytes } = ethers.utils
 
 /*
- * Account avatar and menu (DESIGN.md): the blockies avatar is a pill at
- * 32px (a 6px card at the large size); the menu is a floating panel with
- * mono labels, the address and balance in mono, the email form, and a
- * danger button to disconnect.
+ * Account avatar and menu. The blockies avatar sits in a hairline ring (a
+ * rounded tile at the large size). The menu leads with the balance as its
+ * figure, then the address with copy and explorer, the email form, and a
+ * quiet disconnect.
  */
 
 const AvatarFrame = styled.span<{ $large?: boolean }>`
+  position: relative;
   display: inline-flex;
   flex: 0 0 auto;
   width: ${({ $large }) => ($large ? '98px' : '32px')};
   height: ${({ $large }) => ($large ? '98px' : '32px')};
   overflow: hidden;
   border-radius: ${({ $large }) =>
-    $large ? 'var(--radius)' : 'var(--radius-pill)'};
+    $large ? 'var(--radius-lg)' : 'var(--radius-pill)'};
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow:
+      inset 0 0 0 1px var(--glass-border),
+      inset 0 1px 0 var(--glass-highlight);
+    pointer-events: none;
+  }
+
+  canvas {
+    display: block;
+  }
 `
 
 const AvatarButton = styled.button`
@@ -41,18 +58,61 @@ const AvatarButton = styled.button`
   border-radius: var(--radius-pill);
   background: transparent;
   cursor: pointer;
+  transition:
+    box-shadow var(--motion),
+    transform var(--motion);
+
+  &:hover,
+  &[aria-expanded='true'] {
+    box-shadow: 0 0 0 3px var(--color-primary-soft);
+  }
 `
 
 const Menu = styled.div`
   margin: -12px -14px;
-  min-width: 260px;
+  min-width: 280px;
 `
 
 const MenuSection = styled(Stack)`
-  padding: 12px 14px;
+  padding: 14px 16px;
 
   &:not(:last-child) {
-    border-bottom: 1px solid var(--color-border);
+    box-shadow: inset 0 -1px 0 var(--glass-border);
+  }
+`
+
+const Balance = styled.span`
+  color: var(--color-text);
+  font-family: var(--font-figure);
+  font-size: 28px;
+  line-height: 32px;
+  font-weight: 500;
+  letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums;
+`
+
+const Disconnect = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 38px;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--status-off);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background var(--motion),
+    border-color var(--motion);
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--status-off) 40%, transparent);
+    background: var(--status-off-soft);
   }
 `
 
@@ -242,21 +302,16 @@ const Identicon = ({ className, large }: IdenticonProps) => {
     <Popover
       content={
         <Menu>
-          <MenuSection $gap={4}>
-            <Label>Address</Label>
-            <Data>
-              <ETHAddress address={account} />
-            </Data>
-          </MenuSection>
-          <MenuSection $gap={4}>
-            <Label>Balance</Label>
-            <Data>
+          <MenuSection $gap={6}>
+            <Label $tone="faint">Balance</Label>
+            <Balance>
               <ETHAmount amount={balance} displayUnit={` ${nativeCurrency}`} />
-            </Data>
+            </Balance>
+            <ETHAddress address={account} />
           </MenuSection>
           {process.env.REACT_APP_NOTIFICATIONS_API_URL && networkId && (
             <MenuSection $gap={8}>
-              <Label>Email notifications</Label>
+              <Label $tone="faint">Email notifications</Label>
               <EnhancedEmailForm
                 onSubmit={submitEmail}
                 formID={EMAIL_FORM_ID}
@@ -286,14 +341,10 @@ const Identicon = ({ className, large }: IdenticonProps) => {
             </MenuSection>
           )}
           <MenuSection>
-            <Button
-              type="button"
-              $variant="danger"
-              $block
-              onClick={() => disconnect()}
-            >
+            <Disconnect type="button" onClick={() => disconnect()}>
+              <CurateIcon name="wallet" size={15} />
               Disconnect
-            </Button>
+            </Disconnect>
           </MenuSection>
         </Menu>
       }

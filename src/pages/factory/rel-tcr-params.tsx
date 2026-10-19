@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useCallback, useId } from 'react'
-import styled from 'styled-components'
 import { withFormik, type FormikProps } from 'formik'
 import * as yup from 'yup'
 import { useDebounce } from 'use-debounce'
@@ -10,12 +9,14 @@ import useArbitrationCost from 'hooks/arbitration-cost'
 import useNativeCurrency from 'hooks/native-currency'
 import useUrlChainId from 'hooks/use-url-chain-id'
 import { klerosAddresses } from 'config/tcr-addresses'
-import { Data, Row, Small, Stack } from 'components/curate/primitives'
+import { Row, Small, Stack } from 'components/curate/primitives'
 import KlerosParams from './kleros-params'
 import {
+  Divider,
+  FieldGrid,
   FormField,
-  Input,
   RangeInput,
+  StepBody,
   StepHeader,
   SwitchField,
   TextField,
@@ -23,10 +24,12 @@ import {
   UploadField,
 } from './fields'
 import {
+  AmountInput,
   AppealStakeNote,
   BaseDepositField,
-  DepositBreakdown,
+  DepositTotalLine,
   POLICY_EXAMPLE_URL,
+  SliderEnds,
 } from './tcr-params'
 import { relSchema } from './schemas'
 import type { StepProps, TcrState } from '.'
@@ -39,20 +42,6 @@ const { getAddress } = ethers.utils
  * list's items. Off by default; when it is off, Next records the choice
  * (`relTcrDisabled`) and the deploy step publishes a closed placeholder.
  */
-
-const AmountInput = styled(Input)`
-  flex: 0 0 auto;
-  width: 96px;
-  text-align: right;
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-`
-
-const SliderEnds = styled.div`
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-`
 
 const DEPOSIT_MIN = 0
 const DEPOSIT_MAX = 30
@@ -129,212 +118,221 @@ const RelTCRParams = ({
 
   return (
     <form id={formId} onSubmit={handleSubmit} noValidate>
-      <Stack $gap={20}>
+      <StepBody>
         <StepHeader
-          heading="Badges"
-          lede="A badges list is a list of other lists connected to yours: an item that also appears on one of them shows that list's badge. You can skip it now and the list still works; a badges list can be added later."
+          heading="Connect a badges list"
+          lede="A second list of other lists: an entry that also appears on one of them shows that list’s badge."
         />
 
         <SwitchField
           id={`${ids}-enabled`}
           label="Add a badges list"
-          help="Deployed together with your list, with its own policy and deposits."
+          help="Deployed with your list, with its own policy and deposits; you can skip it."
           checked={badgesOn}
           onChange={(on) => setFieldValue('relTcrDisabled', !on)}
         />
 
         {badgesOn && (
-          <>
-            <UploadField
-              id={`${ids}-policy`}
-              label="Badges listing policy (PDF)"
-              help={
-                <>
-                  Defines which lists count as badges for your items. PDF, up to
-                  4 MB.{' '}
-                  <TextLink
-                    href={POLICY_EXAMPLE_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    See an example policy (PDF)
-                  </TextLink>
-                </>
-              }
-              kind="pdf"
-              role={Roles.Policy}
-              value={values.relTcrPrimaryDocument}
-              error={errors.relTcrPrimaryDocument}
-              showError={!!touched.relTcrPrimaryDocument}
-              what="the badges policy"
-              onChange={(uri) => {
-                setFieldValue('relTcrPrimaryDocument', uri)
-                setFieldTouched('relTcrPrimaryDocument', true)
-              }}
-            />
-
-            {!advancedOptions && (
-              <FormField
-                id={`${ids}-deposit`}
-                label="Deposit"
-                help="The base deposit for connecting a badge. The same amount applies to removal requests and to challenging a removal; the arbitration cost is added on top."
-                error={errors.relSubmissionBaseDeposit as string | undefined}
-                showError={!!touched.relSubmissionBaseDeposit}
-              >
-                {(a11y) => (
-                  <Stack $gap={6}>
-                    <Row $gap={12}>
-                      <RangeInput
-                        type="range"
-                        min={DEPOSIT_MIN}
-                        max={DEPOSIT_MAX}
-                        step={DEPOSIT_STEP}
-                        value={depositVal}
-                        aria-label="Badges deposit"
-                        onChange={(event) => {
-                          setDepositText(event.target.value)
-                          onChangeDepositVal(Number(event.target.value))
-                        }}
-                      />
-                      <AmountInput
-                        {...a11y}
-                        type="text"
-                        inputMode="decimal"
-                        value={depositText}
-                        onChange={(event) => {
-                          setDepositText(event.target.value)
-                          if (event.target.value.trim() !== '')
-                            onChangeDepositVal(Number(event.target.value))
-                        }}
-                        onBlur={() => setDepositText(String(depositVal))}
-                      />
-                      <Data $muted>{nativeCurrency}</Data>
-                    </Row>
-                    <SliderEnds>
-                      <Small $muted>Lower deposit, more badges</Small>
-                      <Small $muted>Higher deposit, stronger protection</Small>
-                    </SliderEnds>
-                  </Stack>
-                )}
-              </FormField>
-            )}
-
-            <DepositBreakdown
-              submitterBase={values.relSubmissionBaseDeposit}
-              challengerBase={values.relSubmissionChallengeBaseDeposit}
-              arbitrationCost={arbitrationCost}
-              currency={nativeCurrency}
-              challengePeriodHours={values.relChallengePeriodDuration}
-            />
-
-            {isKlerosArbitrator ? (
-              <KlerosParams
-                arbitratorExtraData={values.relArbitratorExtraData}
-                klerosAddress={debouncedArbitrator}
-                policyAddress={policyAddress}
-                setArbitratorExtraData={setRelArbitratorExtraData}
-                library={chainProvider}
-              />
-            ) : (
-              <TextField
-                name="relArbitratorExtraData"
-                label="Arbitrator extra data"
-                placeholder="0x7331deadbeef..."
-                mono
-                help={`Hex extra data for the arbitrator (ERC 792). Default: ${defaultArbDataLabel ?? 'the chain default'}.`}
-              />
-            )}
-
-            <SwitchField
-              id={`${ids}-advanced`}
-              label="Advanced options"
-              help="Set each deposit separately, the challenge period, the governor, the arbitrator and the appeal stakes."
-              checked={advancedOptions}
-              onChange={setAdvancedOptions}
-            />
-
-            {advancedOptions && (
+          <UploadField
+            id={`${ids}-policy`}
+            label="Badges listing policy (PDF)"
+            help={
               <>
-                <BaseDepositField
-                  name="relSubmissionBaseDeposit"
-                  label="Badge deposit"
-                  help="Locked when connecting a badge and paid to a successful challenger. Too low and nobody checks badges; too high and few badges get connected."
-                  arbitrationCost={arbitrationCost}
-                  currency={nativeCurrency}
-                />
-                <BaseDepositField
-                  name="relRemovalBaseDeposit"
-                  label="Removal deposit"
-                  help="Locked when disconnecting a badge and paid to a successful challenger. Too low and compliant badges get disconnected; too high and non-compliant ones stay."
-                  arbitrationCost={arbitrationCost}
-                  currency={nativeCurrency}
-                />
-                <BaseDepositField
-                  name="relSubmissionChallengeBaseDeposit"
-                  label="Badge challenge deposit"
-                  help="Included in what a challenger sends and paid to the submitter when the challenge fails. Usually zero. Too high and incorrect badges go unchallenged."
-                  arbitrationCost={arbitrationCost}
-                  currency={nativeCurrency}
-                />
-                <BaseDepositField
-                  name="relRemovalChallengeBaseDeposit"
-                  label="Removal challenge deposit"
-                  help="Included in what a challenger to a removal sends and paid to the requester when the challenge fails. Too high and wrong removals go unchallenged; too low and nobody requests removals."
-                  arbitrationCost={arbitrationCost}
-                  currency={nativeCurrency}
-                />
-                <TextField
-                  name="relChallengePeriodDuration"
-                  label="Challenge period (hours)"
-                  placeholder="5"
-                  numeric
-                  unit="hours"
-                  help="How long a connection can be challenged before it is accepted and the deposit returned."
-                />
-                <TextField
-                  name="relGovernorAddress"
-                  label="Governor"
-                  placeholder="0x7331deadbeef..."
-                  mono
-                  help={`Can change the deposits, the challenge period, the policy and the governor itself later. Default: ${defaultGovernorLabel ?? 'the chain default'}.`}
-                />
-                <TextField
-                  name="relArbitratorAddress"
-                  label="Arbitrator"
-                  placeholder="0x7331deadbeef..."
-                  mono
-                  help={`The contract that resolves disputes about this list. Default: ${defaultArbLabel ?? 'the chain default'}.`}
-                />
-                <AppealStakeNote />
-                <TextField
-                  name="relSharedStakeMultiplier"
-                  label="Shared stake multiplier"
-                  placeholder="100"
-                  numeric
-                  unit="%"
-                  help="Stake both sides pay to fund an appeal when the round had no winner or loser."
-                />
-                <TextField
-                  name="relWinnerStakeMultiplier"
-                  label="Winner stake multiplier"
-                  placeholder="100"
-                  numeric
-                  unit="%"
-                  help="Stake the winner of the previous round pays to fund its side of an appeal."
-                />
-                <TextField
-                  name="relLoserStakeMultiplier"
-                  label="Loser stake multiplier"
-                  placeholder="200"
-                  numeric
-                  unit="%"
-                  help="Stake the loser of the previous round pays to fund its side of an appeal."
-                />
+                Which lists count as badges for your entries.{' '}
+                <TextLink
+                  href={POLICY_EXAMPLE_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  See an example policy (PDF)
+                </TextLink>
               </>
-            )}
-          </>
+            }
+            kind="pdf"
+            role={Roles.Policy}
+            value={values.relTcrPrimaryDocument}
+            error={errors.relTcrPrimaryDocument}
+            showError={!!touched.relTcrPrimaryDocument}
+            what="the badges policy"
+            onChange={(uri) => {
+              setFieldValue('relTcrPrimaryDocument', uri)
+              setFieldTouched('relTcrPrimaryDocument', true)
+            }}
+          />
         )}
-      </Stack>
+
+        {badgesOn && !advancedOptions && (
+          <FormField
+            id={`${ids}-deposit`}
+            label="Badge deposit"
+            help="Locked to connect a badge; removals and removal challenges use the same base."
+            error={errors.relSubmissionBaseDeposit as string | undefined}
+            showError={!!touched.relSubmissionBaseDeposit}
+          >
+            {(a11y) => (
+              <Stack $gap={8}>
+                <Row $gap={14}>
+                  <RangeInput
+                    type="range"
+                    min={DEPOSIT_MIN}
+                    max={DEPOSIT_MAX}
+                    step={DEPOSIT_STEP}
+                    value={depositVal}
+                    aria-label="Badges deposit"
+                    onChange={(event) => {
+                      setDepositText(event.target.value)
+                      onChangeDepositVal(Number(event.target.value))
+                    }}
+                  />
+                  <AmountInput
+                    {...a11y}
+                    type="text"
+                    inputMode="decimal"
+                    value={depositText}
+                    onChange={(event) => {
+                      setDepositText(event.target.value)
+                      if (event.target.value.trim() !== '')
+                        onChangeDepositVal(Number(event.target.value))
+                    }}
+                    onBlur={() => setDepositText(String(depositVal))}
+                  />
+                  <Small $muted style={{ minWidth: 32 }}>
+                    {nativeCurrency}
+                  </Small>
+                </Row>
+                <SliderEnds>
+                  <Small $faint>Lower: more badges</Small>
+                  <Small $faint>Higher: stronger protection</Small>
+                </SliderEnds>
+                <DepositTotalLine
+                  who="Connecting a badge"
+                  base={values.relSubmissionBaseDeposit}
+                  arbitrationCost={arbitrationCost}
+                  currency={nativeCurrency}
+                />
+              </Stack>
+            )}
+          </FormField>
+        )}
+
+        {badgesOn &&
+          (isKlerosArbitrator ? (
+            <KlerosParams
+              arbitratorExtraData={values.relArbitratorExtraData}
+              klerosAddress={debouncedArbitrator}
+              policyAddress={policyAddress}
+              setArbitratorExtraData={setRelArbitratorExtraData}
+              library={chainProvider}
+            />
+          ) : (
+            <TextField
+              name="relArbitratorExtraData"
+              label="Arbitrator extra data"
+              placeholder="0x7331deadbeef..."
+              mono
+              help={`Hex extra data for the arbitrator (ERC 792). Default: ${defaultArbDataLabel ?? 'the chain default'}.`}
+            />
+          ))}
+
+        {badgesOn && (
+          <SwitchField
+            id={`${ids}-advanced`}
+            label="Advanced options"
+            help="Each deposit separately, the challenge period, the governor, the arbitrator and appeal stakes."
+            checked={advancedOptions}
+            onChange={setAdvancedOptions}
+          />
+        )}
+
+        {badgesOn && advancedOptions && (
+          <Stack $gap={24}>
+            <Divider label="Deposits" />
+            <FieldGrid>
+              <BaseDepositField
+                name="relSubmissionBaseDeposit"
+                label="Badge deposit"
+                help="Locked to connect a badge, paid to a winning challenger."
+                arbitrationCost={arbitrationCost}
+                currency={nativeCurrency}
+              />
+              <BaseDepositField
+                name="relRemovalBaseDeposit"
+                label="Removal deposit"
+                help="Locked to remove a badge, paid to a winning challenger."
+                arbitrationCost={arbitrationCost}
+                currency={nativeCurrency}
+              />
+              <BaseDepositField
+                name="relSubmissionChallengeBaseDeposit"
+                label="Badge challenge deposit"
+                help="Paid to the submitter if a challenge fails; usually 0."
+                arbitrationCost={arbitrationCost}
+                currency={nativeCurrency}
+              />
+              <BaseDepositField
+                name="relRemovalChallengeBaseDeposit"
+                label="Removal challenge deposit"
+                help="Paid to the requester if a removal challenge fails."
+                arbitrationCost={arbitrationCost}
+                currency={nativeCurrency}
+              />
+            </FieldGrid>
+            <Divider label="Period and roles" />
+            <FieldGrid>
+              <TextField
+                name="relChallengePeriodDuration"
+                label="Challenge period"
+                placeholder="5"
+                numeric
+                unit="hours"
+                help="How long a connection can be challenged before it is accepted."
+              />
+            </FieldGrid>
+            <TextField
+              name="relGovernorAddress"
+              label="Governor"
+              placeholder="0x7331deadbeef..."
+              mono
+              help={`Can later change deposits, period, policy and governor. Default: ${defaultGovernorLabel ?? 'the chain default'}.`}
+            />
+            <TextField
+              name="relArbitratorAddress"
+              label="Arbitrator"
+              placeholder="0x7331deadbeef..."
+              mono
+              help={`The contract that rules on this list's disputes. Default: ${defaultArbLabel ?? 'the chain default'}.`}
+            />
+            <Divider label="Appeal stakes" />
+            <AppealStakeNote loserName="relLoserStakeMultiplier" />
+            <FieldGrid $columns={3}>
+              <TextField
+                name="relSharedStakeMultiplier"
+                label="Shared"
+                placeholder="100"
+                numeric
+                unit="%"
+                help="When the last round had no winner."
+              />
+              <TextField
+                name="relWinnerStakeMultiplier"
+                label="Winner"
+                placeholder="100"
+                numeric
+                unit="%"
+                help="Paid by the previous round’s winner."
+              />
+              <TextField
+                name="relLoserStakeMultiplier"
+                label="Loser"
+                placeholder="200"
+                numeric
+                unit="%"
+                help="Paid by the previous round’s loser."
+              />
+            </FieldGrid>
+          </Stack>
+        )}
+      </StepBody>
     </form>
   )
 }

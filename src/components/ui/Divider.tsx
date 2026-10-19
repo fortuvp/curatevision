@@ -1,8 +1,8 @@
 import React from 'react'
 import styled, { css } from 'styled-components'
-import { joinClassNames, monoLabel } from './kit-styles'
+import { joinClassNames, kitLabel } from './kit-styles'
 
-/* Hairline rule; an optional mono label sits on it (left, center or right). */
+/* Hairline rule; an optional small label sits on it (left, center or right). */
 const DividerWrapper = styled.div<{
   $hasChildren: boolean
   $orientation: string
@@ -10,15 +10,15 @@ const DividerWrapper = styled.div<{
   display: flex;
   align-items: center;
   margin: 24px 0;
-  color: var(--color-muted);
-  ${monoLabel}
+  color: var(--color-faint);
+  ${kitLabel}
   white-space: nowrap;
 
   &::before,
   &::after {
     content: '';
     flex: 1;
-    border-top: 1px solid var(--color-border);
+    border-top: 1px solid var(--glass-border);
   }
 
   ${({ $hasChildren }) =>

@@ -14,7 +14,7 @@ const resolveSize = (size: number | string): number => {
   return SIZES[size] || SIZES.default
 }
 
-/* Raised surface with a hairline; a pill unless square is asked for. */
+/* Raised glass with a hairline and top highlight; round unless square is asked for. */
 const AvatarWrapper = styled.span<{ $size: number; $shape: string }>`
   display: inline-flex;
   align-items: center;
@@ -23,12 +23,13 @@ const AvatarWrapper = styled.span<{ $size: number; $shape: string }>`
   overflow: hidden;
   width: ${({ $size }) => $size}px;
   height: ${({ $size }) => $size}px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--glass-border);
   border-radius: ${({ $shape }) =>
-    $shape === 'square' ? 'var(--radius-sm)' : 'var(--radius-pill)'};
+    $shape === 'square' ? 'var(--radius)' : 'var(--radius-pill)'};
   background: var(--color-raised);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
   color: var(--color-muted);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: ${({ $size }) => Math.round($size * 0.4)}px;
   font-weight: 500;
   line-height: 1;

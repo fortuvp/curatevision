@@ -1,15 +1,7 @@
 import React from 'react'
 import styled from 'styled-components'
 import EvidenceForm, { type EvidenceFormValues } from 'components/evidence-form'
-import { CurateIcon } from 'components/curate/icons'
-import {
-  Button,
-  PanelHeader,
-  PanelTitle,
-  Row,
-  Small,
-  Surface,
-} from 'components/curate/primitives'
+import { Button, Row, Small, Surface } from 'components/curate/primitives'
 import { useActionGate } from 'components/curate/item-light-gate'
 
 /*
@@ -21,8 +13,24 @@ import { useActionGate } from 'components/curate/item-light-gate'
 const Shell = styled(Surface)`
   display: flex;
   flex-direction: column;
+  gap: 18px;
+  scroll-margin-bottom: 140px;
+`
+
+const Head = styled.div`
+  display: flex;
+  flex-direction: column;
   gap: 4px;
-  scroll-margin-bottom: 96px;
+`
+
+const Title = styled.h2`
+  margin: 0;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
 `
 
 const Footer = styled.div`
@@ -31,9 +39,8 @@ const Footer = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid var(--color-border);
+  padding-top: 16px;
+  border-top: 1px solid var(--glass-border);
 
   @media (max-width: 560px) {
     flex-direction: column;
@@ -67,22 +74,16 @@ const InlineEvidenceComposer = ({
     <Shell
       id={id}
       tabIndex={-1}
-      $padding="compact"
+      $padding="standard"
       role="region"
       aria-label="Add evidence"
     >
-      <PanelHeader>
-        <div>
-          <PanelTitle>
-            <CurateIcon name="policy" size={16} />
-            Add evidence
-          </PanelTitle>
-          <Small $muted>
-            Published on-chain and attached to this entry for jurors and
-            curators to read.
-          </Small>
-        </div>
-      </PanelHeader>
+      <Head>
+        <Title>Add evidence</Title>
+        <Small $muted>
+          Published on-chain with this entry, for jurors and curators to read.
+        </Small>
+      </Head>
       <EvidenceForm
         key={formKey}
         onSubmit={onSubmit}
@@ -96,10 +97,13 @@ const InlineEvidenceComposer = ({
         </Small>
         <Row $gap={8} $wrap>
           {gate.controls}
+          {/* One coloured button per view: while the gate's own control
+              (Connect, Sign in, Switch) is the next step, submit waits as
+              a secondary button. */}
           <Button
             type="submit"
             form={formID}
-            $variant="primary"
+            $variant={gate.ready ? 'primary' : 'secondary'}
             disabled={disabled}
             aria-disabled={disabled}
             title={gate.blocker}

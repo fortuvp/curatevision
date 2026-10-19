@@ -10,12 +10,22 @@ import React, {
 import { createPortal } from 'react-dom'
 import styled, { css } from 'styled-components'
 import { KitIcon } from './kit-icons'
-import { joinClassNames, overlayPanel, ringSpinner } from './kit-styles'
+import {
+  fieldFocus,
+  fieldHover,
+  fieldSurface,
+  floatingEntrance,
+  joinClassNames,
+  menuRow,
+  overlayPanel,
+  ringSpinner,
+} from './kit-styles'
 
 /*
- * Select: a 40px control with radius 6 and the action color on focus; the
- * option panel is styled like the app bar's menus and keeps the keyboard
- * working (arrows, Enter, Escape).
+ * Select, v2: the same raised 44px field as Input with a chevron that turns
+ * on open; the option panel is glass like the app bar menus (40px rows,
+ * radius 12, the chosen row tinted and checked). Keyboard works throughout
+ * (arrows, Enter, Escape), and the panel flips above when there is no room.
  */
 const SelectWrapper = styled.div`
   display: inline-block;
@@ -23,34 +33,39 @@ const SelectWrapper = styled.div`
 `
 
 const SelectTrigger = styled.button<{ $focused?: boolean }>`
+  ${fieldSurface}
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
-  min-height: 40px;
-  padding: 0 12px;
-  border: 1px solid
-    ${({ $focused }) =>
-      $focused ? 'var(--color-primary)' : 'var(--color-border)'};
-  border-radius: var(--radius);
-  background: var(--color-surface);
-  color: var(--color-text);
+  min-height: 44px;
+  padding: 0 12px 0 14px;
   font-family: var(--font-sans);
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
+  font-size: var(--fs-body-lg);
+  line-height: var(--lh-body-lg);
   text-align: left;
   cursor: pointer;
   user-select: none;
-  transition: border-color var(--motion);
 
   &:hover:not(:disabled) {
-    border-color: ${({ $focused }) =>
-      $focused ? 'var(--color-primary)' : 'var(--color-border-strong)'};
+    ${fieldHover}
+  }
+
+  ${({ $focused }) =>
+    $focused &&
+    css`
+      && {
+        ${fieldFocus}
+      }
+    `}
+
+  &:focus-visible {
+    ${fieldFocus}
   }
 
   &:disabled {
-    background: var(--color-raised);
+    background: transparent;
     color: var(--color-muted);
     cursor: not-allowed;
   }
@@ -70,38 +85,46 @@ const Placeholder = styled.span`
 
 const Arrow = styled.span<{ $open?: boolean }>`
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
-  color: var(--color-faint);
-  transition: transform var(--motion);
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-pill);
+  color: ${({ $open }) =>
+    $open ? 'var(--color-primary)' : 'var(--color-faint)'};
   transform: rotate(${({ $open }) => ($open ? '180deg' : '0deg')});
+  transition:
+    transform var(--dur-control) var(--ease-spring),
+    color var(--dur-hover) var(--ease-out);
 `
 
 const Spinner = styled.span`
   ${ringSpinner}
-  width: 14px;
-  height: 14px;
-  color: var(--color-muted);
+  width: 16px;
+  height: 16px;
+  color: var(--color-primary);
 `
 
-const DropdownStyled = styled.div`
+const DropdownStyled = styled.div<{ $up?: boolean }>`
   position: fixed;
   z-index: 1050;
-  max-height: 280px;
+  max-height: 296px;
   padding: 6px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   ${overlayPanel}
+  transform-origin: ${({ $up }) => ($up ? '50% 100%' : '50% 0')};
+  ${({ $up }) => floatingEntrance($up)}
 `
 
+/* No type attribute, so the global text-input rules leave it alone. */
 const SearchInput = styled.input`
+  ${fieldSurface}
   width: 100%;
-  height: 32px;
+  height: 40px;
   margin-bottom: 6px;
-  padding: 0 10px;
-  border: 0;
-  border-bottom: 1px solid var(--color-border);
-  border-radius: 0;
-  background: transparent;
-  color: var(--color-text);
+  padding: 0 12px;
   font-family: var(--font-sans);
   font-size: var(--fs-body);
 
@@ -110,8 +133,7 @@ const SearchInput = styled.input`
   }
 
   &:focus-visible {
-    outline: none;
-    border-bottom-color: var(--color-primary);
+    ${fieldFocus}
   }
 `
 
@@ -120,11 +142,8 @@ const OptionItem = styled.div<{
   $disabled?: boolean
   $highlighted?: boolean
 }>`
-  display: flex;
-  align-items: center;
-  min-height: 36px;
-  padding: 6px 10px;
-  border-radius: var(--radius-sm);
+  ${menuRow}
+  justify-content: space-between;
   color: ${({ $selected }) =>
     $selected ? 'var(--color-primary)' : 'var(--color-text)'};
   background: ${({ $selected, $highlighted }) =>
@@ -133,18 +152,19 @@ const OptionItem = styled.div<{
       : $highlighted
         ? 'var(--color-raised)'
         : 'transparent'};
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
   font-weight: ${({ $selected }) => ($selected ? 500 : 400)};
   cursor: pointer;
-  transition: background var(--motion);
+
+  & + & {
+    margin-top: 2px;
+  }
 
   ${({ $disabled, $selected }) =>
     $disabled
       ? css`
           color: var(--color-muted);
           cursor: not-allowed;
-          opacity: 0.55;
+          opacity: 0.5;
         `
       : css`
           &:hover {
@@ -155,8 +175,19 @@ const OptionItem = styled.div<{
         `}
 `
 
+const OptionLabel = styled.span`
+  flex: 1;
+  min-width: 0;
+`
+
+const OptionCheck = styled.span`
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--color-primary);
+`
+
 const EmptyOption = styled.div`
-  padding: 8px 10px;
+  padding: 12px 10px;
   color: var(--color-faint);
   font-size: var(--fs-small);
   line-height: var(--lh-small);
@@ -232,7 +263,12 @@ const Select: SelectComponent = ({
   const dropdownRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const listboxId = useId()
-  const [dropdownPos, setDropdownPos] = useState({
+  const [dropdownPos, setDropdownPos] = useState<{
+    top?: number
+    bottom?: number
+    left: number
+    width: number
+  }>({
     top: 0,
     left: 0,
     width: 0,
@@ -273,11 +309,20 @@ const Select: SelectComponent = ({
   const updateDropdownPosition = useCallback(() => {
     if (!triggerRef.current) return
     const rect = triggerRef.current.getBoundingClientRect()
-    setDropdownPos({
-      top: rect.bottom + 4,
-      left: rect.left,
-      width: rect.width,
-    })
+    const below = window.innerHeight - rect.bottom
+    // Open upward only when the panel would not fit below and fits better above.
+    if (below < 240 && rect.top > below)
+      setDropdownPos({
+        bottom: window.innerHeight - rect.top + 6,
+        left: rect.left,
+        width: rect.width,
+      })
+    else
+      setDropdownPos({
+        top: rect.bottom + 6,
+        left: rect.left,
+        width: rect.width,
+      })
   }, [])
 
   const close = useCallback(() => {
@@ -444,7 +489,7 @@ const Select: SelectComponent = ({
           <Spinner aria-hidden />
         ) : (
           <Arrow className="ui-select-arrow" $open={open} aria-hidden>
-            <KitIcon name="chevron-down" size={14} />
+            <KitIcon name="chevron-down" size={16} />
           </Arrow>
         )}
       </SelectTrigger>
@@ -456,8 +501,10 @@ const Select: SelectComponent = ({
             id={listboxId}
             role="listbox"
             className="ui-select-dropdown"
+            $up={dropdownPos.bottom !== undefined}
             style={{
               top: dropdownPos.top,
+              bottom: dropdownPos.bottom,
               left: dropdownPos.left,
               width: dropdownPos.width,
               ...dropdownStyle,
@@ -500,7 +547,12 @@ const Select: SelectComponent = ({
                     handleSelect(opt)
                   }}
                 >
-                  {opt.label}
+                  <OptionLabel>{opt.label}</OptionLabel>
+                  {opt.value === currentVal && (
+                    <OptionCheck aria-hidden>
+                      <KitIcon name="check" size={16} />
+                    </OptionCheck>
+                  )}
                 </OptionItem>
               ))
             )}

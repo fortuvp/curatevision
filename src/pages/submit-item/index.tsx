@@ -8,7 +8,6 @@ import React, {
 import type { BigNumber } from 'ethers'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
-import Loading from 'components/loading'
 import ErrorPage from 'pages/error-page'
 import useCheckLightCurate from 'hooks/use-check-light-curate'
 import useTcrNetwork from 'hooks/use-tcr-network'
@@ -27,13 +26,14 @@ import {
 import { useGraphqlBatcher } from 'contexts/graphql-batcher'
 import { PERMANENT_REGISTRY_QUERY } from 'utils/graphql'
 import { parseIpfs } from 'utils/ipfs-parse'
-import { formatDurationLong } from 'utils/time'
-import type {
-  OutcomeStep,
-  ReceiptLine,
-} from 'components/curate/what-happens-next'
-import { SubmitPage, type ConfirmGate } from './submit-page'
-import { formatAmount } from './amounts'
+import { formatDuration, formatDurationLong } from 'utils/time'
+import {
+  SubmitPage,
+  SubmitPageSkeleton,
+  type ConfirmGate,
+  type SubmitTerms,
+} from './submit-page'
+import { amountText, formatAmount, type Amount } from './amounts'
 import { useWalletGate } from './use-wallet-gate'
 import { useDepositSubmit, usePermanentSubmit } from './use-submit-actions'
 
@@ -78,6 +78,7 @@ const DepositSubmitPage = ({
   metaEvidence,
   submissionDeposit,
   submissionBaseDeposit,
+  submissionChallengeBaseDeposit,
   arbitrationCost,
   challengePeriodDuration,
 }: {
@@ -86,11 +87,14 @@ const DepositSubmitPage = ({
   metaEvidence?: MetaEvidence
   submissionDeposit?: BigNumber
   submissionBaseDeposit?: BigNumber
+  /** What a challenger stakes besides the arbitration cost; the winner gets it. */
+  submissionChallengeBaseDeposit?: BigNumber
   arbitrationCost?: BigNumber
   challengePeriodDuration?: BigNumber
 }) => {
   const navigate = useNavigate()
   const registryPath = useRegistryPath()
+  const chainId = useUrlChainId()
   const currency = useNativeCurrency()
   const { balance } = useNativeBalance()
   const factoryChecks = useFactory()
@@ -114,42 +118,99 @@ const DepositSubmitPage = ({
   const policyURI = metaEvidence?.fileURI
   const ready = !!metaEvidence && !!submissionDeposit && !!columns
 
-  const total = submissionDeposit
-    ? `${formatAmount(submissionDeposit)} ${currency}`
-    : '—'
-  const base = submissionBaseDeposit
-    ? `${formatAmount(submissionBaseDeposit)} ${currency}`
-    : '—'
-  const cost = arbitrationCost
-    ? `${formatAmount(arbitrationCost)} ${currency}`
-    : '—'
-  const period = challengePeriodDuration
-    ? formatDurationLong(challengePeriodDuration.toNumber())
-    : ''
+  const native = (value?: BigNumber): Amount | undefined =>
+    value
+      ? { value: BigInt(value.toString()), decimals: 18, symbol: currency }
+      : undefined
+  const totalAmount = native(submissionDeposit)
+  const baseAmount = native(submissionBaseDeposit)
+  const costAmount = native(arbitrationCost)
+  const challengeBaseAmount = native(submissionChallengeBaseDeposit)
+  const total = amountText(totalAmount)
+  const base = amountText(baseAmount)
+  const cost = amountText(costAmount)
+  const seconds = challengePeriodDuration?.toNumber()
+  // Winning a challenge returns the deposit plus the challenger's base
+  // deposit (the round's fee rewards, less the one arbitration cost paid).
+  const challengerBase =
+    challengeBaseAmount && challengeBaseAmount.value > 0n
+      ? amountText(challengeBaseAmount)
+      : ''
 
-  const receipt: ReceiptLine[] = [
-    { label: 'Base deposit', value: base },
-    { label: 'Arbitration cost', value: cost },
-  ]
-  const steps: OutcomeStep[] = [
-    {
-      title: `You send ${total}`,
-      body: `${base} base deposit + ${cost} arbitration cost, in one transaction. This is a deposit, not a fee.`,
+  const terms: SubmitTerms = {
+    headline: totalAmount,
+    parts: [
+      {
+        key: 'base',
+        label: 'Base deposit',
+        amount: baseAmount,
+        tone: 'primary',
+      },
+      {
+        key: 'cost',
+        label: 'Arbitration cost',
+        amount: costAmount,
+        tone: 'faint',
+      },
+    ],
+    amountText: total,
+    period:
+      seconds !== undefined
+        ? {
+            seconds,
+            label: 'Challenge period',
+            endLabel: 'Ends',
+            noneText:
+              'No challenge period: the request can be executed right away.',
+          }
+        : undefined,
+    outcomes: [
+      {
+        key: 'clear',
+        tone: 'registered',
+        title: 'Nobody challenges',
+        status: 'Registered',
+        figure: `${total} back`,
+        note: 'returned when the request is executed',
+      },
+      {
+        key: 'challenged',
+        tone: 'contested',
+        title: 'Someone challenges',
+        status: 'Challenged',
+        note: 'Kleros jurors decide',
+        children: [
+          {
+            key: 'win',
+            tone: 'registered',
+            title: 'You win',
+            status: 'Registered',
+            figure: challengerBase
+              ? [`${total} back`, `+${challengerBase}`]
+              : `${total} back`,
+            note: challengerBase
+              ? "plus the challenger's base deposit"
+              : undefined,
+          },
+          {
+            key: 'lose',
+            tone: 'off',
+            title: 'You lose',
+            status: 'Rejected',
+            figure: `−${total}`,
+            note: `${base} to the challenger, ${cost} for arbitration`,
+          },
+        ],
+      },
+    ],
+    status: {
+      label: 'Submitted',
+      detail:
+        seconds !== undefined && seconds > 0
+          ? `${formatDuration(seconds)} to challenge`
+          : undefined,
     },
-    {
-      title: period ? `Challenge period: ${period}` : 'Challenge period',
-      body: `Your ${itemName} is listed as Submitted while anyone can challenge it against the listing policy.`,
-    },
-    {
-      title: 'Nobody challenges',
-      body: `Your ${itemName} is registered and the full ${total} comes back when the request is executed.`,
-    },
-    {
-      title: 'Someone challenges',
-      body: 'Kleros jurors decide. If you win, your deposit comes back in full. If you lose, it goes to the challenger minus the arbitration cost.',
-      branch: true,
-    },
-  ]
+  }
 
   const lowBalance = submissionDeposit
     ? balanceBlocker(
@@ -170,14 +231,19 @@ const DepositSubmitPage = ({
       registryPath={registryPath}
       registryTitle={registryTitle}
       itemName={itemName}
-      lede={`One transaction sends the deposit. Your ${itemName} is then listed as Submitted and anyone can challenge it during the challenge period; if nobody does, the deposit comes back in full.`}
+      chainId={chainId ?? undefined}
+      lede={
+        seconds === undefined
+          ? undefined
+          : seconds > 0
+            ? `Anyone can challenge it for ${formatDurationLong(seconds)}; if nobody does, your deposit comes back in full.`
+            : 'This list has no challenge period; your deposit comes back once the request is executed.'
+      }
       columns={columns}
       initialValues={NO_INITIAL_VALUES}
       disabledFields={NO_DISABLED_FIELDS}
       policyURI={policyURI}
-      receipt={receipt}
-      total={total}
-      steps={steps}
+      terms={terms}
       ready={ready}
       gate={gate}
       phase={phase}
@@ -195,7 +261,7 @@ const ClassicSubmitPage = () => {
 
   if (typeof tcrError === 'string')
     return <ErrorPage code="400" message={tcrError} />
-  if (!tcrAddress) return <Loading />
+  if (!tcrAddress) return <SubmitPageSkeleton />
 
   return (
     <DepositSubmitPage
@@ -204,6 +270,9 @@ const ClassicSubmitPage = () => {
       metaEvidence={tcrViewContext?.metaEvidence}
       submissionDeposit={tcrViewContext?.submissionDeposit}
       submissionBaseDeposit={tcrViewContext?.submissionBaseDeposit}
+      submissionChallengeBaseDeposit={
+        tcrViewContext?.submissionChallengeBaseDeposit
+      }
       arbitrationCost={tcrViewContext?.arbitrationCost}
       challengePeriodDuration={tcrViewContext?.challengePeriodDuration}
     />
@@ -217,7 +286,7 @@ const LightSubmitPage = () => {
 
   if (typeof tcrError === 'string')
     return <ErrorPage code="400" message={tcrError} />
-  if (!tcrAddress) return <Loading />
+  if (!tcrAddress) return <SubmitPageSkeleton />
 
   return (
     <DepositSubmitPage
@@ -226,6 +295,9 @@ const LightSubmitPage = () => {
       metaEvidence={tcrViewContext?.metaEvidence}
       submissionDeposit={tcrViewContext?.submissionDeposit}
       submissionBaseDeposit={tcrViewContext?.submissionBaseDeposit}
+      submissionChallengeBaseDeposit={
+        tcrViewContext?.submissionChallengeBaseDeposit
+      }
       arbitrationCost={tcrViewContext?.arbitrationCost}
       challengePeriodDuration={tcrViewContext?.challengePeriodDuration}
     />
@@ -313,7 +385,8 @@ const PermanentSubmitPage = () => {
     onDone,
   })
 
-  if (registryQuery.isLoading || !registryQuery.data) return <Loading />
+  if (registryQuery.isLoading || !registryQuery.data)
+    return <SubmitPageSkeleton />
   if (!registry)
     return (
       <ErrorPage
@@ -339,50 +412,98 @@ const PermanentSubmitPage = () => {
   const costWei = arbitrationCost
     ? BigInt(arbitrationCost.toString())
     : undefined
-  const stake =
-    stakeWei === undefined
-      ? '—'
-      : `${formatAmount(stakeWei, decimals)} ${symbol}`
-  const cost =
-    costWei === undefined ? '—' : `${formatAmount(costWei)} ${nativeCurrency}`
-  const total = `${stake} + ${cost}`
-  const submissionPeriod = registry.submissionPeriod
-    ? formatDurationLong(Number(registry.submissionPeriod))
-    : ''
+  // The symbol and decimals must be known before any amount is printed.
+  const stakeAmount: Amount | undefined =
+    stakeWei === undefined || tokenLoading
+      ? undefined
+      : { value: stakeWei, decimals, symbol }
+  const costAmount: Amount | undefined =
+    costWei === undefined
+      ? undefined
+      : { value: costWei, decimals: 18, symbol: nativeCurrency }
+  const stake = amountText(stakeAmount)
+  const cost = amountText(costAmount)
+  const submissionSeconds =
+    registry.submissionPeriod === undefined ||
+    registry.submissionPeriod === null
+      ? undefined
+      : Number(registry.submissionPeriod)
   const withdrawingPeriod = registry.withdrawingPeriod
     ? formatDurationLong(Number(registry.withdrawingPeriod))
     : ''
-  // The symbol and decimals must be known before any amount is printed.
-  const ready =
-    !!metadata && !!columns && !!arbitrationCost && !tokenLoading
+  const ready = !!metadata && !!columns && !!arbitrationCost && !tokenLoading
 
-  const receipt: ReceiptLine[] = [
-    { label: 'Stake, locked while listed', value: stake },
-    { label: 'Arbitration cost', value: cost },
-  ]
-  const steps: OutcomeStep[] = [
-    {
-      title: `You stake ${stake} and send ${cost}`,
-      body: `The stake stays locked while your ${itemName} is listed. The arbitration cost is a deposit held for a possible dispute.`,
+  const terms: SubmitTerms = {
+    headline: stakeAmount,
+    extra: { label: 'arbitration deposit', amount: costAmount },
+    parts: [
+      {
+        key: 'stake',
+        label: 'Stake, locked while listed',
+        amount: stakeAmount,
+        tone: 'primary',
+      },
+      {
+        key: 'cost',
+        label: 'Arbitration deposit',
+        amount: costAmount,
+        tone: 'faint',
+      },
+    ],
+    amountText: `${stake} + ${cost}`,
+    period:
+      submissionSeconds !== undefined && Number.isFinite(submissionSeconds)
+        ? {
+            seconds: submissionSeconds,
+            label: 'Pending period',
+            endLabel: 'Accepted',
+            noneText: 'No pending period: it is accepted right away.',
+          }
+        : undefined,
+    outcomes: [
+      {
+        key: 'clear',
+        tone: 'registered',
+        title: 'Nobody challenges',
+        status: 'Accepted',
+        figure: `${stake} locked`,
+        note: withdrawingPeriod
+          ? `withdraw any time; withdrawing takes ${withdrawingPeriod}`
+          : 'withdraw any time',
+      },
+      {
+        key: 'challenged',
+        tone: 'contested',
+        title: 'Someone challenges',
+        status: 'Disputed',
+        note: 'possible any time while listed, even while withdrawing',
+        children: [
+          {
+            key: 'win',
+            tone: 'registered',
+            title: 'You win',
+            status: 'Accepted',
+            note: "your stake grows by the challenger's stake",
+          },
+          {
+            key: 'lose',
+            tone: 'off',
+            title: 'You lose',
+            status: 'Removed',
+            figure: [`−${stake}`, `−${cost}`],
+            note: 'the challenger takes your stake and the arbitration deposit',
+          },
+        ],
+      },
+    ],
+    status: {
+      label: 'Pending',
+      detail:
+        submissionSeconds !== undefined && submissionSeconds > 0
+          ? `${formatDuration(submissionSeconds)} until accepted`
+          : undefined,
     },
-    {
-      title: submissionPeriod
-        ? `Submission period: ${submissionPeriod}`
-        : 'Submission period',
-      body: `Your ${itemName} is listed as Pending during this window and counts as accepted after it. It can be challenged at any time while it is listed, including while withdrawing.`,
-    },
-    {
-      title: 'While nobody challenges',
-      body: `Your ${itemName} stays listed with its stake locked. You can withdraw it later${
-        withdrawingPeriod ? `; withdrawing takes ${withdrawingPeriod}` : ''
-      }.`,
-    },
-    {
-      title: 'Someone challenges',
-      body: `Kleros jurors decide. If you win, your ${itemName} is reincluded and its stake grows by the challenger's stake. If you lose, the challenger takes your stake and the arbitration deposit.`,
-      branch: true,
-    },
-  ]
+  }
 
   const lowStake =
     stakeWei === undefined
@@ -395,7 +516,7 @@ const PermanentSubmitPage = () => {
           stakeCurate.nativeBalance,
           costWei,
           nativeCurrency,
-          'arbitration cost',
+          'arbitration deposit',
         )
   const balancesRead =
     stakeCurate.balance !== undefined &&
@@ -419,7 +540,7 @@ const PermanentSubmitPage = () => {
   else if (lowNative) gate = { blocker: lowNative }
   else if (needsApproval)
     gate = {
-      blocker: `Approve ${symbol} to submit`,
+      blocker: `Approve ${stake} so the list can lock your stake`,
       fix: {
         label: `Approve ${stake}`,
         onClick: stakeCurate.approve,
@@ -432,18 +553,17 @@ const PermanentSubmitPage = () => {
       registryPath={registryPath}
       registryTitle={metadata?.title}
       itemName={itemName}
+      chainId={chainId ?? undefined}
       lede={
         tokenLoading
           ? undefined
-          : `Stake Curate: your ${itemName} is listed against a ${symbol} stake that stays locked while it is on the list, plus an arbitration deposit in ${nativeCurrency}. It can be challenged at any time while it is listed.`
+          : `Listed against a stake in ${symbol} that stays locked while it is on the list, plus an arbitration deposit in ${nativeCurrency}.`
       }
       columns={columns}
       initialValues={NO_INITIAL_VALUES}
       disabledFields={NO_DISABLED_FIELDS}
       policyURI={metadata?.policyURI}
-      receipt={receipt}
-      total={total}
-      steps={steps}
+      terms={terms}
       ready={ready}
       gate={gate}
       phase={stakeCurate.phase}
@@ -462,7 +582,7 @@ const SubmitItem = () => {
     useCheckLightCurate()
   useTcrNetwork()
 
-  if (checking) return <Loading />
+  if (checking) return <SubmitPageSkeleton />
   if (error)
     return (
       <ErrorPage
@@ -483,7 +603,7 @@ const SubmitItem = () => {
 
   if (isClassicCurate)
     return (
-      <Suspense fallback={<Loading />}>
+      <Suspense fallback={<SubmitPageSkeleton />}>
         <TCRViewProvider tcrAddress={tcrAddress}>
           <ClassicSubmitPage />
         </TCRViewProvider>
@@ -492,7 +612,7 @@ const SubmitItem = () => {
 
   if (isLightCurate)
     return (
-      <Suspense fallback={<Loading />}>
+      <Suspense fallback={<SubmitPageSkeleton />}>
         <LightTCRViewProvider tcrAddress={tcrAddress}>
           <LightSubmitPage />
         </LightTCRViewProvider>
@@ -501,7 +621,7 @@ const SubmitItem = () => {
 
   if (isPermanentCurate)
     return (
-      <Suspense fallback={<Loading />}>
+      <Suspense fallback={<SubmitPageSkeleton />}>
         <PermanentSubmitPage />
       </Suspense>
     )

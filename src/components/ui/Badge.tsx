@@ -1,9 +1,9 @@
 import React from 'react'
 import styled, { css } from 'styled-components'
 import {
+  figureData,
+  haloDot,
   joinClassNames,
-  monoData,
-  monoLabel,
   toneColor,
   toneFor,
   type Tone,
@@ -15,7 +15,7 @@ const Wrapper = styled.span`
   vertical-align: middle;
 `
 
-/* Count bubble: mono figure in the action color; dot mode is an 8px pill. */
+/* Count bubble: tabular figure on the action fill; dot mode is an 8px glowing dot. */
 const CountBadge = styled.sup<{ $dot?: boolean }>`
   position: absolute;
   top: -6px;
@@ -24,15 +24,19 @@ const CountBadge = styled.sup<{ $dot?: boolean }>`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 16px;
-  height: 16px;
+  min-width: 18px;
+  height: 18px;
   padding: 0 5px;
-  border: 1px solid var(--color-surface);
+  border: 2px solid var(--color-bg);
   border-radius: var(--radius-pill);
-  background: var(--color-primary);
+  background: var(--color-primary-fill);
+  box-shadow: 0 0 10px -2px var(--color-primary);
   color: var(--color-on-primary);
-  ${monoLabel}
-  letter-spacing: 0;
+  font-family: var(--font-figure);
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 
   ${({ $dot }) =>
@@ -54,18 +58,13 @@ const StatusWrapper = styled.span`
   min-width: 0;
 `
 
-/* 8px status dot: one meaning per role (DESIGN.md, Colors). */
+/* 8px status dot with a halo in its own tone; always next to its words. */
 const StatusDot = styled.span<{ $tone: Tone; $raw?: string }>`
-  display: inline-block;
-  flex: 0 0 auto;
-  width: 8px;
-  height: 8px;
-  border-radius: var(--radius-pill);
-  background: ${({ $tone, $raw }) => $raw || toneColor($tone)};
+  ${({ $tone, $raw }) => haloDot($raw || toneColor($tone))}
 `
 
 const StatusText = styled.span`
-  ${monoData}
+  ${figureData}
   color: var(--color-text);
 `
 

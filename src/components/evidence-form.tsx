@@ -30,38 +30,41 @@ const FieldBlock = styled.div`
 
 const Textarea = styled.textarea`
   width: 100%;
-  min-height: 112px;
-  padding: 10px 12px;
-  border: 1px solid var(--color-border);
+  min-height: 120px;
+  padding: 12px 14px;
+  border: 1px solid var(--glass-border) !important;
   border-radius: var(--radius);
-  background: var(--color-surface);
+  background: var(--color-raised) !important;
   color: var(--color-text);
   font-family: var(--font-sans);
   font-size: var(--fs-body);
-  line-height: var(--lh-body);
+  line-height: 22px;
   resize: vertical;
-  transition: border-color var(--motion);
+  transition:
+    border-color var(--motion),
+    box-shadow var(--motion);
 
   &::placeholder {
     color: var(--color-faint);
   }
 
   &:hover {
-    border-color: var(--color-border-strong);
+    border-color: var(--color-border-strong) !important;
   }
 
   &:focus {
     outline: none;
-    border-color: var(--color-primary);
+    border-color: var(--color-primary) !important;
+    box-shadow: 0 0 0 4px var(--color-primary-soft) !important;
   }
 `
 
 const Attachment = styled.div`
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border: 1px solid var(--color-border);
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius);
   background: var(--color-raised);
 `
@@ -82,7 +85,7 @@ const FileIcon = styled.span`
   width: 40px;
   height: 40px;
   flex: 0 0 auto;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   color: var(--color-muted);
 `

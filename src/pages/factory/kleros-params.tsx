@@ -2,19 +2,26 @@ import React, { useMemo, useState, useEffect, useCallback, useId } from 'react'
 import styled from 'styled-components'
 import { ethers, type BigNumber } from 'ethers'
 import { abi as _IArbitrator } from '@kleros/erc-792/build/contracts/IArbitrator.json'
-import { ARBITRATION_FEE_TOOLTIP } from 'components/arbitration-fee-tooltip'
 import { jurorsAndCourtIDFromExtraData } from 'utils/string'
 import useNativeCurrency from 'hooks/native-currency'
 import useCourtPolicies from 'hooks/use-court-policies'
+import { AnimatedNumber } from 'components/curate/motion/animated-number'
 import {
-  Data,
-  KeyValueList,
+  Label,
   Row,
   SkeletonBlock,
   Small,
   Stack,
 } from 'components/curate/primitives'
-import { FormField, Input, RangeInput, Select, formatNative } from './fields'
+import {
+  FieldGrid,
+  FormField,
+  Input,
+  RangeInput,
+  Select,
+  amountFormat,
+  formatNative,
+} from './fields'
 
 /*
  * Court and number of jurors for a Kleros arbitrator, encoded into the
@@ -24,10 +31,41 @@ import { FormField, Input, RangeInput, Select, formatNative } from './fields'
 
 const JurorsInput = styled(Input)`
   flex: 0 0 auto;
-  width: 72px;
-  text-align: right;
-  font-family: var(--font-mono);
+  width: 64px;
+  text-align: center;
+  font-family: var(--font-figure);
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
+`
+
+/** The cost read-out: one figure, its unit and one line on who pays it. */
+const CostLine = styled.div`
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: var(--color-raised);
+`
+
+const CostFigure = styled.span`
+  color: var(--color-text);
+  font-family: var(--font-figure);
+  font-size: 22px;
+  line-height: 26px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+
+  small {
+    margin-left: 6px;
+    color: var(--color-muted);
+    font-size: var(--fs-small);
+    font-weight: 500;
+    letter-spacing: 0;
+  }
 `
 
 const MIN_JURORS = 1
@@ -122,71 +160,76 @@ const KlerosParams = ({
   const cost = formatNative(arbitrationCost)
 
   return (
-    <Stack $gap={16}>
-      <FormField
-        id={`${ids}-court`}
-        label="Court"
-        help="The Kleros court whose jurors rule on disputes about this list."
-      >
-        {(a11y) => (
-          <Select
-            {...a11y}
-            value={typeof courtID === 'number' ? String(courtID) : ''}
-            disabled={loadingCourts}
-            onChange={(event) => onCourtChanged(event.target.value)}
-          >
-            {loadingCourts && <option value="">Loading courts…</option>}
-            {courts.map(({ value, label }) => (
-              <option value={value} key={value}>
-                {label}
-              </option>
-            ))}
-          </Select>
-        )}
-      </FormField>
-      <FormField
-        id={`${ids}-jurors`}
-        label="Number of jurors"
-        help="Jurors drawn in the first round of a dispute; always an odd number. Three is the usual choice: one can do when cases are simple, more when they take real review. Every extra juror raises the arbitration cost, and with it every deposit."
-      >
-        {(a11y) => (
-          <Row $gap={12}>
-            <RangeInput
-              type="range"
-              min={MIN_JURORS}
-              max={MAX_JURORS}
-              step={2}
-              value={numberOfJurors}
-              aria-label="Number of jurors"
-              onChange={(event) =>
-                onNumJurorsChange(Number(event.target.value))
-              }
-            />
-            <JurorsInput
+    <Stack $gap={20}>
+      <FieldGrid>
+        <FormField
+          id={`${ids}-court`}
+          label="Court"
+          help="The Kleros court whose jurors rule on this list's disputes."
+        >
+          {(a11y) => (
+            <Select
               {...a11y}
-              type="text"
-              inputMode="numeric"
-              value={numberOfJurors}
-              onChange={(event) =>
-                onNumJurorsChange(Number(event.target.value))
-              }
-            />
-          </Row>
+              value={typeof courtID === 'number' ? String(courtID) : ''}
+              disabled={loadingCourts}
+              onChange={(event) => onCourtChanged(event.target.value)}
+            >
+              {loadingCourts && <option value="">Loading courts…</option>}
+              {courts.map(({ value, label }) => (
+                <option value={value} key={value}>
+                  {label}
+                </option>
+              ))}
+            </Select>
+          )}
+        </FormField>
+        <FormField
+          id={`${ids}-jurors`}
+          label="Jurors in the first round"
+          help="Always odd; each extra juror raises the arbitration cost."
+        >
+          {(a11y) => (
+            <Row $gap={14}>
+              <RangeInput
+                type="range"
+                min={MIN_JURORS}
+                max={MAX_JURORS}
+                step={2}
+                value={numberOfJurors}
+                aria-label="Number of jurors"
+                onChange={(event) =>
+                  onNumJurorsChange(Number(event.target.value))
+                }
+              />
+              <JurorsInput
+                {...a11y}
+                type="text"
+                inputMode="numeric"
+                value={numberOfJurors}
+                onChange={(event) =>
+                  onNumJurorsChange(Number(event.target.value))
+                }
+              />
+            </Row>
+          )}
+        </FormField>
+      </FieldGrid>
+      <CostLine role="group" aria-label="Arbitration cost">
+        <Stack $gap={2}>
+          <Label $tone="muted">Arbitration cost</Label>
+          <Small $muted>
+            Paid up front to open a dispute, refunded to the side that wins.
+          </Small>
+        </Stack>
+        {cost === null ? (
+          <SkeletonBlock $height="26px" $width="120px" />
+        ) : (
+          <CostFigure>
+            <AnimatedNumber value={Number(cost)} format={amountFormat(cost)} />
+            <small>{nativeCurrency}</small>
+          </CostFigure>
         )}
-      </FormField>
-      <KeyValueList>
-        <dt>Arbitration cost</dt>
-        <dd>
-          {cost === null ? (
-            <SkeletonBlock $height="18px" $width="120px" />
-          ) : (
-            <Data>
-              {cost} {nativeCurrency}
-            </Data>
-          )}{' '}
-          <Small $muted>{ARBITRATION_FEE_TOOLTIP}</Small>
-        </dd>
-      </KeyValueList>
+      </CostLine>
     </Stack>
   )
 }

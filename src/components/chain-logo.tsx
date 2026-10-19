@@ -5,8 +5,8 @@ import GnosisLogo from 'assets/images/chains/gnosis.svg'
 import { NETWORKS } from 'config/networks'
 
 /*
- * Chain mark in a hairline ring. The mark itself carries the chain's
- * identity; the ring and fill are surface tokens (DESIGN.md: no raw colors).
+ * Chain mark in a hairline ring with a top highlight. The mark itself
+ * carries the chain's identity; the ring and fill are surface tokens.
  */
 const Frame = styled.span<{ $size: number }>`
   width: ${({ $size }) => $size}px;
@@ -15,9 +15,11 @@ const Frame = styled.span<{ $size: number }>`
   place-items: center;
   flex: 0 0 auto;
   overflow: hidden;
-  border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
   background: var(--color-raised);
+  box-shadow:
+    inset 0 0 0 1px var(--glass-border),
+    inset 0 1px 0 var(--glass-highlight);
 
   svg {
     width: ${({ $size }) => Math.max(12, $size - 4)}px;

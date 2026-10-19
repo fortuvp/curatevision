@@ -27,7 +27,7 @@ export interface WalletGate {
   verified: boolean
   /** The first blocker on the wallet side, if any. */
   blocker?: string
-  /** The action that clears `blocker`. */
+  /** The action that clears `blocker`; its label names the blocker. */
   fix?: GateFix
 }
 
@@ -74,14 +74,14 @@ export const useWalletGate = (verb = 'submit'): WalletGate => {
       return {
         ...base,
         blocker: `Connect wallet to ${verb}`,
-        fix: { label: 'Connect wallet', onClick: connect },
+        fix: { label: `Connect wallet to ${verb}`, onClick: connect },
       }
     if (!correctChain)
       return {
         ...base,
         blocker: `Switch to ${chainName} to ${verb}`,
         fix: {
-          label: `Switch to ${chainName}`,
+          label: `Switch to ${chainName} to ${verb}`,
           onClick: switchToTarget,
           loading: switching,
         },
@@ -90,7 +90,11 @@ export const useWalletGate = (verb = 'submit'): WalletGate => {
       return {
         ...base,
         blocker: `Sign in to ${verb}`,
-        fix: { label: 'Sign in', onClick: signIn, loading: isSigningIn },
+        fix: {
+          label: `Sign in to ${verb}`,
+          onClick: signIn,
+          loading: isSigningIn,
+        },
       }
     return base
   }, [

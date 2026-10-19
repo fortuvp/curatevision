@@ -2,9 +2,10 @@ import React from 'react'
 import styled from 'styled-components'
 
 /*
- * On phones the item page's action card becomes a sticky bottom bar
- * (DESIGN.md, Layout): the status on the left, the one action on the right.
- * Hidden above 720px, where the right rail holds the action card.
+ * On phones the item page's action card becomes a sticky bottom bar: the
+ * status on top, the one action (with its amount) full width under it.
+ * A frosted surface so the page reads through as it scrolls. Hidden above
+ * 720px, where the right rail holds the action card.
  */
 
 const Bar = styled.div`
@@ -17,23 +18,24 @@ const Bar = styled.div`
     left: 0;
     z-index: 30;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
-    border-top: 1px solid var(--color-border);
-    background: var(--color-surface);
-    box-shadow: var(--shadow-overlay);
-
-    > :last-child {
-      flex: 0 0 auto;
-    }
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--glass-border);
+    border-radius: 18px 18px 0 0;
+    background: color-mix(in srgb, var(--color-surface) 84%, transparent);
+    box-shadow:
+      inset 0 1px 0 var(--glass-highlight),
+      var(--shadow-overlay);
+    backdrop-filter: blur(var(--blur)) saturate(140%);
+    -webkit-backdrop-filter: blur(var(--blur)) saturate(140%);
   }
 `
 
 const StatusSlot = styled.div`
   min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
 `
 
 export const StickyActionBar = ({
@@ -55,7 +57,7 @@ export const StickyActionBarSpacer = styled.div`
 
   @media (max-width: 720px) {
     display: block;
-    height: calc(72px + env(safe-area-inset-bottom));
+    height: calc(120px + env(safe-area-inset-bottom));
   }
 `
 

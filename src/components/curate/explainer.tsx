@@ -1,11 +1,13 @@
 import React, { useCallback, useState } from 'react'
-import styled from 'styled-components'
-import { Surface, Body, Label } from './primitives'
+import styled, { css, keyframes } from 'styled-components'
+import { Label, Surface } from './primitives'
+import { reveal } from './motion/reveal'
 
 /*
- * Beginner explainer (DESIGN.md, Components): serif heading, numbered steps in
- * sans, a small schematic, and a "Hide this" link that persists per explainer.
- * Pros hide it once; it stays hidden on every later visit.
+ * Beginner explainer: collapsed into a pill by default and remembered per id.
+ * Opened, it is a compact row of numbered steps on one glowing connector
+ * (the steps are the schematic), with an optional drawing beside it.
+ * `embedded` drops the panel so it can open inside another panel.
  */
 
 const STORAGE_PREFIX = 'curatevision-explainer:'
@@ -40,58 +42,167 @@ export const useExplainerHidden = (id: string) => {
   return [hidden, setHidden] as const
 }
 
-const Shell = styled(Surface)`
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
-  gap: 32px;
-  align-items: center;
+const layout = css`
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  ${reveal}
+`
 
-  @media (max-width: 900px) {
-    grid-template-columns: 1fr;
-    gap: 20px;
-  }
+const Shell = styled(Surface)`
+  ${layout}
+`
+
+const Embedded = styled.section`
+  ${layout}
+  flex: 1 1 100%;
+  width: 100%;
+  min-width: 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--glass-border);
+`
+
+const Top = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 `
 
 const Heading = styled.h2`
-  margin: 0 0 6px;
+  margin: 0;
   color: var(--color-text);
   font-family: var(--font-display);
-  font-size: 28px;
-  line-height: 32px;
-  font-weight: 400;
-  letter-spacing: var(--tracking-display);
+  font-size: 22px;
+  line-height: 26px;
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
 `
 
-const Steps = styled.ol`
+const Intro = styled.p`
+  margin: 0;
+  max-width: 72ch;
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+`
+
+const Body = styled.div<{ $withSchematic: boolean }>`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-  margin: 16px 0 0;
+  grid-template-columns: ${({ $withSchematic }) =>
+    $withSchematic ? 'minmax(0, 1fr) minmax(260px, 380px)' : 'minmax(0, 1fr)'};
+  gap: 28px;
+  align-items: center;
+
+  @media (max-width: 960px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+`
+
+const draw = keyframes`
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+`
+
+const drawDown = keyframes`
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+`
+
+const Steps = styled.ol<{ $count: number }>`
+  display: grid;
+  grid-template-columns: repeat(
+    ${({ $count }) => Math.min(Math.max($count, 1), 4)},
+    minmax(0, 1fr)
+  );
+  gap: 20px 24px;
+  margin: 0;
   padding: 0;
   list-style: none;
-  counter-reset: step;
+
+  @media (max-width: 720px) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
 `
 
 const Step = styled.li`
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
-  gap: 12px;
-  align-items: start;
-  counter-increment: step;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  ${reveal}
 
-  &::before {
-    content: counter(step);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    border: 1px solid var(--color-border-strong);
-    border-radius: var(--radius-pill);
-    color: var(--color-muted);
-    font-family: var(--font-mono);
-    font-size: var(--fs-data);
-    font-weight: 500;
+  /* Connector to the next step: across on wide screens, down on phones. */
+  &:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    top: 12px;
+    left: 32px;
+    right: -20px;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      var(--color-primary),
+      color-mix(in srgb, var(--color-primary) 20%, transparent)
+    );
+    box-shadow: 0 0 8px
+      color-mix(in srgb, var(--color-primary) 60%, transparent);
+    transform-origin: left;
+    animation: ${draw} 800ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: calc(var(--i, 0) * 70ms + 200ms);
+  }
+
+  @media (max-width: 720px) {
+    padding-left: 38px;
+
+    &:not(:last-child)::after {
+      top: 30px;
+      bottom: -14px;
+      left: 12px;
+      right: auto;
+      width: 1px;
+      height: auto;
+      background: linear-gradient(
+        var(--color-primary),
+        color-mix(in srgb, var(--color-primary) 20%, transparent)
+      );
+      transform-origin: top;
+      animation-name: ${drawDown};
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::after {
+      animation: none !important;
+    }
+  }
+`
+
+const Node = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-bottom: 6px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 55%, transparent);
+  border-radius: var(--radius-pill);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  box-shadow: 0 0 14px -2px
+    color-mix(in srgb, var(--color-primary) 70%, transparent);
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+
+  @media (max-width: 720px) {
+    position: absolute;
+    top: 0;
+    left: 0;
+    margin: 0;
   }
 `
 
@@ -99,35 +210,35 @@ const StepTitle = styled.div`
   color: var(--color-text);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
-  font-weight: 600;
+  font-weight: 500;
 `
 
 const StepBody = styled.div`
   color: var(--color-muted);
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
 `
 
 const Footer = styled.div`
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
-  margin-top: 18px;
+  gap: 12px 18px;
 `
 
-const TextLink = styled.button`
+const TextButton = styled.button`
   padding: 0;
   border: 0;
   background: none;
-  color: var(--color-primary);
+  color: var(--color-muted);
   font-size: var(--fs-small);
   line-height: var(--lh-small);
   font-weight: 500;
   cursor: pointer;
+  transition: color var(--motion);
 
   &:hover {
-    color: var(--color-primary-hover);
-    text-decoration: underline;
+    color: var(--color-text);
   }
 `
 
@@ -141,41 +252,48 @@ const Schematic = styled.div`
   }
 `
 
-const ShowAgain = styled.button`
+const Pill = styled.button<{ $embedded: boolean }>`
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  align-self: ${({ $embedded }) => ($embedded ? 'center' : 'flex-start')};
+  width: fit-content;
   height: 32px;
-  padding: 0 14px 0 10px;
+  margin-left: ${({ $embedded }) => ($embedded ? 'auto' : 0)};
+  padding: 0 14px 0 6px;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-pill);
-  background: var(--glass);
+  background: var(--color-raised);
   box-shadow: inset 0 1px 0 var(--glass-highlight);
   color: var(--color-muted);
   font-size: var(--fs-small);
   line-height: var(--lh-small);
   font-weight: 500;
+  white-space: nowrap;
   cursor: pointer;
   transition:
     color var(--motion),
-    border-color var(--motion);
+    border-color var(--motion),
+    transform var(--motion);
 
   &:hover {
     color: var(--color-text);
     border-color: var(--color-border-strong);
+    transform: translateY(-1px);
   }
 
   span {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
     border-radius: var(--radius-pill);
     background: var(--color-primary-soft);
     color: var(--color-primary);
-    font-family: var(--font-mono);
+    box-shadow: 0 0 10px -2px var(--color-primary);
     font-size: 11px;
+    font-weight: 600;
   }
 `
 
@@ -192,6 +310,7 @@ export const Explainer = ({
   steps,
   schematic,
   footer,
+  embedded = false,
 }: {
   id: string
   eyebrow?: string
@@ -200,164 +319,59 @@ export const Explainer = ({
   steps: ExplainerStep[]
   schematic?: React.ReactNode
   footer?: React.ReactNode
+  /** Open inside another panel (hairline on top) instead of its own panel. */
+  embedded?: boolean
 }) => {
   const [hidden, setHidden] = useExplainerHidden(id)
 
   if (hidden)
     return (
-      <ShowAgain
+      <Pill
         type="button"
+        $embedded={embedded}
         aria-expanded={false}
         onClick={() => setHidden(false)}
       >
         <span aria-hidden>?</span>
         {eyebrow ?? 'How it works'}
-      </ShowAgain>
+      </Pill>
     )
 
-  return (
-    <Shell $padding="standard" aria-label={heading}>
-      <div>
-        {eyebrow && <Label>{eyebrow}</Label>}
+  const content = (
+    <>
+      <Top>
+        {eyebrow && <Label $tone="faint">{eyebrow}</Label>}
         <Heading>{heading}</Heading>
-        {intro && <Body $muted>{intro}</Body>}
-        <Steps>
-          {steps.map((step) => (
-            <Step key={step.title}>
-              <div>
-                <StepTitle>{step.title}</StepTitle>
-                <StepBody>{step.body}</StepBody>
-              </div>
+        {intro && <Intro>{intro}</Intro>}
+      </Top>
+      <Body $withSchematic={!!schematic}>
+        <Steps $count={steps.length}>
+          {steps.map((step, index) => (
+            <Step key={step.title} style={{ ['--i' as string]: index + 1 }}>
+              <Node aria-hidden>{index + 1}</Node>
+              <StepTitle>{step.title}</StepTitle>
+              <StepBody>{step.body}</StepBody>
             </Step>
           ))}
         </Steps>
-        <Footer>
-          {footer}
-          <TextLink type="button" onClick={() => setHidden(true)}>
-            Close
-          </TextLink>
-        </Footer>
-      </div>
-      {schematic && <Schematic aria-hidden>{schematic}</Schematic>}
+        {schematic && <Schematic aria-hidden>{schematic}</Schematic>}
+      </Body>
+      <Footer>
+        {footer}
+        <TextButton type="button" aria-expanded onClick={() => setHidden(true)}>
+          Close
+        </TextButton>
+      </Footer>
+    </>
+  )
+
+  return embedded ? (
+    <Embedded aria-label={heading}>{content}</Embedded>
+  ) : (
+    <Shell as="section" $padding="standard" aria-label={heading}>
+      {content}
     </Shell>
   )
 }
-
-/**
- * The Curate lifecycle as a schematic: submit → challenge window → registered,
- * or challenged → jurors → kept / removed. Lines and nodes only, mono labels.
- */
-export const LifecycleSchematic = () => (
-  <svg viewBox="0 0 420 220" xmlns="http://www.w3.org/2000/svg" role="img">
-    <title>How an entry moves through Curate</title>
-    <defs>
-      <marker
-        id="arrow"
-        viewBox="0 0 8 8"
-        refX="7"
-        refY="4"
-        markerWidth="6"
-        markerHeight="6"
-        orient="auto-start-reverse"
-      >
-        <path d="M0 0 8 4 0 8Z" fill="currentColor" />
-      </marker>
-    </defs>
-    <g
-      fill="none"
-      stroke="var(--color-border-strong)"
-      strokeWidth="1.25"
-      markerEnd="url(#arrow)"
-    >
-      <path d="M86 60 H128" />
-      <path d="M250 60 H292" />
-      <path d="M190 84 V128" />
-      <path d="M190 172 H120 L120 160" markerEnd="none" />
-      <path d="M250 150 H292" />
-    </g>
-    <g fontFamily="var(--font-mono)" fontSize="10.5" letterSpacing="0.06em">
-      <rect
-        x="12"
-        y="40"
-        width="74"
-        height="40"
-        rx="4"
-        fill="var(--color-surface)"
-        stroke="var(--color-border-strong)"
-      />
-      <text x="49" y="64" textAnchor="middle" fill="var(--color-text)">
-        SUBMIT
-      </text>
-      <rect
-        x="130"
-        y="36"
-        width="120"
-        height="48"
-        rx="4"
-        fill="var(--color-surface)"
-        stroke="var(--status-window)"
-      />
-      <text x="190" y="57" textAnchor="middle" fill="var(--color-text)">
-        CHALLENGE WINDOW
-      </text>
-      <text x="190" y="73" textAnchor="middle" fill="var(--color-muted)">
-        DEPOSIT LOCKED
-      </text>
-      <rect
-        x="294"
-        y="40"
-        width="112"
-        height="40"
-        rx="4"
-        fill="var(--color-surface)"
-        stroke="var(--status-registered)"
-      />
-      <circle cx="306" cy="60" r="3.5" fill="var(--status-registered)" />
-      <text x="358" y="64" textAnchor="middle" fill="var(--color-text)">
-        REGISTERED
-      </text>
-      <text x="272" y="24" textAnchor="middle" fill="var(--color-faint)">
-        NOBODY CHALLENGES
-      </text>
-      <text x="206" y="112" fill="var(--color-faint)">
-        SOMEONE CHALLENGES
-      </text>
-      <rect
-        x="130"
-        y="130"
-        width="120"
-        height="44"
-        rx="4"
-        fill="var(--color-surface)"
-        stroke="var(--status-contested)"
-      />
-      <circle cx="142" cy="152" r="3.5" fill="var(--status-contested)" />
-      <text x="198" y="149" textAnchor="middle" fill="var(--color-text)">
-        KLEROS JURORS
-      </text>
-      <text x="198" y="164" textAnchor="middle" fill="var(--color-muted)">
-        RULE ON THE POLICY
-      </text>
-      <rect
-        x="294"
-        y="130"
-        width="112"
-        height="44"
-        rx="4"
-        fill="var(--color-surface)"
-        stroke="var(--color-border-strong)"
-      />
-      <text x="350" y="149" textAnchor="middle" fill="var(--color-text)">
-        WINNER PAID
-      </text>
-      <text x="350" y="164" textAnchor="middle" fill="var(--color-muted)">
-        KEPT OR REMOVED
-      </text>
-      <text x="12" y="208" fill="var(--color-faint)">
-        UNCHALLENGED DEPOSITS COME BACK IN FULL
-      </text>
-    </g>
-  </svg>
-)
 
 export default Explainer

@@ -5,7 +5,7 @@ import DisplaySelector from 'components/display-selector'
 import useUrlChainId from 'hooks/use-url-chain-id'
 import { getAddressPage } from 'utils/network-utils'
 import { V2FieldDisplay, type V2Field } from './v2'
-import { Data, KeyValueList, Small, truncateMiddle } from './primitives'
+import { Data, Small, truncateMiddle } from './primitives'
 
 /** Middle-truncated address in mono, linking to the chain explorer. */
 const Anchor = styled.a`
@@ -137,24 +137,47 @@ const ValueWrap = styled.span<{ $mono?: boolean }>`
   }
 `
 
-const FieldList = styled(KeyValueList)`
-  gap: 10px 20px;
+const FieldList = styled.dl`
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+`
+
+const FieldRow = styled.div`
+  display: grid;
+  grid-template-columns: minmax(120px, 30%) minmax(0, 1fr);
+  gap: 4px 24px;
+  align-items: baseline;
+  margin: 0 -12px;
+  padding: 14px 12px;
+  border-radius: var(--radius);
+  transition: background var(--motion);
+
+  & + & {
+    box-shadow: inset 0 1px 0 var(--glass-border);
+  }
+
+  &:hover {
+    background: var(--color-raised);
+  }
 
   dt {
-    padding-top: 1px;
+    color: var(--color-muted);
+    font-size: var(--fs-small);
+    line-height: var(--lh-small);
+  }
+
+  dd {
+    margin: 0;
+    min-width: 0;
+    color: var(--color-text);
+    font-size: var(--fs-body);
+    line-height: 22px;
+    overflow-wrap: anywhere;
   }
 
   @media (max-width: 560px) {
     grid-template-columns: 1fr;
-    gap: 2px;
-
-    dt {
-      margin-top: 10px;
-    }
-
-    dt:first-child {
-      margin-top: 0;
-    }
   }
 `
 
@@ -162,14 +185,14 @@ const FieldList = styled(KeyValueList)`
 export const EntryFields = ({ fields }: { fields: EntryField[] }) => (
   <FieldList>
     {fields.map((field, index) => (
-      <React.Fragment key={`${field.label ?? 'field'}-${index}`}>
+      <FieldRow key={`${field.label ?? 'field'}-${index}`}>
         <dt title={field.description || undefined}>
           {field.label || `Field ${index + 1}`}
         </dt>
         <dd>
           <FieldValue field={field} detailed />
         </dd>
-      </React.Fragment>
+      </FieldRow>
     ))}
   </FieldList>
 )

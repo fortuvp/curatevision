@@ -1,78 +1,24 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
-import { Label, Small } from 'components/curate/primitives'
+import { Label } from 'components/curate/primitives'
+import { appBarHeight, useReducedMotion, useViewportMeasure } from './hooks'
+import type { GuideSectionLink } from './content'
 
 /*
- * In-page table of contents for the guide. On desktop it is a rail beside
- * the text that follows the reader; on phones it collapses into a "Contents"
- * block above it. The active entry is the section nearest the top of the
- * viewport.
- *
- * The rail cannot use `position: sticky`: the app shell clips horizontal
- * overflow, which turns it into a scroll container and defeats sticky for
- * everything inside. The rail is therefore measured on scroll and switched
- * between its natural place, a fixed position under the app bar, and the
- * bottom of its column once the article ends.
+ * The guide's table of contents. On desktop it is a sticky rail beside the
+ * text: a hairline track, a glowing marker that springs to the section being
+ * read, and the track filled up to it. On phones it becomes a sticky strip of
+ * section pills under the app bar, with the same sliding marker.
  */
 
-export interface GuideSectionLink {
-  id: string
-  label: string
-}
+const SPRING = '420ms cubic-bezier(0.34, 1.32, 0.64, 1)'
 
-export const DESKTOP_QUERY = '(min-width: 1024px)'
-const RAIL_GAP = 24
-
-export const useMediaQuery = (query: string): boolean => {
-  const [matches, setMatches] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia(query).matches,
-  )
-  useEffect(() => {
-    const media = window.matchMedia(query)
-    const update = () => setMatches(media.matches)
-    update()
-    media.addEventListener('change', update)
-    return () => media.removeEventListener('change', update)
-  }, [query])
-  return matches
-}
-
-const appBarHeight = (): number => {
-  const raw = getComputedStyle(document.body).getPropertyValue(
-    '--app-bar-height',
-  )
-  const parsed = Number.parseFloat(raw)
-  return Number.isFinite(parsed) ? parsed : 56
-}
-
-/** Runs `measure` now and on every scroll or resize, at most once a frame. */
-const useViewportMeasure = (measure: () => void) => {
-  useEffect(() => {
-    let frame = 0
-    const run = () => {
-      frame = 0
-      measure()
-    }
-    const schedule = () => {
-      if (!frame) frame = window.requestAnimationFrame(run)
-    }
-    measure()
-    window.addEventListener('scroll', schedule, { passive: true })
-    window.addEventListener('resize', schedule)
-    return () => {
-      window.removeEventListener('scroll', schedule)
-      window.removeEventListener('resize', schedule)
-      if (frame) window.cancelAnimationFrame(frame)
-    }
-  }, [measure])
-}
-
-/** The id of the last section whose top has scrolled under the app bar. */
-const useActiveSection = (ids: string[]): string | undefined => {
-  const [active, setActive] = useState<string | undefined>(ids[0])
+/** The id of the last section whose top has scrolled under the reading line. */
+const useActiveSection = (ids: string[], offset: number): string => {
+  const [active, setActive] = useState<string>(ids[0])
   const measure = useMemo(
     () => () => {
-      const threshold = appBarHeight() + 80
+      const threshold = appBarHeight() + offset
       let current = ids[0]
       for (const id of ids) {
         const element = document.querySelector(`#${id}`)
@@ -84,221 +30,320 @@ const useActiveSection = (ids: string[]): string | undefined => {
         document.documentElement.scrollHeight - 2
       setActive(atBottom ? ids[ids.length - 1] : current)
     },
-    [ids],
+    [ids, offset],
   )
   useViewportMeasure(measure)
   return active
 }
 
-type RailPlacement =
-  | { mode: 'static' }
-  | { mode: 'fixed'; top: number; left: number; width: number }
-  | { mode: 'bottom' }
-
-/** Where the rail sits: in its column, pinned under the app bar, or at the column's end. */
-const useRailPlacement = (
-  slot: React.RefObject<HTMLDivElement>,
-  rail: React.RefObject<HTMLElement>,
-  enabled: boolean,
-): RailPlacement => {
-  const [placement, setPlacement] = useState<RailPlacement>({ mode: 'static' })
-  const measure = useMemo(
-    () => () => {
-      if (!enabled || !slot.current || !rail.current) {
-        setPlacement({ mode: 'static' })
-        return
-      }
-      const top = appBarHeight() + RAIL_GAP
-      const slotRect = slot.current.getBoundingClientRect()
-      const railHeight = rail.current.offsetHeight
-      setPlacement((previous) => {
-        let next: RailPlacement
-        if (slotRect.top >= top) next = { mode: 'static' }
-        else if (slotRect.bottom - railHeight <= top) next = { mode: 'bottom' }
-        else
-          next = {
-            mode: 'fixed',
-            top,
-            left: slotRect.left,
-            width: slotRect.width,
-          }
-        return previous.mode === next.mode &&
-          (next.mode !== 'fixed' ||
-            (previous.mode === 'fixed' &&
-              previous.left === next.left &&
-              previous.width === next.width &&
-              previous.top === next.top))
-          ? previous
-          : next
-      })
-    },
-    [enabled, slot, rail],
-  )
-  useViewportMeasure(measure)
-  return placement
+/** Smooth-scrolls to a section and keeps the hash in the address bar. */
+const useJump = () => {
+  const reduced = useReducedMotion()
+  return (event: React.MouseEvent<HTMLAnchorElement>, id: string) => {
+    const target = document.querySelector(`#${id}`)
+    if (!target) return
+    event.preventDefault()
+    target.scrollIntoView({
+      behavior: reduced ? 'auto' : 'smooth',
+      block: 'start',
+    })
+    window.history.replaceState(window.history.state, '', `#${id}`)
+  }
 }
 
-const Slot = styled.div`
-  position: relative;
-  align-self: stretch;
-  min-width: 0;
-`
+/* ---------- Desktop rail ---------- */
 
 const Rail = styled.nav`
+  position: sticky;
+  top: calc(var(--app-bar-height) + 32px);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
 `
 
-const List = styled.ol`
+const Track = styled.ol`
+  position: relative;
   display: flex;
   flex-direction: column;
   margin: 0;
   padding: 0;
   list-style: none;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 1px;
+    background: var(--glass-border);
+  }
+`
+
+const Fill = styled.span`
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  background: color-mix(in srgb, var(--color-primary) 45%, transparent);
+  transform-origin: top;
+  transition: transform ${SPRING};
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+`
+
+const Marker = styled.span`
+  position: absolute;
+  top: 0;
+  left: -1px;
+  width: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary);
+  box-shadow:
+    0 0 10px var(--color-primary),
+    0 0 22px color-mix(in srgb, var(--color-primary) 50%, transparent);
+  transition:
+    transform ${SPRING},
+    height ${SPRING};
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
 `
 
 const Entry = styled.a<{ $active?: boolean }>`
-  display: block;
-  padding: 6px 12px;
-  border-left: 2px solid
-    ${({ $active }) =>
-      $active ? 'var(--color-primary)' : 'var(--color-border)'};
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+  padding: 7px 0 7px 18px;
   color: ${({ $active }) =>
     $active ? 'var(--color-text)' : 'var(--color-muted)'};
   font-size: var(--fs-small);
   line-height: var(--lh-small);
-  font-weight: ${({ $active }) => ($active ? 500 : 400)};
+  font-weight: 500;
   text-decoration: none;
   transition:
     color var(--motion),
-    border-color var(--motion);
+    transform var(--motion);
+
+  span:first-child {
+    color: ${({ $active }) =>
+      $active ? 'var(--color-primary)' : 'var(--color-faint)'};
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    transition: color var(--motion);
+  }
 
   &:hover {
     color: var(--color-text);
+    transform: translateX(2px);
   }
 `
 
-const Details = styled.details`
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-card);
+/* ---------- Phone strip ---------- */
+
+const Strip = styled.nav`
+  position: sticky;
+  top: var(--app-bar-height);
+  z-index: 40;
+  margin: 28px calc(var(--horizontal-padding) * -1) 0;
+  padding: 8px var(--horizontal-padding);
+  border-bottom: 1px solid var(--glass-border);
+  background: color-mix(in srgb, var(--color-bg) 78%, transparent);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
 `
 
-const Summary = styled.summary`
+const Pills = styled.ol`
+  position: relative;
+  isolation: isolate;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 44px;
-  padding: 10px 16px;
-  cursor: pointer;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  overflow-x: auto;
   list-style: none;
+  scrollbar-width: none;
+  scroll-padding: 0 24px;
 
-  &::-webkit-details-marker {
+  &::-webkit-scrollbar {
     display: none;
   }
 `
 
-const Chevron = styled.svg`
-  flex: 0 0 auto;
-  color: var(--color-muted);
-  transition: transform var(--motion);
+const Pill = styled.a<{ $active?: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  color: ${({ $active }) =>
+    $active ? 'var(--color-text)' : 'var(--color-muted)'};
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  font-weight: 500;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: color var(--motion);
 
-  ${Details}[open] & {
-    transform: rotate(180deg);
+  span {
+    color: ${({ $active }) =>
+      $active ? 'var(--color-primary)' : 'var(--color-faint)'};
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
   }
 `
 
-const PhoneList = styled(List)`
-  padding: 0 8px 12px;
+const PillMarker = styled.span`
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  height: 34px;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary-soft);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--color-primary) 30%, transparent);
+  transition:
+    transform ${SPRING},
+    width ${SPRING};
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
 `
 
-const railStyle = (placement: RailPlacement): React.CSSProperties => {
-  switch (placement.mode) {
-    case 'fixed':
-      return {
-        position: 'fixed',
-        top: placement.top,
-        left: placement.left,
-        width: placement.width,
-      }
-    case 'bottom':
-      return { position: 'absolute', bottom: 0, left: 0, right: 0 }
-    default:
-      return {}
-  }
+type Box = { offset: number; size: number }
+
+/** Offset and size of the active entry inside its list, for the marker. */
+const useActiveBox = (
+  list: React.RefObject<HTMLOListElement>,
+  active: string,
+  axis: 'x' | 'y',
+): Box | undefined => {
+  const [box, setBox] = useState<Box>()
+  useLayoutEffect(() => {
+    const measure = () => {
+      const node = list.current?.querySelector<HTMLAnchorElement>(
+        `[data-section="${active}"]`,
+      )
+      if (!node) return
+      setBox(
+        axis === 'y'
+          ? { offset: node.offsetTop, size: node.offsetHeight }
+          : { offset: node.offsetLeft, size: node.offsetWidth },
+      )
+    }
+    measure()
+    // Web fonts can land after the first measure and shift the entries.
+    let live = true
+    document.fonts?.ready.then(() => live && measure())
+    window.addEventListener('resize', measure)
+    return () => {
+      live = false
+      window.removeEventListener('resize', measure)
+    }
+  }, [list, active, axis])
+  return box
 }
 
 export const TableOfContents = ({
   sections,
+  numberOf,
+  variant,
 }: {
   sections: GuideSectionLink[]
+  numberOf: (id: string) => string
+  /** A rail beside the text (desktop) or a strip above it (phones). */
+  variant: 'rail' | 'strip'
 }) => {
-  const desktop = useMediaQuery(DESKTOP_QUERY)
-  const [open, setOpen] = useState(false)
-  const slotRef = useRef<HTMLDivElement>(null)
-  const railRef = useRef<HTMLElement>(null)
+  const desktop = variant === 'rail'
   const ids = useMemo(() => sections.map((section) => section.id), [sections])
-  const active = useActiveSection(ids)
-  const placement = useRailPlacement(slotRef, railRef, desktop)
+  const active = useActiveSection(ids, desktop ? 96 : 120)
+  const jump = useJump()
+  const listRef = useRef<HTMLOListElement>(null)
+  const box = useActiveBox(listRef, active, desktop ? 'y' : 'x')
+  const reduced = useReducedMotion()
 
-  const entries = sections.map((section) => (
-    <li key={section.id}>
-      <Entry
-        href={`#${section.id}`}
-        $active={section.id === active}
-        aria-current={section.id === active ? 'location' : undefined}
-        onClick={() => setOpen(false)}
-      >
-        {section.label}
-      </Entry>
-    </li>
-  ))
+  // Keep the active pill in view as the reader scrolls on a phone.
+  useLayoutEffect(() => {
+    if (desktop || !box || !listRef.current) return
+    const strip = listRef.current
+    const target = box.offset - (strip.clientWidth - box.size) / 2
+    strip.scrollTo({ left: target, behavior: reduced ? 'auto' : 'smooth' })
+  }, [desktop, box, reduced])
 
   if (desktop)
     return (
-      <Slot ref={slotRef}>
-        <Rail
-          ref={railRef}
-          aria-label="On this page"
-          style={railStyle(placement)}
-        >
-          <Label>Contents</Label>
-          <List>{entries}</List>
-        </Rail>
-      </Slot>
+      <Rail aria-label="On this page">
+        <Label $tone="faint">On this page</Label>
+        <Track ref={listRef}>
+          {box && (
+            <>
+              <Fill
+                aria-hidden
+                style={{ transform: `scaleY(${box.offset + box.size / 2})` }}
+              />
+              <Marker
+                aria-hidden
+                style={{
+                  transform: `translateY(${box.offset + 6}px)`,
+                  height: box.size - 12,
+                }}
+              />
+            </>
+          )}
+          {sections.map((section) => (
+            <li key={section.id}>
+              <Entry
+                href={`#${section.id}`}
+                data-section={section.id}
+                $active={section.id === active}
+                aria-current={section.id === active ? 'location' : undefined}
+                onClick={(event) => jump(event, section.id)}
+              >
+                <span aria-hidden>{numberOf(section.id)}</span>
+                <span>{section.label}</span>
+              </Entry>
+            </li>
+          ))}
+        </Track>
+      </Rail>
     )
 
   return (
-    <Details
-      open={open}
-      onToggle={(event) =>
-        setOpen((event.currentTarget as HTMLDetailsElement).open)
-      }
-    >
-      <Summary>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Label $tone="text">Contents</Label>
-          <Small $faint>{sections.length} sections</Small>
-        </span>
-        <Chevron
-          width="16"
-          height="16"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          aria-hidden
-        >
-          <path d="M3 6l5 5 5-5" />
-        </Chevron>
-      </Summary>
-      <nav aria-label="On this page">
-        <PhoneList>{entries}</PhoneList>
-      </nav>
-    </Details>
+    <Strip aria-label="On this page">
+      <Pills ref={listRef}>
+        {box && (
+          <PillMarker
+            aria-hidden
+            style={{
+              transform: `translateX(${box.offset}px)`,
+              width: box.size,
+            }}
+          />
+        )}
+        {sections.map((section) => (
+          <li key={section.id}>
+            <Pill
+              href={`#${section.id}`}
+              data-section={section.id}
+              $active={section.id === active}
+              aria-current={section.id === active ? 'location' : undefined}
+              onClick={(event) => jump(event, section.id)}
+            >
+              <span aria-hidden>{numberOf(section.id)}</span>
+              {section.label}
+            </Pill>
+          </li>
+        ))}
+      </Pills>
+    </Strip>
   )
 }
 

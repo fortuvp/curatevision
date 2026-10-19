@@ -25,7 +25,6 @@ import { CurateIcon } from 'components/curate/icons'
 import {
   Body,
   Button,
-  Data,
   KeyValueList,
   Label,
   Row,
@@ -41,7 +40,7 @@ import {
 } from 'components/curate/what-happens-next'
 import { Dialog } from 'components/curate/item-light-dialog'
 import { useActionGate } from 'components/curate/item-light-gate'
-import { formatAmount } from 'components/curate/item-light-format'
+import { formatAmount, formatEther } from 'components/curate/item-light-format'
 
 /*
  * Submit an entry to a Light Curate list in three steps: fill in the fields,
@@ -65,18 +64,41 @@ const FlowHeader = styled.div`
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px 24px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--glass-border);
 `
 
 const DepositBlock = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  align-items: flex-end;
+  gap: 4px;
   text-align: right;
 
   @media (max-width: 560px) {
+    align-items: flex-start;
     text-align: left;
+  }
+`
+
+const DepositFigure = styled.span`
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--color-text);
+  font-family: var(--font-figure);
+  font-size: 30px;
+  line-height: 1;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+
+  small {
+    color: var(--color-muted);
+    font-family: var(--font-sans);
+    font-size: var(--fs-small);
+    font-weight: 500;
+    letter-spacing: 0;
   }
 `
 
@@ -132,9 +154,13 @@ const StepNumber = styled.span<{ $active: boolean; $done: boolean }>`
     $done ? 'var(--color-primary-soft)' : 'transparent'};
   color: ${({ $active, $done }) =>
     $active || $done ? 'var(--color-primary)' : 'var(--color-muted)'};
-  font-family: var(--font-mono);
   font-size: var(--fs-label);
-  font-weight: 500;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition:
+    border-color var(--motion),
+    background var(--motion),
+    color var(--motion);
 `
 
 const StepText = styled.div`
@@ -170,7 +196,7 @@ const PolicyNote = styled.div`
   align-items: center;
   gap: 4px 10px;
   padding-top: 16px;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--glass-border);
 `
 
 export const SubmissionNavigation = styled.div`
@@ -254,14 +280,17 @@ export const SubmissionFlowScaffold = ({
     <Flow>
       <FlowHeader>
         <div>
-          <Label>Submit {itemName || 'entry'}</Label>
-          <Subheading>to {tcrTitle || 'this list'}</Subheading>
+          <Label $tone="faint">{`New ${itemName || 'entry'} for`}</Label>
+          <Subheading>{tcrTitle || 'this list'}</Subheading>
         </div>
         <DepositBlock>
           <Label $tone="faint">Deposit</Label>
-          <Data>
-            {formatAmount(submissionDeposit.toString(), nativeCurrency)}
-          </Data>
+          <DepositFigure
+            title={formatAmount(submissionDeposit.toString(), nativeCurrency)}
+          >
+            {formatEther(submissionDeposit.toString())}
+            <small>{nativeCurrency}</small>
+          </DepositFigure>
           <Small $muted>
             {period
               ? `Returned in full if nobody challenges within ${period}`

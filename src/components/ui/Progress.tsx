@@ -1,22 +1,24 @@
 import React from 'react'
 import styled, { css, keyframes } from 'styled-components'
-import { joinClassNames, monoData } from './kit-styles'
+import { figureData, joinClassNames } from './kit-styles'
 
 /*
- * Progress rail (DESIGN.md, Shapes): 4px tall, radius 2, raised track; the
- * fill carries a status role (window while running, registered when done,
- * off on failure). A caller may hand in its own strokeColor.
+ * Progress rail, v2: a 6px pill. The unfunded part is hatched, the filled
+ * part carries a status role with a soft glow (window while running,
+ * registered when done, off on failure) and draws in from zero on mount.
+ * While a run is active a bright head marks its leading edge. A caller may
+ * hand in its own strokeColor. The fill is the measure: percent complete.
  */
-const sheen = keyframes`
-  0% { transform: translateX(-100%); opacity: 0.35; }
-  70% { transform: translateX(100%); opacity: 0; }
-  100% { transform: translateX(100%); opacity: 0; }
+/* Negative insets keep the glow and the head unclipped while it draws. */
+const drawIn = keyframes`
+  from { clip-path: inset(-12px 100% -12px -12px); }
+  to { clip-path: inset(-12px -12px -12px -12px); }
 `
 
 const Wrapper = styled.div`
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
 `
 
@@ -24,10 +26,15 @@ const Rail = styled.div`
   position: relative;
   flex: 1;
   min-width: 0;
-  height: 4px;
-  overflow: hidden;
-  border-radius: 2px;
-  background: var(--color-raised);
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background:
+    repeating-linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--color-text) 9%, transparent) 0 2px,
+      transparent 2px 6px
+    ),
+    var(--color-raised);
 `
 
 const fillColor = (status: string, strokeColor?: string): string => {
@@ -50,37 +57,48 @@ const Fill = styled.div<{
   position: relative;
   height: 100%;
   width: ${({ $percent }) => `${Math.min(Math.max($percent, 0), 100)}%`};
-  border-radius: 2px;
+  border-radius: var(--radius-pill);
   background: ${({ $status, $strokeColor }) =>
     fillColor($status, $strokeColor)};
-  transition: width 300ms ease;
+  box-shadow: 0 0 12px
+    color-mix(
+      in srgb,
+      ${({ $status, $strokeColor }) => fillColor($status, $strokeColor)} 55%,
+      transparent
+    );
+  transition: width var(--dur-figure) var(--ease-out);
+  animation: ${drawIn} var(--dur-figure) var(--ease-out) 120ms backwards;
 
-  ${({ $status }) =>
+  ${({ $status, $percent }) =>
     $status === 'active' &&
+    $percent > 0 &&
     css`
       &::after {
         content: '';
         position: absolute;
-        inset: 0;
-        border-radius: inherit;
-        background: var(--color-on-primary);
-        opacity: 0;
-        animation: ${sheen} 2.4s ease infinite;
-      }
-
-      @media (prefers-reduced-motion: reduce) {
-        &::after {
-          animation: none;
-        }
+        top: 50%;
+        right: -2px;
+        width: 10px;
+        height: 10px;
+        border-radius: var(--radius-pill);
+        background: var(--color-surface);
+        box-shadow:
+          0 0 0 2px var(--status-window),
+          0 0 12px var(--status-window);
+        transform: translateY(-50%);
       }
     `}
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
 `
 
 const Info = styled.span`
   flex: 0 0 auto;
   min-width: 40px;
   color: var(--color-muted);
-  ${monoData}
+  ${figureData}
   text-align: right;
 `
 

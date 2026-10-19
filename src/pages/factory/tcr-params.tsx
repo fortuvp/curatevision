@@ -9,22 +9,17 @@ import useArbitrationCost from 'hooks/arbitration-cost'
 import useNativeCurrency from 'hooks/native-currency'
 import useUrlChainId from 'hooks/use-url-chain-id'
 import { klerosAddresses } from 'config/tcr-addresses'
-import { formatDurationLong } from 'utils/time'
-import {
-  Data,
-  KeyValueList,
-  Label,
-  Row,
-  SkeletonBlock,
-  Small,
-  Stack,
-} from 'components/curate/primitives'
+import { Row, Small, Stack } from 'components/curate/primitives'
 import KlerosParams from './kleros-params'
 import {
+  Divider,
+  FieldGrid,
   FormField,
   Input,
+  NarrowOnly,
   Note,
   RangeInput,
+  StepBody,
   StepHeader,
   SwitchField,
   TextField,
@@ -57,47 +52,53 @@ const SECTION_COPY: Record<
   title: {
     title: 'Name',
     heading: 'Name the list',
-    lede: 'Keep it short: the name appears on phones, in notifications and on the list of lists.',
+    lede: 'Short and plain: it shows on phones, in notifications and on the list of lists.',
   },
   description: {
     title: 'Description',
     heading: 'Describe what belongs on it',
-    lede: 'One sentence on the kind of item the list holds and what the listing criteria are.',
+    lede: 'One sentence on the entries the list holds and what makes them eligible.',
   },
   logo: {
     title: 'Logo',
     heading: 'Add a logo',
-    lede: 'The logo identifies the list wherever it appears.',
+    lede: 'It identifies the list wherever the list appears.',
   },
   policy: {
     title: 'Policy',
     heading: 'Attach the listing policy',
-    lede: 'The policy is the document jurors and challengers use to decide whether an item belongs on the list.',
+    lede: 'The document jurors and challengers use to decide whether an entry belongs.',
   },
   deposit: {
     title: 'Deposit',
     heading: 'Set the deposits and the court',
-    lede: 'A submitter locks a deposit while the challenge period runs. It covers the arbitration cost and rewards a successful challenger; it comes back in full when nobody challenges.',
+    lede: 'A submitter locks a deposit during the challenge period; it comes back in full if nobody challenges.',
   },
   custom: {
     title: 'Item name',
-    heading: 'Name the items',
-    lede: 'The word that replaces “item” in the interface and in notifications, for example “Submit a sock”.',
+    heading: 'Name the entries',
+    lede: 'The word that replaces “item” across the interface, as in “Submit a sock”.',
   },
 }
 
-const AmountInput = styled(Input)`
+export const AmountInput = styled(Input)`
   flex: 0 0 auto;
-  width: 96px;
+  width: 104px;
   text-align: right;
-  font-family: var(--font-mono);
+  font-family: var(--font-figure);
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
 `
 
-const SliderEnds = styled.div`
+export const SliderEnds = styled.div`
   display: flex;
   justify-content: space-between;
   gap: 8px;
+  padding-right: 164px;
+
+  @media (max-width: 520px) {
+    padding-right: 0;
+  }
 `
 
 const DEPOSIT_MIN = 0
@@ -109,73 +110,33 @@ const clampDeposit = (value: number) =>
 
 /* ---------- Shared with the badges step ---------- */
 
-/** The exact amounts from the current values and the loaded arbitration cost. */
-export const DepositBreakdown = ({
-  submitterBase,
-  challengerBase,
+/**
+ * The total under a simple deposit slider, for widths where the live
+ * preview is not beside the form: "Submitter sends 1.25 xDAI = 0.05 + 1.2".
+ */
+export const DepositTotalLine = ({
+  who,
+  base,
   arbitrationCost,
   currency,
-  challengePeriodHours,
 }: {
-  submitterBase: unknown
-  challengerBase: unknown
+  who: string
+  base: unknown
   arbitrationCost?: BigNumber | null
   currency: string
-  challengePeriodHours: unknown
 }) => {
   const cost = formatNative(arbitrationCost)
-  const submitterTotal = formatNative(
-    totalDeposit(submitterBase, arbitrationCost),
-  )
-  const challengerTotal = formatNative(
-    totalDeposit(challengerBase, arbitrationCost),
-  )
-  const hours = Number(challengePeriodHours)
-  const period =
-    Number.isFinite(hours) && hours > 0
-      ? formatDurationLong(hours * 60 * 60)
-      : null
-  const amount = (value: string | null) =>
-    value === null ? (
-      <SkeletonBlock $height="18px" $width="120px" />
-    ) : (
-      <Data>
-        {value} {currency}
-      </Data>
-    )
-
+  const total = formatNative(totalDeposit(base, arbitrationCost))
   return (
-    <Note role="group" aria-label="Deposit breakdown">
-      <Label>What a submitter and a challenger send</Label>
-      <KeyValueList>
-        <dt>Submitter sends</dt>
-        <dd>
-          {amount(submitterTotal)}{' '}
-          <Small $muted>
-            = {String(submitterBase ?? 0)} base deposit + {cost ?? '…'}{' '}
-            arbitration cost
-          </Small>
-        </dd>
-        <dt>Challenger sends</dt>
-        <dd>
-          {amount(challengerTotal)}{' '}
-          <Small $muted>
-            = {String(challengerBase ?? 0)} base deposit + {cost ?? '…'}{' '}
-            arbitration cost
-          </Small>
-        </dd>
-        <dt>Unchallenged</dt>
-        <dd>
-          The submitter's deposit comes back in full
-          {period ? ` after the ${period} challenge period` : ''}.
-        </dd>
-        <dt>Challenged and lost</dt>
-        <dd>
-          The loser's deposit goes to the winner minus the arbitration cost,
-          which pays the jurors.
-        </dd>
-      </KeyValueList>
-    </Note>
+    <NarrowOnly>
+      <Small $muted>
+        {who} sends{' '}
+        <Small>
+          {total ?? '…'} {currency}
+        </Small>{' '}
+        = {String(base ?? 0)} base deposit + {cost ?? '…'} arbitration cost.
+      </Small>
+    </NarrowOnly>
   )
 }
 
@@ -204,33 +165,39 @@ export const BaseDepositField = ({
       placeholder="0.1"
       unit={currency}
       trailing={
-        <Small $muted>
-          Total with the arbitration cost: {total ?? '…'} {currency}
+        <Small $faint>
+          With the arbitration cost: {total ?? '…'} {currency}
         </Small>
       }
     />
   )
 }
 
-/** The appeal stake multipliers, explained once for both lists. */
-export const AppealStakeNote = () => (
-  <Note>
-    <Label>Appeal stakes</Label>
-    <Small $muted>
-      To appeal, a side pays the juror fees of the next round plus a stake. The
-      stake of the side that finally loses rewards the people who funded the
-      winning side. Each stake is a percentage of the round's juror fees: a 100%
-      multiplier makes the stake equal to the fees. Large multipliers reward
-      crowdfunders but make appeals expensive; small ones make appeals cheap but
-      give crowdfunders little reason to take part. The side with the smaller
-      multiplier is favoured.
-    </Small>
-    <Small $muted>
-      Total appeal fee for one side = juror fees + juror fees × stake
-      multiplier.
-    </Small>
-  </Note>
-)
+const multiple = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 })
+
+/**
+ * The appeal stake multipliers, explained once for both lists, in the unit
+ * the fields take (%). The example is computed from the loser field.
+ */
+export const AppealStakeNote = ({ loserName }: { loserName: string }) => {
+  const [field] = useField<unknown>(loserName)
+  const loser = Number(field.value)
+  const valid = field.value !== '' && Number.isFinite(loser) && loser >= 0
+  return (
+    <Note>
+      <Small $muted>
+        Funding an appeal costs the next round’s juror fees plus a stake, a
+        percentage of those fees; the loser’s stake rewards the winner’s
+        funders.
+      </Small>
+      <Small>
+        Appeal fee for one side = juror fees × (1 + multiplier ÷ 100).
+        {valid &&
+          ` At ${multiple.format(loser)}%, the previous round’s loser pays ${multiple.format(1 + loser / 100)}× the juror fees.`}
+      </Small>
+    </Note>
+  )
+}
 
 /* ---------- The step ---------- */
 
@@ -307,7 +274,7 @@ const TCRParams = ({
 
   return (
     <form id={formId} onSubmit={handleSubmit} noValidate>
-      <Stack $gap={20}>
+      <StepBody>
         <StepHeader
           heading={copy ? copy.heading : 'List details'}
           lede={copy?.lede}
@@ -327,7 +294,7 @@ const TCRParams = ({
             name="tcrDescription"
             label="Description"
             placeholder="Images of red socks from various manufacturers"
-            help="Up to 255 characters."
+            help="Up to 255 characters; shown under the name."
           />
         )}
 
@@ -335,7 +302,7 @@ const TCRParams = ({
           <UploadField
             id={`${ids}-logo`}
             label="List logo"
-            help="A square image with a transparent background: PNG, SVG, WebP or JPEG, up to 2 MB."
+            help="Square, ideally with a transparent background."
             kind="image"
             role={Roles.Logo}
             value={values.tcrLogo}
@@ -356,7 +323,7 @@ const TCRParams = ({
             label="Listing policy (PDF)"
             help={
               <>
-                PDF, up to 4 MB.{' '}
+                The rules every entry is judged by.{' '}
                 <TextLink
                   href={POLICY_EXAMPLE_URL}
                   target="_blank"
@@ -379,188 +346,196 @@ const TCRParams = ({
           />
         )}
 
+        {show('deposit') && !advancedOptions && (
+          <FormField
+            id={`${ids}-deposit`}
+            label="Submission deposit"
+            help="Removal requests and removal challenges use the same base amount."
+            error={errors.submissionBaseDeposit as string | undefined}
+            showError={!!touched.submissionBaseDeposit}
+          >
+            {(a11y) => (
+              <Stack $gap={8}>
+                <Row $gap={14}>
+                  <RangeInput
+                    type="range"
+                    min={DEPOSIT_MIN}
+                    max={DEPOSIT_MAX}
+                    step={DEPOSIT_STEP}
+                    value={depositVal}
+                    aria-label="Submission deposit"
+                    onChange={(event) => {
+                      setDepositText(event.target.value)
+                      onChangeDepositVal(Number(event.target.value))
+                    }}
+                  />
+                  <AmountInput
+                    {...a11y}
+                    type="text"
+                    inputMode="decimal"
+                    value={depositText}
+                    onChange={(event) => {
+                      setDepositText(event.target.value)
+                      const parsed = Number(event.target.value)
+                      if (event.target.value.trim() !== '')
+                        onChangeDepositVal(parsed)
+                    }}
+                    onBlur={() => setDepositText(String(depositVal))}
+                  />
+                  <Small $muted style={{ minWidth: 32 }}>
+                    {nativeCurrency}
+                  </Small>
+                </Row>
+                <SliderEnds>
+                  <Small $faint>Lower: more submissions</Small>
+                  <Small $faint>Higher: stronger protection</Small>
+                </SliderEnds>
+                <DepositTotalLine
+                  who="A submitter"
+                  base={values.submissionBaseDeposit}
+                  arbitrationCost={arbitrationCost}
+                  currency={nativeCurrency}
+                />
+              </Stack>
+            )}
+          </FormField>
+        )}
+
+        {show('deposit') &&
+          (isKlerosArbitrator ? (
+            <KlerosParams
+              arbitratorExtraData={values.arbitratorExtraData}
+              klerosAddress={debouncedArbitrator}
+              policyAddress={policyAddress}
+              setArbitratorExtraData={setArbitratorExtraData}
+              library={chainProvider}
+            />
+          ) : (
+            <TextField
+              name="arbitratorExtraData"
+              label="Arbitrator extra data"
+              placeholder="0x7331deadbeef..."
+              mono
+              help={`Hex extra data for the arbitrator (ERC 792). Default: ${defaultArbDataLabel ?? 'the chain default'}.`}
+            />
+          ))}
+
         {show('deposit') && (
-          <>
-            {!advancedOptions && (
-              <FormField
-                id={`${ids}-deposit`}
+          <SwitchField
+            id={`${ids}-advanced`}
+            label="Advanced options"
+            help="Each deposit separately, the challenge period, the governor, the arbitrator and appeal stakes."
+            checked={advancedOptions}
+            onChange={setAdvancedOptions}
+          />
+        )}
+
+        {show('deposit') && advancedOptions && (
+          <Stack $gap={24}>
+            <Divider label="Deposits" />
+            <FieldGrid>
+              <BaseDepositField
+                name="submissionBaseDeposit"
                 label="Submission deposit"
-                help="The base deposit a submitter locks. The same amount applies to removal requests and to challenging a removal; the arbitration cost is added on top."
-                error={errors.submissionBaseDeposit as string | undefined}
-                showError={!!touched.submissionBaseDeposit}
-              >
-                {(a11y) => (
-                  <Stack $gap={6}>
-                    <Row $gap={12}>
-                      <RangeInput
-                        type="range"
-                        min={DEPOSIT_MIN}
-                        max={DEPOSIT_MAX}
-                        step={DEPOSIT_STEP}
-                        value={depositVal}
-                        aria-label="Submission deposit"
-                        onChange={(event) => {
-                          setDepositText(event.target.value)
-                          onChangeDepositVal(Number(event.target.value))
-                        }}
-                      />
-                      <AmountInput
-                        {...a11y}
-                        type="text"
-                        inputMode="decimal"
-                        value={depositText}
-                        onChange={(event) => {
-                          setDepositText(event.target.value)
-                          const parsed = Number(event.target.value)
-                          if (event.target.value.trim() !== '')
-                            onChangeDepositVal(parsed)
-                        }}
-                        onBlur={() => setDepositText(String(depositVal))}
-                      />
-                      <Data $muted>{nativeCurrency}</Data>
-                    </Row>
-                    <SliderEnds>
-                      <Small $muted>Lower deposit, more submissions</Small>
-                      <Small $muted>Higher deposit, stronger protection</Small>
-                    </SliderEnds>
-                  </Stack>
-                )}
-              </FormField>
-            )}
-
-            <DepositBreakdown
-              submitterBase={values.submissionBaseDeposit}
-              challengerBase={values.submissionChallengeBaseDeposit}
-              arbitrationCost={arbitrationCost}
-              currency={nativeCurrency}
-              challengePeriodHours={values.challengePeriodDuration}
-            />
-
-            {isKlerosArbitrator ? (
-              <KlerosParams
-                arbitratorExtraData={values.arbitratorExtraData}
-                klerosAddress={debouncedArbitrator}
-                policyAddress={policyAddress}
-                setArbitratorExtraData={setArbitratorExtraData}
-                library={chainProvider}
+                help="Locked by a submitter, paid to a winning challenger."
+                arbitrationCost={arbitrationCost}
+                currency={nativeCurrency}
               />
-            ) : (
+              <BaseDepositField
+                name="removalBaseDeposit"
+                label="Removal deposit"
+                help="Locked to remove an entry, paid to a winning challenger."
+                arbitrationCost={arbitrationCost}
+                currency={nativeCurrency}
+              />
+              <BaseDepositField
+                name="submissionChallengeBaseDeposit"
+                label="Submission challenge deposit"
+                help="Paid to the submitter if a challenge fails; usually 0."
+                arbitrationCost={arbitrationCost}
+                currency={nativeCurrency}
+              />
+              <BaseDepositField
+                name="removalChallengeBaseDeposit"
+                label="Removal challenge deposit"
+                help="Paid to the requester if a removal challenge fails."
+                arbitrationCost={arbitrationCost}
+                currency={nativeCurrency}
+              />
+            </FieldGrid>
+            <Divider label="Period and roles" />
+            <FieldGrid>
               <TextField
-                name="arbitratorExtraData"
-                label="Arbitrator extra data"
-                placeholder="0x7331deadbeef..."
-                mono
-                help={`Hex extra data for the arbitrator (ERC 792). Default: ${defaultArbDataLabel ?? 'the chain default'}.`}
+                name="challengePeriodDuration"
+                label="Challenge period"
+                placeholder="84"
+                numeric
+                unit="hours"
+                help="How long a request can be challenged before it is accepted."
               />
-            )}
-
-            <SwitchField
-              id={`${ids}-advanced`}
-              label="Advanced options"
-              help="Set each deposit separately, the challenge period, the governor, the arbitrator and the appeal stakes."
-              checked={advancedOptions}
-              onChange={setAdvancedOptions}
+            </FieldGrid>
+            <TextField
+              name="governorAddress"
+              label="Governor"
+              placeholder="0x7331deadbeef..."
+              mono
+              help={`Can later change deposits, period, policy and governor. Default: ${defaultGovernorLabel ?? 'the chain default'}.`}
             />
-
-            {advancedOptions && (
-              <>
-                <BaseDepositField
-                  name="submissionBaseDeposit"
-                  label="Submission deposit"
-                  help="Locked by a submitter and paid to a successful challenger. Too low and nobody checks submissions; too high and nobody submits."
-                  arbitrationCost={arbitrationCost}
-                  currency={nativeCurrency}
-                />
-                <BaseDepositField
-                  name="removalBaseDeposit"
-                  label="Removal deposit"
-                  help="Locked by whoever requests a removal and paid to a successful challenger. Too low and compliant items get removed; too high and non-compliant ones stay."
-                  arbitrationCost={arbitrationCost}
-                  currency={nativeCurrency}
-                />
-                <BaseDepositField
-                  name="submissionChallengeBaseDeposit"
-                  label="Submission challenge deposit"
-                  help="Included in what a challenger sends and paid to the submitter when the challenge fails. Usually zero: being listed is reward enough. Raise it if frivolous challenges are a concern; too high and incorrect items go unchallenged."
-                  arbitrationCost={arbitrationCost}
-                  currency={nativeCurrency}
-                />
-                <BaseDepositField
-                  name="removalChallengeBaseDeposit"
-                  label="Removal challenge deposit"
-                  help="Included in what a challenger to a removal sends and paid to the requester when the challenge fails. Too high and wrong removals go unchallenged; too low and nobody requests removals."
-                  arbitrationCost={arbitrationCost}
-                  currency={nativeCurrency}
-                />
-                <TextField
-                  name="challengePeriodDuration"
-                  label="Challenge period (hours)"
-                  placeholder="84"
-                  numeric
-                  unit="hours"
-                  help="How long a submission can be challenged before it is accepted and the deposit returned."
-                />
-                <TextField
-                  name="governorAddress"
-                  label="Governor"
-                  placeholder="0x7331deadbeef..."
-                  mono
-                  help={`Can change the deposits, the challenge period, the policy and the governor itself later. Default: ${defaultGovernorLabel ?? 'the chain default'}.`}
-                />
-                <TextField
-                  name="arbitratorAddress"
-                  label="Arbitrator"
-                  placeholder="0x7331deadbeef..."
-                  mono
-                  help={`The contract that resolves disputes about challenged submissions and removals. Default: ${defaultArbLabel ?? 'the chain default'}; any ERC 792 arbitrator works.`}
-                />
-                <AppealStakeNote />
-                <TextField
-                  name="sharedStakeMultiplier"
-                  label="Shared stake multiplier"
-                  placeholder="100"
-                  numeric
-                  unit="%"
-                  help="Stake both sides pay to fund an appeal when the round had no winner or loser, for example when the arbitrator refused to rule."
-                />
-                <TextField
-                  name="winnerStakeMultiplier"
-                  label="Winner stake multiplier"
-                  placeholder="100"
-                  numeric
-                  unit="%"
-                  help="Stake the winner of the previous round pays to fund its side of an appeal."
-                />
-                <TextField
-                  name="loserStakeMultiplier"
-                  label="Loser stake multiplier"
-                  placeholder="200"
-                  numeric
-                  unit="%"
-                  help="Stake the loser of the previous round pays to fund its side of an appeal."
-                />
-              </>
-            )}
-          </>
+            <TextField
+              name="arbitratorAddress"
+              label="Arbitrator"
+              placeholder="0x7331deadbeef..."
+              mono
+              help={`The ERC 792 contract that rules on disputes. Default: ${defaultArbLabel ?? 'the chain default'}.`}
+            />
+            <Divider label="Appeal stakes" />
+            <AppealStakeNote loserName="loserStakeMultiplier" />
+            <FieldGrid $columns={3}>
+              <TextField
+                name="sharedStakeMultiplier"
+                label="Shared"
+                placeholder="100"
+                numeric
+                unit="%"
+                help="When the last round had no winner."
+              />
+              <TextField
+                name="winnerStakeMultiplier"
+                label="Winner"
+                placeholder="100"
+                numeric
+                unit="%"
+                help="Paid by the previous round’s winner."
+              />
+              <TextField
+                name="loserStakeMultiplier"
+                label="Loser"
+                placeholder="200"
+                numeric
+                unit="%"
+                help="Paid by the previous round’s loser."
+              />
+            </FieldGrid>
+          </Stack>
         )}
 
         {show('custom') && (
-          <>
+          <FieldGrid>
             <TextField
               name="itemName"
               label="Item name"
               placeholder="sock"
-              help="A noun for one entry, up to 20 characters. Buttons then read “Submit a sock”."
+              help="One entry, up to 20 characters."
             />
             <TextField
               name="itemNamePlural"
               label="Plural"
               placeholder="socks"
-              help="The plural of the item name, up to 20 characters."
+              help="Several entries, up to 20 characters."
             />
-          </>
+          </FieldGrid>
         )}
-      </Stack>
+      </StepBody>
     </form>
   )
 }

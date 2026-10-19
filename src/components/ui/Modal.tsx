@@ -1,7 +1,18 @@
-import React, { useEffect, useCallback, useRef } from 'react'
+import React, {
+  useEffect,
+  useCallback,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import { createPortal } from 'react-dom'
 import { createRoot } from 'react-dom/client'
-import styled, { ThemeProvider as SCThemeProvider } from 'styled-components'
+import styled, {
+  css,
+  keyframes,
+  ThemeProvider as SCThemeProvider,
+} from 'styled-components'
 import {
   lightTheme,
   darkTheme,
@@ -12,13 +23,47 @@ import { KitIcon } from './kit-icons'
 import { ghostIconButton, joinClassNames } from './kit-styles'
 
 /*
- * Modal (DESIGN.md, Elevation): surface, 1px strong hairline, radius 10,
- * overlay shadow, over a 62% scrim derived from the page background. Max
- * width 560 unless the caller asks for more; a full-screen sheet below 600px.
+ * Modal, v2: a glass dialog (surface fill, hairline, 18px radius) with a thin
+ * aurora line along its top edge, over a 62% stage scrim that blurs the page.
+ * It springs in from 96% and fades out; under 600px it is a full-screen sheet
+ * that rises from the bottom. Max width 560 unless the caller asks for more.
  */
 const ThemeProvider = SCThemeProvider as any
 
-const Overlay = styled.div<{ $centered?: boolean }>`
+const EXIT_MS = 180
+
+const scrimIn = keyframes`
+  from { opacity: 0; }
+  to { opacity: 1; }
+`
+
+const scrimOut = keyframes`
+  from { opacity: 1; }
+  to { opacity: 0; }
+`
+
+/* Transform only: the opacity rides a separate ease-out so the spring never flashes. */
+const dialogIn = keyframes`
+  from { transform: translateY(10px) scale(0.96); }
+  to { transform: none; }
+`
+
+const dialogOut = keyframes`
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(6px) scale(0.98); }
+`
+
+const sheetIn = keyframes`
+  from { transform: translateY(100%); }
+  to { transform: none; }
+`
+
+const sheetOut = keyframes`
+  from { transform: none; }
+  to { transform: translateY(100%); }
+`
+
+const Overlay = styled.div<{ $centered?: boolean; $leaving?: boolean }>`
   position: fixed;
   inset: 0;
   z-index: 1000;
@@ -27,16 +72,29 @@ const Overlay = styled.div<{ $centered?: boolean }>`
   justify-content: center;
   padding: ${({ $centered }) => ($centered ? '16px' : '64px 16px')};
   overflow: auto;
-  background: color-mix(in srgb, var(--color-bg) 62%, transparent);
+  background: color-mix(in srgb, var(--stage) 62%, transparent);
+  backdrop-filter: blur(8px) saturate(120%);
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
+  animation: ${({ $leaving }) => ($leaving ? scrimOut : scrimIn)}
+    ${({ $leaving }) => ($leaving ? EXIT_MS : 240)}ms var(--ease-out) both;
+  pointer-events: ${({ $leaving }) => ($leaving ? 'none' : 'auto')};
 
   @media (max-width: 599px) {
     align-items: stretch;
     padding: 0;
   }
+
+  @media (prefers-reduced-motion: reduce) {
+    animation-duration: 120ms;
+  }
 `
 
-const ModalContent = styled.div<{ $width?: string | number }>`
+const ModalContent = styled.div<{
+  $width?: string | number
+  $leaving?: boolean
+}>`
   position: relative;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -45,69 +103,169 @@ const ModalContent = styled.div<{ $width?: string | number }>`
       typeof $width === 'number' ? `${$width}px` : $width || '560px'},
     calc(100vw - 32px)
   );
-  border: 1px solid var(--color-border-strong);
+  overflow: clip;
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-overlay);
+  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    var(--shadow-overlay);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
   color: var(--color-text);
   outline: none;
+  transform-origin: 50% 40%;
+  ${({ $leaving }) =>
+    $leaving
+      ? css`
+          animation: ${dialogOut} ${EXIT_MS}ms var(--ease-exit) both;
+        `
+      : css`
+          animation:
+            ${dialogIn} 460ms var(--ease-spring) both,
+            ${scrimIn} 200ms var(--ease-out) both;
+        `}
+
+  /* The aurora along the top edge: a lit 1px line and its faint glow. */
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto;
+    z-index: -1;
+    height: 120px;
+    background:
+      radial-gradient(
+        55% 90px at 22% 0%,
+        color-mix(in srgb, var(--aurora-b) 22%, transparent),
+        transparent 72%
+      ),
+      radial-gradient(
+        45% 80px at 78% 0%,
+        color-mix(in srgb, var(--aurora-c) 18%, transparent),
+        transparent 72%
+      );
+    pointer-events: none;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0 28px auto;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--aurora-b) 22%,
+      var(--color-primary) 52%,
+      var(--aurora-c) 80%,
+      transparent
+    );
+    box-shadow: 0 0 14px 1px
+      color-mix(in srgb, var(--color-primary) 55%, transparent);
+    pointer-events: none;
+  }
 
   @media (max-width: 599px) {
     max-width: none;
     min-height: 100dvh;
     border: 0;
     border-radius: 0;
+    /* A full-screen sheet is opaque: nothing of the page should read through. */
+    background: var(--color-surface);
     box-shadow: none;
+    ${({ $leaving }) =>
+      $leaving
+        ? css`
+            animation: ${sheetOut} ${EXIT_MS}ms var(--ease-exit) both;
+          `
+        : css`
+            animation: ${sheetIn} 420ms var(--ease-out) both;
+          `}
+
+    &::after {
+      inset: 0 0 auto;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: ${({ $leaving }) => ($leaving ? scrimOut : scrimIn)} 120ms linear
+      both;
   }
 `
 
 const ModalHeader = styled.div`
-  padding: 16px 56px 16px 20px;
-  border-bottom: 1px solid var(--color-border);
+  padding: 22px 64px 6px 24px;
   color: var(--color-text);
-  font-size: var(--fs-subheading);
-  line-height: var(--lh-subheading);
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
   overflow-wrap: anywhere;
+
+  @media (max-width: 599px) {
+    padding: 18px 60px 6px 18px;
+  }
 `
 
 const ModalBody = styled.div`
-  padding: 20px;
+  padding: 16px 24px 24px;
   color: var(--color-text);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
 
+  &:first-child {
+    padding-top: 24px;
+  }
+
   @media (max-width: 599px) {
     flex: 1;
     overflow: auto;
+    padding: 14px 18px 20px;
   }
 `
 
 const ModalFooter = styled.div`
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
-  gap: 8px;
-  padding: 12px 20px;
-  border-top: 1px solid var(--color-border);
+  gap: 10px;
+  padding: 16px 24px 20px;
+  border-top: 1px solid var(--glass-border);
+
+  @media (max-width: 599px) {
+    position: sticky;
+    bottom: 0;
+    padding: 14px 18px calc(14px + env(safe-area-inset-bottom));
+    background: var(--color-surface);
+  }
 `
 
 const CloseButton = styled.button`
   ${ghostIconButton}
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: 16px;
+  right: 16px;
   z-index: 1;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
+  border-color: var(--glass-border);
+
+  @media (max-width: 599px) {
+    top: 12px;
+    right: 12px;
+  }
 `
 
 const ConfirmTitle = styled.div`
   margin-bottom: 8px;
   color: var(--color-text);
-  font-size: var(--fs-subheading);
-  line-height: var(--lh-subheading);
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 26px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
 `
 
 const ConfirmText = styled.div`
@@ -154,9 +312,25 @@ const Modal: ModalComponent = ({
   className,
   children,
   centered = false,
-  destroyOnClose = false,
 }) => {
   const contentRef = useRef<HTMLDivElement>(null)
+  const titleId = useId()
+  // Keep the dialog on screen for its exit animation after `visible` drops.
+  const [leaving, setLeaving] = useState(false)
+  const wasVisible = useRef(Boolean(visible))
+
+  useLayoutEffect(() => {
+    if (visible) {
+      wasVisible.current = true
+      setLeaving(false)
+      return undefined
+    }
+    if (!wasVisible.current) return undefined
+    wasVisible.current = false
+    setLeaving(true)
+    const timer = window.setTimeout(() => setLeaving(false), EXIT_MS)
+    return () => window.clearTimeout(timer)
+  }, [visible])
 
   const handleOverlayClick = useCallback(
     (e: React.MouseEvent) => {
@@ -174,19 +348,22 @@ const Modal: ModalComponent = ({
   )
 
   useEffect(() => {
-    if (visible) {
-      document.addEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = 'hidden'
-      contentRef.current?.focus()
-    }
+    if (!visible) return undefined
+    const previous = document.activeElement as HTMLElement | null
+    document.addEventListener('keydown', handleKeyDown)
+    document.body.style.overflow = 'hidden'
+    contentRef.current?.focus()
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
       document.body.style.overflow = ''
+      // Hand focus back to whatever opened the dialog.
+      if (previous && document.contains(previous)) previous.focus()
     }
   }, [visible, handleKeyDown])
 
-  if (!visible && destroyOnClose) return null
-  if (!visible) return null
+  // A hidden dialog is never rendered, so `destroyOnClose` and the default
+  // behave the same once the exit animation has run.
+  if (!visible && !leaving) return null
 
   const defaultFooter = (
     <>
@@ -200,6 +377,7 @@ const Modal: ModalComponent = ({
   const modalContent = (
     <Overlay
       $centered={centered}
+      $leaving={leaving}
       onClick={handleOverlayClick}
       className="ui-modal-mask"
     >
@@ -207,9 +385,11 @@ const Modal: ModalComponent = ({
         ref={contentRef}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
         aria-label={typeof title === 'string' ? title : undefined}
         tabIndex={-1}
         $width={width}
+        $leaving={leaving}
         style={style}
         className={joinClassNames('ui-modal-content', className)}
       >
@@ -224,7 +404,9 @@ const Modal: ModalComponent = ({
           </CloseButton>
         )}
         {title && (
-          <ModalHeader className="ui-modal-header">{title}</ModalHeader>
+          <ModalHeader id={titleId} className="ui-modal-header">
+            {title}
+          </ModalHeader>
         )}
         <ModalBody className="ui-modal-body">{children}</ModalBody>
         {footer !== null && (

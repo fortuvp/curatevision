@@ -3,9 +3,10 @@ import styled, { css } from 'styled-components'
 import { overlayPanel } from './kit-styles'
 
 /*
- * Dropdown: the trigger plus a floating panel styled like the app bar's
- * menus (surface, strong hairline, radius 6, overlay shadow). The panel is
- * always the wrapper's last child div, which callers rely on for placement.
+ * Dropdown, v2: the trigger plus a glass panel (the app bar's menus). It
+ * fades and rises 4px from the side it opens on, and fades out before it
+ * hides. The panel is always the wrapper's last child div, which callers
+ * rely on for placement.
  */
 const Wrapper = styled.div`
   display: inline-block;
@@ -16,34 +17,34 @@ const placementStyles: Record<string, ReturnType<typeof css>> = {
   bottomLeft: css`
     top: 100%;
     left: 0;
-    margin-top: 6px;
+    margin-top: 8px;
   `,
   bottomRight: css`
     top: 100%;
     right: 0;
-    margin-top: 6px;
+    margin-top: 8px;
   `,
   bottomCenter: css`
     top: 100%;
     left: 50%;
     transform: translateX(-50%);
-    margin-top: 6px;
+    margin-top: 8px;
   `,
   topLeft: css`
     bottom: 100%;
     left: 0;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
   `,
   topRight: css`
     bottom: 100%;
     right: 0;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
   `,
   topCenter: css`
     bottom: 100%;
     left: 50%;
     transform: translateX(-50%);
-    margin-bottom: 6px;
+    margin-bottom: 8px;
   `,
 }
 
@@ -54,11 +55,30 @@ const Overlay = styled.div<{ $visible?: boolean; $placement?: string }>`
   ${overlayPanel}
   opacity: ${({ $visible }) => ($visible ? 1 : 0)};
   visibility: ${({ $visible }) => ($visible ? 'visible' : 'hidden')};
-  transition:
-    opacity var(--motion),
-    visibility var(--motion);
+  scale: ${({ $visible }) => ($visible ? 1 : 0.97)};
+  translate: 0
+    ${({ $visible, $placement }) =>
+      $visible ? '0' : $placement?.startsWith('top') ? '4px' : '-4px'};
+  transform-origin: ${({ $placement }) => {
+    const vertical = $placement?.startsWith('top') ? 'bottom' : 'top'
+    const horizontal = $placement?.endsWith('Right')
+      ? 'right'
+      : $placement?.endsWith('Center')
+        ? 'center'
+        : 'left'
+    return `${vertical} ${horizontal}`
+  }};
+  transition: ${({ $visible }) =>
+    $visible
+      ? 'opacity 160ms var(--ease-out), scale 220ms var(--ease-out), translate 220ms var(--ease-out), visibility 0s'
+      : 'opacity 120ms var(--ease-exit), scale 120ms var(--ease-exit), translate 120ms var(--ease-exit), visibility 0s linear 120ms'};
   ${({ $placement }) =>
     placementStyles[$placement || 'bottomLeft'] || placementStyles.bottomLeft}
+
+  @media (prefers-reduced-motion: reduce) {
+    scale: 1;
+    translate: 0 0;
+  }
 `
 
 interface DropdownProps {

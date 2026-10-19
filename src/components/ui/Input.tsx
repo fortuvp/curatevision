@@ -1,60 +1,96 @@
 import React, { useRef, useEffect, useCallback } from 'react'
 import styled, { css } from 'styled-components'
 import { KitIcon } from './kit-icons'
-import { ghostIconButton, joinClassNames, monoData } from './kit-styles'
+import {
+  fieldFocus,
+  fieldHover,
+  fieldSurface,
+  figureData,
+  ghostIconButton,
+  joinClassNames,
+  kitTransition,
+} from './kit-styles'
 
 /*
- * Input (DESIGN.md, Shapes): 40px, radius 6, hairline; the border and the
- * global focus ring turn to the action color on focus.
+ * Input, v2: a raised field, 44px tall with radius 12 and a hairline; focus
+ * tints the fill and lays a soft blue ring around it. Addons sit inside the
+ * same field, split off by a hairline, so units read as part of the value.
+ *
+ * The global stylesheet forces surface, border and radius on text inputs and
+ * textareas with !important. The fill, border, radius and ring below are
+ * written at double-class specificity with !important so the field keeps its
+ * own look; every other property stays overridable by styled(Input).
  */
+const fieldOverrides = css`
+  && {
+    border-color: var(--glass-border) !important;
+    border-radius: var(--radius) !important;
+    background: var(--color-raised) !important;
+    box-shadow: none !important;
+  }
+
+  &&:hover:not(:disabled) {
+    border-color: var(--color-border-strong) !important;
+  }
+
+  &&:focus,
+  &&:focus-visible {
+    border-color: color-mix(
+      in srgb,
+      var(--color-primary) 65%,
+      transparent
+    ) !important;
+    background: color-mix(
+      in srgb,
+      var(--color-primary) 5%,
+      var(--color-raised)
+    ) !important;
+    box-shadow: 0 0 0 4px var(--color-primary-soft) !important;
+    outline: none;
+  }
+
+  &&:disabled {
+    border-color: var(--glass-border) !important;
+    background: transparent !important;
+  }
+`
+
 const inputBaseStyles = css`
+  ${fieldSurface}
   width: 100%;
-  height: 40px;
-  padding: 0 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  background: var(--color-surface);
-  color: var(--color-text);
+  height: 44px;
+  padding: 0 14px;
   font-family: var(--font-sans);
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
-  transition:
-    border-color var(--motion),
-    background var(--motion);
+  font-size: var(--fs-body-lg);
+  line-height: var(--lh-body-lg);
+  letter-spacing: -0.005em;
 
   &::placeholder {
     color: var(--color-faint);
   }
 
-  &:hover:not(:disabled) {
-    border-color: var(--color-border-strong);
-  }
-
-  &:focus {
-    border-color: var(--color-primary);
-  }
-
   &:disabled {
-    background: var(--color-raised);
     color: var(--color-muted);
     cursor: not-allowed;
   }
+
+  ${fieldOverrides}
 `
 
 const sizeMap: Record<string, ReturnType<typeof css>> = {
   small: css`
-    height: 32px;
-    padding: 0 10px;
+    height: 36px;
+    padding: 0 12px;
     font-size: var(--fs-small);
     line-height: var(--lh-small);
   `,
   default: css`
-    height: 40px;
+    height: 44px;
   `,
   large: css`
-    height: 40px;
-    font-size: var(--fs-body-lg);
-    line-height: var(--lh-body-lg);
+    height: 48px;
+    font-size: var(--fs-subheading);
+    line-height: var(--lh-subheading);
   `,
 }
 
@@ -71,68 +107,80 @@ const InputWrapper = styled.span`
   min-width: 0;
 `
 
+/*
+ * With addons the group is the field: it carries the fill, the hairline and
+ * the focus ring, and the input inside goes transparent.
+ */
 const AddonWrapper = styled.span<{
   $hasAddonBefore?: boolean
   $hasAddonAfter?: boolean
 }>`
+  ${fieldSurface}
   display: inline-flex;
   align-items: stretch;
   width: 100%;
   min-width: 0;
+  overflow: hidden;
 
-  & input {
-    ${({ $hasAddonBefore }) =>
-      $hasAddonBefore &&
-      css`
-        border-top-left-radius: 0;
-        border-bottom-left-radius: 0;
-      `}
-    ${({ $hasAddonAfter }) =>
-      $hasAddonAfter &&
-      css`
-        border-top-right-radius: 0;
-        border-bottom-right-radius: 0;
-      `}
+  &:hover {
+    ${fieldHover}
+  }
+
+  &:focus-within {
+    ${fieldFocus}
+  }
+
+  && .ui-input.ui-input,
+  && .ui-input.ui-input:hover,
+  && .ui-input.ui-input:focus {
+    height: 100%;
+    min-height: 0;
+    border-color: transparent !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
   }
 `
 
-/* Addons (units, symbols) are data: mono on the raised surface. */
+/* Units and symbols: tabular figures, quiet, inside the field. */
 const Addon = styled.span<{ $small?: boolean }>`
   display: inline-flex;
   align-items: center;
   flex: 0 0 auto;
-  height: ${({ $small }) => ($small ? '32px' : '40px')};
-  padding: 0 12px;
-  border: 1px solid var(--color-border);
-  background: var(--color-raised);
-  color: var(--color-muted);
-  ${monoData}
+  height: ${({ $small }) => ($small ? '34px' : '42px')};
+  padding: 0 14px;
+  color: var(--color-faint);
+  ${figureData}
   white-space: nowrap;
 
   &.ui-input-addon-before {
-    border-right: 0;
-    border-radius: var(--radius) 0 0 var(--radius);
+    border-right: 1px solid var(--glass-border);
   }
   &.ui-input-addon-after {
-    border-left: 0;
-    border-radius: 0 var(--radius) var(--radius) 0;
+    border-left: 1px solid var(--glass-border);
   }
 `
 
 const PrefixIcon = styled.span`
   position: absolute;
-  left: 12px;
+  left: 14px;
   top: 50%;
   z-index: 1;
   display: flex;
   align-items: center;
   color: var(--color-faint);
   transform: translateY(-50%);
+  pointer-events: none;
+  transition: ${kitTransition('color')};
+
+  ${InputWrapper}:focus-within > & {
+    color: var(--color-primary);
+  }
 `
 
 const SuffixIcon = styled.span`
   position: absolute;
-  right: 12px;
+  right: 14px;
   top: 50%;
   z-index: 1;
   display: flex;
@@ -144,7 +192,7 @@ const SuffixIcon = styled.span`
 const ClearButton = styled.button<{ $hasSuffix?: boolean }>`
   ${ghostIconButton}
   position: absolute;
-  right: ${({ $hasSuffix }) => ($hasSuffix ? '34px' : '8px')};
+  right: ${({ $hasSuffix }) => ($hasSuffix ? '38px' : '10px')};
   top: 50%;
   z-index: 1;
   width: 24px;
@@ -249,9 +297,9 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
 
     const hasAddon = addonBefore || addonAfter
     const small = size === 'small'
-    const paddingLeft = prefix ? '36px' : undefined
+    const paddingLeft = prefix ? '40px' : undefined
     const paddingRight =
-      suffix && allowClear ? '60px' : suffix || allowClear ? '36px' : undefined
+      suffix && allowClear ? '66px' : suffix || allowClear ? '40px' : undefined
 
     const inputElement = (
       <StyledInput
@@ -339,8 +387,8 @@ Input.displayName = 'Input'
 const StyledTextArea = styled.textarea<{ $autoSize?: boolean }>`
   ${inputBaseStyles}
   height: auto;
-  min-height: 80px;
-  padding: 10px 12px;
+  min-height: 96px;
+  padding: 12px 14px;
   resize: ${({ $autoSize }) => ($autoSize ? 'none' : 'vertical')};
 `
 

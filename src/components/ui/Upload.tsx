@@ -1,14 +1,22 @@
 import React, { useState, useRef, useCallback } from 'react'
 import styled, { css } from 'styled-components'
 import { KitIcon } from './kit-icons'
-import { ghostIconButton, joinClassNames, ringSpinner } from './kit-styles'
+import {
+  ghostIconButton,
+  joinClassNames,
+  kitTransition,
+  ringSpinner,
+} from './kit-styles'
 
 const Wrapper = styled.div`
   display: block;
   margin: 8px 0;
 `
 
-/* Drop target: dashed strong hairline on the surface, action color on hover. */
+/*
+ * Drop target, v2: a raised well with a dashed hairline; on hover the line
+ * turns blue, the fill takes a faint blue tint and the icon lifts.
+ */
 const PictureCard = styled.button<{ $disabled?: boolean }>`
   display: inline-flex;
   flex-direction: column;
@@ -16,23 +24,34 @@ const PictureCard = styled.button<{ $disabled?: boolean }>`
   justify-content: center;
   gap: 8px;
   width: 100%;
-  min-height: 104px;
-  padding: 12px;
+  min-height: 112px;
+  padding: 16px;
   border: 1px dashed var(--color-border-strong);
-  border-radius: var(--radius);
-  background: var(--color-surface);
+  border-radius: 14px;
+  background: var(--color-raised);
   color: var(--color-muted);
   font-family: var(--font-sans);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
   cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
-  transition:
-    border-color var(--motion),
-    color var(--motion);
+  transition: ${kitTransition('border-color', 'color', 'background')};
+
+  > svg {
+    transition: transform var(--dur-control) var(--ease-spring);
+  }
 
   &:hover:not(:disabled) {
-    border-color: var(--color-primary);
+    border-color: color-mix(in srgb, var(--color-primary) 65%, transparent);
+    background: color-mix(
+      in srgb,
+      var(--color-primary) 6%,
+      var(--color-raised)
+    );
     color: var(--color-text);
+
+    > svg {
+      transform: translateY(-2px);
+    }
   }
 
   ${({ $disabled }) =>
@@ -64,12 +83,12 @@ const FileItem = styled.div<{ $status?: string }>`
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 40px;
-  padding: 0 8px 0 12px;
-  margin-bottom: 4px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
+  min-height: 44px;
+  padding: 0 8px 0 14px;
+  margin-bottom: 6px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: var(--color-raised);
   color: var(--color-text);
   font-size: var(--fs-small);
   line-height: var(--lh-small);
@@ -77,7 +96,7 @@ const FileItem = styled.div<{ $status?: string }>`
   ${({ $status }) =>
     $status === 'error' &&
     css`
-      border-color: var(--color-danger);
+      border-color: color-mix(in srgb, var(--color-danger) 55%, transparent);
       color: var(--color-danger);
     `}
 `
@@ -98,9 +117,9 @@ const FileName = styled.span`
 
 const FileSpinner = styled.span`
   ${ringSpinner}
-  width: 12px;
-  height: 12px;
-  color: var(--color-muted);
+  width: 14px;
+  height: 14px;
+  color: var(--color-primary);
 `
 
 const RemoveBtn = styled.button`
@@ -125,12 +144,12 @@ const PictureCardItem = styled.div<{ $status?: string }>`
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 104px;
-  height: 104px;
+  width: 112px;
+  height: 112px;
   overflow: hidden;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  background: var(--color-surface);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  background: var(--color-raised);
 
   img {
     max-width: 100%;
@@ -152,7 +171,7 @@ const PictureCardItem = styled.div<{ $status?: string }>`
   ${({ $status }) =>
     $status === 'error' &&
     css`
-      border-color: var(--color-danger);
+      border-color: color-mix(in srgb, var(--color-danger) 55%, transparent);
     `}
 `
 
@@ -162,9 +181,12 @@ const PictureCardRemove = styled.button`
   top: 4px;
   right: 4px;
   z-index: 1;
-  width: 24px;
-  height: 24px;
-  background: var(--color-surface);
+  width: 26px;
+  height: 26px;
+  border-color: var(--glass-border);
+  background: color-mix(in srgb, var(--color-surface) 85%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 
   &:hover:not(:disabled) {
     color: var(--color-danger);

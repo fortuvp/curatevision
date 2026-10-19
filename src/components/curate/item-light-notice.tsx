@@ -3,16 +3,15 @@ import styled from 'styled-components'
 import { Label, StatusDot, type StatusTone } from './primitives'
 
 /*
- * A short inline notice (warnings, prompts): raised surface, hairline, a
- * status dot and plain text. Never color alone (DESIGN.md).
+ * A short inline notice (warnings, prompts): a raised fill, a haloed status
+ * dot and plain text. Never color alone.
  */
 
 const Shell = styled.div`
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--color-border);
+  padding: 12px 14px;
   border-radius: var(--radius);
   background: var(--color-raised);
   color: var(--color-text);

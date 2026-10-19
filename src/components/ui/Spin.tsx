@@ -2,15 +2,21 @@ import React from 'react'
 import styled from 'styled-components'
 import { joinClassNames, ringSpinner } from './kit-styles'
 
-const SIZES: Record<string, number> = { small: 14, default: 20, large: 32 }
+const SIZES: Record<string, number> = { small: 16, default: 24, large: 36 }
 
-/* Ring spinner in the action color; a tip in muted small text below it. */
+/*
+ * Spin, v2: a thin arc in the action color that fades into its tail, with a
+ * soft glow; a tip in faint small text below it. Content placeholders use
+ * Skeleton instead.
+ */
 const SpinnerDot = styled.span<{ $size: number }>`
   ${ringSpinner}
   width: ${({ $size }) => $size}px;
   height: ${({ $size }) => $size}px;
-  border-width: ${({ $size }) => ($size > 20 ? 3 : 2)}px;
   color: var(--color-primary);
+  filter: drop-shadow(
+    0 0 6px color-mix(in srgb, var(--color-primary) 55%, transparent)
+  );
 `
 
 const SpinnerContainer = styled.div`
@@ -25,8 +31,11 @@ const Wrapper = styled.div`
 
 const ContentOverlay = styled.div<{ $spinning: boolean }>`
   opacity: ${({ $spinning }) => ($spinning ? 0.4 : 1)};
+  filter: ${({ $spinning }) => ($spinning ? 'blur(1px)' : 'none')};
   pointer-events: ${({ $spinning }) => ($spinning ? 'none' : 'auto')};
-  transition: opacity var(--motion);
+  transition:
+    opacity var(--dur-hover) var(--ease-out),
+    filter var(--dur-hover) var(--ease-out);
 `
 
 const OverlaySpinner = styled.div`
@@ -39,8 +48,8 @@ const OverlaySpinner = styled.div`
 `
 
 const TipText = styled.div`
-  margin-top: 8px;
-  color: var(--color-muted);
+  margin-top: 10px;
+  color: var(--color-faint);
   font-size: var(--fs-small);
   line-height: var(--lh-small);
   text-align: center;

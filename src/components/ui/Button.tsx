@@ -1,14 +1,20 @@
 import React from 'react'
-import styled, { css, type FlattenSimpleInterpolation } from 'styled-components'
+import styled, {
+  css,
+  keyframes,
+  type FlattenSimpleInterpolation,
+} from 'styled-components'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import type { IconProp } from '@fortawesome/fontawesome-svg-core'
-import { joinClassNames, ringSpinner } from './kit-styles'
+import { joinClassNames } from './kit-styles'
 
 /*
- * Button (DESIGN.md, Components): primary (blue fill), secondary (surface,
- * border), ghost (no border), danger (danger fill). Height 40, 32 small,
- * radius 4, labels at 600. `type` keeps the legacy names and maps them onto
- * those four looks; indigo is never used on buttons.
+ * Button, v2: primary (blue fill with a soft glow and grain), secondary
+ * (raised glass), ghost, link and danger (soft danger tint). Height 40, 32
+ * small, radius 10, labels at 500. Press dips to 97% and springs back.
+ * `type` keeps the legacy names and maps them onto those looks; indigo is
+ * never used on buttons. A pending action runs a thin shimmer along the
+ * bottom edge instead of a spinner.
  */
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'link' | 'danger'
@@ -30,20 +36,43 @@ const enabled =
 const variantStyles: Record<Variant, FlattenSimpleInterpolation> = {
   primary: css`
     border-color: transparent;
-    background: var(--color-primary);
+    background: var(--color-primary-fill);
     color: var(--color-on-primary);
+    box-shadow:
+      inset 0 1px 0 var(--glass-highlight),
+      0 0 0 1px color-mix(in srgb, var(--color-primary) 45%, transparent),
+      0 10px 28px -12px var(--color-primary);
+
+    /* Fine grain over the fill so it reads as a lit material, not flat paint. */
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background-image: var(--noise);
+      background-size: 120px;
+      opacity: 0.1;
+      mix-blend-mode: overlay;
+      pointer-events: none;
+    }
 
     ${enabled}:hover {
-      background: var(--color-primary-hover);
+      filter: brightness(1.08);
+      box-shadow:
+        inset 0 1px 0 var(--glass-highlight),
+        0 0 0 1px color-mix(in srgb, var(--color-primary) 60%, transparent),
+        0 12px 32px -10px var(--color-primary);
     }
   `,
   secondary: css`
-    border-color: var(--color-border-strong);
-    background: var(--color-surface);
+    border-color: var(--glass-border);
+    background: var(--color-raised);
     color: var(--color-text);
+    box-shadow: inset 0 1px 0 var(--glass-highlight);
 
     ${enabled}:hover {
-      background: var(--color-raised);
+      border-color: var(--color-border-strong);
+      background: color-mix(in srgb, var(--color-text) 7%, transparent);
     }
   `,
   ghost: css`
@@ -57,6 +86,7 @@ const variantStyles: Record<Variant, FlattenSimpleInterpolation> = {
     }
   `,
   link: css`
+    height: auto;
     padding-inline: 0;
     border-color: transparent;
     background: transparent;
@@ -65,17 +95,27 @@ const variantStyles: Record<Variant, FlattenSimpleInterpolation> = {
     ${enabled}:hover {
       color: var(--color-primary-hover);
     }
+
+    ${enabled}:active {
+      transform: none;
+    }
   `,
   danger: css`
-    border-color: transparent;
-    background: var(--color-danger);
-    color: var(--color-on-primary);
+    border-color: color-mix(in srgb, var(--color-danger) 38%, transparent);
+    background: var(--color-danger-soft);
+    color: var(--color-danger);
 
     ${enabled}:hover {
-      filter: brightness(1.08);
+      border-color: color-mix(in srgb, var(--color-danger) 60%, transparent);
+      background: color-mix(in srgb, var(--color-danger) 20%, transparent);
     }
   `,
 }
+
+const pending = keyframes`
+  from { background-position: 160% 0; }
+  to { background-position: -60% 0; }
+`
 
 const ButtonScope = styled.span<{
   $block?: boolean
@@ -90,6 +130,7 @@ const ButtonScope = styled.span<{
 
   > .gtcr-v2-button {
     position: relative;
+    isolation: isolate;
     box-sizing: border-box;
     display: inline-flex;
     align-items: center;
@@ -97,33 +138,50 @@ const ButtonScope = styled.span<{
     gap: 8px;
     width: ${({ $block }) => ($block ? '100%' : 'auto')};
     height: ${({ $small }) => ($small ? '32px' : '40px')};
-    padding: 0 ${({ $small }) => ($small ? '12px' : '16px')};
+    padding: 0 ${({ $small }) => ($small ? '12px' : '18px')};
+    overflow: hidden;
     border: 1px solid transparent;
     border-radius: ${({ $shape }) =>
       $shape === 'round' || $shape === 'circle'
         ? 'var(--radius-pill)'
-        : 'var(--radius-sm)'};
+        : '10px'};
     font-family: var(--font-sans);
     font-size: var(--fs-body);
     line-height: var(--lh-body);
-    font-weight: 600;
+    font-weight: 500;
+    letter-spacing: -0.005em;
     white-space: nowrap;
     text-decoration: none;
     cursor: pointer;
     appearance: none;
     transition:
-      background var(--motion),
-      border-color var(--motion),
-      color var(--motion);
+      background var(--dur-hover) var(--ease-out),
+      border-color var(--dur-hover) var(--ease-out),
+      box-shadow var(--dur-hover) var(--ease-out),
+      color var(--dur-hover) var(--ease-out),
+      filter var(--dur-hover) var(--ease-out),
+      transform 260ms var(--ease-spring);
 
     ${({ $variant }) => variantStyles[$variant]}
   }
 
+  > .gtcr-v2-button${enabled}:active {
+    transform: scale(0.97);
+    transition-duration: var(--dur-press);
+    transition-timing-function: var(--ease-out);
+  }
+
   > .gtcr-v2-button:disabled,
-  > .gtcr-v2-button[aria-disabled='true'],
-  > .gtcr-v2-button[data-loading='true'] {
+  > .gtcr-v2-button[aria-disabled='true'] {
     cursor: not-allowed;
-    opacity: 0.55;
+    opacity: 0.45;
+    filter: none;
+    box-shadow: none;
+  }
+
+  > .gtcr-v2-button[data-loading='true'] {
+    cursor: progress;
+    opacity: 0.85;
   }
 
   .button-text {
@@ -153,10 +211,31 @@ const ButtonScope = styled.span<{
     }
   }
 
+  /* Pending: a thin light runs along the bottom edge while the wallet works. */
   .button-loading {
-    ${ringSpinner}
-    width: 14px;
-    height: 14px;
+    position: absolute;
+    right: 10px;
+    bottom: 0;
+    left: 10px;
+    height: 2px;
+    border-radius: var(--radius-pill);
+    background-image: linear-gradient(
+      90deg,
+      transparent 20%,
+      currentColor 50%,
+      transparent 80%
+    );
+    background-size: 200% 100%;
+    background-repeat: no-repeat;
+    animation: ${pending} 1.1s linear infinite;
+    pointer-events: none;
+
+    @media (prefers-reduced-motion: reduce) {
+      animation: none;
+      background-image: none;
+      background-color: currentColor;
+      opacity: 0.6;
+    }
   }
 
   ${({ $shape, $small }) =>

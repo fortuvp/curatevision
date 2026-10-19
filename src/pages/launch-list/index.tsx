@@ -1,9 +1,10 @@
 import React from 'react'
-import styled from 'styled-components'
+import styled, { css } from 'styled-components'
 import { Link, useParams } from 'react-router-dom'
 import { BigNumber, ethers } from 'ethers'
 import useDocumentHead from 'hooks/use-document-head'
 import useArbitrationCost from 'hooks/arbitration-cost'
+import useCountUp from 'hooks/use-count-up'
 import { useEthersProvider } from 'hooks/ethers-adapters'
 import { NETWORKS, NETWORKS_INFO, getNativeCurrency } from 'config/networks'
 import {
@@ -11,42 +12,36 @@ import {
   defaultArbitratorExtraData,
 } from 'config/tcr-addresses'
 import { jurorsAndCourtIDFromExtraData } from 'utils/string'
-import { formatDuration } from 'utils/time'
+import { formatDuration, formatDurationLong } from 'utils/time'
 import { preloadFactory, preloadPermanentFactory } from 'bootstrap/app-router'
-import ChainLogo from 'components/chain-logo'
+import {
+  WIZARD_DEFAULTS as STAKE_DEFAULTS,
+  defaultStakeToken,
+} from 'pages/factory-permanent/defaults'
 import { CurateIcon } from 'components/curate/icons'
 import {
-  Body,
   ButtonAnchor,
   ButtonLink,
-  ChainChip,
   Chip,
-  Data,
-  KeyValueList,
   Label,
   Page,
-  Section,
   SkeletonBlock,
-  Small,
-  Stack,
-  Statement,
-  Subheading,
   Surface,
-  Title,
 } from 'components/curate/primitives'
-import { Explainer } from 'components/curate/explainer'
-import {
-  DecisionsSchematic,
-  StakeSchematic,
-  StandardSchematic,
-} from './schematics'
+import { reveal } from 'components/curate/motion/reveal'
+import { ChainSwitch } from './chain-switch'
+import { Lifecycle, axisScale, type LifecycleSpec } from './lifecycle'
+import { useInView } from './use-in-view'
 
 /*
- * Launch a list (route /launch/:chainId): the entry point to create a list.
- * Two list types can be created today, Standard (Light Curate) and Stake
- * (Stake Curate); Classic Curate lists can no longer be created. The two are
- * shown as comparable cards with a schematic, the trade-offs and one primary
- * button each into the matching factory on the chain from the URL.
+ * Launch a list (route /launch/:chainId): the chooser between the two list
+ * types that can be created today, Standard (Light Curate) and Stake (Stake
+ * Curate), on the chain from the URL. The hero carries what both share on
+ * this chain, read live from the default court. Each card leads with its
+ * default deposit, draws an entry's life to scale under its default periods
+ * (one time axis for both cards), says what can be lost, names one advantage
+ * and one trade-off and opens its factory. Then a note that Classic lists can
+ * no longer be created, and the assisted route.
  */
 
 const SUPPORTED_CHAINS: number[] = [
@@ -54,244 +49,503 @@ const SUPPORTED_CHAINS: number[] = [
   NETWORKS.gnosis,
   NETWORKS.sepolia,
 ]
+const TESTNETS: number[] = [NETWORKS.sepolia]
 
 const HOUR = 60 * 60
 
 /*
- * The wizard defaults, mirrored from the factories' initial state
- * (src/pages/factory/index.tsx and src/pages/factory-permanent/index.tsx).
- * Every value can be changed in the wizard. Keep in sync with the factories.
+ * The Standard wizard's defaults. They live inside the factory's state hook
+ * (pages/factory/index.tsx, initialWizardState) and are not exported, so
+ * they are mirrored here: keep the two in sync. The Stake defaults are
+ * imported from the Stake factory.
  */
 const STANDARD_DEFAULTS = {
   submissionBaseDeposit: 0.05,
   removalBaseDeposit: 0.05,
-  challengePeriodHours: 84,
-}
-
-const STAKE_DEFAULTS = {
-  submissionMinDeposit: 0.05,
-  submissionPeriodHours: 84,
-  reinclusionPeriodHours: 12,
-  withdrawingPeriodHours: 84,
-  challengeStakePercent: 50,
-}
+  challengePeriodDuration: 84,
+} as const
 
 const CONTACT_HREF =
   'mailto:contact@kleros.io?subject=Launch%20a%20Curate%20list'
 
-/* ---------- Hero ---------- */
+/* ---------- Lifecycles, on one shared scale ---------- */
 
-const Hero = styled.section`
+const challengePeriod = STANDARD_DEFAULTS.challengePeriodDuration * HOUR
+const submissionPeriod = STAKE_DEFAULTS.submissionPeriodDuration * HOUR
+const withdrawingPeriod = STAKE_DEFAULTS.withdrawingPeriodDuration * HOUR
+
+const STANDARD_LIFE: LifecycleSpec = {
+  phases: [
+    {
+      label: 'Submitted',
+      tone: 'window',
+      duration: challengePeriod,
+      challengeable: true,
+    },
+    { label: 'Registered', tone: 'registered' },
+    {
+      label: 'Removal requested',
+      tone: 'window',
+      duration: challengePeriod,
+      optional: true,
+      note: ['if someone requests it', 'if requested'],
+      challengeable: true,
+    },
+  ],
+  endLabel: 'Removed',
+  funds: { lane: 'Deposit locked', until: 0, label: 'Back in full' },
+  description: `Standard list, default periods: an entry can be challenged during its ${formatDurationLong(challengePeriod)} challenge period, while its deposit is locked. If nobody challenges, it is registered and the deposit is back in full. Once registered, it can be challenged again only if someone requests its removal, during another ${formatDurationLong(challengePeriod)} period, after which it is removed.`,
+}
+
+const STAKE_LIFE: LifecycleSpec = {
+  phases: [
+    {
+      label: 'Pending',
+      tone: 'window',
+      duration: submissionPeriod,
+      challengeable: true,
+    },
+    { label: 'Accepted', tone: 'registered', challengeable: true },
+    {
+      label: 'Withdrawing',
+      tone: 'neutral',
+      duration: withdrawingPeriod,
+      optional: true,
+      note: ['if the submitter withdraws', 'if withdrawn'],
+      challengeable: true,
+    },
+  ],
+  endLabel: 'Withdrawn',
+  funds: { lane: 'Stake locked', until: 2, label: 'Stake back' },
+  description: `Stake list, default periods: an entry is pending for its ${formatDurationLong(submissionPeriod)} submission period, then accepted. It can be challenged at any time until it is withdrawn, and its stake stays locked for that whole time. If the submitter withdraws, the stake comes back after a ${formatDurationLong(withdrawingPeriod)} withdrawing period.`,
+}
+
+const SCALE = axisScale([STANDARD_LIFE, STAKE_LIFE])
+
+/* ---------- Header ---------- */
+
+const Header = styled.header`
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  max-width: 760px;
+  align-items: center;
+  gap: 20px;
+  padding: 16px 0 0;
+  text-align: center;
+
+  > * {
+    ${reveal}
+  }
+
+  @media (max-width: 720px) {
+    align-items: flex-start;
+    gap: 16px;
+    padding-top: 8px;
+    text-align: left;
+  }
 `
 
-const Eyebrow = styled.div`
+const Title = styled.h1`
+  margin: 4px 0 0;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: clamp(40px, 2.4vw + 22px, 56px);
+  line-height: 1.02;
+  font-weight: 500;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+
+  em {
+    font-style: normal;
+    color: var(--color-primary);
+  }
+`
+
+const Lede = styled.p`
+  margin: 0;
+  max-width: 52ch;
+  color: var(--color-muted);
+  font-size: 17px;
+  line-height: 26px;
+`
+
+/* The court both list types share on this chain, as a stat strip. */
+const Stats = styled.div`
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
+  justify-content: center;
+  gap: 16px 0;
+  margin-top: 8px;
+
+  @media (max-width: 720px) {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+  }
 `
 
-const ChainPicker = styled.nav`
+const Stat = styled.div`
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-top: 4px;
-`
-
-const ChainLink = styled(Link)<{ $selected?: boolean }>`
-  display: inline-flex;
+  flex-direction: column;
   align-items: center;
   gap: 6px;
-  height: 28px;
-  padding: 0 10px;
-  border: 1px solid
-    ${({ $selected }) =>
-      $selected ? 'var(--color-primary)' : 'var(--color-border)'};
-  border-radius: var(--radius-sm);
-  background: ${({ $selected }) =>
-    $selected ? 'var(--color-primary-soft)' : 'var(--color-surface)'};
-  color: ${({ $selected }) =>
-    $selected ? 'var(--color-primary)' : 'var(--color-muted)'};
-  font-size: var(--fs-small);
-  line-height: var(--lh-small);
-  font-weight: 500;
-  text-decoration: none;
-  transition:
-    border-color var(--motion),
-    color var(--motion);
+  min-width: 0;
+  padding: 0 32px;
 
-  &:hover {
-    border-color: ${({ $selected }) =>
-      $selected ? 'var(--color-primary)' : 'var(--color-border-strong)'};
-    color: ${({ $selected }) =>
-      $selected ? 'var(--color-primary)' : 'var(--color-text)'};
+  & + & {
+    border-left: 1px solid var(--glass-border);
+  }
+
+  @media (max-width: 720px) {
+    align-items: flex-start;
+    padding: 0 20px 0 0;
+
+    & + & {
+      padding: 0 0 0 20px;
+    }
   }
 `
 
-/* ---------- Option cards ---------- */
+const figure = css`
+  color: var(--color-text);
+  font-family: var(--font-figure);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 
-const Options = styled.div`
+  small {
+    margin-left: 0.22em;
+    color: var(--color-muted);
+    font-size: 0.5em;
+    font-weight: 400;
+    letter-spacing: 0;
+  }
+`
+
+const StatValue = styled.div`
+  ${figure}
+  font-size: 30px;
+  line-height: 34px;
+  letter-spacing: -0.035em;
+`
+
+const StatNote = styled.span`
+  max-width: 30ch;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 16px;
+`
+
+/* ---------- Cards ---------- */
+
+const Cards = styled.div`
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  gap: 20px;
+  margin-top: 48px;
 
-  @media (max-width: 860px) {
-    grid-template-columns: 1fr;
+  @media (max-width: 960px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  @media (max-width: 720px) {
+    margin-top: 32px;
+    gap: 16px;
   }
 `
 
-const Option = styled(Surface)`
+const Card = styled(Surface)`
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  padding: 28px;
+  ${reveal}
+
+  /* The featured card keeps its rim; the other one brightens its border. */
+  ${({ $featured }) =>
+    !$featured &&
+    css`
+      &:hover {
+        border-color: var(--color-border-strong);
+      }
+    `}
+
+  @media (max-width: 720px) {
+    padding: 20px 16px;
+  }
 `
 
-const OptionHeader = styled.div`
+const CardHead = styled.div`
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
 `
 
-const OptionEyebrow = styled.div`
+const CardTitle = styled.h2`
+  margin: 6px 0 0;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: 30px;
+  line-height: 34px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+`
+
+/* The card's headline: its default deposit, with side figures. */
+const Deposit = styled.div`
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: 8px;
+  gap: 18px 28px;
+  margin-top: 24px;
 `
 
-const Schematic = styled.div`
-  padding: 4px 0;
-  color: var(--color-muted);
+const Headline = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+`
 
-  svg {
+const Amount = styled.div`
+  ${figure}
+  font-size: clamp(36px, 1vw + 28px, 44px);
+  line-height: 1;
+  letter-spacing: -0.045em;
+`
+
+const Breakdown = styled.p`
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  font-variant-numeric: tabular-nums;
+
+  span {
     display: block;
-    width: 100%;
-    height: auto;
+    color: var(--color-faint);
+  }
+`
+
+const SideStats = styled.dl`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  margin: 0;
+  padding-bottom: 2px;
+
+  div {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  dd {
+    margin: 0;
+    color: var(--color-text);
+    font-family: var(--font-figure);
+    font-size: 18px;
+    line-height: 22px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  dd small {
+    margin-left: 4px;
+    color: var(--color-muted);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 400;
+  }
+`
+
+const Drawing = styled.div`
+  margin: 26px 0 0;
+  padding: 22px 0 20px;
+  border-top: 1px solid var(--glass-border);
+  border-bottom: 1px solid var(--glass-border);
+`
+
+/* What can be lost, under the drawing's happy path. */
+const Risk = styled.p`
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 10px;
+  margin: 18px 0 0;
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+
+  i {
+    width: 8px;
+    height: 8px;
+    border-radius: var(--radius-pill);
+    background: var(--status-off);
+    box-shadow: 0 0 0 3px var(--status-off-soft);
+    transform: translateY(-1px);
+  }
+
+  b {
+    color: var(--color-text);
+    font-weight: 500;
   }
 `
 
 const Points = styled.ul`
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin: 0;
+  gap: 12px;
+  margin: 22px 0 28px;
   padding: 0;
   list-style: none;
 `
 
-const Point = styled.li`
+const Point = styled.li<{ $con?: boolean }>`
   display: grid;
-  grid-template-columns: 16px minmax(0, 1fr);
-  gap: 8px;
-  max-width: 68ch;
-  color: var(--color-muted);
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 10px;
+  color: ${({ $con }) => ($con ? 'var(--color-muted)' : 'var(--color-text)')};
   font-size: var(--fs-body);
   line-height: var(--lh-body);
 
   svg {
-    margin-top: 2px;
-    color: var(--color-faint);
+    margin-top: 1px;
+    color: ${({ $con }) =>
+      $con ? 'var(--color-faint)' : 'var(--color-primary)'};
   }
 `
 
-const Block = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding-top: 14px;
-  border-top: 1px solid var(--color-border);
+const VisuallyHidden = styled.span`
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 `
 
-const OptionFooter = styled.div`
+const CardAction = styled.div`
   margin-top: auto;
-  padding-top: 4px;
 `
 
-const GuideLink = styled(Link)`
+const ArrowIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+    <path
+      d="M5 12h14m-5-5 5 5-5 5"
+      stroke="currentColor"
+      strokeWidth="1.85"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+)
+
+const MinusIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+    <path
+      d="M7 12h10"
+      stroke="currentColor"
+      strokeWidth="1.85"
+      strokeLinecap="round"
+    />
+  </svg>
+)
+
+/* ---------- Classic note, Pro ---------- */
+
+const ClassicNote = styled.p`
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 18px 0 0;
+  padding: 0 4px;
+  color: var(--color-muted);
   font-size: var(--fs-small);
   line-height: var(--lh-small);
-  font-weight: 500;
-`
+  ${reveal}
 
-/* ---------- Pro ---------- */
+  svg {
+    flex: 0 0 auto;
+    margin-top: 1px;
+    color: var(--color-faint);
+  }
 
-const ProShell = styled(Surface)`
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 24px;
-  align-items: center;
+  a {
+    font-weight: 500;
+    white-space: nowrap;
+  }
 
   @media (max-width: 720px) {
-    grid-template-columns: 1fr;
+    padding: 0;
+  }
+`
+
+const Pro = styled(Surface)`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 20px 32px;
+  margin-top: 32px;
+  padding: 20px 24px;
+  ${reveal}
+
+  h2 {
+    margin: 4px 0 2px;
+    color: var(--color-text);
+    font-family: var(--font-display);
+    font-size: 20px;
+    line-height: 24px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+  }
+
+  p {
+    margin: 0;
+    color: var(--color-muted);
+    font-size: var(--fs-small);
+    line-height: var(--lh-small);
+  }
+
+  @media (max-width: 720px) {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 18px 16px;
   }
 `
 
 const ProActions = styled.div`
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-
-  @media (max-width: 720px) {
-    > a {
-      flex: 1 1 auto;
-    }
-  }
+  gap: 8px;
 `
 
-/* ---------- Page ---------- */
-
-const hours = (count: number) => `${formatDuration(count * HOUR)} (${count} h)`
+/* ---------- Figures ---------- */
 
 /** "0.0309" from wei, trailing zeros trimmed (same rule as eth-amount). */
 const formatNative = (wei: BigNumber) =>
   ethers.utils.formatEther(wei).replace(/\.?0+$/, '')
 
-/*
- * A factory default deposit as the total the submitter sends, with its
- * breakdown, once the chain's default arbitrator has answered; a skeleton
- * while it is being read; the base figure alone if the read failed or there
- * is no provider for the chain.
+/**
+ * A decimal string that counts up to its exact value once `armed` (in
+ * view). The digits are set in the figure face with tabular numbers, so
+ * they do not jitter; the accessible name is always the final value.
  */
-const DepositTotal = ({
-  base,
-  cost,
-  loading,
-  symbol,
-}: {
-  base: number
-  cost?: BigNumber
-  loading: boolean
-  symbol: string
-}) => {
-  if (cost) {
-    const total = ethers.utils.parseEther(String(base)).add(cost)
-    return (
-      <>
-        <Data>
-          {formatNative(total)} {symbol}
-        </Data>{' '}
-        <Small $muted>
-          = {base} base deposit + {formatNative(cost)} arbitration cost
-        </Small>
-      </>
-    )
-  }
-  if (loading) return <SkeletonBlock $width="16ch" $height="20px" />
+const Count = ({ exact, armed }: { exact: string; armed: boolean }) => {
+  const value = Number(exact)
+  const decimals = Math.min(6, exact.split('.')[1]?.length ?? 0)
+  const current = useCountUp(armed ? value : 0)
+  const shown = current === value ? exact : current.toFixed(decimals)
   return (
-    <>
-      <Data>
-        {base} {symbol}
-      </Data>{' '}
-      <Small $muted>+ arbitration cost</Small>
-    </>
+    <span aria-label={exact}>
+      <span aria-hidden>{shown}</span>
+    </span>
   )
 }
+
+/* ---------- Page ---------- */
 
 const LaunchListPage = () => {
   const { chainId: chainParam } = useParams()
@@ -300,12 +554,14 @@ const LaunchListPage = () => {
     ? parsedChainId
     : NETWORKS.gnosis
   const chain = NETWORKS_INFO[chainId as keyof typeof NETWORKS_INFO]
+  const chainName = chain?.name ?? `chain ${chainId}`
   const symbol = getNativeCurrency(chainId).symbol
   const arbitratorAddress = defaultArbitrator[chainId]?.address
   const extraData = defaultArbitratorExtraData[chainId]?.data
   const jurors = extraData
     ? jurorsAndCourtIDFromExtraData(extraData).numberOfJurors
     : undefined
+  const stakeToken = defaultStakeToken[chainId]?.label
 
   // Read-only: the arbitration cost both factories start from on this chain.
   const provider = useEthersProvider({ chainId })
@@ -320,6 +576,18 @@ const LaunchListPage = () => {
     !!provider &&
     !!arbitratorAddress &&
     !!extraData
+  const cost = arbitrationCost ? formatNative(arbitrationCost) : undefined
+  /** A Standard default deposit: base plus the live arbitration cost. */
+  const total = (base: number) =>
+    arbitrationCost
+      ? formatNative(ethers.utils.parseEther(String(base)).add(arbitrationCost))
+      : undefined
+  const submitTotal = total(STANDARD_DEFAULTS.submissionBaseDeposit)
+  const removeTotal = total(STANDARD_DEFAULTS.removalBaseDeposit)
+
+  const [statsRef, statsSeen] = useInView<HTMLDivElement>()
+  const [standardRef, standardSeen] = useInView<HTMLDivElement>()
+  const [stakeRef, stakeSeen] = useInView<HTMLDivElement>()
 
   useDocumentHead(
     'Launch a list | Kleros Curate',
@@ -328,296 +596,295 @@ const LaunchListPage = () => {
 
   return (
     <Page>
-      <Hero>
-        <Eyebrow>
-          <Label>Launch a list</Label>
-          <ChainChip chainId={chainId} />
-        </Eyebrow>
-        <Statement>
-          Pick what backs each entry: a refundable deposit or a locked stake.
-        </Statement>
-        <Body $muted $large>
-          Two list types can be created today. Both let anyone add an entry, let
-          anyone challenge it, and send disputes to Kleros jurors who rule on
-          your policy. They differ in what a submitter puts at risk and for how
-          long. Classic Curate lists can no longer be created; the existing ones
-          keep working.
-        </Body>
-        <ChainPicker aria-label="Chain to launch on">
-          <Small $muted>Launch on</Small>
-          {SUPPORTED_CHAINS.map((id) => {
-            const info = NETWORKS_INFO[id as keyof typeof NETWORKS_INFO]
-            return (
-              <ChainLink
-                key={id}
-                to={`/launch/${id}`}
-                $selected={id === chainId}
-                aria-current={id === chainId ? 'page' : undefined}
-              >
-                <ChainLogo chainId={id} size={14} />
-                {info?.name ?? `Chain ${id}`}
-              </ChainLink>
-            )
-          })}
-        </ChainPicker>
-      </Hero>
-
-      <Section>
-        <Options>
-          <Option as="section" $padding="standard" aria-label="Standard list">
-            <OptionHeader>
-              <OptionEyebrow>
-                <Label>Standard · Light Curate</Label>
-                <Chip>Default</Chip>
-              </OptionEyebrow>
-              <Subheading as="h2">Standard list</Subheading>
-              <Body $muted>
-                Each entry is backed by a deposit in {symbol}. Anyone can
-                challenge it during the challenge period; if nobody does, the
-                entry is registered and the deposit comes back in full.
-              </Body>
-            </OptionHeader>
-
-            <Schematic aria-hidden>
-              <StandardSchematic />
-            </Schematic>
-
-            <Block>
-              <Label>Trade-offs</Label>
-              <Points>
-                <Point>
-                  <CurateIcon name="check" size={14} />
-                  Entry data is stored off-chain and indexed; only its hash goes
-                  on-chain, which keeps submissions cheap.
-                </Point>
-                <Point>
-                  <CurateIcon name="check" size={14} />
-                  Submitters pay in {symbol}, the chain’s own currency. No token
-                  approval is needed.
-                </Point>
-                <Point>
-                  <CurateIcon name="check" size={14} />
-                  Once the challenge period ends, the entry is registered and
-                  can only be contested again through a removal request, which
-                  opens a new challenge period.
-                </Point>
-                <Point>
-                  <CurateIcon name="challenge" size={14} />
-                  If an entry is challenged and loses, its deposit goes to the
-                  challenger minus the arbitration cost.
-                </Point>
-              </Points>
-            </Block>
-
-            <Block>
-              <Label>Factory defaults · change them in the wizard</Label>
-              <KeyValueList>
-                <dt>Submit deposit</dt>
-                <dd>
-                  <DepositTotal
-                    base={STANDARD_DEFAULTS.submissionBaseDeposit}
-                    cost={arbitrationCost}
-                    loading={costLoading}
-                    symbol={symbol}
-                  />
-                </dd>
-                <dt>Remove deposit</dt>
-                <dd>
-                  <DepositTotal
-                    base={STANDARD_DEFAULTS.removalBaseDeposit}
-                    cost={arbitrationCost}
-                    loading={costLoading}
-                    symbol={symbol}
-                  />
-                </dd>
-                <dt>Challenge period</dt>
-                <dd>
-                  <Data>{hours(STANDARD_DEFAULTS.challengePeriodHours)}</Data>
-                </dd>
-                {jurors !== undefined && (
-                  <>
-                    <dt>Jurors</dt>
-                    <dd>
-                      <Data>{jurors}</Data>{' '}
-                      <Small $muted>in the first round</Small>
-                    </dd>
-                  </>
-                )}
-              </KeyValueList>
-            </Block>
-
-            <OptionFooter>
-              <ButtonLink
-                to={`/factory/${chainId}`}
-                $variant="primary"
-                $block
-                onMouseEnter={() => preloadFactory()}
-                onFocus={() => preloadFactory()}
-              >
-                <CurateIcon name="factory" size={16} />
-                Create a Standard list
-              </ButtonLink>
-            </OptionFooter>
-          </Option>
-
-          <Option as="section" $padding="standard" aria-label="Stake list">
-            <OptionHeader>
-              <OptionEyebrow>
-                <Label>Stake · Stake Curate</Label>
-              </OptionEyebrow>
-              <Subheading as="h2">Stake list</Subheading>
-              <Body $muted>
-                Each entry is backed by an ERC20 stake that stays locked for as
-                long as the entry is listed, plus an arbitration deposit in{' '}
-                {symbol}. The entry can be challenged at any time.
-              </Body>
-            </OptionHeader>
-
-            <Schematic aria-hidden>
-              <StakeSchematic />
-            </Schematic>
-
-            <Block>
-              <Label>Trade-offs</Label>
-              <Points>
-                <Point>
-                  <CurateIcon name="check" size={14} />
-                  Entries stay open to challenge for their whole life, so the
-                  list keeps correcting itself after the submission period.
-                </Point>
-                <Point>
-                  <CurateIcon name="check" size={14} />A challenger stakes a
-                  share of the entry’s stake. If the entry is kept, that share
-                  is added to the entry’s stake.
-                </Point>
-                <Point>
-                  <CurateIcon name="challenge" size={14} />
-                  Submitters approve and lock a token, and get it back only
-                  after the withdrawing period has run.
-                </Point>
-                <Point>
-                  <CurateIcon name="challenge" size={14} />
-                  If an entry is challenged and loses, the challenger takes its
-                  stake and the entry leaves the list.
-                </Point>
-              </Points>
-            </Block>
-
-            <Block>
-              <Label>Factory defaults · change them in the wizard</Label>
-              <KeyValueList>
-                <dt>Stake token</dt>
-                <dd>
-                  Any ERC20{' '}
-                  <Small $muted>
-                    {chainId === NETWORKS.gnosis
-                      ? '(sDAI pre-filled)'
-                      : '(chosen in the wizard)'}
-                  </Small>
-                </dd>
-                <dt>Minimum stake</dt>
-                <dd>
-                  <Data>{STAKE_DEFAULTS.submissionMinDeposit}</Data>{' '}
-                  <Small $muted>
-                    of the stake token +{' '}
-                    {arbitrationCost
-                      ? `${formatNative(arbitrationCost)} ${symbol} arbitration cost`
-                      : `arbitration cost in ${symbol}`}
-                  </Small>
-                </dd>
-                <dt>Submission period</dt>
-                <dd>
-                  <Data>{hours(STAKE_DEFAULTS.submissionPeriodHours)}</Data>
-                </dd>
-                <dt>Reinclusion period</dt>
-                <dd>
-                  <Data>{hours(STAKE_DEFAULTS.reinclusionPeriodHours)}</Data>{' '}
-                  <Small $muted>after a ruling keeps the entry</Small>
-                </dd>
-                <dt>Withdrawing period</dt>
-                <dd>
-                  <Data>{hours(STAKE_DEFAULTS.withdrawingPeriodHours)}</Data>
-                </dd>
-                <dt>Challenger stake</dt>
-                <dd>
-                  <Data>{STAKE_DEFAULTS.challengeStakePercent}%</Data>{' '}
-                  <Small $muted>of the entry’s stake</Small>
-                </dd>
-                {jurors !== undefined && (
-                  <>
-                    <dt>Jurors</dt>
-                    <dd>
-                      <Data>{jurors}</Data>{' '}
-                      <Small $muted>in the first round</Small>
-                    </dd>
-                  </>
-                )}
-              </KeyValueList>
-            </Block>
-
-            <OptionFooter>
-              <ButtonLink
-                to={`/factory-permanent/${chainId}`}
-                $variant="primary"
-                $block
-                onMouseEnter={() => preloadPermanentFactory()}
-                onFocus={() => preloadPermanentFactory()}
-              >
-                <CurateIcon name="layers" size={16} />
-                Create a Stake list
-              </ButtonLink>
-            </OptionFooter>
-          </Option>
-        </Options>
-      </Section>
-
-      <Section>
-        <Explainer
-          id="launch-list-what-you-decide"
-          eyebrow="Before you start"
-          heading="What you decide when you launch a list"
-          intro={`The wizard asks for each of these in turn, with defaults filled in. Nothing is deployed on ${chain?.name ?? 'the chain'} until the last step.`}
-          steps={[
-            {
-              title: 'Deposits and challenge period',
-              body: `What a submitter locks to add an entry and a remover to take one out, on top of the arbitration cost the court charges, and how long an entry can be contested before it is registered and the deposit comes back. Higher deposits deter bad entries; longer periods give curators time to look. Stake lists use a submission period instead and stay open to challenge afterwards. The wizard shows the total in ${symbol} before you deploy.`,
-            },
-            {
-              title: 'Court, jurors and policy',
-              body: 'Which Kleros court rules on disputes, how many jurors sit in the first round, and the policy PDF they rule by. More jurors make rulings sturdier and raise the arbitration cost every deposit has to cover. Write down what belongs on the list, what does not, and how to check.',
-            },
-            {
-              title: 'Columns',
-              body: 'The fields each entry carries, such as an address, a name or a link, with one or more marked as identifiers that name the entry in lists and search.',
-            },
-          ]}
-          schematic={<DecisionsSchematic />}
-          footer={<GuideLink to="/guide">Read the guide</GuideLink>}
+      <Header>
+        <ChainSwitch
+          chainId={chainId}
+          chains={SUPPORTED_CHAINS}
+          testnets={TESTNETS}
+          style={{ ['--i' as string]: 0 }}
         />
-      </Section>
+        <Title style={{ ['--i' as string]: 1 }}>
+          Launch a list on <em>{chainName}</em>
+        </Title>
+        <Lede style={{ ['--i' as string]: 2 }}>
+          Both kinds send disputes to Kleros jurors; they differ in what a
+          submitter puts at risk, and for how long.
+        </Lede>
+        <Stats
+          ref={statsRef}
+          aria-label={`The default court on ${chainName}, shared by both kinds`}
+          style={{ ['--i' as string]: 3 }}
+        >
+          <Stat>
+            <Label $tone="faint">Arbitration cost · now</Label>
+            <StatValue>
+              {cost ? (
+                <>
+                  <Count exact={cost} armed={statsSeen} />
+                  <small>{symbol}</small>
+                </>
+              ) : costLoading ? (
+                <SkeletonBlock
+                  $width="7ch"
+                  $height="34px"
+                  aria-label="Reading the arbitration cost"
+                />
+              ) : (
+                '—'
+              )}
+            </StatValue>
+            {costError && (
+              <StatNote>
+                Could not read the court: the cost is added in the wizard
+              </StatNote>
+            )}
+          </Stat>
+          <Stat>
+            <Label $tone="faint">Jurors · first round</Label>
+            <StatValue>
+              {jurors !== undefined ? (
+                <Count exact={String(jurors)} armed={statsSeen} />
+              ) : (
+                '—'
+              )}
+            </StatValue>
+          </Stat>
+        </Stats>
+      </Header>
 
-      <Section>
-        <ProShell as="section" $padding="standard" aria-label="Curate Pro">
-          <Stack $gap={6}>
-            <Label>Assisted route</Label>
-            <Title as="h2">Curate Pro</Title>
-            <Body $muted>
-              A supported path to production: policy drafting and review, a
-              ready API, and help with a dedicated front end. The contracts stay
-              permissionless either way, so you can also build your own front
-              end on them.
-            </Body>
-          </Stack>
-          <ProActions>
-            <ButtonLink to="/pro" $variant="secondary">
-              See Curate Pro
+      <Cards>
+        <Card
+          as="section"
+          $featured
+          $padding="none"
+          aria-labelledby="launch-standard"
+          style={{ ['--i' as string]: 4 }}
+        >
+          <CardHead>
+            <div>
+              <Label $tone="faint">Light Curate</Label>
+              <CardTitle id="launch-standard">Standard list</CardTitle>
+            </div>
+            <Chip $selected>Default</Chip>
+          </CardHead>
+
+          <Deposit ref={standardRef}>
+            <Headline>
+              <Label $tone="faint">Submit deposit · default</Label>
+              <Amount>
+                {submitTotal ? (
+                  <Count exact={submitTotal} armed={standardSeen} />
+                ) : costLoading ? (
+                  <SkeletonBlock
+                    $width="5ch"
+                    $height="44px"
+                    aria-label="Reading the arbitration cost"
+                  />
+                ) : (
+                  STANDARD_DEFAULTS.submissionBaseDeposit
+                )}
+                <small>{symbol}</small>
+              </Amount>
+              <Breakdown>
+                {cost
+                  ? `= ${STANDARD_DEFAULTS.submissionBaseDeposit} base deposit + ${cost} arbitration cost`
+                  : `+ the arbitration cost, in ${symbol}`}
+                <span>Paid in {symbol}, no token approval</span>
+              </Breakdown>
+            </Headline>
+            <SideStats>
+              <div>
+                <Label as="dt" $tone="faint">
+                  Remove deposit
+                </Label>
+                <dd>
+                  {removeTotal ?? STANDARD_DEFAULTS.removalBaseDeposit}
+                  <small>{removeTotal ? symbol : `${symbol} + cost`}</small>
+                </dd>
+              </div>
+              <div>
+                <Label as="dt" $tone="faint">
+                  Challenge period
+                </Label>
+                <dd>{formatDuration(challengePeriod)}</dd>
+              </div>
+            </SideStats>
+          </Deposit>
+
+          <Drawing>
+            <Lifecycle spec={STANDARD_LIFE} scale={SCALE} delay={700} />
+            <Risk>
+              <i aria-hidden />
+              <span>
+                <b>If challenged and you lose,</b> the deposit goes to the
+                challenger, minus the arbitration cost.
+              </span>
+            </Risk>
+          </Drawing>
+
+          <Points aria-label="Trade-offs">
+            <Point>
+              <CurateIcon name="check" size={18} />
+              <span>
+                <VisuallyHidden>Advantage: </VisuallyHidden>
+                Only a hash goes on-chain; entry data lives on IPFS.
+              </span>
+            </Point>
+            <Point $con>
+              <MinusIcon />
+              <span>
+                <VisuallyHidden>Trade-off: </VisuallyHidden>
+                Once registered, an entry can only be contested through a
+                removal request.
+              </span>
+            </Point>
+          </Points>
+          <CardAction>
+            <ButtonLink
+              to={`/factory/${chainId}`}
+              $variant="primary"
+              $block
+              onMouseEnter={() => preloadFactory()}
+              onFocus={() => preloadFactory()}
+            >
+              Create a Standard list
+              <ArrowIcon />
             </ButtonLink>
-            <ButtonAnchor href={CONTACT_HREF} $variant="ghost">
-              Email the Kleros team
-            </ButtonAnchor>
-          </ProActions>
-        </ProShell>
-      </Section>
+          </CardAction>
+        </Card>
+
+        <Card
+          as="section"
+          $padding="none"
+          aria-labelledby="launch-stake"
+          style={{ ['--i' as string]: 5 }}
+        >
+          <CardHead>
+            <div>
+              <Label $tone="faint">Stake Curate</Label>
+              <CardTitle id="launch-stake">Stake list</CardTitle>
+            </div>
+          </CardHead>
+
+          <Deposit ref={stakeRef}>
+            <Headline>
+              <Label $tone="faint">Minimum stake · default</Label>
+              <Amount>
+                <Count
+                  exact={String(STAKE_DEFAULTS.submissionMinDeposit)}
+                  armed={stakeSeen}
+                />
+                <small>{stakeToken ?? 'tokens'}</small>
+              </Amount>
+              <Breakdown>
+                {cost
+                  ? `+ ${cost} ${symbol} arbitration deposit`
+                  : `+ the arbitration deposit, in ${symbol}`}
+                <span>
+                  {stakeToken
+                    ? `Any ERC-20; ${stakeToken} is pre-filled`
+                    : 'Any ERC-20, chosen in the wizard'}
+                </span>
+              </Breakdown>
+            </Headline>
+            <SideStats>
+              <div>
+                <Label as="dt" $tone="faint">
+                  Challenger stake
+                </Label>
+                <dd>
+                  {STAKE_DEFAULTS.challengeStakeMultiplier}%
+                  <small>of the entry’s</small>
+                </dd>
+              </div>
+              <div>
+                <Label as="dt" $tone="faint">
+                  Reinclusion period
+                </Label>
+                <dd>
+                  {formatDuration(
+                    STAKE_DEFAULTS.reinclusionPeriodDuration * HOUR,
+                  )}
+                  <small>after a ruling keeps it</small>
+                </dd>
+              </div>
+            </SideStats>
+          </Deposit>
+
+          <Drawing>
+            <Lifecycle spec={STAKE_LIFE} scale={SCALE} delay={780} />
+            <Risk>
+              <i aria-hidden />
+              <span>
+                <b>If challenged and you lose,</b> the challenger takes the
+                stake and the entry leaves the list.
+              </span>
+            </Risk>
+          </Drawing>
+
+          <Points aria-label="Trade-offs">
+            <Point>
+              <CurateIcon name="check" size={18} />
+              <span>
+                <VisuallyHidden>Advantage: </VisuallyHidden>A failed challenge
+                adds the challenger’s stake to the entry’s.
+              </span>
+            </Point>
+            <Point $con>
+              <MinusIcon />
+              <span>
+                <VisuallyHidden>Trade-off: </VisuallyHidden>
+                Submitters approve and lock a token, and get it back only by
+                withdrawing.
+              </span>
+            </Point>
+          </Points>
+          <CardAction>
+            <ButtonLink
+              to={`/factory-permanent/${chainId}`}
+              $variant="secondary"
+              $block
+              onMouseEnter={() => preloadPermanentFactory()}
+              onFocus={() => preloadPermanentFactory()}
+            >
+              Create a Stake list
+              <ArrowIcon />
+            </ButtonLink>
+          </CardAction>
+        </Card>
+      </Cards>
+
+      <ClassicNote style={{ ['--i' as string]: 6 }}>
+        <CurateIcon name="help" size={16} />
+        <span>
+          Classic lists can no longer be created; existing ones keep working.{' '}
+          <Link to="/guide">Read the guide</Link>
+        </span>
+      </ClassicNote>
+
+      <Pro
+        as="section"
+        $padding="none"
+        aria-labelledby="launch-pro"
+        style={{ ['--i' as string]: 7 }}
+      >
+        <div>
+          <Label $tone="faint">Assisted route</Label>
+          <h2 id="launch-pro">Curate Pro</h2>
+          <p>
+            Policy drafting and review, a ready API and help with a dedicated
+            front end.
+          </p>
+        </div>
+        <ProActions>
+          <ButtonLink to="/pro" $variant="secondary" $size="sm">
+            See Curate Pro
+          </ButtonLink>
+          <ButtonAnchor href={CONTACT_HREF} $variant="ghost" $size="sm">
+            Email the Kleros team
+          </ButtonAnchor>
+        </ProActions>
+      </Pro>
     </Page>
   )
 }

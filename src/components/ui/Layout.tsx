@@ -15,21 +15,22 @@ const ContentWrapper = styled.div`
   min-width: 0;
 `
 
+/* Header, footer and sider sit on the frame: transparent, split by hairlines. */
 const HeaderWrapper = styled.div`
   display: flex;
   align-items: center;
   flex-shrink: 0;
   height: var(--app-bar-height);
   padding: 0 var(--horizontal-padding);
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface);
+  border-bottom: 1px solid var(--glass-border);
+  background: transparent;
   color: var(--color-text);
 `
 
 const FooterWrapper = styled.div`
   flex-shrink: 0;
   padding: 24px var(--horizontal-padding);
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--glass-border);
   color: var(--color-muted);
   font-size: var(--fs-small);
   line-height: var(--lh-small);
@@ -40,8 +41,8 @@ const SiderWrapper = styled.div<{ $width?: string }>`
   flex-shrink: 0;
   width: ${({ $width }) => $width || '240px'};
   overflow: auto;
-  border-right: 1px solid var(--color-border);
-  background: var(--color-surface);
+  border-right: 1px solid var(--glass-border);
+  background: transparent;
 `
 
 interface LayoutChildProps {

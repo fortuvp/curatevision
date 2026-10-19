@@ -1,23 +1,24 @@
 import React, { useEffect, useCallback, useId } from 'react'
 import styled from 'styled-components'
 import { toast } from 'react-toastify'
-import { withFormik, FieldArray, type FormikProps } from 'formik'
+import { withFormik, FieldArray, useField, type FormikProps } from 'formik'
 import { ItemTypes as AllItemTypes } from '@kleros/gtcr-encoder'
 import ItemDetailsCard from 'components/item-details-card'
 import objectWithoutKey from 'utils/object-without-key'
 import { CurateIcon } from 'components/curate/icons'
+import { reveal } from 'components/curate/motion/reveal'
 import {
   Button,
   IconButton,
   Label,
-  Row,
+  Small,
   Stack,
-  Surface,
 } from 'components/curate/primitives'
 import {
   ErrorText,
-  FormField,
+  Input,
   Select,
+  StepBody,
   StepHeader,
   SwitchField,
   TextField,
@@ -26,10 +27,11 @@ import { itemColumnsProblem, itemSchema } from './schemas'
 import type { StepProps, TcrState } from '.'
 
 /*
- * Step 2, the item: the fields every entry has (one block per field,
- * stacked so they fit a phone), the list-of-lists switch and the preview
- * of an entry with those fields. The identifier rules and the two submit
- * checks (one ID field, unique names) are the ones the previous step had.
+ * Step 2, the item: the fields every entry has (one row per field, a
+ * column header with one line of help on wide screens, stacked labels on
+ * phones), the list-of-lists switch and the preview of an entry with those
+ * fields. The identifier rules and the two submit checks (one ID field,
+ * unique names) are the ones the previous step had.
  */
 
 export const ItemTypes = objectWithoutKey(AllItemTypes, 'TWITTER_USER_ID')
@@ -40,11 +42,250 @@ const MAX_IDENTIFIERS = 5
 
 export type ItemSection = 'fields' | 'preview'
 
-const FieldGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 16px;
+const COLUMNS = '28px minmax(0, 1fr) minmax(0, 1.25fr) 150px 72px 34px'
+
+const COLUMN_HELP = {
+  name: 'Label on the submit form',
+  description: 'What submitters should enter',
+  type: 'Kind of value',
+  indexed: `Searchable, max ${MAX_IDENTIFIERS}`,
+}
+
+const Editor = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 `
+
+const HeaderRow = styled.div`
+  display: grid;
+  grid-template-columns: ${COLUMNS};
+  gap: 12px;
+  padding: 0 12px 4px;
+
+  > span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  @media (max-width: 900px) {
+    display: none;
+  }
+`
+
+const FieldRow = styled.div`
+  display: grid;
+  grid-template-columns: ${COLUMNS};
+  align-items: start;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: var(--color-raised);
+  transition:
+    border-color var(--motion),
+    transform var(--motion);
+  ${reveal}
+
+  &:hover,
+  &:focus-within {
+    border-color: var(--glass-border);
+  }
+
+  @media (max-width: 900px) {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 14px;
+    padding: 14px;
+  }
+`
+
+const Index = styled.span`
+  display: inline-flex;
+  align-items: center;
+  height: 44px;
+  color: var(--color-faint);
+  font-family: var(--font-figure);
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+
+  @media (max-width: 900px) {
+    height: auto;
+  }
+`
+
+const Cell = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+
+  @media (max-width: 900px) {
+    grid-column: 1 / -1;
+  }
+`
+
+const CellLabel = styled.label`
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+
+  @media (max-width: 900px) {
+    display: flex;
+  }
+`
+
+const RemoveSlot = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 44px;
+
+  @media (max-width: 900px) {
+    grid-row: 1;
+    grid-column: 2;
+    height: auto;
+  }
+`
+
+const ToggleCell = styled.div`
+  display: flex;
+  align-items: center;
+  height: 44px;
+
+  @media (max-width: 900px) {
+    grid-column: 1 / -1;
+    height: auto;
+  }
+`
+
+const FileTypes = styled.div`
+  grid-column: 2 / 5;
+
+  @media (max-width: 900px) {
+    grid-column: 1 / -1;
+  }
+`
+
+const Toggle = styled.input`
+  appearance: none;
+  position: relative;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 24px;
+  margin: 0;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  cursor: pointer;
+  transition:
+    background var(--motion),
+    border-color var(--motion);
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: var(--radius-pill);
+    background: var(--color-muted);
+    transition:
+      transform 320ms var(--ease-spring),
+      background var(--motion);
+  }
+
+  &:checked {
+    border-color: color-mix(in srgb, var(--color-primary) 60%, transparent);
+    background: var(--color-primary-fill);
+  }
+
+  &:checked::after {
+    transform: translateX(18px);
+    background: var(--color-on-primary);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+`
+
+const ToggleLabel = styled.label`
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+
+  span {
+    display: none;
+    color: var(--color-text);
+    font-size: var(--fs-body);
+    font-weight: 500;
+  }
+
+  @media (max-width: 900px) {
+    span {
+      display: inline;
+    }
+  }
+`
+
+/** The preview borrows the entry card; inside a step it loses its own panel. */
+const PreviewFrame = styled.div`
+  padding: 20px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: var(--color-raised);
+
+  > #item-details-card {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+`
+
+/** A text input bound to one column property, labelled for screen readers. */
+const ColumnInput = ({
+  name,
+  label,
+  help,
+  placeholder,
+}: {
+  name: string
+  label: string
+  help: string
+  placeholder?: string
+}) => {
+  const id = useId()
+  const [field, meta] = useField<string | undefined>(name)
+  const invalid = !!meta.touched && !!meta.error
+  return (
+    <Cell>
+      <CellLabel htmlFor={id}>
+        <Label $tone="muted">{label}</Label>
+        <Small $muted>{help}</Small>
+      </CellLabel>
+      <Input
+        id={id}
+        name={field.name}
+        value={field.value ?? ''}
+        placeholder={placeholder}
+        aria-label={label}
+        aria-invalid={invalid || undefined}
+        aria-describedby={invalid ? `${id}-error` : undefined}
+        autoComplete="off"
+        onChange={field.onChange}
+        onBlur={field.onBlur}
+      />
+      {invalid && <ErrorText id={`${id}-error`}>{meta.error}</ErrorText>}
+    </Cell>
+  )
+}
 
 type ItemFormValues = TcrState
 type ItemParamsOuterProps = StepProps & { section?: ItemSection }
@@ -98,164 +339,204 @@ const ItemParams = ({
   const showPreview = section !== 'fields'
   const problem = typeof status === 'string' ? status : ''
 
+  // The form wraps the preview too, so Next on the preview step submits it.
   return (
-    <Stack $gap={20}>
-      {showFields && (
-        <form id={formId} onSubmit={handleSubmit} noValidate>
-          <Stack $gap={20}>
-            <StepHeader
-              heading="Define the item fields"
-              lede="Each field is a column of the list. Items are displayed in this order, so put the image or the title first."
-            />
-            <SwitchField
-              id={`${ids}-list-of-lists`}
-              label="This is a list of lists"
-              help="A list of lists has one field, the list address. Each entry's title, description and logo come from the list itself."
-              checked={!!isTCRofTCRs}
-              onChange={toggleTCRofTCRs}
-            />
-            {!isTCRofTCRs && (
-              <FieldArray name="columns">
-                {({ push, remove }) => (
-                  <Stack $gap={12}>
-                    {columns.map((column, index) => {
-                      const canBeIdentifier =
-                        (identifierCount < MAX_IDENTIFIERS ||
-                          !!column.isIdentifier) &&
-                        column.type !== LONG_TEXT &&
-                        column.type !== IMAGE &&
-                        column.type !== FILE
-                      return (
-                        <Surface
-                          key={index}
-                          $padding="compact"
-                          role="group"
-                          aria-label={`Field ${index + 1}`}
-                        >
-                          <Stack $gap={12}>
-                            <Row $justify="space-between" $gap={8}>
-                              <Label>Field {index + 1}</Label>
-                              {columns.length > 1 && (
-                                <IconButton
-                                  type="button"
-                                  aria-label={`Remove field ${index + 1}`}
-                                  onClick={() => remove(index)}
-                                >
-                                  <CurateIcon name="remove" size={16} />
-                                </IconButton>
-                              )}
-                            </Row>
-                            <FieldGrid>
-                              <TextField
-                                name={`columns[${index}].label`}
-                                label="Name"
-                                help="Shown as the field's label when someone submits an item."
-                              />
-                              <TextField
-                                name={`columns[${index}].description`}
-                                label="Description"
-                                help="Explains what to enter; shown under the field."
-                              />
-                              <FormField
-                                id={`${ids}-type-${index}`}
-                                label="Type"
-                              >
-                                {(a11y) => (
-                                  <Select
-                                    {...a11y}
-                                    value={column.type}
-                                    onChange={(event) =>
-                                      onTypeChange(index, event.target.value)
-                                    }
-                                  >
-                                    {Object.values(ItemTypes).map(
-                                      (itemType) => (
-                                        <option
-                                          value={String(itemType)}
-                                          key={String(itemType)}
-                                        >
-                                          {String(itemType)}
-                                        </option>
-                                      ),
-                                    )}
-                                  </Select>
-                                )}
-                              </FormField>
-                              {canBeIdentifier && (
-                                <SwitchField
-                                  id={`${ids}-indexed-${index}`}
-                                  label="Indexed"
-                                  help={`Searchable and shown on the item card. Up to ${MAX_IDENTIFIERS} fields.`}
-                                  checked={!!column.isIdentifier}
-                                  onChange={(checked) =>
-                                    setFieldValue(
-                                      `columns[${index}].isIdentifier`,
-                                      checked,
-                                    )
-                                  }
-                                />
-                              )}
-                              {column.type === FILE && (
-                                <TextField
-                                  name={`columns[${index}].allowedFileTypes`}
-                                  label="Allowed file types"
-                                  placeholder="pdf doc mp3"
-                                  help="File extensions separated by spaces."
-                                />
-                              )}
-                            </FieldGrid>
-                          </Stack>
-                        </Surface>
-                      )
-                    })}
-                    <div>
-                      <Button
-                        type="button"
-                        $variant="secondary"
-                        onClick={() =>
-                          push({ label: '', description: '', type: 'address' })
-                        }
-                      >
-                        Add a field
-                      </Button>
-                    </div>
-                    {problem && <ErrorText role="alert">{problem}</ErrorText>}
-                  </Stack>
-                )}
-              </FieldArray>
-            )}
-          </Stack>
-        </form>
-      )}
-
-      {showPreview && (
-        <Stack $gap={16}>
-          {!showFields && (
-            <StepHeader
-              heading="Preview"
-              lede="How an entry looks on its page with these fields."
-            />
-          )}
-          <ItemDetailsCard
-            title="Preview"
-            columns={columns}
-            itemMetaEvidence={
-              isTCRofTCRs && {
-                file: {
-                  fileURI: tcrPrimaryDocument,
-                  metadata: {
-                    tcrTitle,
-                    tcrDescription,
-                    logoURI: tcrLogo,
-                  },
-                },
-              }
-            }
-            disabled
+    <form id={formId} onSubmit={handleSubmit} noValidate>
+      <StepBody>
+        {showFields ? (
+          <StepHeader
+            heading="Define the entry fields"
+            lede="Each field is a column of the list, shown in this order: put the image or the title first."
           />
-        </Stack>
-      )}
-    </Stack>
+        ) : (
+          <StepHeader
+            heading="Preview an entry"
+            lede="How an entry page looks with these fields."
+          />
+        )}
+
+        {showFields && (
+          <SwitchField
+            id={`${ids}-list-of-lists`}
+            label="This is a list of lists"
+            help="Entries are other lists: one field, the list address; title and logo come from each list."
+            checked={!!isTCRofTCRs}
+            onChange={toggleTCRofTCRs}
+          />
+        )}
+
+        {showFields && !isTCRofTCRs && (
+          <FieldArray name="columns">
+            {({ push, remove }) => (
+              <Editor role="group" aria-label="Entry fields">
+                <HeaderRow aria-hidden>
+                  <span />
+                  <span>
+                    <Label $tone="faint">Name</Label>
+                    <Small $faint>{COLUMN_HELP.name}</Small>
+                  </span>
+                  <span>
+                    <Label $tone="faint">Description</Label>
+                    <Small $faint>{COLUMN_HELP.description}</Small>
+                  </span>
+                  <span>
+                    <Label $tone="faint">Type</Label>
+                    <Small $faint>{COLUMN_HELP.type}</Small>
+                  </span>
+                  <span>
+                    <Label $tone="faint">Indexed</Label>
+                    <Small $faint>{COLUMN_HELP.indexed}</Small>
+                  </span>
+                  <span />
+                </HeaderRow>
+                {columns.map((column, index) => {
+                  const canBeIdentifier =
+                    (identifierCount < MAX_IDENTIFIERS ||
+                      !!column.isIdentifier) &&
+                    column.type !== LONG_TEXT &&
+                    column.type !== IMAGE &&
+                    column.type !== FILE
+                  const typeId = `${ids}-type-${index}`
+                  const indexedId = `${ids}-indexed-${index}`
+                  return (
+                    <FieldRow
+                      key={index}
+                      role="group"
+                      aria-label={`Field ${index + 1}`}
+                      style={{ ['--i' as string]: Math.min(index, 6) }}
+                    >
+                      <Index aria-hidden>
+                        {String(index + 1).padStart(2, '0')}
+                      </Index>
+                      <ColumnInput
+                        name={`columns[${index}].label`}
+                        label="Name"
+                        help={COLUMN_HELP.name}
+                        placeholder="Name"
+                      />
+                      <ColumnInput
+                        name={`columns[${index}].description`}
+                        label="Description"
+                        help={COLUMN_HELP.description}
+                        placeholder="What to enter"
+                      />
+                      <Cell>
+                        <CellLabel htmlFor={typeId}>
+                          <Label $tone="muted">Type</Label>
+                          <Small $muted>{COLUMN_HELP.type}</Small>
+                        </CellLabel>
+                        <Select
+                          id={typeId}
+                          aria-label={`Field ${index + 1} type`}
+                          value={column.type}
+                          onChange={(event) =>
+                            onTypeChange(index, event.target.value)
+                          }
+                        >
+                          {Object.values(ItemTypes).map((itemType) => (
+                            <option
+                              value={String(itemType)}
+                              key={String(itemType)}
+                            >
+                              {String(itemType)}
+                            </option>
+                          ))}
+                        </Select>
+                      </Cell>
+                      <ToggleCell>
+                        <ToggleLabel
+                          htmlFor={indexedId}
+                          title={
+                            canBeIdentifier
+                              ? `Searchable and shown on the entry card; up to ${MAX_IDENTIFIERS} fields.`
+                              : 'Long text, image and file fields cannot be indexed.'
+                          }
+                        >
+                          <Toggle
+                            id={indexedId}
+                            type="checkbox"
+                            role="switch"
+                            aria-label={`Field ${index + 1} indexed`}
+                            aria-checked={!!column.isIdentifier}
+                            checked={!!column.isIdentifier}
+                            disabled={!canBeIdentifier}
+                            onChange={(event) =>
+                              setFieldValue(
+                                `columns[${index}].isIdentifier`,
+                                event.target.checked,
+                              )
+                            }
+                          />
+                          <span>Indexed</span>
+                        </ToggleLabel>
+                      </ToggleCell>
+                      <RemoveSlot>
+                        {columns.length > 1 && (
+                          <IconButton
+                            type="button"
+                            aria-label={`Remove field ${index + 1}`}
+                            onClick={() => remove(index)}
+                          >
+                            <CurateIcon name="remove" size={16} />
+                          </IconButton>
+                        )}
+                      </RemoveSlot>
+                      {column.type === FILE && (
+                        <FileTypes>
+                          <TextField
+                            name={`columns[${index}].allowedFileTypes`}
+                            label="Allowed file types"
+                            placeholder="pdf doc mp3"
+                            help="Extensions separated by spaces."
+                          />
+                        </FileTypes>
+                      )}
+                    </FieldRow>
+                  )
+                })}
+                <Stack $gap={10} style={{ marginTop: 8 }}>
+                  <div>
+                    <Button
+                      type="button"
+                      $variant="secondary"
+                      $size="sm"
+                      onClick={() =>
+                        push({ label: '', description: '', type: 'address' })
+                      }
+                    >
+                      Add a field
+                    </Button>
+                  </div>
+                  {problem && <ErrorText role="alert">{problem}</ErrorText>}
+                </Stack>
+              </Editor>
+            )}
+          </FieldArray>
+        )}
+
+        {showPreview && (
+          <PreviewFrame>
+            <ItemDetailsCard
+              title="Preview"
+              columns={columns}
+              itemMetaEvidence={
+                isTCRofTCRs && {
+                  file: {
+                    fileURI: tcrPrimaryDocument,
+                    metadata: {
+                      tcrTitle,
+                      tcrDescription,
+                      logoURI: tcrLogo,
+                    },
+                  },
+                }
+              }
+              disabled
+            />
+          </PreviewFrame>
+        )}
+      </StepBody>
+    </form>
   )
 }
 

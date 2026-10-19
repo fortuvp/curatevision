@@ -30,37 +30,47 @@ const StyledText = styled.span<StyledTextProps>`
   ${({ $strong }) =>
     $strong &&
     css`
-      font-weight: 600;
+      font-weight: 500;
     `}
   ${({ $ellipsis }) => $ellipsis && ellipsisMixin}
 `
 
 const CopyButton = styled.button`
   ${ghostIconButton}
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   margin-left: 4px;
   vertical-align: middle;
-  color: var(--color-muted);
+  color: var(--color-faint);
 `
 
-/* Sans titles on the DESIGN.md scale; sentence case, weight 600. */
+/*
+ * Titles, v2: levels 1 to 3 in the display face (Urbanist 500, tight), 4 and
+ * 5 in Geist 500. Sentence case.
+ */
 const titleSizes: Record<number, ReturnType<typeof css>> = {
   1: css`
-    font-size: var(--fs-figure);
-    line-height: var(--lh-figure);
+    font-family: var(--font-display);
+    font-size: clamp(28px, 1.4vw + 18px, 40px);
+    line-height: 1.1;
+    letter-spacing: -0.03em;
   `,
   2: css`
-    font-size: var(--fs-heading);
-    line-height: var(--lh-heading);
+    font-family: var(--font-display);
+    font-size: 26px;
+    line-height: 32px;
+    letter-spacing: -0.025em;
   `,
   3: css`
-    font-size: var(--fs-subheading);
-    line-height: var(--lh-subheading);
+    font-family: var(--font-display);
+    font-size: 20px;
+    line-height: 26px;
+    letter-spacing: -0.02em;
   `,
   4: css`
     font-size: var(--fs-body-lg);
     line-height: var(--lh-body-lg);
+    letter-spacing: -0.005em;
   `,
   5: css`
     font-size: var(--fs-body);
@@ -75,8 +85,7 @@ interface StyledTitleProps {
 const StyledTitle = styled.h1<StyledTitleProps>`
   margin: 0 0 8px;
   color: var(--color-text);
-  font-weight: 600;
-  letter-spacing: 0;
+  font-weight: 500;
   ${({ $level }) => titleSizes[$level] || titleSizes[1]}
 `
 

@@ -1,4 +1,5 @@
-import React, { useContext } from 'react'
+import React, { useContext, useEffect, useState } from 'react'
+import styled from 'styled-components'
 import { BigNumber } from 'ethers'
 import {
   PARTY,
@@ -10,15 +11,9 @@ import {
 import { LightTCRViewContext } from 'contexts/light-tcr-view-context'
 import useRequiredFees from 'hooks/required-fees'
 import useNativeCurrency from 'hooks/native-currency'
-import { CurateIcon } from 'components/curate/icons'
 import {
   Chip,
-  Data,
   Label,
-  PanelHeader,
-  PanelTitle,
-  Rail,
-  Row,
   Small,
   Stack,
   Surface,
@@ -26,10 +21,74 @@ import {
 import { formatAmount, formatEther } from 'components/curate/item-light-format'
 
 /*
- * Appeal funding (DESIGN.md: progress rails with exact amounts): how much
- * each side has raised toward its appeal, what is still needed, and what
- * backers can win. Rendered only while the dispute can be appealed.
+ * Appeal funding: for each side, how much of its appeal fee is raised. The
+ * bar is the share funded (filled) against what is still needed (hatched),
+ * with the exact amounts under it and what backers can win. Rendered only
+ * while the dispute can be appealed.
  */
+
+const Card = styled(Surface)`
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+`
+
+const SideHead = styled.div`
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+`
+
+const Name = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: 500;
+`
+
+const Share = styled.span`
+  color: var(--color-text);
+  font-family: var(--font-figure);
+  font-size: 26px;
+  line-height: 1;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+`
+
+const Track = styled.div`
+  position: relative;
+  height: 10px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: repeating-linear-gradient(
+    135deg,
+    var(--color-raised) 0 3px,
+    transparent 3px 7px
+  );
+  box-shadow: inset 0 0 0 1px var(--glass-border);
+`
+
+/* Grows by width from nothing (scaleX would squash the round ends). */
+const Fill = styled.span<{ $tone: string }>`
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: var(--radius-pill);
+  background: ${({ $tone }) => $tone};
+  box-shadow: 0 0 14px
+    color-mix(in srgb, ${({ $tone }) => $tone} 55%, transparent);
+  transition:
+    width 900ms var(--ease-out),
+    min-width 900ms var(--ease-out);
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+`
 
 const Side = ({
   name,
@@ -48,31 +107,50 @@ const Side = ({
   role?: 'winning' | 'losing'
   currency: string
 }) => {
-  const share = required.isZero()
-    ? 0
-    : paid.mul(10000).div(required).toNumber() / 10000
+  const share = funded
+    ? 1
+    : required.isZero()
+      ? 0
+      : paid.mul(10000).div(required).toNumber() / 10000
+  const tone = funded ? 'var(--status-registered)' : 'var(--status-contested)'
+  const width = Math.round(Math.min(1, Math.max(0, share)) * 100)
+  // Start at zero, then grow to the share on the next frame.
+  const [shown, setShown] = useState(false)
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setShown(true))
+    return () => cancelAnimationFrame(frame)
+  }, [])
   return (
-    <Stack $gap={6}>
-      <Row $justify="space-between" $gap={8} $wrap>
-        <Row $gap={8}>
-          <Label $tone="text">{name}</Label>
+    <Stack
+      $gap={8}
+      role="group"
+      aria-label={`${name}: ${Math.round(share * 100)}% of the appeal fee raised, ${formatEther(
+        paid,
+      )} of ${formatAmount(required, currency)}`}
+    >
+      <SideHead>
+        <Name>
+          {name}
           {role && <Chip>{role}</Chip>}
-        </Row>
-        <Data>
-          {formatEther(paid)} / {formatAmount(required, currency)}
-        </Data>
-      </Row>
-      <Rail
-        $value={funded ? 1 : share}
-        $tone={funded ? 'registered' : 'contested'}
-      />
+        </Name>
+        <Share>{Math.round(share * 100)}%</Share>
+      </SideHead>
+      <Track aria-hidden>
+        <Fill
+          $tone={tone}
+          style={{
+            width: shown ? `${width}%` : '0%',
+            minWidth: shown && width > 0 ? 10 : 0,
+          }}
+        />
+      </Track>
       <Small $muted>
         {funded
-          ? 'Fully funded.'
-          : `Still needed: ${formatAmount(
-              required.sub(paid),
+          ? `Fully funded · ${formatAmount(required, currency)}`
+          : `${formatEther(paid)} of ${formatAmount(
+              required,
               currency,
-            )}. Backers can win up to ${formatAmount(reward, currency)}.`}
+            )} raised · backers can win up to ${formatAmount(reward, currency)}`}
       </Small>
     </Stack>
   )
@@ -154,45 +232,38 @@ const CrowdfundingCard = ({
   const loser = requesterWins ? 'challenger' : requesterName.toLowerCase()
 
   return (
-    <Surface $padding="compact" role="region" aria-label="Appeal funding">
-      <PanelHeader>
-        <div>
-          <PanelTitle>
-            <CurateIcon name="bounty" size={16} />
-            Appeal funding
-          </PanelTitle>
-          <Small $muted>
-            Fund a side to appeal the ruling. Backers of the side that wins the
-            next round share the other side&apos;s fees.
-          </Small>
-        </div>
-      </PanelHeader>
-      <Stack $gap={16}>
-        <Side
-          name={requesterName}
-          paid={amountPaidRequester}
-          required={requesterFees.requiredForSide}
-          funded={!!hasPaidRequester}
-          reward={requesterFees.potentialReward}
-          role={decisive ? (requesterWins ? 'winning' : 'losing') : undefined}
-          currency={nativeCurrency}
-        />
-        <Side
-          name="Challenger"
-          paid={amountPaidChallenger}
-          required={challengerFees.requiredForSide}
-          funded={!!hasPaidChallenger}
-          reward={challengerFees.potentialReward}
-          role={decisive ? (requesterWins ? 'losing' : 'winning') : undefined}
-          currency={nativeCurrency}
-        />
+    <Card $padding="standard" role="region" aria-label="Appeal funding">
+      <Stack $gap={4}>
+        <Label $tone="faint">Appeal funding</Label>
         <Small $muted>
-          {decisive
-            ? `Jurors currently favour the ${winner}. The ${loser} must fully fund the appeal in the first half of the period; then the ${winner} must fund too, or the ${loser} wins.`
-            : 'Jurors did not give a decisive ruling. If one side fully funds its appeal, the other must fund too or loses the dispute.'}
+          Share of each side&apos;s appeal fee raised so far. Hatched: still
+          needed.
         </Small>
       </Stack>
-    </Surface>
+      <Side
+        name={requesterName}
+        paid={amountPaidRequester}
+        required={requesterFees.requiredForSide}
+        funded={!!hasPaidRequester}
+        reward={requesterFees.potentialReward}
+        role={decisive ? (requesterWins ? 'winning' : 'losing') : undefined}
+        currency={nativeCurrency}
+      />
+      <Side
+        name="Challenger"
+        paid={amountPaidChallenger}
+        required={challengerFees.requiredForSide}
+        funded={!!hasPaidChallenger}
+        reward={challengerFees.potentialReward}
+        role={decisive ? (requesterWins ? 'losing' : 'winning') : undefined}
+        currency={nativeCurrency}
+      />
+      <Small $faint>
+        {decisive
+          ? `The ${loser} must be fully funded in the first half of the period; then the ${winner} must fund too, or the ${loser} wins.`
+          : 'If one side is fully funded, the other must fund too or loses the dispute.'}
+      </Small>
+    </Card>
   )
 }
 

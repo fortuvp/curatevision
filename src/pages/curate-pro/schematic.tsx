@@ -1,20 +1,85 @@
 import React from 'react'
 
 /*
- * Curate Pro schematic (DESIGN.md, Components → Explainer): the pieces a
- * production registry is made of, as lines and nodes with mono labels. The
- * policy feeds the contract, the contract sends disputes to the court, the
- * indexer reads the contract and the front end reads the indexer.
+ * Curate Pro schematic (the explainer's drawing): the pieces a production
+ * registry is made of and how they talk. The policy feeds the contract, the
+ * contract sends disputes to the court and jurors rule by the policy, the
+ * indexer reads the contract's events, the front end reads the indexer and
+ * sends its transactions (submit, challenge) back to the contract. Structure
+ * only, no figures. Sentence case, 12-unit text in a 320-unit box, so it never
+ * renders below about 11.5px even on a phone.
  */
 
-const MONO = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10.5,
-  letterSpacing: '0.06em',
+const TITLE: React.CSSProperties = {
+  fill: 'var(--color-text)',
+  fontFamily: 'var(--font-sans)',
+  fontSize: 12,
+  fontWeight: 500,
 }
 
+const NOTE: React.CSSProperties = {
+  fill: 'var(--color-muted)',
+  fontFamily: 'var(--font-sans)',
+  fontSize: 12,
+  fontWeight: 400,
+}
+
+const LINE: React.CSSProperties = {
+  fill: 'none',
+  stroke: 'var(--color-border-strong)',
+  strokeWidth: 1.25,
+}
+
+const Node = ({
+  x,
+  y,
+  width,
+  height = 48,
+  title,
+  detail,
+  strong = false,
+}: {
+  x: number
+  y: number
+  width: number
+  height?: number
+  title: string
+  detail: string
+  strong?: boolean
+}) => (
+  <g>
+    <rect
+      x={x}
+      y={y}
+      width={width}
+      height={height}
+      rx="10"
+      style={{
+        fill: 'var(--color-raised)',
+        stroke: strong ? 'var(--color-border-strong)' : 'var(--glass-border)',
+      }}
+    />
+    <text
+      x={x + width / 2}
+      y={y + height / 2 - 3}
+      textAnchor="middle"
+      style={TITLE}
+    >
+      {title}
+    </text>
+    <text
+      x={x + width / 2}
+      y={y + height / 2 + 13}
+      textAnchor="middle"
+      style={NOTE}
+    >
+      {detail}
+    </text>
+  </g>
+)
+
 export const ProductionStackSchematic = () => (
-  <svg viewBox="0 0 372 200" xmlns="http://www.w3.org/2000/svg" role="img">
+  <svg viewBox="0 0 320 284" xmlns="http://www.w3.org/2000/svg" role="img">
     <title>What a production registry is made of</title>
     <defs>
       <marker
@@ -26,112 +91,87 @@ export const ProductionStackSchematic = () => (
         markerHeight="6"
         orient="auto-start-reverse"
       >
-        <path d="M0 0 8 4 0 8Z" fill="currentColor" />
+        <path
+          d="M0 0 8 4 0 8Z"
+          style={{ fill: 'var(--color-border-strong)' }}
+        />
+      </marker>
+      <marker
+        id="curate-pro-arrow-tx"
+        viewBox="0 0 8 8"
+        refX="7"
+        refY="4"
+        markerWidth="6"
+        markerHeight="6"
+        orient="auto-start-reverse"
+      >
+        <path d="M0 0 8 4 0 8Z" style={{ fill: 'var(--color-primary)' }} />
       </marker>
     </defs>
-    <g
-      fill="none"
-      stroke="var(--color-border-strong)"
-      strokeWidth="1.25"
+
+    {/* Jurors read the policy when they rule. */}
+    <text x="165" y="14" textAnchor="middle" style={NOTE}>
+      Jurors rule by the policy
+    </text>
+    <path
+      d="M285 38 V30 Q285 22 277 22 H53 Q45 22 45 30 V36"
       markerEnd="url(#curate-pro-arrow)"
-    >
-      <path d="M96 40 H114" />
-      <path d="M266 40 H284" />
-      <path d="M190 62 V88" />
-      <path d="M190 130 V156" />
+      style={{ ...LINE, strokeDasharray: '3 4' }}
+    />
+
+    <g markerEnd="url(#curate-pro-arrow)" style={LINE}>
+      <path d="M86 62 H102" />
+      <path d="M236 62 H252" />
+      <path d="M200 90 V134" />
+      <path d="M200 184 V230" />
     </g>
-    <g {...MONO}>
-      <rect
-        x="8"
-        y="22"
-        width="88"
-        height="40"
-        rx="4"
-        fill="var(--color-surface)"
-        stroke="var(--color-border-strong)"
-      />
-      <text x="52" y="39" textAnchor="middle" fill="var(--color-text)">
-        POLICY
-      </text>
-      <text x="52" y="54" textAnchor="middle" fill="var(--color-muted)">
-        PDF ON IPFS
-      </text>
 
-      <rect
-        x="116"
-        y="18"
-        width="148"
-        height="44"
-        rx="4"
-        fill="var(--color-surface)"
-        stroke="var(--color-border-strong)"
-      />
-      <text x="190" y="37" textAnchor="middle" fill="var(--color-text)">
-        REGISTRY CONTRACT
-      </text>
-      <text x="190" y="53" textAnchor="middle" fill="var(--color-muted)">
-        DEPOSITS · WINDOW
-      </text>
+    {/* Writes: the front end sends submissions and challenges to the contract. */}
+    <path
+      d="M104 256 H96 Q88 256 88 248 V110 Q88 102 96 102 H132 Q140 102 140 94 V92"
+      markerEnd="url(#curate-pro-arrow-tx)"
+      style={{
+        fill: 'none',
+        stroke: 'color-mix(in srgb, var(--color-primary) 75%, transparent)',
+        strokeWidth: 1.25,
+      }}
+    />
 
-      <rect
-        x="286"
-        y="22"
-        width="66"
-        height="40"
-        rx="4"
-        fill="var(--color-surface)"
-        stroke="var(--status-contested)"
-      />
-      <circle cx="298" cy="42" r="3.5" fill="var(--status-contested)" />
-      <text x="326" y="39" textAnchor="middle" fill="var(--color-text)">
-        COURT
-      </text>
-      <text x="326" y="54" textAnchor="middle" fill="var(--color-muted)">
-        JURORS
-      </text>
+    <Node x={4} y={38} width={82} title="Policy" detail="PDF on IPFS" />
+    <Node
+      x={104}
+      y={34}
+      width={132}
+      height={56}
+      title="Registry contract"
+      detail="Deposits · window"
+      strong
+    />
+    <Node x={254} y={38} width={62} title="Court" detail="Jurors" />
+    <Node
+      x={104}
+      y={136}
+      width={132}
+      title="Indexer"
+      detail="Subgraph or API"
+    />
+    <Node
+      x={104}
+      y={232}
+      width={132}
+      title="Front end"
+      detail="Submit · challenge"
+    />
 
-      <rect
-        x="116"
-        y="90"
-        width="148"
-        height="40"
-        rx="4"
-        fill="var(--color-surface)"
-        stroke="var(--color-border-strong)"
-      />
-      <text x="190" y="107" textAnchor="middle" fill="var(--color-text)">
-        INDEXER
-      </text>
-      <text x="190" y="122" textAnchor="middle" fill="var(--color-muted)">
-        SUBGRAPH OR API
-      </text>
-
-      <rect
-        x="116"
-        y="158"
-        width="148"
-        height="40"
-        rx="4"
-        fill="var(--color-surface)"
-        stroke="var(--color-border-strong)"
-      />
-      <text x="190" y="175" textAnchor="middle" fill="var(--color-text)">
-        FRONT END
-      </text>
-      <text x="190" y="190" textAnchor="middle" fill="var(--color-muted)">
-        SUBMIT · CHALLENGE
-      </text>
-
-      <text x="8" y="110" fill="var(--color-faint)">
-        JURORS RULE
-      </text>
-      <text x="8" y="124" fill="var(--color-faint)">
-        BY THE POLICY
-      </text>
-      <text x="274" y="110" fill="var(--color-faint)">
-        DISPUTES ONLY
-      </text>
-    </g>
+    <text x="316" y="106" textAnchor="end" style={NOTE}>
+      Disputes only
+    </text>
+    <text x="193" y="117" textAnchor="end" style={NOTE}>
+      Events
+    </text>
+    <text x="80" y="184" textAnchor="end" style={NOTE}>
+      Transactions
+    </text>
   </svg>
 )
 

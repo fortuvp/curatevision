@@ -1,27 +1,70 @@
 import React, { useState, useCallback } from 'react'
 import styled, { css } from 'styled-components'
 import { KitIcon } from './kit-icons'
-import { ghostIconButton, joinClassNames, monoLabel } from './kit-styles'
+import {
+  ghostIconButton,
+  joinClassNames,
+  kitTransition,
+  toneColor,
+  toneFor,
+  type Tone,
+} from './kit-styles'
 
-/* Tag = chip (DESIGN.md): 24px, radius 4, raised surface, mono label. */
+/*
+ * Tag, v2: a pill chip, 24px tall, sans 12/500 on raised glass with a
+ * hairline. A status word in the color prop tints it in that status role with a
+ * haloed dot (the words carry the meaning); any other color is used as the
+ * fill, as before. CheckableTag is the filter chip: tinted blue when on.
+ */
 const chipStyles = css`
   display: inline-flex;
   align-items: center;
   gap: 6px;
   height: 24px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  ${monoLabel}
+  padding: 0 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  letter-spacing: 0;
   white-space: nowrap;
   vertical-align: middle;
 `
 
-const StyledTag = styled.span<{ $color?: string }>`
+const ToneDot = styled.span<{ $tone: Tone }>`
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-pill);
+  background: ${({ $tone }) => toneColor($tone)};
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, ${({ $tone }) => toneColor($tone)} 22%, transparent);
+`
+
+const StyledTag = styled.span<{ $color?: string; $tone?: Tone }>`
   ${chipStyles}
-  background: ${({ $color }) => $color || 'var(--color-raised)'};
-  color: ${({ $color }) =>
-    $color ? 'var(--color-on-primary)' : 'var(--color-muted)'};
+  background: var(--color-raised);
+  color: var(--color-muted);
+
+  ${({ $tone }) =>
+    $tone &&
+    css`
+      padding-left: 8px;
+      border-color: color-mix(in srgb, ${toneColor($tone)} 30%, transparent);
+      background: color-mix(in srgb, ${toneColor($tone)} 12%, transparent);
+      color: var(--color-text);
+    `}
+
+  ${({ $color, $tone }) =>
+    $color &&
+    !$tone &&
+    css`
+      border-color: transparent;
+      background: ${$color};
+      color: var(--color-on-primary);
+    `}
 `
 
 const CloseButton = styled.button`
@@ -29,10 +72,12 @@ const CloseButton = styled.button`
   width: 16px;
   height: 16px;
   margin-right: -4px;
+  border: 0;
   color: inherit;
   opacity: 0.7;
 
   &:hover:not(:disabled) {
+    border: 0;
     background: transparent;
     color: inherit;
     opacity: 1;
@@ -41,19 +86,35 @@ const CloseButton = styled.button`
 
 const CheckableTagStyled = styled.button<{ $checked?: boolean }>`
   ${chipStyles}
+  height: 28px;
+  padding: 0 12px;
+  border-color: ${({ $checked }) =>
+    $checked
+      ? 'color-mix(in srgb, var(--color-primary) 45%, transparent)'
+      : 'var(--glass-border)'};
   background: ${({ $checked }) =>
     $checked ? 'var(--color-primary-soft)' : 'var(--color-raised)'};
   color: ${({ $checked }) =>
-    $checked ? 'var(--color-primary)' : 'var(--color-muted)'};
+    $checked ? 'var(--color-text)' : 'var(--color-muted)'};
   cursor: pointer;
   user-select: none;
-  transition:
-    background var(--motion),
-    color var(--motion);
+  transition: ${kitTransition(
+    'background',
+    'color',
+    'border-color',
+    'transform',
+  )};
 
   &:hover {
-    color: ${({ $checked }) =>
-      $checked ? 'var(--color-primary)' : 'var(--color-text)'};
+    border-color: ${({ $checked }) =>
+      $checked
+        ? 'color-mix(in srgb, var(--color-primary) 60%, transparent)'
+        : 'var(--color-border-strong)'};
+    color: var(--color-text);
+  }
+
+  &:active {
+    transform: scale(0.97);
   }
 `
 
@@ -99,12 +160,16 @@ const Tag: TagComponent = ({
 
   if (!visible) return null
 
+  const tone = toneFor(color)
+
   return (
     <StyledTag
       $color={color}
+      $tone={tone}
       style={style}
       className={joinClassNames('ui-tag', className)}
     >
+      {tone && <ToneDot $tone={tone} aria-hidden />}
       {children}
       {closable && (
         <CloseButton

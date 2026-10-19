@@ -2,33 +2,38 @@ import React from 'react'
 import styled, { css } from 'styled-components'
 import { joinClassNames, skeletonBlock } from './kit-styles'
 
-/* List: surface with hairline rows of 44px (40 small, 56 large). */
+/*
+ * List, v2: rows of 52px (44 small, 64 large) split by inset hairlines; a
+ * hovered row lifts onto a raised fill. Bordered lists sit in a glass well.
+ */
 const ListWrapper = styled.div<{ $bordered?: boolean }>`
   color: var(--color-text);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
-  background: var(--color-surface);
-  border-radius: var(--radius);
+  background: transparent;
+  border-radius: 14px;
 
   ${({ $bordered }) =>
     $bordered &&
     css`
-      border: 1px solid var(--color-border);
+      padding: 4px;
+      border: 1px solid var(--glass-border);
+      background: var(--color-raised);
     `}
 `
 
 const ListHeader = styled.div`
   padding: 12px 16px;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--glass-border);
   color: var(--color-text);
   font-size: var(--fs-body-lg);
   line-height: var(--lh-body-lg);
-  font-weight: 600;
+  font-weight: 500;
 `
 
 const ListFooter = styled.div`
   padding: 12px 16px;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--glass-border);
   color: var(--color-muted);
   font-size: var(--fs-small);
   line-height: var(--lh-small);
@@ -42,30 +47,47 @@ const ListContentWrapper = styled.ul`
 
 const sizeMap: Record<string, ReturnType<typeof css>> = {
   small: css`
-    min-height: 40px;
+    min-height: 44px;
     padding: 8px 12px;
   `,
   default: css`
-    min-height: 44px;
-    padding: 10px 16px;
+    min-height: 52px;
+    padding: 10px 14px;
   `,
   large: css`
-    min-height: 56px;
+    min-height: 64px;
     padding: 14px 16px;
   `,
 }
 
 const ListItemWrapper = styled.li<{ $size?: string; $split?: boolean }>`
+  position: relative;
   display: flex;
   align-items: center;
   gap: 16px;
+  border-radius: 12px;
+  transition: background var(--dur-hover) var(--ease-out);
   ${({ $size }) => sizeMap[$size || 'default'] || sizeMap.default}
+
+  &:hover {
+    background: var(--color-raised);
+  }
 
   ${({ $split }) =>
     $split &&
     css`
-      &:not(:last-child) {
-        border-bottom: 1px solid var(--color-border);
+      &:not(:last-child)::after {
+        content: '';
+        position: absolute;
+        right: 14px;
+        bottom: 0;
+        left: 14px;
+        border-bottom: 1px solid var(--glass-border);
+        transition: opacity var(--dur-hover) var(--ease-out);
+      }
+
+      &:hover::after {
+        opacity: 0;
       }
     `}
 `
@@ -116,16 +138,17 @@ const LoadingRow = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 12px 16px;
+  padding: 14px 16px;
 
   &:not(:last-child) {
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--glass-border);
   }
 `
 
 const LoadingLine = styled.div<{ $width: string }>`
   ${skeletonBlock}
-  height: 14px;
+  height: 12px;
+  border-radius: var(--radius-pill);
   width: ${({ $width }) => $width};
 `
 

@@ -72,7 +72,8 @@ export const missingRequired = (
   values: SubmissionValues,
 ): number =>
   columns.filter(
-    (column) => isRequired(column) && isEmptyField(column, values[column.label]),
+    (column) =>
+      isRequired(column) && isEmptyField(column, values[column.label]),
   ).length
 
 /** Blank rich addresses that only carry a chain ("eip155:1:") are sent as empty. */

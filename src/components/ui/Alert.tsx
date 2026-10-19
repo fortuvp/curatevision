@@ -31,15 +31,29 @@ const TYPE_ROLE: Record<
   },
 }
 
-/* Feedback row: soft status fill, hairline, status icon, text in the text roles. */
+/*
+ * Feedback row, v2: raised glass with a hairline tinted in the status role,
+ * the status icon in a soft halo, text in the text roles (never a colored
+ * block). Banners drop the radius and side borders.
+ */
 const AlertWrapper = styled.div<{ $type: AlertType; $banner?: boolean }>`
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 12px 16px;
-  border: 1px solid var(--color-border);
-  border-radius: ${({ $banner }) => ($banner ? '0' : 'var(--radius)')};
-  background: ${({ $type }) => TYPE_ROLE[$type].soft};
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid
+    ${({ $type }) =>
+      `color-mix(in srgb, ${TYPE_ROLE[$type].color} 28%, transparent)`};
+  border-radius: ${({ $banner }) => ($banner ? '0' : '14px')};
+  background:
+    linear-gradient(
+      90deg,
+      ${({ $type }) =>
+        `color-mix(in srgb, ${TYPE_ROLE[$type].color} 9%, transparent)`},
+      transparent 70%
+    ),
+    var(--color-raised);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
   color: var(--color-text);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
@@ -55,8 +69,17 @@ const AlertWrapper = styled.div<{ $type: AlertType; $banner?: boolean }>`
 
 const IconWrapper = styled.span<{ $type: AlertType }>`
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
-  margin-top: 2px;
+  width: 24px;
+  height: 24px;
+  margin-top: -2px;
+  border-radius: var(--radius-pill);
+  background: ${({ $type }) => TYPE_ROLE[$type].soft};
+  box-shadow: 0 0 12px
+    ${({ $type }) =>
+      `color-mix(in srgb, ${TYPE_ROLE[$type].color} 30%, transparent)`};
   color: ${({ $type }) => TYPE_ROLE[$type].color};
 `
 
@@ -66,12 +89,12 @@ const Content = styled.div`
 `
 
 const Message = styled.div<{ $hasDescription: boolean }>`
-  font-weight: ${({ $hasDescription }) => ($hasDescription ? 600 : 400)};
+  font-weight: ${({ $hasDescription }) => ($hasDescription ? 500 : 400)};
   overflow-wrap: anywhere;
 `
 
 const Description = styled.div`
-  margin-top: 2px;
+  margin-top: 4px;
   color: var(--color-muted);
   overflow-wrap: anywhere;
 `
@@ -139,7 +162,7 @@ const Alert: React.FC<AlertProps> = ({
     >
       {shouldShowIcon && (
         <IconWrapper className="ui-alert-icon" $type={type}>
-          <KitIcon name={role.icon} size={16} />
+          <KitIcon name={role.icon} size={15} />
         </IconWrapper>
       )}
       <Content className="ui-alert-content">

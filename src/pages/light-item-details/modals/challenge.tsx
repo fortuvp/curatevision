@@ -225,7 +225,7 @@ const ChallengeModal = ({
     },
     {
       title: 'Kleros jurors decide',
-      body: 'They rule on the listing policy. Both sides can add evidence until the vote.',
+      body: 'They rule on the listing policy. Anyone can add evidence until the request is resolved.',
     },
     {
       title: 'Jurors agree with you',

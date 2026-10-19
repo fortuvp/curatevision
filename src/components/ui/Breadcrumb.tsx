@@ -13,8 +13,9 @@ const BreadcrumbWrapper = styled.nav`
 `
 
 const BreadcrumbSeparator = styled.span`
-  margin: 0 8px;
+  margin: 0 10px;
   color: var(--color-faint);
+  opacity: 0.7;
 `
 
 const BreadcrumbItemWrapper = styled.span<{ $isLast?: boolean }>`
@@ -24,15 +25,15 @@ const BreadcrumbItemWrapper = styled.span<{ $isLast?: boolean }>`
   color: ${({ $isLast }) =>
     $isLast ? 'var(--color-text)' : 'var(--color-muted)'};
   font-weight: ${({ $isLast }) => ($isLast ? 500 : 400)};
-  transition: color var(--motion);
+  transition: color var(--dur-hover) var(--ease-out);
 
   a {
     color: inherit;
     text-decoration: none;
-    transition: color var(--motion);
+    transition: color var(--dur-hover) var(--ease-out);
 
     &:hover {
-      color: var(--color-primary);
+      color: var(--color-text);
     }
   }
 `
@@ -44,10 +45,10 @@ const ItemButton = styled.button`
   color: inherit;
   font: inherit;
   cursor: pointer;
-  transition: color var(--motion);
+  transition: color var(--dur-hover) var(--ease-out);
 
   &:hover {
-    color: var(--color-primary);
+    color: var(--color-text);
   }
 `
 

@@ -3,14 +3,19 @@ import styled, { css } from 'styled-components'
 import { KitIcon } from './kit-icons'
 import { joinClassNames } from './kit-styles'
 
+/*
+ * Collapse, v2: one glass surface holding the panels, split by hairlines.
+ * Headers are 48px rows; the chevron turns and the body eases open.
+ */
 const CollapseWrapper = styled.div<{ $bordered?: boolean }>`
   overflow: hidden;
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
   ${({ $bordered }) =>
     $bordered &&
     css`
-      border: 1px solid var(--color-border);
+      border: 1px solid var(--glass-border);
     `}
 `
 
@@ -19,19 +24,18 @@ const PanelWrapper = styled.div<{ $bordered?: boolean }>`
     $bordered &&
     css`
       &:not(:last-child) {
-        border-bottom: 1px solid var(--color-border);
+        border-bottom: 1px solid var(--glass-border);
       }
     `}
 `
 
-/* 44px header row; the chevron turns when the panel is open. */
 const PanelHeader = styled.button`
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  min-height: 44px;
-  padding: 10px 16px;
+  min-height: 48px;
+  padding: 12px 18px;
   border: 0;
   background: transparent;
   color: var(--color-text);
@@ -40,7 +44,7 @@ const PanelHeader = styled.button`
   font-weight: 500;
   text-align: left;
   cursor: pointer;
-  transition: background var(--motion);
+  transition: background var(--dur-hover) var(--ease-out);
 
   &:hover:not(:disabled) {
     background: var(--color-raised);
@@ -55,8 +59,11 @@ const PanelHeader = styled.button`
 const ArrowIcon = styled.span<{ $active?: boolean }>`
   display: inline-flex;
   flex: 0 0 auto;
-  color: var(--color-muted);
-  transition: transform var(--motion);
+  color: ${({ $active }) =>
+    $active ? 'var(--color-primary)' : 'var(--color-faint)'};
+  transition:
+    transform var(--dur-control) var(--ease-spring),
+    color var(--dur-hover) var(--ease-out);
   transform: rotate(${({ $active }) => ($active ? '0deg' : '-90deg')});
 `
 
@@ -67,7 +74,7 @@ const HeaderText = styled.span`
 
 const PanelContentOuter = styled.div`
   overflow: hidden;
-  transition: height 0.3s ease;
+  transition: height 300ms var(--ease-in-out);
 
   @media (prefers-reduced-motion: reduce) {
     transition: none;
@@ -75,8 +82,7 @@ const PanelContentOuter = styled.div`
 `
 
 const PanelContentInner = styled.div`
-  padding: 16px;
-  border-top: 1px solid var(--color-border);
+  padding: 2px 18px 18px;
   color: var(--color-text);
   font-size: var(--fs-body);
   line-height: var(--lh-body);

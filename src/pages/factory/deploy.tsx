@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import styled from 'styled-components'
+import styled, { css, keyframes } from 'styled-components'
 import {
   parseEther,
   encodeFunctionData,
@@ -12,14 +12,11 @@ import { simulateContract } from '@wagmi/core'
 import _GTCRFactory from 'assets/abis/LightGTCRFactory.json'
 import { Roles, useAtlasProvider } from '@kleros/kleros-app'
 import { JSON_UPLOAD_ROLE } from 'utils/atlas-roles'
-import {
-  ZERO_ADDRESS,
-  isVowel,
-  jurorsAndCourtIDFromExtraData,
-} from 'utils/string'
+import { ZERO_ADDRESS, isVowel } from 'utils/string'
 import { wrapWithToast, errorToast } from 'utils/wrap-with-toast'
 import { parseWagmiError } from 'utils/parse-wagmi-error'
 import { formatDurationLong } from 'utils/time'
+import { parseIpfs } from 'utils/ipfs-parse'
 import { wagmiConfig } from 'config/wagmi'
 import { NETWORKS_INFO, getExplorerUrl } from 'config/networks'
 import useUrlChainId from 'hooks/use-url-chain-id'
@@ -33,30 +30,32 @@ import {
   txBatcherAddresses,
 } from 'config/tcr-addresses'
 import { CurateIcon } from 'components/curate/icons'
+import { reveal } from 'components/curate/motion/reveal'
 import {
-  Body,
   Button,
   ButtonLink,
   Data,
-  KeyValueList,
   Label,
-  Mono,
   Row,
   Small,
   Stack,
-  Status,
+  StatusDot,
   truncateMiddle,
 } from 'components/curate/primitives'
-import { Note, StepHeader, formatNative, useWalletGate } from './fields'
+import { StepBody, StepHeader, formatNative, useWalletGate } from './fields'
 import { incompleteSteps, listInProse } from './schemas'
+import { useCourtSummary } from './court'
 import type { StepProps, TcrState } from '.'
 
 /*
- * Step 4, deploy: a review of what was entered, what the one signature
- * sends (two factory deployments batched through the transaction batcher,
- * gas only), the blockers that stop it, the transaction status with the
- * hash, and the optional submission to the list of lists afterwards. The
- * meta-evidence upload and the contract calls are unchanged.
+ * Step 4, deploy: a review of what was entered (each row can jump back to
+ * its step), then the deployment as a transaction stepper: the IPFS upload
+ * (with the files' paths), the one signature (two factory deployments
+ * batched through the transaction batcher, gas only, with the predicted
+ * addresses), the confirmations (with the hash and an explorer link), the
+ * live list and the optional submission to the list of lists. The blockers
+ * name what stops the deploy. The meta-evidence upload and the contract
+ * calls are unchanged.
  */
 
 export const _txBatcher = [
@@ -275,72 +274,350 @@ const getTcrMetaEvidence = async (
 
 /* ---------- Layout ---------- */
 
-const Steps = styled.ol`
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  counter-reset: step;
+const spin = keyframes`
+  to { transform: rotate(360deg); }
 `
 
-const Step = styled.li`
+const Review = styled.dl`
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr);
-  gap: 10px;
-  align-items: start;
-  counter-increment: step;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 24px;
+  margin: 0;
 
-  &::before {
-    content: counter(step);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    border: 1px solid var(--color-border-strong);
-    border-radius: var(--radius-pill);
-    color: var(--color-muted);
-    font-family: var(--font-mono);
-    font-size: var(--fs-label);
-    font-weight: 500;
+  @media (max-width: 720px) {
+    grid-template-columns: minmax(0, 1fr);
   }
 `
 
-const StepTitle = styled.div`
-  color: var(--color-text);
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
-  font-weight: 600;
+const ReviewRow = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 12px;
+  min-height: 60px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--glass-border);
+
+  dt {
+    grid-column: 1;
+  }
+
+  dd {
+    grid-column: 1;
+    margin: 0;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--color-text);
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  dd[data-empty='true'] {
+    color: var(--color-faint);
+    font-weight: 400;
+  }
+
+  button {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
 `
 
-const StepBody = styled.div`
+const EditButton = styled.button`
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-primary);
+  font-size: var(--fs-small);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--motion);
+
+  &:hover {
+    background: var(--color-primary-soft);
+  }
+`
+
+type TxStatus = 'upcoming' | 'active' | 'done' | 'failed'
+
+const TxList = styled.ol`
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+`
+
+const TxItem = styled.li<{ $status: TxStatus; $last?: boolean }>`
+  position: relative;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 14px;
+  padding-bottom: ${({ $last }) => ($last ? 0 : '22px')};
+  ${reveal}
+
+  /* The connector to the next step fills once this one is done. */
+  &::before,
+  &::after {
+    content: ${({ $last }) => ($last ? 'none' : "''")};
+    position: absolute;
+    top: 36px;
+    bottom: 4px;
+    left: 15px;
+    width: 2px;
+    border-radius: var(--radius-pill);
+  }
+
+  &::before {
+    background: var(--glass-border);
+  }
+
+  &::after {
+    background: linear-gradient(var(--color-primary), var(--aurora-b));
+    box-shadow: 0 0 10px
+      color-mix(in srgb, var(--color-primary) 60%, transparent);
+    transform-origin: top;
+    transform: scaleY(${({ $status }) => ($status === 'done' ? 1 : 0)});
+    transition: transform 700ms var(--ease-out);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::after {
+      transition: none;
+    }
+  }
+`
+
+const txMarker = {
+  upcoming: css`
+    border-color: var(--glass-border);
+    background: var(--color-surface);
+    color: var(--color-faint);
+  `,
+  active: css`
+    border-color: color-mix(in srgb, var(--color-primary) 55%, transparent);
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+    box-shadow: 0 0 0 5px
+      color-mix(in srgb, var(--color-primary) 10%, transparent);
+  `,
+  done: css`
+    border-color: color-mix(in srgb, var(--color-primary) 60%, transparent);
+    background: var(--color-primary-fill);
+    color: var(--color-on-primary);
+    box-shadow: 0 6px 18px -8px var(--color-primary);
+  `,
+  failed: css`
+    border-color: color-mix(in srgb, var(--color-danger) 60%, transparent);
+    background: var(--color-danger-soft);
+    color: var(--color-danger);
+  `,
+}
+
+const TxMarker = styled.span<{ $status: TxStatus }>`
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid;
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition:
+    background 320ms var(--ease-out),
+    border-color 320ms var(--ease-out),
+    box-shadow 320ms var(--ease-out),
+    color 320ms var(--ease-out);
+  ${({ $status }) => txMarker[$status]}
+`
+
+const Spinner = styled.i`
+  width: 14px;
+  height: 14px;
+  border: 2px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
+  border-top-color: var(--color-primary);
+  border-radius: var(--radius-pill);
+  animation: ${spin} 800ms linear infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation-duration: 2400ms;
+  }
+`
+
+const TxBody = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding-top: 5px;
+`
+
+const TxTitle = styled.span<{ $status: TxStatus }>`
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  color: ${({ $status }) =>
+    $status === 'upcoming' ? 'var(--color-muted)' : 'var(--color-text)'};
+  font-size: var(--fs-body-lg);
+  line-height: var(--lh-body-lg);
+  font-weight: 500;
+`
+
+const TxNote = styled.span`
   color: var(--color-muted);
   font-size: var(--fs-small);
   line-height: var(--lh-small);
 `
 
+const TxData = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin-top: 6px;
+`
+
 const HashLink = styled.a`
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-raised);
   color: var(--color-primary);
   font-family: var(--font-mono);
-  font-size: var(--fs-data);
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   text-decoration: none;
+  transition:
+    border-color var(--motion),
+    background var(--motion);
+
+  span {
+    color: var(--color-muted);
+    font-family: var(--font-sans);
+  }
 
   &:hover {
-    text-decoration: underline;
+    border-color: color-mix(in srgb, var(--color-primary) 45%, transparent);
+    background: var(--color-primary-soft);
   }
 `
 
-type DeployPhase = 'idle' | 'uploading' | 'wallet' | 'mined'
+const AddressPill = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-raised);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 12px;
 
-type DeployProps = Omit<StepProps, 'postSubmit'> & { postSubmit?: () => void }
+  span {
+    color: var(--color-muted);
+    font-family: var(--font-sans);
+  }
+`
 
-const Deploy = ({ setTxState, tcrState, setTcrState }: DeployProps) => {
+const TxTag = styled.span`
+  color: var(--color-faint);
+  font-size: var(--fs-small);
+  font-weight: 400;
+`
+
+const ActionArea = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+`
+
+const TxStep = ({
+  number,
+  status,
+  title,
+  tag,
+  note,
+  last,
+  index,
+  children,
+}: {
+  number: number
+  status: TxStatus
+  title: React.ReactNode
+  tag?: React.ReactNode
+  /** Shown only while the step runs or after it failed. */
+  note?: React.ReactNode
+  last?: boolean
+  index: number
+  children?: React.ReactNode
+}) => (
+  <TxItem
+    $status={status}
+    $last={last}
+    style={{ ['--i' as string]: index }}
+    aria-current={status === 'active' ? 'step' : undefined}
+  >
+    <TxMarker $status={status} aria-hidden>
+      {status === 'done' ? (
+        <CurateIcon name="check" size={15} />
+      ) : status === 'active' ? (
+        <Spinner />
+      ) : status === 'failed' ? (
+        <CurateIcon name="close" size={14} />
+      ) : (
+        number
+      )}
+    </TxMarker>
+    <TxBody>
+      <TxTitle $status={status}>
+        {title}
+        {tag && <TxTag>{tag}</TxTag>}
+      </TxTitle>
+      {note && (status === 'active' || status === 'failed') && (
+        <TxNote>{note}</TxNote>
+      )}
+      {children}
+    </TxBody>
+  </TxItem>
+)
+
+type DeployPhase = 'idle' | 'uploading' | 'wallet' | 'mining' | 'mined'
+
+type DeployProps = Omit<StepProps, 'postSubmit'> & {
+  postSubmit?: () => void
+  /** Jump back to a visual step by its title ("Name", "Fields"…). */
+  onEditStep?: (stepTitle: string) => void
+}
+
+const META_EVIDENCE_LABELS = [
+  'Add rules',
+  'Remove rules',
+  'Badges add rules',
+  'Badges remove rules',
+]
+
+const Deploy = ({
+  setTxState,
+  tcrState,
+  setTcrState,
+  onEditStep,
+}: DeployProps) => {
   const urlChainId = useUrlChainId()
   const walletChainId = useChainId()
   const chainId = urlChainId ?? walletChainId
@@ -355,6 +632,13 @@ const Deploy = ({ setTxState, tcrState, setTcrState }: DeployProps) => {
   const [txSubmitted, setTxSubmitted] = useState<string>()
   const [deployedTCRAddress, setDeployedTCRAddress] = useState<string>()
   const [submissionFormOpen, setSubmissionFormOpen] = useState(false)
+  const [pendingHash, setPendingHash] = useState<string>()
+  const [metaEvidencePaths, setMetaEvidencePaths] = useState<string[]>([])
+  const [predicted, setPredicted] = useState<{
+    list: string
+    badges: string
+  }>()
+  const [failedAt, setFailedAt] = useState<DeployPhase>()
   const factoryAddress = lgtcrFactoryAddresses[chainId]
   const defaultTCRAddress = defaultTcrAddresses[chainId]
   const batcherAddress = txBatcherAddresses[chainId]
@@ -370,7 +654,7 @@ const Deploy = ({ setTxState, tcrState, setTcrState }: DeployProps) => {
   const gate = useWalletGate({ verb: 'deploy', needsChain: true })
 
   const incomplete = useMemo(() => incompleteSteps(tcrState), [tcrState])
-  const busy = phase === 'uploading' || phase === 'wallet'
+  const busy = phase === 'uploading' || phase === 'wallet' || phase === 'mining'
   const configured =
     !!factoryAddress && !!batcherAddress && !!evidenceDisplayInterfaceURI
   const blocker = !configured
@@ -381,9 +665,11 @@ const Deploy = ({ setTxState, tcrState, setTcrState }: DeployProps) => {
 
   const listOfListsTitle = metaEvidence?.metadata?.tcrTitle || 'Curated Lists'
   const listOfListsDeposit = formatNative(submissionDeposit)
-  const extra = tcrState.arbitratorExtraData
-    ? jurorsAndCourtIDFromExtraData(tcrState.arbitratorExtraData)
-    : null
+  const court = useCourtSummary(
+    chainId,
+    tcrState.arbitratorAddress,
+    tcrState.arbitratorExtraData,
+  )
   const periodHours = Number(tcrState.challengePeriodDuration)
   const period =
     Number.isFinite(periodHours) && periodHours > 0
@@ -407,6 +693,12 @@ const Deploy = ({ setTxState, tcrState, setTcrState }: DeployProps) => {
     }
     const factory = factoryAddress as Address
     const batcher = batcherAddress as Address
+    // Which stage a failure belongs to, for the stepper.
+    let stage: DeployPhase = 'uploading'
+    setFailedAt(undefined)
+    setPendingHash(undefined)
+    setMetaEvidencePaths([])
+    setPredicted(undefined)
     try {
       setPhase('uploading')
       const txCount = await publicClient.getTransactionCount({
@@ -428,6 +720,15 @@ const Deploy = ({ setTxState, tcrState, setTcrState }: DeployProps) => {
         evidenceDisplayInterfaceURI,
         uploadFile,
       )
+      setMetaEvidencePaths([
+        registrationMetaEvidencePath,
+        clearingMetaEvidencePath,
+        relRegistrationMetaEvidencePath,
+        relClearingMetaEvidencePath,
+      ])
+      // Uploaded: from here on a failure belongs to the transaction.
+      stage = 'wallet'
+      setPhase('wallet')
 
       const relTCRArgs = [
         tcrState.relArbitratorAddress,
@@ -464,6 +765,7 @@ const Deploy = ({ setTxState, tcrState, setTcrState }: DeployProps) => {
         from: factory,
         nonce: BigInt(txCount),
       })
+      setPredicted({ list: parentTCRAddress, badges: relTCRAddress })
 
       const TCRArgs = [
         tcrState.arbitratorAddress,
@@ -505,10 +807,15 @@ const Deploy = ({ setTxState, tcrState, setTcrState }: DeployProps) => {
         account,
       })
 
-      setPhase('wallet')
-
       const result = await wrapWithToast(
-        () => walletClient.writeContract(request),
+        () =>
+          walletClient.writeContract(request).then((hash) => {
+            // Signed: show the hash while the confirmations come in.
+            stage = 'mining'
+            setPendingHash(hash)
+            setPhase('mining')
+            return hash
+          }),
         publicClient,
       )
 
@@ -562,181 +869,345 @@ const Deploy = ({ setTxState, tcrState, setTcrState }: DeployProps) => {
         }))
         setPhase('mined')
         setDeployedTCRAddress(contractAddress)
-      } else setPhase('idle')
+      } else {
+        setFailedAt(stage)
+        setPhase('idle')
+      }
     } catch (err) {
       console.error('Error deploying list:', err)
       errorToast(parseWagmiError(err))
+      setFailedAt(stage)
       setPhase('idle')
     }
   }
 
-  const explorerTxUrl = txSubmitted
-    ? `${getExplorerUrl(chainId)}/tx/${txSubmitted}`
+  const shownHash = txSubmitted ?? pendingHash
+  const explorerTxUrl = shownHash
+    ? `${getExplorerUrl(chainId)}/tx/${shownHash}`
     : undefined
+  const explorerAddressUrl = deployedTCRAddress
+    ? `${getExplorerUrl(chainId)}/address/${deployedTCRAddress}`
+    : undefined
+
+  const order: DeployPhase[] = ['uploading', 'wallet', 'mining', 'mined']
+  const reached = order.indexOf(phase)
+  const stepStatus = (stage: DeployPhase): TxStatus => {
+    if (phase === 'idle') {
+      // After a failure, show how far the last attempt got.
+      if (!failedAt) return 'upcoming'
+      const failed = order.indexOf(failedAt)
+      const at = order.indexOf(stage)
+      return at < failed ? 'done' : at === failed ? 'failed' : 'upcoming'
+    }
+    const at = order.indexOf(stage)
+    if (phase === 'mined' || at < reached) return 'done'
+    return at === reached ? 'active' : 'upcoming'
+  }
+  const liveStatus: TxStatus = phase === 'mined' ? 'done' : 'upcoming'
+  const failedNote =
+    failedAt && phase === 'idle'
+      ? failedAt === 'uploading'
+        ? 'The upload failed, so nothing was deployed. Try again.'
+        : 'The transaction was not sent, so nothing was deployed. Try again when ready.'
+      : undefined
+
+  const fieldNames = tcrState.isTCRofTCRs
+    ? 'List address (a list of lists)'
+    : tcrState.columns
+        .map((column) => column.label)
+        .filter(Boolean)
+        .join(', ')
+  const reviewRows: {
+    label: string
+    value: React.ReactNode
+    empty?: boolean
+    step: string
+  }[] = [
+    {
+      label: 'Name',
+      value: tcrState.tcrTitle || 'Not set',
+      empty: !tcrState.tcrTitle,
+      step: 'Name',
+    },
+    {
+      label: 'Policy',
+      value: tcrState.tcrPrimaryDocument ? 'Uploaded' : 'Not uploaded',
+      empty: !tcrState.tcrPrimaryDocument,
+      step: 'Policy',
+    },
+    {
+      label: 'Entries',
+      value: `${tcrState.itemName || '—'} / ${tcrState.itemNamePlural || '—'}`,
+      step: 'Item name',
+    },
+    {
+      label: 'Fields',
+      value: fieldNames || 'None named',
+      empty: !fieldNames,
+      step: 'Fields',
+    },
+    {
+      label: 'Submission deposit',
+      value: `${String(tcrState.submissionBaseDeposit)} ${nativeCurrency} + arbitration cost`,
+      step: 'Deposit',
+    },
+    {
+      label: 'Challenge period',
+      value: period,
+      step: 'Deposit',
+    },
+    ...(!court.isKleros
+      ? [
+          {
+            label: 'Arbitrator',
+            value: tcrState.arbitratorAddress
+              ? truncateMiddle(tcrState.arbitratorAddress, 8, 6)
+              : 'Not set',
+            empty: !tcrState.arbitratorAddress,
+            step: 'Deposit',
+          },
+        ]
+      : []),
+    ...(court.courtName && court.jurors !== undefined
+      ? [
+          {
+            label: 'Court',
+            value: `${court.courtName} · ${court.jurors} ${court.jurors === 1 ? 'juror' : 'jurors'} in the first round`,
+            step: 'Deposit',
+          },
+        ]
+      : []),
+    {
+      label: 'Badges list',
+      value: tcrState.relTcrDisabled ? 'Skipped' : 'Included',
+      step: 'Badges',
+    },
+  ]
 
   return (
     <>
-      <Stack $gap={20}>
+      <StepBody>
         <StepHeader
           heading={phase === 'mined' ? 'List deployed' : 'Review and deploy'}
           lede={
             phase === 'mined'
-              ? 'The list is live. Bookmark its address; it is also saved in this browser under previous deployments.'
-              : 'Check the details, then sign one transaction. You pay gas only; deposits are paid by submitters later.'
+              ? 'The list is live; it is also saved in this browser under your deployments.'
+              : 'Check the details, then sign one transaction: you pay gas only, submitters pay deposits later.'
           }
         />
 
-        {phase !== 'mined' && (
-          <>
-            <KeyValueList>
-              <dt>Name</dt>
-              <dd>{tcrState.tcrTitle || '—'}</dd>
-              <dt>Items</dt>
-              <dd>
-                {tcrState.itemName || '—'} / {tcrState.itemNamePlural || '—'}
-              </dd>
-              <dt>Fields</dt>
-              <dd>
-                {tcrState.isTCRofTCRs
-                  ? 'List address (a list of lists)'
-                  : tcrState.columns
-                      .map((column) => column.label)
-                      .filter(Boolean)
-                      .join(', ') || '—'}
-              </dd>
-              <dt>Submission deposit</dt>
-              <dd>
-                <Data>
-                  {String(tcrState.submissionBaseDeposit)} {nativeCurrency}
-                </Data>{' '}
-                <Small $muted>+ arbitration cost</Small>
-              </dd>
-              <dt>Challenge period</dt>
-              <dd>
-                <Data>{period}</Data>
-              </dd>
-              {extra && (
-                <>
-                  <dt>Jurors</dt>
-                  <dd>
-                    <Data>{extra.numberOfJurors}</Data>{' '}
-                    <Small $muted>
-                      in the first round, court {extra.courtID}
-                    </Small>
-                  </dd>
-                </>
-              )}
-              <dt>Badges list</dt>
-              <dd>{tcrState.relTcrDisabled ? 'Skipped' : 'Included'}</dd>
-            </KeyValueList>
-
-            <Note role="group" aria-label="What happens next">
-              <Label>What happens next</Label>
-              <Steps>
-                <Step>
-                  <div>
-                    <StepTitle>You sign one transaction</StepTitle>
-                    <StepBody>
-                      It batches two deployments through the transaction
-                      batcher: the badges list
-                      {tcrState.relTcrDisabled
-                        ? ' (a closed placeholder, since you skipped it)'
-                        : ''}{' '}
-                      and your list. You pay gas only; there is no deposit.
-                    </StepBody>
-                  </div>
-                </Step>
-                <Step>
-                  <div>
-                    <StepTitle>The list goes live</StepTitle>
-                    <StepBody>
-                      Its address and the transaction appear here. Keep this
-                      page open until the transaction is mined.
-                    </StepBody>
-                  </div>
-                </Step>
-                <Step>
-                  <div>
-                    <StepTitle>
-                      Optional: submit it to {listOfListsTitle}
-                    </StepTitle>
-                    <StepBody>
-                      So people can find it. That submission locks{' '}
-                      {listOfListsDeposit
-                        ? `${listOfListsDeposit} ${nativeCurrency}`
-                        : 'a deposit'}{' '}
-                      that comes back in full if nobody challenges it.
-                    </StepBody>
-                  </div>
-                </Step>
-              </Steps>
-            </Note>
-
-            <Stack $gap={10}>
-              <Row $gap={10} $wrap>
-                <Button
-                  type="button"
-                  $variant="primary"
-                  disabled={!!blocker || busy}
-                  aria-disabled={!!blocker || busy}
-                  title={blocker || undefined}
-                  onClick={onDeploy}
+        {phase === 'idle' && (
+          <Review aria-label="Review">
+            {reviewRows.map((row) => (
+              <ReviewRow key={row.label}>
+                <Label as="dt" $tone="faint">
+                  {row.label}
+                </Label>
+                <dd
+                  data-empty={row.empty || undefined}
+                  title={typeof row.value === 'string' ? row.value : undefined}
                 >
-                  {busy ? 'Deploying…' : 'Deploy the list'}
-                </Button>
-                {!busy && configured && incomplete.length === 0 && gate.control}
+                  {row.value}
+                </dd>
+                {onEditStep && (
+                  <EditButton
+                    type="button"
+                    aria-label={`Edit ${row.label.toLowerCase()}`}
+                    onClick={() => onEditStep(row.step)}
+                  >
+                    Edit
+                  </EditButton>
+                )}
+              </ReviewRow>
+            ))}
+          </Review>
+        )}
+
+        <Stack $gap={14}>
+          <Label $tone="faint">
+            {phase === 'idle' ? 'What deploying does' : 'Deployment'}
+          </Label>
+          <TxList aria-label="Deployment steps">
+            <TxStep
+              index={0}
+              number={1}
+              status={stepStatus('uploading')}
+              title="Upload the list details"
+              tag="IPFS"
+              note={
+                stepStatus('uploading') === 'failed'
+                  ? failedNote
+                  : 'Four small files: the add and remove rules for your list and its badges list.'
+              }
+            >
+              {metaEvidencePaths.length > 0 && (
+                <TxData>
+                  {metaEvidencePaths.map((path, index) => (
+                    <HashLink
+                      key={path}
+                      href={parseIpfs(path)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={path}
+                    >
+                      <span>{META_EVIDENCE_LABELS[index]}</span>
+                      {truncateMiddle(
+                        path.replace(/^\/?ipfs\//, '').split('/')[0],
+                        6,
+                        4,
+                      )}
+                    </HashLink>
+                  ))}
+                </TxData>
+              )}
+            </TxStep>
+            <TxStep
+              index={1}
+              number={2}
+              status={stepStatus('wallet')}
+              title="Sign one transaction"
+              tag="Gas only"
+              note={
+                stepStatus('wallet') === 'failed'
+                  ? failedNote
+                  : `Confirm in your wallet. It batches two deployments: the badges list${tcrState.relTcrDisabled ? ' (a closed placeholder, since you skipped it)' : ''}, then your list.`
+              }
+            >
+              {predicted && (
+                <TxData>
+                  <AddressPill title={predicted.list}>
+                    <span>Your list</span>
+                    {truncateMiddle(predicted.list, 6, 4)}
+                  </AddressPill>
+                  <AddressPill title={predicted.badges}>
+                    <span>Badges list</span>
+                    {truncateMiddle(predicted.badges, 6, 4)}
+                  </AddressPill>
+                </TxData>
+              )}
+            </TxStep>
+            <TxStep
+              index={2}
+              number={3}
+              status={stepStatus('mining')}
+              title="Wait for two confirmations"
+              note={
+                stepStatus('mining') === 'failed'
+                  ? 'The transaction did not go through; nothing was deployed.'
+                  : 'Keep this page open until the transaction is mined.'
+              }
+            >
+              {shownHash && explorerTxUrl && (
+                <TxData>
+                  <HashLink
+                    href={explorerTxUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={shownHash}
+                  >
+                    <span>Transaction</span>
+                    {truncateMiddle(shownHash, 8, 6)}
+                    <CurateIcon name="external" size={12} />
+                  </HashLink>
+                </TxData>
+              )}
+            </TxStep>
+            <TxStep
+              index={3}
+              number={4}
+              status={liveStatus}
+              title="The list goes live"
+            >
+              {phase === 'mined' && deployedTCRAddress && (
+                <TxData>
+                  {explorerAddressUrl ? (
+                    <HashLink
+                      href={explorerAddressUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={deployedTCRAddress}
+                    >
+                      <span>Address</span>
+                      {truncateMiddle(deployedTCRAddress, 8, 6)}
+                      <CurateIcon name="external" size={12} />
+                    </HashLink>
+                  ) : (
+                    <AddressPill title={deployedTCRAddress}>
+                      <span>Address</span>
+                      {truncateMiddle(deployedTCRAddress, 8, 6)}
+                    </AddressPill>
+                  )}
+                </TxData>
+              )}
+            </TxStep>
+            <TxStep
+              index={4}
+              number={5}
+              status="upcoming"
+              title={`Submit it to ${listOfListsTitle}`}
+              tag={
+                listOfListsDeposit
+                  ? `Optional · ${listOfListsDeposit} ${nativeCurrency} deposit`
+                  : 'Optional'
+              }
+              last
+            />
+          </TxList>
+        </Stack>
+
+        {phase !== 'mined' && (
+          <ActionArea>
+            <Row $gap={10} $wrap>
+              <Button
+                type="button"
+                $variant="primary"
+                disabled={!!blocker || busy}
+                aria-disabled={!!blocker || busy}
+                title={blocker || undefined}
+                onClick={onDeploy}
+              >
+                {phase === 'uploading'
+                  ? 'Uploading…'
+                  : phase === 'wallet'
+                    ? 'Waiting for your signature…'
+                    : phase === 'mining'
+                      ? 'Confirming…'
+                      : failedAt
+                        ? 'Deploy again'
+                        : 'Deploy the list'}
+              </Button>
+              {!busy && configured && incomplete.length === 0 && gate.control}
+            </Row>
+            {blocker && !busy && (
+              <Row $gap={8} role="status">
+                <StatusDot $tone="neutral" aria-hidden />
+                <Small $muted>{blocker}</Small>
               </Row>
-              {blocker && !busy && (
-                <Small $muted role="status">
-                  {blocker}
+            )}
+            {busy && (
+              <Row $gap={8} role="status">
+                <StatusDot $tone="window" aria-hidden />
+                <Small $muted>
+                  {phase === 'uploading'
+                    ? 'Uploading the list details to IPFS'
+                    : phase === 'wallet'
+                      ? 'Confirm the transaction in your wallet'
+                      : 'Waiting for the transaction to be mined'}
                 </Small>
-              )}
-              {busy && (
-                <Status
-                  tone="window"
-                  label="Deploying"
-                  detail={
-                    phase === 'uploading'
-                      ? 'uploading the list details to IPFS'
-                      : 'confirm in your wallet, then wait for the transaction to be mined'
-                  }
-                />
-              )}
-            </Stack>
-          </>
+              </Row>
+            )}
+          </ActionArea>
         )}
 
         {phase === 'mined' && deployedTCRAddress && (
-          <>
-            <Status tone="registered" label="Deployed" />
-            <KeyValueList>
-              <dt>Address</dt>
-              <dd>
-                <Mono title={deployedTCRAddress}>
-                  {truncateMiddle(deployedTCRAddress, 10, 8)}
-                </Mono>
-              </dd>
-              {txSubmitted && explorerTxUrl && (
-                <>
-                  <dt>Transaction</dt>
-                  <dd>
-                    <HashLink
-                      href={explorerTxUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title={txSubmitted}
-                    >
-                      {truncateMiddle(txSubmitted, 10, 8)}
-                      <CurateIcon name="external" size={14} />
-                    </HashLink>
-                  </dd>
-                </>
-              )}
-            </KeyValueList>
-            <Body $muted>
-              If it meets the listing policy, submit it to {listOfListsTitle} so
-              other people can find it.
-            </Body>
+          <ActionArea>
+            <Row $gap={8} role="status">
+              <StatusDot $tone="registered" aria-hidden />
+              <Small>Deployed</Small>
+              <Data $muted $weight={400} title={deployedTCRAddress}>
+                {truncateMiddle(deployedTCRAddress, 10, 8)}
+              </Data>
+            </Row>
             <Row $gap={10} $wrap>
               <ButtonLink
                 to={`/tcr/${chainId}/${deployedTCRAddress}`}
@@ -754,9 +1225,9 @@ const Deploy = ({ setTxState, tcrState, setTcrState }: DeployProps) => {
                 </Button>
               )}
             </Row>
-          </>
+          </ActionArea>
         )}
-      </Stack>
+      </StepBody>
       {metaEvidence &&
         submissionDeposit &&
         challengePeriodDuration &&

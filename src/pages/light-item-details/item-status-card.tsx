@@ -1,75 +1,185 @@
 import React, { useContext, useMemo } from 'react'
 import styled from 'styled-components'
 import type { Address } from 'viem'
-import type { BigNumber } from 'ethers'
+import type { BigNumber, BigNumberish } from 'ethers'
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
 import { simulateContract } from '@wagmi/core'
 import _gtcr from 'assets/abis/LightGeneralizedTCR.json'
 import {
   itemToStatusCode,
   STATUS_CODE,
-  CONTRACT_STATUS,
   SUBGRAPH_RULING,
 } from 'utils/item-status'
 import { LightTCRViewContext } from 'contexts/light-tcr-view-context'
 import useNativeCurrency from 'hooks/native-currency'
 import useUrlChainId from 'hooks/use-url-chain-id'
 import useNow from 'hooks/use-now'
-import { klerosAddresses } from 'config/tcr-addresses'
 import { wrapWithToast, errorToast } from 'utils/wrap-with-toast'
 import { parseWagmiError } from 'utils/parse-wagmi-error'
 import { wagmiConfig } from 'config/wagmi'
-import { formatAbsolute, formatAgo } from 'utils/time'
+import {
+  formatAbsolute,
+  formatAgo,
+  formatDuration,
+  formatDurationLong,
+} from 'utils/time'
 import ItemActionButton from 'components/item-action-button'
 import { scrollToEvidenceComposer } from 'components/request-timelines'
 import { CurateIcon } from 'components/curate/icons'
 import {
-  Body,
   Button,
   ButtonAnchor,
-  KeyValueList,
   Label,
-  Row,
   SkeletonBlock,
   Small,
   Stack,
-  Status,
-  Subheading,
   Surface,
 } from 'components/curate/primitives'
-import { CountdownCard } from 'components/curate/countdown-card'
 import { EntryStatus, lightEntryStatus } from 'components/curate/entry-status'
 import { useActionGate } from 'components/curate/item-light-gate'
-import { AddressLink } from 'components/curate/item-light-fields'
-import { Notice } from 'components/curate/item-light-notice'
 import { StickyActionBar } from 'components/curate/item-light-action-bar'
-import { formatAmount, toSeconds } from 'components/curate/item-light-format'
+import { AddressLink } from 'components/curate/item-light-fields'
+import { formatAmount, formatEther } from 'components/curate/item-light-format'
 import ItemActionModal from './item-action-modal'
+import { requestFacts, type LightRequest } from './request-facts'
 
 /*
- * The action card (DESIGN.md: right rail on desktop, sticky bottom bar on
- * phones): the current request and its status, the countdown for the open
- * window (challenge or appeal), the deposit at stake, the dispute link, and
- * the one action with its exact amount. While jurors decide, the card asks
- * for evidence instead of showing a disabled button.
+ * The action card (right rail; a bottom bar on phones). It leads with the
+ * one thing to do now and its exact amount, split into deposit and
+ * arbitration cost, then what a successful challenge wins and the court
+ * case. While jurors decide, it asks for evidence instead of showing a dead
+ * button.
  */
 
-const Details = styled(KeyValueList)`
-  gap: 8px 16px;
+const Card = styled(Surface)`
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+`
 
-  dd {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px 8px;
+const Head = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+`
+
+const Amount = styled.div`
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--color-text);
+  font-family: var(--font-figure);
+  font-size: 44px;
+  line-height: 1;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+
+  small {
+    color: var(--color-muted);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: 0;
   }
 `
 
-const ExternalLink = styled.a`
-  color: var(--color-primary);
-  text-decoration: none;
+const Prompt = styled.p`
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+`
 
-  &:hover {
+const SplitBar = styled.div`
+  display: flex;
+  gap: 3px;
+  height: 6px;
+
+  span {
+    min-width: 4px;
+    border-radius: var(--radius-pill);
+  }
+`
+
+const SplitLegend = styled.ul`
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--color-muted);
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  i {
+    width: 7px;
+    height: 7px;
+    border-radius: var(--radius-pill);
+  }
+
+  b {
+    color: var(--color-text);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+`
+
+const Rows = styled.dl`
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  border-top: 1px solid var(--glass-border);
+
+  div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--glass-border);
+  }
+
+  div:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  dt {
+    color: var(--color-muted);
+    font-size: var(--fs-small);
+    line-height: var(--lh-small);
+  }
+
+  dd {
+    margin: 0;
+    min-width: 0;
+    color: var(--color-text);
+    font-size: var(--fs-small);
+    line-height: var(--lh-small);
+    font-weight: 500;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+
+  a {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--color-primary);
+    text-decoration: none;
+  }
+
+  a:hover {
     text-decoration: underline;
   }
 `
@@ -78,6 +188,7 @@ interface RulingProps {
   currentRuling: string | null
 }
 
+/** The current ruling as a sentence. Kept for the Classic item page. */
 export const Ruling = ({ currentRuling }: RulingProps) => {
   if (currentRuling == null)
     return <SkeletonBlock $height="18px" $width="160px" />
@@ -94,11 +205,53 @@ export const Ruling = ({ currentRuling }: RulingProps) => {
   }
 }
 
-interface LightRequest extends SubgraphRequest {
-  deposit?: BigNumber | string
-  disputeID: string
-  arbitrator: string
-  resolutionTime?: string | null
+/** What the amount is made of: the list's deposit and the court's fee. */
+const AmountSplit = ({
+  base,
+  cost,
+  baseLabel,
+  currency,
+}: {
+  base?: BigNumberish
+  cost?: BigNumberish
+  baseLabel: string
+  currency: string
+}) => {
+  if (base === undefined || cost === undefined) return null
+  const baseValue = Number(formatEther(base))
+  const costValue = Number(formatEther(cost))
+  return (
+    <div
+      role="img"
+      aria-label={`Split of the amount: ${baseLabel} ${formatAmount(
+        base,
+        currency,
+      )}, arbitration cost ${formatAmount(cost, currency)}`}
+    >
+      <SplitBar aria-hidden>
+        {baseValue > 0 && (
+          <span
+            style={{ flexGrow: baseValue, background: 'var(--color-primary)' }}
+          />
+        )}
+        {costValue > 0 && (
+          <span
+            style={{ flexGrow: costValue, background: 'var(--color-muted)' }}
+          />
+        )}
+      </SplitBar>
+      <SplitLegend aria-hidden>
+        <li>
+          <i style={{ background: 'var(--color-primary)' }} />
+          {baseLabel} <b>{formatEther(base)}</b>
+        </li>
+        <li>
+          <i style={{ background: 'var(--color-muted)' }} />
+          Arbitration <b>{formatEther(cost)}</b>
+        </li>
+      </SplitLegend>
+    </div>
+  )
 }
 
 interface ItemStatusCardProps {
@@ -130,13 +283,16 @@ const ItemStatusCard = ({
     removalDeposit,
     submissionChallengeDeposit,
     removalChallengeDeposit,
+    submissionBaseDeposit,
+    removalBaseDeposit,
+    submissionChallengeBaseDeposit,
+    removalChallengeBaseDeposit,
+    arbitrationCost,
     gtcrView,
   } = useContext(LightTCRViewContext) || {}
   const urlChainId = useUrlChainId()
   const nativeCurrency = useNativeCurrency()
   const now = useNow()
-  const { arbitrator: klerosAddress, uiURL } =
-    (urlChainId && klerosAddresses[urlChainId]) || {}
 
   const statusCode = useMemo(
     () =>
@@ -174,50 +330,42 @@ const ItemStatusCard = ({
 
   if (!item || !timestamp || !challengePeriodDuration || !request)
     return (
-      <Surface id="item-status-card" $padding="compact" aria-busy="true">
-        <Stack $gap={12}>
-          <SkeletonBlock $height="18px" $width="50%" />
-          <SkeletonBlock $height="96px" />
-          <SkeletonBlock $height="40px" />
-        </Stack>
-      </Surface>
+      <Card id="item-status-card" $padding="standard" aria-busy="true">
+        <SkeletonBlock $height="16px" $width="50%" />
+        <SkeletonBlock $height="44px" $width="60%" />
+        <SkeletonBlock $height="44px" />
+      </Card>
     )
 
   if (statusCode === undefined || !view) return null
 
-  const { disputed, disputeID, arbitrator, resolved } = request
-  const round = request.rounds?.[0]
-  const currentRuling = round?.ruling ?? null
-  const submissionTime = toSeconds(request.submissionTime)
-  const windowEnd = submissionTime + challengePeriodDuration.toNumber()
-  const appealStart = toSeconds(round?.appealPeriodStart)
-  const appealEnd = toSeconds(round?.appealPeriodEnd)
-  const appealHalf = appealStart + (appealEnd - appealStart) / 2
-  const isRegistration = request.requestType
-    ? request.requestType === CONTRACT_STATUS.REGISTRATION_REQUESTED
-    : item.status === CONTRACT_STATUS.REGISTRATION_REQUESTED
-  const requestLabel = isRegistration ? 'Submission' : 'Removal request'
+  const facts = requestFacts({
+    item,
+    request,
+    statusCode,
+    challengePeriodDuration,
+    chainId: urlChainId,
+  })
+  const {
+    inWindow,
+    isPending,
+    appealable,
+    inCourt,
+    requesterName,
+    loserName,
+    winnerName,
+    currentRuling,
+    windowEnd,
+    appealHalf,
+    appealEnd,
+    disputeHref,
+    disputeHost,
+    disputeID,
+    hasDispute,
+  } = facts
   const { metadata, fileURI } = metaEvidence || {}
   const itemName = metadata?.itemName || 'entry'
-  const requesterName = isRegistration ? 'submitter' : 'requester'
-  const loserName =
-    currentRuling === SUBGRAPH_RULING.ACCEPT ? 'challenger' : requesterName
-  const winnerName =
-    currentRuling === SUBGRAPH_RULING.ACCEPT ? requesterName : 'challenger'
-
-  const inWindow =
-    statusCode === STATUS_CODE.SUBMITTED ||
-    statusCode === STATUS_CODE.REMOVAL_REQUESTED
-  const isPending =
-    statusCode === STATUS_CODE.PENDING_SUBMISSION ||
-    statusCode === STATUS_CODE.PENDING_REMOVAL
-  const appealable =
-    statusCode === STATUS_CODE.CROWDFUNDING ||
-    statusCode === STATUS_CODE.CROWDFUNDING_WINNER
-  const hasRequestAction =
-    statusCode !== STATUS_CODE.CHALLENGED &&
-    statusCode !== STATUS_CODE.WAITING_ARBITRATOR &&
-    statusCode !== STATUS_CODE.WAITING_ENFORCEMENT
+  const { resolved } = request
 
   const challengeCost =
     statusCode === STATUS_CODE.SUBMITTED
@@ -225,17 +373,30 @@ const ItemStatusCard = ({
       : statusCode === STATUS_CODE.REMOVAL_REQUESTED
         ? removalChallengeDeposit
         : undefined
+  const challengeBase =
+    statusCode === STATUS_CODE.SUBMITTED
+      ? submissionChallengeBaseDeposit
+      : removalChallengeBaseDeposit
+  const isResubmit =
+    statusCode === STATUS_CODE.REJECTED || statusCode === STATUS_CODE.REMOVED
   const buttonAmount = inWindow
     ? challengeCost
     : statusCode === STATUS_CODE.REGISTERED
       ? removalDeposit
-      : statusCode === STATUS_CODE.REJECTED ||
-          statusCode === STATUS_CODE.REMOVED
+      : isResubmit
         ? submissionDeposit
+        : undefined
+  const amountBase = inWindow
+    ? challengeBase
+    : statusCode === STATUS_CODE.REGISTERED
+      ? removalBaseDeposit
+      : isResubmit
+        ? submissionBaseDeposit
         : undefined
   const amountLabel = buttonAmount
     ? formatAmount(buttonAmount, nativeCurrency)
     : undefined
+  const hasRequestAction = !inCourt
 
   const onClick = () => {
     switch (statusCode) {
@@ -260,20 +421,42 @@ const ItemStatusCard = ({
     }
   }
 
-  const hasDispute = disputed && Number(disputeID) !== 0
-  const disputeHref =
-    hasDispute &&
-    uiURL &&
-    klerosAddress?.toLowerCase() === arbitrator?.toLowerCase()
-      ? uiURL.replace(':disputeID', disputeID.toString())
-      : undefined
-  const disputeHost = disputeHref ? new URL(disputeHref).host : undefined
   const showRuling =
-    disputed &&
+    !!request.disputed &&
     (resolved ||
       appealable ||
       statusCode === STATUS_CODE.WAITING_ARBITRATOR ||
       statusCode === STATUS_CODE.WAITING_ENFORCEMENT)
+  const rulingText =
+    currentRuling === SUBGRAPH_RULING.ACCEPT
+      ? `For the ${requesterName}`
+      : currentRuling === SUBGRAPH_RULING.REJECT
+        ? 'For the challenger'
+        : 'Refused to rule'
+
+  const heading = inWindow
+    ? statusCode === STATUS_CODE.SUBMITTED
+      ? `Challenge this ${itemName}`
+      : 'Challenge this removal'
+    : statusCode === STATUS_CODE.REGISTERED
+      ? `Remove this ${itemName}`
+      : isResubmit
+        ? `Resubmit this ${itemName}`
+        : isPending
+          ? 'Execute the request'
+          : appealable
+            ? 'Fund the appeal'
+            : undefined
+
+  const prompt = isPending
+    ? `The window closed ${formatAgo(windowEnd, now)} with no challenge. Anyone can execute it; the deposit returns to the ${requesterName}. Gas only.`
+    : appealable
+      ? currentRuling === SUBGRAPH_RULING.NONE
+        ? `Jurors refused to rule. If one side fully funds an appeal by ${formatAbsolute(appealEnd)}, the other must fund too or loses.`
+        : statusCode === STATUS_CODE.CROWDFUNDING
+          ? `The ${loserName} has ${formatDuration(appealHalf - now)} to fund an appeal, or the ruling stands.`
+          : `The ${loserName} funded the appeal. The ${winnerName} has ${formatDuration(appealEnd - now)} to fund too, or loses.`
+      : undefined
 
   const action = hasRequestAction ? (
     <ItemActionButton
@@ -293,6 +476,7 @@ const ItemStatusCard = ({
       <Button
         type="button"
         $variant="primary"
+        $block
         onClick={scrollToEvidenceComposer}
       >
         Add evidence
@@ -304,232 +488,155 @@ const ItemStatusCard = ({
         itemID={item.itemID}
         onClick={onClick}
         amount={amountLabel}
+        block
         disabled={isPending && !executeGate.ready}
         blocker={executeGate.blocker}
       />
     ) : null
 
+  // The subgraph stores the request's base deposit: what a successful
+  // challenger nets (the requester also loses the arbitration cost they
+  // paid). Shown while a challenge is possible or under way.
+  const challengeBounty =
+    !resolved &&
+    request.deposit !== undefined &&
+    (inWindow || !!request.disputed)
+      ? request.deposit
+      : undefined
+
   return (
     <>
-      <Surface
+      <Card
         id="item-status-card"
-        $padding="compact"
+        $padding="standard"
         role="region"
-        aria-label="Current request"
+        aria-label="What you can do"
       >
-        <Stack $gap={14}>
-          <Row $justify="space-between" $align="flex-start" $gap={12} $wrap>
-            <div>
-              <Label>Current request</Label>
-              <Subheading>{requestLabel}</Subheading>
-            </div>
+        {inCourt ? (
+          <Head>
             <EntryStatus status={view} now={now} />
-          </Row>
-
-          {inWindow && (
-            <CountdownCard
-              title="Challenge window"
-              start={submissionTime}
-              deadline={windowEnd}
-              now={now}
-              tone="window"
-              verb="left to challenge"
-              passedLabel="Window closed"
-            />
-          )}
-
-          {isPending && (
-            <Notice tone="neutral">
-              The challenge window closed {formatAbsolute(windowEnd)} with no
-              challenge. Anyone can execute the request; the deposit then
-              returns to the {requesterName}.
-            </Notice>
-          )}
-
-          {statusCode === STATUS_CODE.CHALLENGED && (
-            <Surface $raised $padding="compact">
-              <Stack $gap={10}>
-                <Status
-                  tone="contested"
-                  label="Challenged"
-                  detail="jurors deciding"
-                />
-                <Body>
-                  A challenger disputes this {requestLabel.toLowerCase()}.
-                  Kleros jurors decide against the listing policy; add evidence
-                  to support your side before they vote.
-                </Body>
-                <Row $gap={8} $wrap>
-                  <Button
-                    type="button"
-                    $variant="primary"
-                    onClick={scrollToEvidenceComposer}
+            <Prompt>
+              {statusCode === STATUS_CODE.CHALLENGED
+                ? 'Jurors read the evidence before they vote. If you know something they should, add it now.'
+                : statusCode === STATUS_CODE.WAITING_ARBITRATOR
+                  ? `The appeal period ended ${formatAbsolute(appealEnd)}. The final ruling waits to be given and enforced.`
+                  : `The ${loserName} did not fund the appeal in time. The ruling is final and waits to be enforced.`}
+            </Prompt>
+            {statusCode === STATUS_CODE.CHALLENGED && (
+              <Stack $gap={8}>
+                <Button
+                  type="button"
+                  $variant="primary"
+                  $block
+                  onClick={scrollToEvidenceComposer}
+                >
+                  <CurateIcon name="policy" size={16} />
+                  Add evidence
+                </Button>
+                {disputeHref && (
+                  <ButtonAnchor
+                    $variant="secondary"
+                    $block
+                    href={disputeHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
                   >
-                    <CurateIcon name="policy" size={16} />
-                    Add evidence
-                  </Button>
-                  {disputeHref && (
-                    <ButtonAnchor
-                      $variant="secondary"
-                      href={disputeHref}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Case {disputeID}
-                      <CurateIcon name="external" size={14} />
-                    </ButtonAnchor>
-                  )}
-                </Row>
+                    Follow case {disputeID} in court
+                    <CurateIcon name="external" size={14} />
+                  </ButtonAnchor>
+                )}
               </Stack>
-            </Surface>
-          )}
-
-          {appealable && currentRuling === SUBGRAPH_RULING.NONE && (
-            <CountdownCard
-              title="Appeal period"
-              start={appealStart}
-              deadline={appealEnd}
-              now={now}
-              tone="contested"
-              verb="left to fund an appeal"
-              passedLabel="Appeal period over"
-              hint="Jurors refused to rule. If one side fully funds an appeal, the other must fund too or loses the dispute."
-            />
-          )}
-          {statusCode === STATUS_CODE.CROWDFUNDING &&
-            currentRuling !== SUBGRAPH_RULING.NONE && (
+            )}
+          </Head>
+        ) : (
+          <Head>
+            {heading && <Label $tone="faint">{heading}</Label>}
+            {buttonAmount ? (
               <>
-                <CountdownCard
-                  title={`${loserName}'s half of the appeal period`}
-                  start={appealStart}
-                  deadline={appealHalf}
-                  now={now}
-                  tone="contested"
-                  verb={`left for the ${loserName} to fund`}
-                  passedLabel="Half passed"
-                  hint={`The ${loserName} must fully fund the appeal before this deadline, or the ruling stands.`}
-                />
-                <CountdownCard
-                  title="Appeal period"
-                  start={appealStart}
-                  deadline={appealEnd}
-                  now={now}
-                  tone="contested"
-                  verb={`left for the ${winnerName} to fund`}
-                  passedLabel="Appeal period over"
+                <Amount title={amountLabel}>
+                  {formatEther(buttonAmount)}
+                  <small>{nativeCurrency}</small>
+                </Amount>
+                <AmountSplit
+                  base={amountBase}
+                  cost={arbitrationCost}
+                  baseLabel={inWindow ? 'Challenge deposit' : 'Deposit'}
+                  currency={nativeCurrency}
                 />
               </>
+            ) : (
+              prompt && <Prompt>{prompt}</Prompt>
             )}
-          {statusCode === STATUS_CODE.CROWDFUNDING_WINNER && (
-            <CountdownCard
-              title="Appeal period"
-              start={appealStart}
-              deadline={appealEnd}
-              now={now}
-              tone="contested"
-              verb={`left for the ${winnerName} to fund`}
-              passedLabel="Appeal period over"
-              hint={`The ${loserName} funded the appeal. If the ${winnerName} does not fund before the deadline, the ${loserName} wins the dispute.`}
-            />
-          )}
-          {statusCode === STATUS_CODE.WAITING_ARBITRATOR && (
-            <Notice tone="contested">
-              The appeal period ended {formatAbsolute(appealEnd)}. The final
-              ruling waits to be given and enforced.
-            </Notice>
-          )}
-          {statusCode === STATUS_CODE.WAITING_ENFORCEMENT && (
-            <Notice tone="contested">
-              The {loserName} did not fund the appeal in time. The ruling is
-              final and waits to be enforced.
-            </Notice>
-          )}
+          </Head>
+        )}
 
-          <Details>
-            {submissionTime > 0 && (
-              <>
-                <dt>Submitted</dt>
-                <dd>
-                  <span title={formatAbsolute(submissionTime)}>
-                    {formatAgo(submissionTime, now)}
-                  </span>
-                </dd>
-              </>
+        {action && (
+          <Stack $gap={8}>
+            {action}
+            {isPending && executeGate.controls && (
+              <Stack $gap={8}>{executeGate.controls}</Stack>
             )}
-            <dt>Requester</dt>
-            <dd>
-              <AddressLink address={request.requester} />
-            </dd>
-            {hasDispute && (
-              <>
-                <dt>Challenger</dt>
-                <dd>
-                  <AddressLink address={request.challenger} />
-                </dd>
-                <dt>Dispute</dt>
+            {isPending && executeGate.blocker && (
+              <Small $muted role="status">
+                {executeGate.blocker}
+              </Small>
+            )}
+          </Stack>
+        )}
+
+        <Rows>
+          {challengeBounty !== undefined && (
+            <div>
+              <dt
+                title={`The ${requesterName}'s base deposit. A successful challenger also gets their own deposit back.`}
+              >
+                A successful challenger wins
+              </dt>
+              <dd>{formatAmount(challengeBounty, nativeCurrency)}</dd>
+            </div>
+          )}
+          {(statusCode === STATUS_CODE.REGISTERED || isResubmit) && (
+            <div>
+              <dt>Challenge window once sent</dt>
+              <dd
+                title={formatDurationLong(challengePeriodDuration.toNumber())}
+              >
+                {formatDuration(challengePeriodDuration.toNumber())}
+              </dd>
+            </div>
+          )}
+          {showRuling && (
+            <div>
+              <dt>{appealable ? 'Current ruling' : 'Ruling'}</dt>
+              <dd>{rulingText}</dd>
+            </div>
+          )}
+          {hasDispute &&
+            !(statusCode === STATUS_CODE.CHALLENGED && disputeHref) && (
+              <div>
+                <dt>Court case</dt>
                 <dd>
                   {disputeHref ? (
-                    <ExternalLink
+                    <a
                       href={disputeHref}
                       target="_blank"
                       rel="noopener noreferrer"
+                      title={`Case ${disputeID} on ${disputeHost}`}
                     >
-                      Case {disputeID} on {disputeHost}
-                    </ExternalLink>
+                      Case {disputeID}
+                      <CurateIcon name="external" size={12} />
+                    </a>
                   ) : (
                     <>
-                      <span>#{disputeID.toString()} at</span>
-                      <AddressLink address={arbitrator} />
+                      #{disputeID} at{' '}
+                      <AddressLink address={request.arbitrator} />
                     </>
                   )}
                 </dd>
-              </>
+              </div>
             )}
-            {inWindow && request.deposit !== undefined && (
-              <>
-                <dt>Deposit at stake</dt>
-                <dd>{formatAmount(request.deposit, nativeCurrency)}</dd>
-              </>
-            )}
-            {inWindow && (
-              <>
-                <dt>Cost to challenge</dt>
-                <dd>{formatAmount(challengeCost, nativeCurrency)}</dd>
-              </>
-            )}
-            {showRuling && (
-              <>
-                <dt>{appealable ? 'Current ruling' : 'Ruling'}</dt>
-                <dd>
-                  <Ruling currentRuling={currentRuling} />
-                </dd>
-              </>
-            )}
-            {resolved && request.resolutionTime && (
-              <>
-                <dt>Resolved</dt>
-                <dd>{formatAbsolute(toSeconds(request.resolutionTime))}</dd>
-              </>
-            )}
-          </Details>
-
-          {action && (
-            <Stack $gap={8}>
-              {action}
-              {isPending && executeGate.controls && (
-                <Row $gap={8} $wrap>
-                  {executeGate.controls}
-                </Row>
-              )}
-              {isPending && executeGate.blocker && (
-                <Small $muted role="status">
-                  {executeGate.blocker}
-                </Small>
-              )}
-            </Stack>
-          )}
-        </Stack>
-      </Surface>
+        </Rows>
+      </Card>
 
       <StickyActionBar
         status={<EntryStatus status={view} now={now} />}

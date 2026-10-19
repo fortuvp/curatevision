@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import styled, { css } from 'styled-components'
-import { joinClassNames, overlayPanel } from './kit-styles'
+import { floatingEntrance, joinClassNames, overlayPanel } from './kit-styles'
 
 type PopoverPlacement =
   | 'top'
@@ -23,45 +23,45 @@ const getPlacementStyles = (placement: PopoverPlacement) => {
       return css`
         top: 100%;
         left: 50%;
-        margin-top: 6px;
+        margin-top: 8px;
         transform: translateX(-50%);
       `
     case 'bottomLeft':
       return css`
         top: 100%;
         left: 0;
-        margin-top: 6px;
+        margin-top: 8px;
       `
     case 'bottomRight':
       return css`
         top: 100%;
         right: 0;
-        margin-top: 6px;
+        margin-top: 8px;
       `
     case 'topLeft':
       return css`
         bottom: 100%;
         left: 0;
-        margin-bottom: 6px;
+        margin-bottom: 8px;
       `
     case 'topRight':
       return css`
         bottom: 100%;
         right: 0;
-        margin-bottom: 6px;
+        margin-bottom: 8px;
       `
     case 'left':
       return css`
         top: 50%;
         right: 100%;
-        margin-right: 6px;
+        margin-right: 8px;
         transform: translateY(-50%);
       `
     case 'right':
       return css`
         top: 50%;
         left: 100%;
-        margin-left: 6px;
+        margin-left: 8px;
         transform: translateY(-50%);
       `
     case 'top':
@@ -69,33 +69,33 @@ const getPlacementStyles = (placement: PopoverPlacement) => {
       return css`
         bottom: 100%;
         left: 50%;
-        margin-bottom: 6px;
+        margin-bottom: 8px;
         transform: translateX(-50%);
       `
   }
 }
 
-/* Floating panel like the app bar's menus; no arrow. */
+/* Glass panel like the app bar's menus; no arrow. It rises in from its anchor side. */
 const PopoverContent = styled.div<{ $placement: PopoverPlacement }>`
   position: absolute;
   z-index: 1060;
-  min-width: 200px;
+  min-width: 220px;
   max-width: 360px;
   ${overlayPanel}
   ${({ $placement }) => getPlacementStyles($placement)}
+  ${({ $placement }) => floatingEntrance($placement.startsWith('top'))}
 `
 
 const PopoverTitle = styled.div`
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--color-border);
+  padding: 14px 16px 0;
   color: var(--color-text);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
-  font-weight: 600;
+  font-weight: 500;
 `
 
 const PopoverInner = styled.div`
-  padding: 12px 14px;
+  padding: 12px 16px 14px;
   color: var(--color-text);
   font-size: var(--fs-body);
   line-height: var(--lh-body);

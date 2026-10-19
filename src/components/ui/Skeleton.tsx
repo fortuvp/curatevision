@@ -2,11 +2,13 @@ import React from 'react'
 import styled, { css } from 'styled-components'
 import { joinClassNames, skeletonBlock } from './kit-styles'
 
-/* Loading placeholders on the raised surface, swept by the surface color. */
+/*
+ * Loading placeholders, v2: raised pill lines with a faint blue sweep
+ * (never a spinner); active={false} holds them still.
+ */
 const staticBlock = css`
-  &::after {
-    animation: none;
-  }
+  animation: none;
+  background-image: none;
 `
 
 const SkeletonWrapper = styled.div`
@@ -19,9 +21,9 @@ const SkeletonWrapper = styled.div`
 const AvatarPlaceholder = styled.div<{ $active: boolean }>`
   ${skeletonBlock}
   flex: 0 0 auto;
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius-pill);
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius);
   ${({ $active }) => !$active && staticBlock}
 `
 
@@ -32,7 +34,8 @@ const ContentArea = styled.div`
 
 const TitleBar = styled.div<{ $active: boolean; $width?: string }>`
   ${skeletonBlock}
-  height: 16px;
+  height: 18px;
+  border-radius: var(--radius-pill);
   width: ${({ $width }) => $width || '38%'};
   margin-bottom: 12px;
   ${({ $active }) => !$active && staticBlock}
@@ -44,7 +47,8 @@ const TitleBar = styled.div<{ $active: boolean; $width?: string }>`
 
 const ParagraphLine = styled.div<{ $active: boolean }>`
   ${skeletonBlock}
-  height: 14px;
+  height: 12px;
+  border-radius: var(--radius-pill);
   margin-bottom: 10px;
   ${({ $active }) => !$active && staticBlock}
 

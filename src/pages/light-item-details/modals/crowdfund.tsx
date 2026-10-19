@@ -68,12 +68,22 @@ const AmountRow = styled.div`
 `
 
 const SideButton = styled(Button)`
-  flex: 1 1 200px;
+  flex: 1 1 220px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
   height: auto;
-  padding: 12px 16px;
+  padding: 16px 18px;
   white-space: normal;
   text-align: left;
   justify-content: flex-start;
+
+  small {
+    color: var(--color-muted);
+    font-size: var(--fs-small);
+    line-height: var(--lh-small);
+    font-weight: 400;
+  }
 `
 
 interface CrowdfundModalProps {
@@ -260,25 +270,41 @@ const CrowdfundModal = ({
         title="Contribute appeal fees"
       >
         <Stack $gap={16}>
-          <Body>
-            Which side do you want to fund? You earn a share of the other
-            side&apos;s fees if the side you back wins the next round.
+          <Body $muted>
+            Pick a side. If it wins the next round, its backers share the other
+            side&apos;s fees.
           </Body>
           <Row $gap={12} $wrap $align="stretch">
-            <SideButton
-              type="button"
-              $variant="secondary"
-              onClick={() => setUserSelectedSide(PARTY.REQUESTER)}
-            >
-              The {requesterLabel}&apos;s side
-            </SideButton>
-            <SideButton
-              type="button"
-              $variant="secondary"
-              onClick={() => setUserSelectedSide(PARTY.CHALLENGER)}
-            >
-              The challenger&apos;s side
-            </SideButton>
+            {[
+              {
+                party: PARTY.REQUESTER,
+                name: requesterLabel,
+                paid: hasPaidRequester,
+              },
+              {
+                party: PARTY.CHALLENGER,
+                name: 'challenger',
+                paid: hasPaidChallenger,
+              },
+            ].map((option) => (
+              <SideButton
+                key={option.party}
+                type="button"
+                $variant="secondary"
+                onClick={() => setUserSelectedSide(option.party)}
+              >
+                The {option.name}&apos;s side
+                <small>
+                  {ruling === SUBGRAPH_RULING.NONE
+                    ? 'No decisive ruling'
+                    : winner === option.party
+                      ? 'Favoured by the current ruling'
+                      : 'Against the current ruling'}
+                  {' · '}
+                  {option.paid ? 'fully funded' : 'still raising'}
+                </small>
+              </SideButton>
+            ))}
           </Row>
         </Stack>
       </Dialog>

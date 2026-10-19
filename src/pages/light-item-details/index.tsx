@@ -21,51 +21,57 @@ import { WalletContext } from 'contexts/wallet-context'
 import { useGraphqlBatcher } from 'contexts/graphql-batcher'
 import { capitalizeFirstLetter } from 'utils/string'
 import { LIGHT_ITEM_DETAILS_QUERY } from 'utils/graphql'
+import { itemToStatusCode } from 'utils/item-status'
+import { formatAbsolute, formatAgo } from 'utils/time'
 import { STALE_TIME } from 'consts'
 import { parseIpfs } from 'utils/ipfs-parse'
 import { truncateAtWord } from 'utils/truncate-at-word'
 import { CurateIcon } from 'components/curate/icons'
 import {
-  Button,
   ChainChip,
-  Heading,
   Label,
   Page,
-  Row,
-  Section,
   SkeletonBlock,
-  Small,
-  SplitGrid,
-  Stack,
+  Surface,
 } from 'components/curate/primitives'
 import { EntryStatus, lightEntryStatus } from 'components/curate/entry-status'
 import { Explainer } from 'components/curate/explainer'
+import { AnimatedNumber } from 'components/curate/motion/animated-number'
+import { reveal } from 'components/curate/motion/reveal'
 import {
+  AddressLink,
   FieldValue,
+  hasValue,
   identifierFields,
+  isImageField,
   titleField,
   type EntryField,
 } from 'components/curate/item-light-fields'
 import { StickyActionBarSpacer } from 'components/curate/item-light-action-bar'
 import ItemStatusCard from './item-status-card'
 import CrowdfundingCard from './crowdfunding-card'
+import { WindowPanel } from './item-window'
+import { requestFacts, type LightRequest } from './request-facts'
 
 /*
- * Light Curate item page (DESIGN.md): breadcrumb back to the registry, the
- * identifiers as the title with the status next to it, then two columns:
- * the fields, the history with evidence and the evidence form on the left;
- * the action card on the right (a sticky bottom bar on phones). Every
- * figure comes from the subgraph, the list contract and the clock.
+ * Light Curate item page. A breadcrumb, then the hero (the one featured
+ * panel): the entry's identifiers set large with its status, and on the
+ * right whatever clock is running (challenge window, appeal period, the
+ * court case, or the date it settled). Under it, two columns: the fields
+ * and the history on the left, the sticky action card on the right (a
+ * bottom bar on phones). Every figure comes from the subgraph, the list
+ * contract and the clock.
  */
 
 const Crumbs = styled.nav`
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  color: var(--color-muted);
+  gap: 8px;
+  color: var(--color-faint);
   font-size: var(--fs-small);
   line-height: var(--lh-small);
+  ${reveal}
 
   a {
     display: inline-flex;
@@ -73,60 +79,278 @@ const Crumbs = styled.nav`
     gap: 6px;
     color: var(--color-muted);
     text-decoration: none;
+    transition: color var(--motion);
   }
 
   a:hover {
-    color: var(--color-primary);
+    color: var(--color-text);
+  }
+
+  span[aria-current] {
+    color: var(--color-text);
   }
 `
 
-const TitleBlock = styled.header`
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 16px;
+/* Desktop: identity and stats on the left, the clock on the right. When it
+   stacks, the clock comes straight after the identity so the time pressure
+   is on screen on load, ahead of the stats. */
+const Hero = styled(Surface)`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-rows: 1fr auto;
+  grid-template-areas:
+    'main side'
+    'stats side';
+  margin-top: 20px;
+  ${reveal}
+
+  @media (max-width: 1000px) {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    grid-template-areas:
+      'main'
+      'side'
+      'stats';
+  }
 `
 
-const TitleRow = styled.div`
+const HeroMain = styled.div`
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+  padding: 32px 36px 20px;
+
+  @media (max-width: 720px) {
+    padding: 22px 18px 18px;
+  }
+`
+
+const HeroStats = styled.div`
+  grid-area: stats;
+  min-width: 0;
+  padding: 0 36px 28px;
+
+  @media (max-width: 1000px) {
+    padding-top: 4px;
+  }
+
+  @media (max-width: 720px) {
+    padding: 4px 18px 20px;
+  }
+`
+
+const HeroSide = styled.div`
+  grid-area: side;
+  min-width: 0;
+  padding: 28px 28px 24px;
+  border-left: 1px solid var(--glass-border);
+
+  @media (max-width: 1000px) {
+    border-top: 1px solid var(--glass-border);
+    border-left: 0;
+  }
+
+  @media (max-width: 720px) {
+    padding: 22px 18px 20px;
+  }
+`
+
+const Eyebrow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+`
+
+const Identity = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  min-width: 0;
+`
+
+const Logo = styled.img`
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  background: var(--color-raised);
+  object-fit: contain;
+
+  @media (max-width: 720px) {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+  }
+`
+
+const Title = styled.h1<{ $size: 'lg' | 'md' | 'sm' }>`
+  margin: 0;
+  min-width: 0;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: ${({ $size }) =>
+    $size === 'lg'
+      ? 'clamp(30px, 1.6vw + 18px, 40px)'
+      : $size === 'md'
+        ? 'clamp(24px, 1vw + 16px, 32px)'
+        : 'clamp(20px, 0.6vw + 14px, 26px)'};
+  line-height: 1.08;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+
+  a {
+    color: inherit;
+  }
+`
+
+const KeyRow = styled.dl`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 28px;
+  margin: 0;
+
+  div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  dt {
+    color: var(--color-faint);
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  dd {
+    margin: 0;
+    min-width: 0;
+    color: var(--color-text);
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+    overflow-wrap: anywhere;
+  }
+`
+
+const StatusRow = styled.div`
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 10px 16px;
 `
 
-const EntryTitle = styled(Heading)`
-  min-width: 0;
-  overflow-wrap: anywhere;
-
-  a {
-    color: var(--color-text);
-  }
-`
-
-const Identifiers = styled.dl`
+const Stats = styled.dl`
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 20px;
+  gap: 16px 40px;
   margin: 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--glass-border);
 
   div {
     display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
+    flex-direction: column;
     gap: 6px;
     min-width: 0;
   }
 
-  dt {
-    color: var(--color-faint);
-    font-size: var(--fs-small);
-    line-height: var(--lh-small);
-  }
-
   dd {
     margin: 0;
-    min-width: 0;
-    overflow-wrap: anywhere;
+    color: var(--color-text);
+    font-size: 18px;
+    line-height: 22px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+`
+
+const Columns = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 24px;
+  align-items: start;
+  margin-top: 24px;
+
+  @media (max-width: 1100px) {
+    grid-template-columns: 1fr;
+  }
+`
+
+const Main = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+
+  > * {
+    ${reveal}
+  }
+
+  > :nth-child(1) {
+    --i: 3;
+  }
+
+  > :nth-child(2) {
+    --i: 4;
+  }
+
+  > :nth-child(3) {
+    --i: 5;
+  }
+
+  > :nth-child(4) {
+    --i: 6;
+  }
+`
+
+/* Sticky under the floating app bar (64px tall, 8px off the top). */
+const Rail = styled.aside`
+  position: sticky;
+  top: calc(var(--app-bar-height) + 24px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+
+  > * {
+    ${reveal}
+    --i: 2;
+  }
+
+  @media (max-width: 1100px) {
+    position: static;
+    order: -1;
+  }
+`
+
+const PolicyButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px 0 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-raised);
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    color var(--motion),
+    border-color var(--motion);
+
+  &:hover {
+    border-color: var(--color-border-strong);
+    color: var(--color-text);
   }
 `
 
@@ -134,17 +358,24 @@ export const PolicyLink: React.FC<{ href: string }> = ({ href }) => {
   const openAttachment = useAttachment()
   const { tcrAddress } = useParams<{ tcrAddress: string }>()
   return (
-    <Button
-      type="button"
-      $variant="ghost"
-      $size="sm"
-      onClick={() => openAttachment(href, true)}
-    >
+    <PolicyButton type="button" onClick={() => openAttachment(href, true)}>
       <CurateIcon name="policy" size={14} />
       Listing policy
       <PolicyUpdatedBadge registryAddress={tcrAddress} />
-    </Button>
+    </PolicyButton>
   )
+}
+
+/** The size the title is set at, so long identifiers stay readable. */
+const titleSize = (text: string): 'lg' | 'md' | 'sm' =>
+  text.length > 90 ? 'sm' : text.length > 44 ? 'md' : 'lg'
+
+/** A logo or picture among the fields, shown next to the title. */
+const logoOf = (fields: EntryField[]): string | undefined => {
+  const image = fields.find((field) => isImageField(field) && hasValue(field))
+  if (!image) return undefined
+  const value = String(image.value)
+  return /^https?:\/\//i.test(value) ? value : parseIpfs(value)
 }
 
 interface ItemDetailsProps {
@@ -386,6 +617,26 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
 
   const entryName = itemName ? capitalizeFirstLetter(itemName) : 'Entry'
   const registryHref = `/tcr/${chainId}/${tcrAddress}`
+  const request = item?.requests?.[0] as LightRequest | undefined
+  const statusCode =
+    item && timestamp && challengePeriodDuration
+      ? itemToStatusCode(item, timestamp, challengePeriodDuration)
+      : undefined
+  const facts =
+    item && request && statusCode !== undefined && challengePeriodDuration
+      ? requestFacts({
+          item,
+          request,
+          statusCode,
+          challengePeriodDuration,
+          chainId,
+        })
+      : undefined
+  const logo = logoOf(fields)
+  const titleText =
+    primaryField && hasValue(primaryField)
+      ? String(primaryField.value)
+      : entryName
 
   return (
     <Page>
@@ -395,112 +646,191 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
           {tcrTitle || 'Registry'}
         </Link>
         <span aria-hidden>/</span>
-        <span>{entryName}</span>
+        <span aria-current="page">{entryName}</span>
       </Crumbs>
 
-      <TitleBlock>
-        <Row $gap={8} $wrap>
-          <Label>{entryName}</Label>
-          {chainId && <ChainChip chainId={chainId} size="sm" />}
-        </Row>
-        <TitleRow>
-          {loading ? (
-            <SkeletonBlock $height="28px" $width="320px" />
-          ) : (
-            <EntryTitle as="h1">
-              {primaryField ? (
-                <FieldValue field={primaryField} detailed />
-              ) : (
-                entryName
-              )}
-            </EntryTitle>
+      <Hero
+        $featured
+        $padding="none"
+        aria-label={`${entryName} overview`}
+        style={{ ['--i' as string]: 1 }}
+      >
+        <HeroMain>
+          <Eyebrow>
+            <Label $tone="faint">{entryName}</Label>
+            {chainId && <ChainChip chainId={chainId} size="sm" />}
+          </Eyebrow>
+          <Identity>
+            {logo && <Logo src={logo} alt="" />}
+            {loading ? (
+              <SkeletonBlock $height="40px" $width="min(420px, 100%)" />
+            ) : (
+              <Title $size={titleSize(titleText)}>
+                {primaryField ? (
+                  <FieldValue field={primaryField} detailed />
+                ) : (
+                  entryName
+                )}
+              </Title>
+            )}
+          </Identity>
+          {otherIdentifiers.length > 0 && (
+            <KeyRow>
+              {otherIdentifiers.map((field, index) => (
+                <div key={`${field.label}-${index}`}>
+                  <dt>{field.label}</dt>
+                  <dd>
+                    <FieldValue field={field} />
+                  </dd>
+                </div>
+              ))}
+            </KeyRow>
           )}
-          {view && <EntryStatus status={view} now={now} />}
-        </TitleRow>
-        {otherIdentifiers.length > 0 && (
-          <Identifiers>
-            {otherIdentifiers.map((field, index) => (
-              <div key={`${field.label}-${index}`}>
-                <dt>{field.label}</dt>
-                <dd>
-                  <FieldValue field={field} detailed />
+          <StatusRow>
+            {view ? (
+              <EntryStatus status={view} now={now} />
+            ) : (
+              <SkeletonBlock $height="18px" $width="220px" />
+            )}
+            {metaEvidence?.fileURI && (
+              <PolicyLink href={parseIpfs(metaEvidence.fileURI)} />
+            )}
+          </StatusRow>
+        </HeroMain>
+        <HeroSide>
+          {item && request && facts && statusCode !== undefined ? (
+            <WindowPanel
+              item={item}
+              request={request}
+              statusCode={statusCode}
+              facts={facts}
+              now={now}
+            />
+          ) : (
+            <SkeletonBlock
+              $height="216px"
+              $width="216px"
+              style={{ margin: '0 auto', borderRadius: '50%' }}
+            />
+          )}
+        </HeroSide>
+        <HeroStats>
+          {request && facts ? (
+            <Stats>
+              <div>
+                <Label as="dt" $tone="faint">
+                  {facts.isRegistration ? 'Submitted' : 'Removal requested'}
+                </Label>
+                <dd title={formatAbsolute(facts.submissionTime)}>
+                  {formatAgo(facts.submissionTime, now)}
                 </dd>
               </div>
-            ))}
-          </Identifiers>
-        )}
-        {metaEvidence?.fileURI && (
-          <Row $gap={8} $wrap>
-            <PolicyLink href={parseIpfs(metaEvidence.fileURI)} />
-          </Row>
-        )}
-      </TitleBlock>
+              {request.requester && (
+                <div>
+                  <Label as="dt" $tone="faint">
+                    By
+                  </Label>
+                  <dd>
+                    <AddressLink address={request.requester} />
+                  </dd>
+                </div>
+              )}
+              {facts.hasDispute && request.challenger && (
+                <div>
+                  <Label as="dt" $tone="faint">
+                    Challenged by
+                  </Label>
+                  <dd>
+                    <AddressLink address={request.challenger} />
+                  </dd>
+                </div>
+              )}
+              {/* The latest request, like every stat here; while jurors
+                    decide the court panel leads with the same count. */}
+              {!facts.inCourt && (
+                <div>
+                  <Label as="dt" $tone="faint">
+                    Evidence
+                  </Label>
+                  <dd>
+                    <AnimatedNumber value={facts.evidenceCount} />
+                  </dd>
+                </div>
+              )}
+              <div>
+                <Label as="dt" $tone="faint">
+                  Requests
+                </Label>
+                <dd>
+                  <AnimatedNumber value={item?.requests?.length ?? 0} />
+                </dd>
+              </div>
+            </Stats>
+          ) : (
+            <SkeletonBlock $height="44px" />
+          )}
+        </HeroStats>
+      </Hero>
 
-      <Section $gap="sm">
-        <SplitGrid $rail={360}>
-          <Stack $gap={24}>
-            <ItemDetailsCard
-              columns={decodedItem?.columns}
-              item={decodedItem}
-              title={`${entryName} fields`}
-              loading={loading}
-              itemMetaEvidence={itemMetaEvidence}
-            />
-            <Explainer
-              id="item-light-how-entries-are-judged"
-              eyebrow="How this entry is judged"
-              heading="A deposit, a window, then jurors if anyone objects."
-              steps={[
-                {
-                  title: 'A request locks a deposit',
-                  body: `Submitting or removing a ${itemName || 'entry'} locks the list's base deposit plus the arbitration cost. It comes back in full if nobody challenges.`,
-                },
-                {
-                  title: 'Anyone can challenge during the window',
-                  body: 'A challenger locks their own deposit and gives a reason. The window and the cost to challenge are shown in the action card.',
-                },
-                {
-                  title: 'Kleros jurors decide; the winner is paid',
-                  body: 'The court rules on the listing policy. The winner takes both deposits minus one arbitration cost; the loser loses the deposit.',
-                },
-              ]}
-              footer={
-                <Link to="/guide">
-                  <Small>Read the guide</Small>
-                </Link>
-              }
-            />
-            {/* Spread the `requests` parameter to convert elements from array to an object */}
-            <RequestTimelines
-              item={item}
-              requests={
-                item?.requests &&
-                item.requests.map((r: TimelineRequest) => ({ ...r }))
-              }
-              kind="light"
-              metaEvidence={metaEvidence}
-            />
-          </Stack>
+      <Columns>
+        <Main>
+          <ItemDetailsCard
+            columns={decodedItem?.columns}
+            item={decodedItem}
+            title="Fields"
+            loading={loading}
+            itemMetaEvidence={itemMetaEvidence}
+          />
+          {/* Spread the `requests` parameter to convert elements from array to an object */}
+          <RequestTimelines
+            item={item}
+            requests={
+              item?.requests &&
+              item.requests.map((r: TimelineRequest) => ({ ...r }))
+            }
+            kind="light"
+            metaEvidence={metaEvidence}
+          />
+          <Explainer
+            id="item-light-how-entries-are-judged"
+            eyebrow="How this entry is judged"
+            heading="A deposit, a window, then jurors if anyone objects."
+            steps={[
+              {
+                title: 'A request locks a deposit',
+                body: `Submitting or removing a ${itemName || 'entry'} locks a deposit. It comes back in full if nobody challenges.`,
+              },
+              {
+                title: 'Anyone can challenge during the window',
+                body: 'A challenger locks their own deposit and gives a reason.',
+              },
+              {
+                title: 'Kleros jurors decide; the winner is paid',
+                body: 'The winner takes both deposits minus one arbitration cost.',
+              },
+            ]}
+            footer={<Link to="/guide">Read the guide</Link>}
+          />
+        </Main>
 
-          <Stack $gap={16}>
-            <ItemStatusCard
-              item={decodedItem}
-              timestamp={timestamp}
-              request={item?.requests && { ...item.requests[0] }}
-              modalOpen={modalOpen}
-              setModalOpen={setModalOpen}
-              appealCost={appealCost ?? undefined}
-              dark
-            />
-            {/* Appeal funding is only rendered if the item has an appealable dispute. */}
-            <CrowdfundingCard
-              item={decodedItem}
-              timestamp={timestamp}
-              appealCost={appealCost ?? undefined}
-            />
-          </Stack>
-        </SplitGrid>
-      </Section>
+        <Rail aria-label="Actions">
+          <ItemStatusCard
+            item={decodedItem}
+            timestamp={timestamp}
+            request={item?.requests && { ...item.requests[0] }}
+            modalOpen={modalOpen}
+            setModalOpen={setModalOpen}
+            appealCost={appealCost ?? undefined}
+            dark
+          />
+          {/* Appeal funding is only rendered if the item has an appealable dispute. */}
+          <CrowdfundingCard
+            item={decodedItem}
+            timestamp={timestamp}
+            appealCost={appealCost ?? undefined}
+          />
+        </Rail>
+      </Columns>
       <StickyActionBarSpacer />
     </Page>
   )

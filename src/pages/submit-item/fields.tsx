@@ -1,17 +1,19 @@
 import React, { useEffect, useId, useRef, useState } from 'react'
-import styled from 'styled-components'
+import styled, { css, keyframes } from 'styled-components'
 import { ItemTypes } from '@kleros/gtcr-encoder'
 import { getExtension } from 'mime'
 import { parseIpfs } from 'utils/ipfs-parse'
 import { addPeriod } from 'utils/string'
 import { parseRichAddress, references } from 'utils/rich-address'
-import { Button, Row, Small, TextInput } from 'components/curate/primitives'
+import { Button } from 'components/curate/primitives'
 import { formatFileSize } from './amounts'
-import { isRequired, type FieldValue } from './form'
+import { isEmptyField, isRequired, type FieldValue } from './form'
 
 /*
- * One field per registry column, on the primitives: label with a required
- * marker, the column description as help text, the control, and the
+ * One field per registry column. A state mark in the left gutter (empty; a
+ * neutral dot once filled; a check only once a validated column passed its
+ * check on blur; needs a fix), the label with "Optional" on the columns that are,
+ * the control, the column's description as a quiet hint under it, and the
  * validation message inline. Values keep the shape the encoders expect
  * (strings; a File while an upload is stashed, resolved at submit time).
  */
@@ -27,153 +29,370 @@ const FILE_MAX_MB = 4
 const chainOptions = references.filter((reference) => !reference.deprecated)
 const DEFAULT_CHAIN_KEY = `${references[0].namespaceId}:${references[0].id}`
 
+type FieldState = 'empty' | 'filled' | 'valid' | 'error'
+
+/** Columns whose values are checked (format or upload rules), so a check means something. */
+const VALIDATED_TYPES = new Set<string>([
+  ItemTypes.ADDRESS,
+  ItemTypes.GTCR_ADDRESS,
+  ItemTypes.RICH_ADDRESS,
+  ItemTypes.IMAGE,
+  ItemTypes.FILE,
+])
+
 const Shell = styled.div`
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 0 16px;
+  min-width: 0;
+
+  /* The field being edited lights its mark. */
+  &:focus-within > span[data-state='empty'],
+  &:focus-within > span[data-state='filled'] {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 4px var(--color-primary-soft);
+  }
+
+  @media (max-width: 520px) {
+    grid-template-columns: 18px minmax(0, 1fr);
+    gap: 0 12px;
+  }
+`
+
+const pop = keyframes`
+  0% { transform: scale(0.6); }
+  60% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+`
+
+const Mark = styled.span<{ $state: FieldState }>`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  color: transparent;
+  transition:
+    background var(--motion),
+    border-color var(--motion),
+    box-shadow var(--motion),
+    color var(--motion);
+
+  /* Filled, not (yet) validated: a neutral dot, not a check. */
+  ${({ $state }) =>
+    $state === 'filled' &&
+    css`
+      &::after {
+        content: '';
+        width: 8px;
+        height: 8px;
+        border-radius: var(--radius-pill);
+        background: var(--color-muted);
+      }
+    `}
+
+  ${({ $state }) =>
+    $state === 'valid' &&
+    css`
+      border-color: transparent;
+      background: var(--color-primary-fill);
+      box-shadow: 0 0 12px
+        color-mix(in srgb, var(--color-primary) 45%, transparent);
+      color: var(--color-on-primary);
+      animation: ${pop} 360ms cubic-bezier(0.34, 1.4, 0.64, 1);
+    `}
+
+  ${({ $state }) =>
+    $state === 'error' &&
+    css`
+      border-color: var(--color-danger);
+      background: var(--color-danger-soft);
+      color: var(--color-danger);
+    `}
+
+  @media (max-width: 520px) {
+    width: 18px;
+    height: 18px;
+    margin-top: 1px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+`
+
+const MarkIcon = ({ state }: { state: FieldState }) =>
+  state === 'error' ? (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 6v8M12 18h.01"
+        stroke="currentColor"
+        strokeWidth="3"
+        strokeLinecap="round"
+      />
+    </svg>
+  ) : (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M5 12.5l4.5 4.5L19 7.5"
+        stroke="currentColor"
+        strokeWidth="2.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+
+const Body = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
   min-width: 0;
 `
 
-const FieldLabel = styled.label`
-  display: inline-flex;
+const LabelRow = styled.div`
+  display: flex;
   align-items: baseline;
-  gap: 4px;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 24px;
+`
+
+const FieldLabel = styled.label`
   color: var(--color-text);
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
+  font-size: var(--fs-body-lg);
+  line-height: 24px;
   font-weight: 500;
+  letter-spacing: -0.01em;
 `
 
-const Marker = styled.span`
-  color: var(--color-muted);
-`
-
-const Help = styled.p`
-  margin: 0;
-  max-width: 68ch;
-  color: var(--color-muted);
+const Optional = styled.span`
+  flex: 0 0 auto;
+  color: var(--color-faint);
   font-size: var(--fs-small);
   line-height: var(--lh-small);
 `
 
+const Hint = styled.p`
+  margin: 0;
+  max-width: 72ch;
+  color: var(--color-faint);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+`
+
+const slide = keyframes`
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+`
+
 const ErrorText = styled.p`
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin: 0;
   color: var(--color-danger);
   font-size: var(--fs-small);
   line-height: var(--lh-small);
-`
+  font-weight: 500;
+  animation: ${slide} 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 
-const Input = styled(TextInput)`
-  &[aria-invalid='true'] {
-    border-color: var(--color-danger);
-  }
-
-  &:disabled {
-    background: var(--color-raised);
-    color: var(--color-muted);
-    cursor: not-allowed;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
   }
 `
 
-const MonoInput = styled(Input)`
-  font-family: var(--font-mono);
-  font-size: var(--fs-data);
-  font-variant-numeric: tabular-nums;
-`
-
-const TextArea = styled.textarea`
+const controlStyles = css`
   width: 100%;
-  min-height: 96px;
-  padding: 10px 12px;
-  border: 1px solid var(--color-border);
+  min-width: 0;
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius);
-  background: var(--color-surface);
+  background: var(--color-raised);
   color: var(--color-text);
-  font-family: inherit;
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
-  resize: vertical;
-  transition: border-color var(--motion);
+  font-size: var(--fs-body-lg);
+  line-height: var(--lh-body-lg);
+  transition:
+    border-color var(--motion),
+    box-shadow var(--motion),
+    background var(--motion);
 
   &::placeholder {
     color: var(--color-faint);
   }
 
-  &:hover {
+  &:hover:not(:disabled) {
     border-color: var(--color-border-strong);
   }
 
   &:focus {
     outline: none;
     border-color: var(--color-primary);
+    box-shadow: 0 0 0 4px var(--color-primary-soft);
   }
 
   &[aria-invalid='true'] {
     border-color: var(--color-danger);
   }
 
+  &[aria-invalid='true']:focus {
+    box-shadow: 0 0 0 4px var(--color-danger-soft);
+  }
+
   &:disabled {
-    background: var(--color-raised);
     color: var(--color-muted);
     cursor: not-allowed;
+    opacity: 0.7;
   }
 `
 
-const AddressRow = styled.div`
+const Input = styled.input`
+  ${controlStyles}
+  height: 48px;
+  padding: 0 16px;
+`
+
+const MonoInput = styled(Input)`
+  font-family: var(--font-mono);
+  font-size: var(--fs-body);
+  font-variant-numeric: tabular-nums;
+`
+
+const TextArea = styled.textarea`
+  ${controlStyles}
+  min-height: 112px;
+  padding: 13px 16px;
+  font-family: inherit;
+  resize: vertical;
+`
+
+/** Chain picker and address as one field, like a phone number's country code. */
+const Joined = styled.div<{ $invalid?: boolean }>`
   display: grid;
-  grid-template-columns: minmax(150px, 220px) minmax(0, 1fr);
-  gap: 8px;
+  grid-template-columns: minmax(150px, 210px) minmax(0, 1fr);
+  align-items: stretch;
+  height: 48px;
+  border: 1px solid
+    ${({ $invalid }) =>
+      $invalid ? 'var(--color-danger)' : 'var(--glass-border)'};
+  border-radius: var(--radius);
+  background: var(--color-raised);
+  transition:
+    border-color var(--motion),
+    box-shadow var(--motion);
+
+  &:hover {
+    border-color: ${({ $invalid }) =>
+      $invalid ? 'var(--color-danger)' : 'var(--color-border-strong)'};
+  }
+
+  &:focus-within {
+    border-color: ${({ $invalid }) =>
+      $invalid ? 'var(--color-danger)' : 'var(--color-primary)'};
+    box-shadow: 0 0 0 4px
+      ${({ $invalid }) =>
+        $invalid ? 'var(--color-danger-soft)' : 'var(--color-primary-soft)'};
+  }
+
+  input {
+    height: 100%;
+    border: 0;
+    border-radius: 0 var(--radius) var(--radius) 0;
+    background: transparent;
+    box-shadow: none !important;
+  }
 
   @media (max-width: 520px) {
     grid-template-columns: 1fr;
+    height: auto;
+
+    input {
+      height: 46px;
+      border-top: 1px solid var(--glass-border);
+      border-radius: 0 0 var(--radius) var(--radius);
+    }
+  }
+`
+
+const SelectWrap = styled.div`
+  position: relative;
+  min-width: 0;
+  border-right: 1px solid var(--glass-border);
+
+  svg {
+    position: absolute;
+    top: 50%;
+    right: 12px;
+    color: var(--color-muted);
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+
+  @media (max-width: 520px) {
+    height: 46px;
+    border-right: 0;
   }
 `
 
 const Select = styled.select`
-  height: 40px;
+  appearance: none;
+  width: 100%;
+  height: 100%;
   min-width: 0;
-  padding: 0 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  background: var(--color-surface);
+  padding: 0 34px 0 16px;
+  border: 0;
+  border-radius: var(--radius) 0 0 var(--radius);
+  background: transparent;
   color: var(--color-text);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
-  transition: border-color var(--motion);
-
-  &:hover {
-    border-color: var(--color-border-strong);
-  }
+  font-weight: 500;
+  text-overflow: ellipsis;
+  cursor: pointer;
 
   &:focus {
     outline: none;
-    border-color: var(--color-primary);
   }
 
   &:disabled {
-    background: var(--color-raised);
     color: var(--color-muted);
     cursor: not-allowed;
   }
+
+  option {
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
 `
+
+const Caret = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+    <path
+      d="M6 9l6 6 6-6"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+)
 
 const SwitchRow = styled.label`
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  min-height: 24px;
-  cursor: pointer;
-`
-
-const SwitchText = styled.span`
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
+  min-height: 48px;
+  padding: 0 16px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: var(--color-raised);
   color: var(--color-text);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
-  font-weight: 500;
+  cursor: pointer;
 `
 
 const SwitchInput = styled.input`
@@ -181,37 +400,46 @@ const SwitchInput = styled.input`
   position: relative;
   flex: 0 0 auto;
   width: 44px;
-  height: 24px;
+  height: 26px;
   margin: 0;
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-pill);
-  background: var(--color-raised);
+  background: var(--color-surface);
   cursor: pointer;
   transition:
     background var(--motion),
-    border-color var(--motion);
+    border-color var(--motion),
+    box-shadow var(--motion);
 
   &::after {
     content: '';
     position: absolute;
-    top: 2px;
-    left: 2px;
+    top: 3px;
+    left: 3px;
     width: 18px;
     height: 18px;
     border-radius: var(--radius-pill);
-    background: var(--color-surface);
-    box-shadow: var(--shadow-card);
-    transition: transform var(--motion);
+    background: var(--color-muted);
+    transition:
+      transform 320ms cubic-bezier(0.34, 1.4, 0.64, 1),
+      background var(--motion);
   }
 
   &:checked {
-    border-color: var(--color-primary);
-    background: var(--color-primary);
+    border-color: transparent;
+    background: var(--color-primary-fill);
+    box-shadow: 0 0 14px
+      color-mix(in srgb, var(--color-primary) 40%, transparent);
   }
 
   &:checked::after {
-    transform: translateX(20px);
+    transform: translateX(18px);
     background: var(--color-on-primary);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
   }
 
   &:disabled {
@@ -220,27 +448,77 @@ const SwitchInput = styled.input`
   }
 `
 
-const DropZone = styled.div<{ $invalid?: boolean }>`
+const DropZone = styled.div<{ $invalid?: boolean; $over?: boolean }>`
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 10px;
+  align-items: center;
+  gap: 16px;
+  min-height: 88px;
   padding: 16px;
   border: 1px dashed
-    ${({ $invalid }) =>
-      $invalid ? 'var(--color-danger)' : 'var(--color-border-strong)'};
+    ${({ $invalid, $over }) =>
+      $invalid
+        ? 'var(--color-danger)'
+        : $over
+          ? 'var(--color-primary)'
+          : 'var(--color-border-strong)'};
   border-radius: var(--radius);
-  background: var(--color-surface);
+  background: ${({ $over }) =>
+    $over ? 'var(--color-primary-soft)' : 'var(--color-raised)'};
+  transition:
+    border-color var(--motion),
+    background var(--motion);
+
+  @media (max-width: 520px) {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 `
 
-const Preview = styled.img`
-  display: block;
-  max-width: 100%;
-  max-height: 160px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-raised);
-  object-fit: contain;
+const Thumb = styled.div`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 56px;
+  height: 56px;
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: var(--glass);
+  color: var(--color-faint);
+
+  img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+`
+
+const DropText = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  color: var(--color-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+
+  span {
+    overflow: hidden;
+    color: var(--color-faint);
+    font-size: var(--fs-small);
+    line-height: var(--lh-small);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+`
+
+const DropActions = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 `
 
 const HiddenInput = styled.input`
@@ -262,7 +540,20 @@ const FileLink = styled.a`
   }
 `
 
-const useObjectUrl = (file?: File): string => {
+const UploadGlyph = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+    <path
+      d="M12 16V5m0 0l-4 4m4-4l4 4M5 15v3a2 2 0 002 2h10a2 2 0 002-2v-3"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+)
+
+/** An object URL for a stashed file, revoked when it changes. */
+export const useObjectUrl = (file?: File): string => {
   const [url, setUrl] = useState('')
   useEffect(() => {
     if (!file) {
@@ -299,7 +590,7 @@ const UploadField = ({
   disabled,
   invalid,
   describedBy,
-  onChange,
+  onCommit,
   onBlur,
 }: {
   id: string
@@ -308,11 +599,12 @@ const UploadField = ({
   disabled?: boolean
   invalid: boolean
   describedBy?: string
-  onChange: (value: FieldValue) => void
+  onCommit: (value: FieldValue) => void
   onBlur: () => void
 }) => {
   const inputRef = useRef<HTMLInputElement>(null)
   const [rejection, setRejection] = useState('')
+  const [over, setOver] = useState(false)
   const isImage = column.type === ItemTypes.IMAGE
   const file = value instanceof File ? value : undefined
   const uri =
@@ -323,45 +615,73 @@ const UploadField = ({
     ? [...IMAGE_TYPES].join(',')
     : allowed.map((ext) => `.${ext}`).join(',') || undefined
   const hint = isImage
-    ? `PNG, JPEG, WebP or SVG, up to ${IMAGE_MAX_MB} MB.`
+    ? `PNG, JPEG, WebP or SVG, up to ${IMAGE_MAX_MB} MB`
     : allowed.length > 0
-      ? `${allowed.map((ext) => `.${ext}`).join(', ')}, up to ${FILE_MAX_MB} MB.`
-      : `Up to ${FILE_MAX_MB} MB.`
+      ? `${allowed.map((ext) => `.${ext}`).join(', ')}, up to ${FILE_MAX_MB} MB`
+      : `Up to ${FILE_MAX_MB} MB`
   const hasValue = !!file || !!uri
+  const image = isImage ? previewUrl || uri : ''
 
   const pick = (picked: File) => {
     const problem = isImage ? rejectImage(picked) : rejectFile(picked, allowed)
     setRejection(problem)
-    if (!problem) onChange(picked)
-    onBlur()
+    if (problem) onBlur()
+    else onCommit(picked)
   }
 
   const clear = () => {
     setRejection('')
-    onChange('')
+    onCommit('')
     if (inputRef.current) inputRef.current.value = ''
-    onBlur()
   }
 
   return (
     <>
-      <DropZone $invalid={invalid}>
-        {isImage && (previewUrl || uri) && (
-          <Preview src={previewUrl || uri} alt={`${column.label} preview`} />
-        )}
-        {file && (
-          <Small>
-            {file.name} · {formatFileSize(file.size)}
-          </Small>
-        )}
-        {uri && (
-          <Small>
-            <FileLink href={uri} target="_blank" rel="noopener noreferrer">
-              Open the uploaded file
-            </FileLink>
-          </Small>
-        )}
-        <Row $gap={8} $wrap>
+      <DropZone
+        $invalid={invalid || !!rejection}
+        $over={over}
+        onDragOver={(event) => {
+          if (disabled) return
+          event.preventDefault()
+          setOver(true)
+        }}
+        onDragLeave={() => setOver(false)}
+        onDrop={(event) => {
+          event.preventDefault()
+          setOver(false)
+          if (disabled) return
+          const dropped = event.dataTransfer.files?.[0]
+          if (dropped) pick(dropped)
+        }}
+      >
+        <Thumb>
+          {image ? (
+            <img src={image} alt={`${column.label} preview`} />
+          ) : (
+            <UploadGlyph />
+          )}
+        </Thumb>
+        <DropText>
+          {file ? (
+            <>
+              {file.name}
+              <span>{formatFileSize(file.size)} · uploads when you submit</span>
+            </>
+          ) : uri ? (
+            <>
+              <FileLink href={uri} target="_blank" rel="noopener noreferrer">
+                Open the uploaded file
+              </FileLink>
+              <span>{hint}</span>
+            </>
+          ) : (
+            <>
+              Drop a file here or choose one
+              <span>{hint}</span>
+            </>
+          )}
+        </DropText>
+        <DropActions>
           <Button
             type="button"
             $variant="secondary"
@@ -382,8 +702,7 @@ const UploadField = ({
               Remove
             </Button>
           )}
-        </Row>
-        <Small $muted>{hint}</Small>
+        </DropActions>
         <HiddenInput
           ref={inputRef}
           id={id}
@@ -399,7 +718,12 @@ const UploadField = ({
           }}
         />
       </DropZone>
-      {rejection && <ErrorText role="alert">{rejection}</ErrorText>}
+      {rejection && (
+        <ErrorText role="alert">
+          <MarkIcon state="error" />
+          {rejection}
+        </ErrorText>
+      )}
     </>
   )
 }
@@ -413,6 +737,11 @@ export interface ColumnFieldProps {
   disabled?: boolean
   onChange: (value: FieldValue) => void
   onBlur: () => void
+  /**
+   * A value set in one step (a picked or removed file): marks the field
+   * touched and validates the new value, not the one before it.
+   */
+  onCommit: (value: FieldValue) => void
 }
 
 export const ColumnField = ({
@@ -423,6 +752,7 @@ export const ColumnField = ({
   disabled,
   onChange,
   onBlur,
+  onCommit,
 }: ColumnFieldProps) => {
   const id = useId()
   const helpId = `${id}-help`
@@ -431,11 +761,20 @@ export const ColumnField = ({
   const description = column.description ? addPeriod(column.description) : ''
   const invalid = showError && !!error
   const describedBy =
-    [description ? helpId : '', invalid ? errorId : '']
+    [invalid ? errorId : '', description ? helpId : '']
       .filter(Boolean)
       .join(' ') || undefined
   const text = typeof value === 'string' ? value : ''
   const { type } = column
+  const isBoolean = type === ItemTypes.BOOLEAN
+  const filled = isBoolean || !isEmptyField(column, value)
+  const state: FieldState = invalid
+    ? 'error'
+    : !filled
+      ? 'empty'
+      : showError && !error && VALIDATED_TYPES.has(type)
+        ? 'valid'
+        : 'filled'
 
   const shared = {
     id,
@@ -446,29 +785,25 @@ export const ColumnField = ({
     'aria-required': required || undefined,
   }
 
-  if (type === ItemTypes.BOOLEAN)
-    return (
-      <Shell>
-        <SwitchRow htmlFor={id}>
-          <SwitchText>{column.label}</SwitchText>
-          <SwitchInput
-            {...shared}
-            type="checkbox"
-            role="switch"
-            checked={text === 'true'}
-            onChange={(event) => onChange(String(event.target.checked))}
-          />
-        </SwitchRow>
-        {description && <Help id={helpId}>{description}</Help>}
-      </Shell>
-    )
-
   let control: React.ReactNode
-  if (type === ItemTypes.LONG_TEXT)
+  if (isBoolean)
+    control = (
+      <SwitchRow htmlFor={id}>
+        <span aria-hidden>{text === 'true' ? 'Yes' : 'No'}</span>
+        <SwitchInput
+          {...shared}
+          type="checkbox"
+          role="switch"
+          checked={text === 'true'}
+          onChange={(event) => onChange(String(event.target.checked))}
+        />
+      </SwitchRow>
+    )
+  else if (type === ItemTypes.LONG_TEXT)
     control = (
       <TextArea
         {...shared}
-        rows={3}
+        rows={4}
         value={text}
         onChange={(event) => onChange(event.target.value)}
       />
@@ -493,23 +828,26 @@ export const ColumnField = ({
       : DEFAULT_CHAIN_KEY
     const address = parsed ? parsed.address : ''
     control = (
-      <AddressRow>
-        <Select
-          aria-label={`${column.label} chain`}
-          value={chainKey}
-          disabled={disabled}
-          onBlur={onBlur}
-          onChange={(event) => onChange(`${event.target.value}:${address}`)}
-        >
-          {chainOptions.map((reference) => (
-            <option
-              key={`${reference.namespaceId}:${reference.id}`}
-              value={`${reference.namespaceId}:${reference.id}`}
-            >
-              {reference.name}
-            </option>
-          ))}
-        </Select>
+      <Joined $invalid={invalid}>
+        <SelectWrap>
+          <Select
+            aria-label={`${column.label} chain`}
+            value={chainKey}
+            disabled={disabled}
+            onBlur={onBlur}
+            onChange={(event) => onChange(`${event.target.value}:${address}`)}
+          >
+            {chainOptions.map((reference) => (
+              <option
+                key={`${reference.namespaceId}:${reference.id}`}
+                value={`${reference.namespaceId}:${reference.id}`}
+              >
+                {reference.name}
+              </option>
+            ))}
+          </Select>
+          <Caret />
+        </SelectWrap>
         <MonoInput
           {...shared}
           type="text"
@@ -522,7 +860,7 @@ export const ColumnField = ({
             onChange(`${chainKey}:${event.target.value.trim()}`)
           }
         />
-      </AddressRow>
+      </Joined>
     )
   } else if (type === ItemTypes.IMAGE || type === ItemTypes.FILE)
     control = (
@@ -533,7 +871,7 @@ export const ColumnField = ({
         disabled={disabled}
         invalid={invalid}
         describedBy={describedBy}
-        onChange={onChange}
+        onCommit={onCommit}
         onBlur={onBlur}
       />
     )
@@ -554,13 +892,23 @@ export const ColumnField = ({
 
   return (
     <Shell>
-      <FieldLabel htmlFor={id}>
-        {column.label}
-        {required && <Marker aria-hidden>*</Marker>}
-      </FieldLabel>
-      {description && <Help id={helpId}>{description}</Help>}
-      {control}
-      {invalid && <ErrorText id={errorId}>{error}</ErrorText>}
+      <Mark $state={state} data-state={state} aria-hidden>
+        {(state === 'valid' || state === 'error') && <MarkIcon state={state} />}
+      </Mark>
+      <Body>
+        <LabelRow>
+          <FieldLabel htmlFor={id}>{column.label}</FieldLabel>
+          {!required && !isBoolean && <Optional>Optional</Optional>}
+        </LabelRow>
+        {control}
+        {invalid && (
+          <ErrorText id={errorId}>
+            <MarkIcon state="error" />
+            {error}
+          </ErrorText>
+        )}
+        {description && <Hint id={helpId}>{description}</Hint>}
+      </Body>
     </Shell>
   )
 }

@@ -21,8 +21,20 @@ import {
 } from 'pages/dashboard/types'
 
 const PROFILE_QUERY_TIMEOUT_MS = 10_000
-/** Requests read per chain and registry type; the figures count these. */
-export const PROFILE_LIMIT = 420
+/** Rows per indexer page; both indexers serve up to 1,000. */
+const PAGE_ROWS = 1000
+/** Pages read at once after the first one came back full. */
+const PAGE_BATCH = 4
+/** Envio takes any offset; The Graph skips at most 5,000 rows. */
+const ENVIO_MAX_PAGES = 20
+const PERMANENT_MAX_PAGES = 6
+/**
+ * Light and Classic requests read per chain at most (Stake Curate: 6,000).
+ * The figures count every request read; a chain that reaches the ceiling is
+ * reported in cappedChains and its figures are lower bounds.
+ */
+export const PROFILE_LIMIT = PAGE_ROWS * ENVIO_MAX_PAGES
+export const PERMANENT_PROFILE_LIMIT = PAGE_ROWS * PERMANENT_MAX_PAGES
 /** Most recent actions and disputes kept for the lists. */
 export const ACTIVITY_LIMIT = 120
 export const DISPUTE_LIMIT = 80
@@ -34,9 +46,15 @@ export const SUPPORTED_CHAIN_IDS = [
 ]
 
 const ENVIO_PROFILE_QUERY = gql`
-  query EnvioProfile($chainId: Int!, $address: String!, $limit: Int!) {
+  query EnvioProfile(
+    $chainId: Int!
+    $address: String!
+    $limit: Int!
+    $offset: Int!
+  ) {
     lightRequests: LRequest(
       limit: $limit
+      offset: $offset
       where: {
         chainId: { _eq: $chainId }
         _or: [
@@ -66,6 +84,7 @@ const ENVIO_PROFILE_QUERY = gql`
     }
     classicRequests: Request(
       limit: $limit
+      offset: $offset
       where: {
         chainId: { _eq: $chainId }
         _or: [
@@ -93,9 +112,10 @@ const ENVIO_PROFILE_QUERY = gql`
 `
 
 const PERMANENT_PROFILE_QUERY = gql`
-  query PermanentProfile($address: String!, $first: Int!) {
+  query PermanentProfile($address: String!, $first: Int!, $skip: Int!) {
     submissions(
       first: $first
+      skip: $skip
       where: { submitter: $address }
       orderBy: createdAt
       orderDirection: desc
@@ -112,6 +132,7 @@ const PERMANENT_PROFILE_QUERY = gql`
     }
     challenges(
       first: $first
+      skip: $skip
       where: { challenger: $address }
       orderBy: createdAt
       orderDirection: desc
@@ -146,7 +167,14 @@ export interface AddressStats {
   submissions: number
   removals: number
   challenges: number
+  /** Challenges the court ruled for the challenger (Reject). */
   successfulChallenges: number
+  /** Challenges the court ruled for the requester (Accept). */
+  challengesLost: number
+  /** Challenges resolved without a ruling (the court refused to arbitrate). */
+  challengesNoRuling: number
+  /** Challenges whose dispute is still open (voting or appeal). */
+  challengesInCourt: number
   disputes: number
   itemsChallenged: number
   governedLists: number
@@ -194,6 +222,8 @@ export interface ProfileActivity extends DashboardActivity {
   resolved?: boolean
   /** Ruling once resolved: Accept favors the requester, Reject the challenger, None is no ruling. */
   disputeOutcome?: string
+  /** The registry's logo (IPFS path or URL), when the registry index has one. */
+  registryLogo?: string
 }
 
 export interface AddressProfileData {
@@ -205,6 +235,12 @@ export interface AddressProfileData {
   disputes: ProfileActivity[]
   governedRegistries: GovernedRegistry[]
   chainBreakdown: Record<number, AddressStats>
+  /**
+   * Chains where the read stopped before the end (the page ceiling, or a page
+   * that failed after the first): older requests were cut, so the counts
+   * there are lower bounds.
+   */
+  cappedChains: number[]
 }
 
 const toNumber = (value: unknown): number => {
@@ -212,11 +248,14 @@ const toNumber = (value: unknown): number => {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-const emptyStats = (): AddressStats => ({
+export const emptyStats = (): AddressStats => ({
   submissions: 0,
   removals: 0,
   challenges: 0,
   successfulChallenges: 0,
+  challengesLost: 0,
+  challengesNoRuling: 0,
+  challengesInCourt: 0,
   disputes: 0,
   itemsChallenged: 0,
   governedLists: 0,
@@ -228,6 +267,9 @@ const addStats = (target: AddressStats, source: Partial<AddressStats>) => {
   target.removals += source.removals ?? 0
   target.challenges += source.challenges ?? 0
   target.successfulChallenges += source.successfulChallenges ?? 0
+  target.challengesLost += source.challengesLost ?? 0
+  target.challengesNoRuling += source.challengesNoRuling ?? 0
+  target.challengesInCourt += source.challengesInCourt ?? 0
   target.disputes += source.disputes ?? 0
   target.itemsChallenged += source.itemsChallenged ?? 0
   target.governedLists += source.governedLists ?? 0
@@ -263,11 +305,27 @@ const safeRequest = async <T>(
   }
 }
 
+/**
+ * Where one of the address's challenges stands: in court while its dispute is
+ * open, then the ruling (Reject favors the challenger, Accept the requester,
+ * None is no ruling). Exactly one field is set, so the parts add up to the
+ * challenge count.
+ */
+const challengeOutcome = (
+  resolved: boolean,
+  outcome: unknown,
+): Partial<AddressStats> => {
+  if (!resolved) return { challengesInCourt: 1 }
+  if (outcome === 'Reject') return { successfulChallenges: 1 }
+  if (outcome === 'Accept') return { challengesLost: 1 }
+  return { challengesNoRuling: 1 }
+}
+
 const requestToActivity = (
   requestEntity: any,
   kind: RegistryKind,
   address: string,
-): { activity: ProfileActivity; stats: Partial<AddressStats> } => {
+): { activity: ProfileActivity; stats: Partial<AddressStats> } | null => {
   const chainId = toNumber(requestEntity.chainId)
   const registryAddress = normalizeAddress(requestEntity.registry_id)
   const itemID = requestEntity.id?.split('@')?.[0]
@@ -275,6 +333,9 @@ const requestToActivity = (
   const challenger = normalizeAddress(requestEntity.challenger)
   const isRequester = requester === address
   const isChallenger = challenger === address && challenger !== ZERO_ADDRESS
+  // The query matches the challenger field too, and unchallenged requests
+  // carry the zero address there: those are not this address's actions.
+  if (!isRequester && !isChallenger) return null
   const isRemoval = requestEntity.requestType === 'ClearingRequested'
   const timestamp =
     (isChallenger && toNumber(requestEntity.challengeTime)) ||
@@ -288,10 +349,15 @@ const requestToActivity = (
   if (isChallenger) {
     stats.challenges = 1
     stats.itemsChallenged = 1
+    Object.assign(
+      stats,
+      challengeOutcome(
+        Boolean(requestEntity.resolved),
+        requestEntity.disputeOutcome,
+      ),
+    )
   }
   if (disputed) stats.disputes = 1
-  if (isChallenger && requestEntity.disputeOutcome === 'Reject')
-    stats.successfulChallenges = 1
 
   return {
     activity: {
@@ -469,9 +535,9 @@ const readGovernanceParams = async (
 
 const fetchGovernedRegistries = async (
   address: string,
+  registries: DashboardRegistry[],
 ): Promise<GovernedRegistry[]> => {
-  const dashboard = await fetchDashboardData()
-  const candidates = dashboard.registries.slice(0, GOVERNANCE_SCAN_LIMIT)
+  const candidates = registries.slice(0, GOVERNANCE_SCAN_LIMIT)
   const governed = await Promise.all(
     candidates.map(async (registry) => {
       const governor = normalizeAddress(await readParam(registry, 'governor'))
@@ -483,7 +549,59 @@ const fetchGovernedRegistries = async (
   return governed.filter(Boolean) as GovernedRegistry[]
 }
 
-const buildBadges = (stats: AddressStats): AddressBadge[] => [
+/**
+ * Reads an indexer page by page until a page comes back short. The first page
+ * is read alone; after that, pages are read PAGE_BATCH at a time. Rows are
+ * kept once per id, so a row that shifts across a page boundary while the
+ * pages are read is not counted twice. `cut` is true when the read stopped
+ * before the end (the page ceiling, or a page that failed after the first):
+ * the rows are then the most recent ones and every count is a lower bound.
+ */
+const readPages = async (
+  fetchPage: (
+    page: number,
+  ) => Promise<Record<string, any[] | undefined> | null>,
+  keys: string[],
+  maxPages: number,
+): Promise<{ rows: Record<string, any[]>; cut: boolean }> => {
+  const rows: Record<string, any[]> = Object.fromEntries(
+    keys.map((key) => [key, []]),
+  )
+  const seen = new Set<string>()
+  const append = (payload: Record<string, any[] | undefined>) => {
+    for (const key of keys)
+      for (const row of payload[key] ?? []) {
+        const id = `${key}:${row?.id}`
+        if (row?.id !== undefined && seen.has(id)) continue
+        seen.add(id)
+        rows[key].push(row)
+      }
+  }
+  const full = (payload: Record<string, any[] | undefined>) =>
+    keys.some((key) => (payload[key]?.length ?? 0) >= PAGE_ROWS)
+
+  const first = await fetchPage(0)
+  if (!first) return { rows, cut: false }
+  append(first)
+  if (!full(first)) return { rows, cut: false }
+  let page = 1
+  while (page < maxPages) {
+    const batch = Array.from(
+      { length: Math.min(PAGE_BATCH, maxPages - page) },
+      (_, index) => page + index,
+    )
+    const payloads = await Promise.all(batch.map(fetchPage))
+    for (const payload of payloads) {
+      if (!payload) return { rows, cut: true }
+      append(payload)
+      if (!full(payload)) return { rows, cut: false }
+    }
+    page += batch.length
+  }
+  return { rows, cut: true }
+}
+
+export const buildBadges = (stats: AddressStats): AddressBadge[] => [
   {
     id: 'librarian',
     label: 'Librarian',
@@ -518,44 +636,63 @@ export const fetchAddressProfileData = async (
   const chainBreakdown: Record<number, AddressStats> = {}
   const activities: ProfileActivity[] = []
   const disputes: ProfileActivity[] = []
+  const capped = new Set<number>()
+  // The zero address matches every unchallenged request through the
+  // challenger field; none of those rows are its own, so one page is read
+  // and no cut applies.
+  const isZero = address === ZERO_ADDRESS
 
-  const envioResults = await Promise.all(
-    SUPPORTED_CHAIN_IDS.map(async (chainId) => {
-      const payload = await safeRequest<any>(
-        subgraphUrl[chainId],
-        ENVIO_PROFILE_QUERY,
-        { chainId, address, limit: PROFILE_LIMIT },
-      )
-      return { chainId, payload }
-    }),
-  )
+  // The registry index (titles, logos) is read once, in parallel with the
+  // profile queries; the governance scan below reads its governors.
+  const dashboardPromise = fetchDashboardData()
+  // Rejections surface at the await below; this only keeps an early one from
+  // being reported as unhandled while the profile queries are still running.
+  dashboardPromise.catch(() => undefined)
 
-  const permanentResults = await Promise.all(
-    SUPPORTED_CHAIN_IDS.map(async (chainId) => {
-      const payload = await safeRequest<any>(
-        subgraphUrlPermanent[chainId],
-        PERMANENT_PROFILE_QUERY,
-        { address, first: PROFILE_LIMIT },
-      )
-      return { chainId, payload }
-    }),
-  )
+  const [envioResults, permanentResults] = await Promise.all([
+    Promise.all(
+      SUPPORTED_CHAIN_IDS.map(async (chainId) => {
+        const read = await readPages(
+          (page) =>
+            safeRequest<any>(subgraphUrl[chainId], ENVIO_PROFILE_QUERY, {
+              chainId,
+              address,
+              limit: PAGE_ROWS,
+              offset: page * PAGE_ROWS,
+            }),
+          ['lightRequests', 'classicRequests'],
+          isZero ? 1 : ENVIO_MAX_PAGES,
+        )
+        return { chainId, ...read }
+      }),
+    ),
+    Promise.all(
+      SUPPORTED_CHAIN_IDS.map(async (chainId) => {
+        const read = await readPages(
+          (page) =>
+            safeRequest<any>(
+              subgraphUrlPermanent[chainId],
+              PERMANENT_PROFILE_QUERY,
+              { address, first: PAGE_ROWS, skip: page * PAGE_ROWS },
+            ),
+          ['submissions', 'challenges'],
+          isZero ? 1 : PERMANENT_MAX_PAGES,
+        )
+        return { chainId, ...read }
+      }),
+    ),
+  ])
 
-  for (const { chainId, payload } of envioResults) {
+  for (const { chainId, rows, cut } of envioResults) {
     if (!chainBreakdown[chainId]) chainBreakdown[chainId] = emptyStats()
+    if (cut && !isZero) capped.add(chainId)
     for (const [requestEntity, kind] of [
-      ...(payload?.lightRequests ?? []).map(
-        (item: any) => [item, 'light'] as const,
-      ),
-      ...(payload?.classicRequests ?? []).map(
-        (item: any) => [item, 'classic'] as const,
-      ),
+      ...rows.lightRequests.map((item: any) => [item, 'light'] as const),
+      ...rows.classicRequests.map((item: any) => [item, 'classic'] as const),
     ]) {
-      const { activity, stats } = requestToActivity(
-        requestEntity,
-        kind,
-        address,
-      )
+      const parsed = requestToActivity(requestEntity, kind, address)
+      if (!parsed) continue
+      const { activity, stats } = parsed
       activities.push(activity)
       if (requestEntity.disputed) disputes.push(activity)
       addStats(totals, stats)
@@ -563,31 +700,56 @@ export const fetchAddressProfileData = async (
     }
   }
 
-  for (const { chainId, payload } of permanentResults) {
+  for (const { chainId, rows, cut } of permanentResults) {
     if (!chainBreakdown[chainId]) chainBreakdown[chainId] = emptyStats()
-    for (const submission of payload?.submissions ?? []) {
+    if (cut && !isZero) capped.add(chainId)
+    for (const submission of rows.submissions) {
       const activity = permanentSubmissionToActivity(submission, chainId)
       activities.push(activity)
       addStats(totals, { submissions: 1, activity: 1 })
       addStats(chainBreakdown[chainId], { submissions: 1, activity: 1 })
     }
-    for (const challenge of payload?.challenges ?? []) {
+    for (const challenge of rows.challenges) {
       const activity = permanentChallengeToActivity(challenge, chainId)
       activities.push(activity)
       disputes.push(activity)
-      const stats = {
+      const stats: Partial<AddressStats> = {
         challenges: 1,
         disputes: 1,
         itemsChallenged: 1,
-        successfulChallenges: challenge.disputeOutcome === 'Reject' ? 1 : 0,
         activity: 1,
+        ...challengeOutcome(
+          Boolean(activity.resolved),
+          challenge.disputeOutcome,
+        ),
       }
       addStats(totals, stats)
       addStats(chainBreakdown[chainId], stats)
     }
   }
 
-  const governedRegistries = await fetchGovernedRegistries(address)
+  const { registries } = await dashboardPromise
+  const index = new Map(
+    registries.map((registry) => [
+      `${registry.chainId}:${normalizeAddress(registry.address)}`,
+      registry,
+    ]),
+  )
+  for (const activity of activities) {
+    const registry = index.get(
+      `${activity.chainId}:${activity.registryAddress}`,
+    )
+    if (!registry) continue
+    if (registry.logoURI) activity.registryLogo = registry.logoURI
+    // Stake Curate requests carry no title; the index has the list's own.
+    if (
+      registry.title &&
+      /^(Permanent registry|Registry) 0x/.test(activity.registryTitle)
+    )
+      activity.registryTitle = registry.title
+  }
+
+  const governedRegistries = await fetchGovernedRegistries(address, registries)
   totals.governedLists = governedRegistries.length
   for (const registry of governedRegistries) {
     if (!chainBreakdown[registry.chainId])
@@ -607,6 +769,7 @@ export const fetchAddressProfileData = async (
     disputes: disputes.slice(0, DISPUTE_LIMIT),
     governedRegistries,
     chainBreakdown,
+    cappedChains: [...capped],
   }
 }
 

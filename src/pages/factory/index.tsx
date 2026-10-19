@@ -1,6 +1,13 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
-import styled from 'styled-components'
-import { useNavigate } from 'react-router-dom'
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useId,
+  useMemo,
+  useRef,
+} from 'react'
+import styled, { css } from 'styled-components'
+import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useDebounce } from 'use-debounce'
 import { ethers } from 'ethers'
@@ -18,19 +25,18 @@ import {
   defaultGovernor as defaultGovernorAddresses,
 } from 'config/tcr-addresses'
 import { NETWORKS_INFO } from 'config/networks'
+import useNativeCurrency from 'hooks/native-currency'
 import { CurateIcon } from 'components/curate/icons'
 import { Explainer } from 'components/curate/explainer'
+import { reveal } from 'components/curate/motion/reveal'
 import {
-  Body,
   Button,
   ChainChip,
+  Chip,
   Data,
   EmptyState,
   Label,
-  ListRow,
   Page,
-  PanelHeader,
-  PanelTitle,
   Row,
   Section,
   SegmentedControl,
@@ -39,10 +45,13 @@ import {
   Stack,
   Statement,
   Surface,
-  Title,
   truncateMiddle,
 } from 'components/curate/primitives'
 import {
+  FactoryActionGroup,
+  FactoryActions,
+  FactoryAside,
+  FactorySplit,
   FactoryStepTimeline,
   FactoryWizardGrid,
 } from 'components/curate/v2-factory-shell'
@@ -50,14 +59,17 @@ import TCRParams from './tcr-params'
 import ItemParams from './item-params'
 import RelTCRParams from './rel-tcr-params'
 import Deploy from './deploy'
+import { LivePreview } from './preview'
+import { SafeImage } from './fields'
 import type { FactorySection } from './schemas'
 
 /*
  * /factory/:chainId, the Standard (Light Curate) list wizard: the page's
- * statement, one explainer, the step timeline, the current step's form and
- * the action bar (Next submits the step's form, so its schema runs), then
- * the lists deployed from this browser. The wizard state is cached per
- * chain and app version in localStorage, as before.
+ * statement, one explainer, a horizontal stepper, the current step in one
+ * panel with its action bar (Next submits the step's form, so its schema
+ * runs) beside a live preview of what each side will pay, then the lists
+ * deployed from this browser. The wizard state is cached per chain and app
+ * version in localStorage, as before.
  */
 
 export interface TransactionInfo {
@@ -135,21 +147,21 @@ export interface StepProps extends CachedFactory {
 export const LIGHT_FACTORY_STEPS = [
   {
     title: 'List',
-    description: 'Name, description, logo and policy.',
+    description: 'Name, logo and policy',
     subitems: ['Name', 'Description', 'Logo', 'Policy'],
   },
   {
     title: 'Item',
-    description: 'Deposit, fields, preview and item name.',
+    description: 'Deposit, fields, item name',
     subitems: ['Deposit', 'Fields', 'Preview', 'Item name'],
   },
   {
     title: 'Badges',
-    description: 'An optional list of connected lists.',
+    description: 'Optional',
   },
   {
     title: 'Deploy',
-    description: 'Review, then sign one transaction.',
+    description: 'One signature',
   },
 ]
 
@@ -406,49 +418,244 @@ const useCachedFactory = (
 
 /* ---------- Layout ---------- */
 
-const Hero = styled.div`
+const Head = styled.header`
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: 16px 24px;
+  gap: 20px 32px;
+
+  > * {
+    ${reveal}
+  }
 `
 
-const HeroCopy = styled.div`
+const HeadCopy = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
   min-width: 0;
 `
 
-const ActionBar = styled.div`
+const Lede = styled.p`
+  margin: 0;
+  max-width: 54ch;
+  color: var(--color-muted);
+  font-size: 16px;
+  line-height: 24px;
+`
+
+const Lift = styled.div`
+  ${reveal}
+`
+
+/** The panel column: it fills the row so the panel can stretch. */
+const PanelLift = styled(Lift)`
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+`
+
+const StepPanel = styled(Surface)`
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  padding: 28px 32px 24px;
+  scroll-margin-top: calc(var(--app-bar-height) + 24px);
+
+  @media (max-width: 720px) {
+    padding: 20px;
+  }
+`
+
+/** The step's form; it takes the free height so the action bar sits low. */
+const StepContent = styled.div`
+  flex: 1 0 auto;
+  min-width: 0;
+`
+
+const PanelTop = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin-bottom: 22px;
+`
+
+const SubTabs = styled.ol`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+`
+
+const SubTab = styled.button<{ $state: 'done' | 'current' | 'next' }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 11px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-faint);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    background var(--motion),
+    border-color var(--motion),
+    color var(--motion);
+
+  ${({ $state }) =>
+    $state === 'current'
+      ? css`
+          border-color: color-mix(
+            in srgb,
+            var(--color-primary) 35%,
+            transparent
+          );
+          background: var(--color-primary-soft);
+          color: var(--color-text);
+        `
+      : $state === 'done'
+        ? css`
+            color: var(--color-muted);
+            cursor: pointer;
+
+            svg {
+              color: var(--color-primary);
+            }
+
+            &:hover {
+              background: var(--color-raised);
+              color: var(--color-text);
+            }
+          `
+        : css`
+            cursor: default;
+          `}
+`
+
+const ConfirmRow = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
+  width: 100%;
+`
+
+const SectionHead = styled.div`
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 72px 0 18px;
+
+  h2 {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0;
+    color: var(--color-text);
+    font-family: var(--font-display);
+    font-size: 30px;
+    line-height: 34px;
+    font-weight: 500;
+    letter-spacing: -0.03em;
+  }
 
   @media (max-width: 720px) {
-    position: sticky;
-    bottom: 0;
-    z-index: 2;
-    margin: 0 calc(-1 * var(--horizontal-padding));
-    padding: 12px var(--horizontal-padding)
-      calc(12px + env(safe-area-inset-bottom));
-    border-top: 1px solid var(--color-border);
-    background: var(--color-surface);
+    margin-top: 48px;
   }
 `
 
-const DeploymentList = styled(Surface)`
-  overflow: hidden;
-`
-
-const RowCopy = styled.div`
+const DeploymentRows = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  min-width: 0;
+  gap: 8px;
+`
+
+const DeploymentLink = styled(Link)`
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  min-height: 64px;
+  padding: 12px 16px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: inherit;
+  text-decoration: none;
+  transition:
+    border-color var(--motion),
+    translate var(--motion),
+    box-shadow var(--motion);
+  ${reveal}
+
+  /* translate, not transform: the entrance animation owns transform. */
+  &:hover {
+    border-color: var(--color-border-strong);
+    box-shadow: var(--shadow-card-hover);
+    translate: 0 -1px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &:hover {
+      translate: none;
+    }
+  }
+
+  &:hover strong {
+    color: var(--color-primary);
+  }
+
+  strong {
+    display: block;
+    overflow: hidden;
+    color: var(--color-text);
+    font-size: var(--fs-body-lg);
+    line-height: var(--lh-body-lg);
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition: color var(--motion);
+  }
+`
+
+const DeploymentLogo = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-raised);
+  color: var(--color-faint);
+
+  img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+`
+
+const OpenHint = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  font-weight: 500;
 `
 
 /* ---------- Previous deployments ---------- */
@@ -456,9 +663,11 @@ const RowCopy = styled.div`
 const DeploymentRow = ({
   address,
   chainId,
+  index,
 }: {
   address: string
   chainId: number
+  index: number
 }) => {
   const { data, isLoading } = useQuery({
     queryKey: ['factoryDeployment', chainId, address.toLowerCase()],
@@ -471,26 +680,41 @@ const DeploymentRow = ({
     staleTime: ONE_DAY,
   })
   const title = data?.metadata?.tcrTitle ?? data?.title
+  const logoURI = data?.metadata?.logoURI
+  const logo = logoURI ? parseIpfs(logoURI) : undefined
 
   return (
-    <ListRow to={`/tcr/${chainId}/${address}`}>
-      <RowCopy>
+    <DeploymentLink
+      to={`/tcr/${chainId}/${address}`}
+      style={{ ['--i' as string]: Math.min(index, 8) }}
+    >
+      <DeploymentLogo aria-hidden>
+        <SafeImage
+          src={logo}
+          alt=""
+          fallback={<CurateIcon name="registry" size={16} />}
+        />
+      </DeploymentLogo>
+      <span style={{ minWidth: 0 }}>
         {isLoading ? (
           <SkeletonBlock $height="18px" $width="40%" />
         ) : (
-          <Title>{title || 'Untitled list'}</Title>
+          <strong>{title || 'Untitled list'}</strong>
         )}
-        <Data $muted title={address}>
+        <Data $muted $weight={400} title={address}>
           {truncateMiddle(address, 10, 8)}
         </Data>
-      </RowCopy>
-      <CurateIcon
-        name="chevron-down"
-        size={16}
-        style={{ transform: 'rotate(-90deg)' }}
-        aria-hidden
-      />
-    </ListRow>
+      </span>
+      <OpenHint>
+        Open
+        <CurateIcon
+          name="chevron-down"
+          size={14}
+          style={{ transform: 'rotate(-90deg)' }}
+          aria-hidden
+        />
+      </OpenHint>
+    </DeploymentLink>
   )
 }
 
@@ -518,6 +742,7 @@ const FactoryPage = () => {
   const urlChainId = useUrlChainId()
   const navigate = useNavigate()
   const { library, active } = useWeb3Context()
+  const nativeCurrency = useNativeCurrency()
   const factoryChainId = urlChainId ?? undefined
   const cachedFactory = useCachedFactory(version, factoryChainId)
   const [previousDeployments, setPreviousDeployments] = useState<string[]>([])
@@ -526,6 +751,16 @@ const FactoryPage = () => {
   const setTcrState = cachedFactory?.setTcrState
   const resetTcrState = cachedFactory?.resetTcrState
   const [visualStepIndex, setVisualStepIndex] = useState(0)
+  // Bumped by Start over so the open step remounts with the cleared values.
+  const [resets, setResets] = useState(0)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const firstStep = useRef(true)
+  const resetTriggerRef = useRef<HTMLButtonElement>(null)
+  const keepEditingRef = useRef<HTMLButtonElement>(null)
+  // Set when the confirmation closes from its own buttons: focus goes back
+  // to the trigger, which remounts in place of the confirmation.
+  const returnFocus = useRef(false)
+  const confirmQuestionId = useId()
 
   const transactions = tcrState?.transactions
   const currentVisualStep = LIGHT_FACTORY_VISUAL_STEPS[visualStepIndex]
@@ -551,11 +786,56 @@ const FactoryPage = () => {
     setConfirmingReset(false)
   }, [])
 
+  /** A completed group in the stepper opens at its first sub-step. */
+  const goToGroup = useCallback(
+    (groupStep: number) =>
+      goToVisualStep(
+        LIGHT_FACTORY_VISUAL_STEPS.findIndex(
+          (step) => step.groupStep === groupStep,
+        ),
+      ),
+    [goToVisualStep],
+  )
+
   const startOver = useCallback(() => {
     resetTcrState?.()
     setVisualStepIndex(0)
+    setResets((count) => count + 1)
+    returnFocus.current = true
     setConfirmingReset(false)
   }, [resetTcrState])
+
+  const keepEditing = useCallback(() => {
+    returnFocus.current = true
+    setConfirmingReset(false)
+  }, [])
+
+  // The confirmation replaces the action bar: move focus into it, and back
+  // to the trigger when it closes, so keyboard users keep their place.
+  useEffect(() => {
+    if (confirmingReset) {
+      keepEditingRef.current?.focus()
+      return
+    }
+    if (!returnFocus.current) return
+    returnFocus.current = false
+    resetTriggerRef.current?.focus()
+  }, [confirmingReset])
+
+  // A new step starts at its top: bring the panel back if it scrolled away.
+  useEffect(() => {
+    if (firstStep.current) {
+      firstStep.current = false
+      return
+    }
+    const panel = panelRef.current
+    // 72px: below the floating app bar.
+    if (!panel || panel.getBoundingClientRect().top >= 72) return
+    const reduced = window.matchMedia?.(
+      '(prefers-reduced-motion: reduce)',
+    ).matches
+    panel.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth' })
+  }, [visualStepIndex])
 
   useEffect(() => {
     if (!setTcrState || !currentVisualStep) return
@@ -610,40 +890,67 @@ const FactoryPage = () => {
   ])
 
   const header = (
-    <Hero>
-      <HeroCopy>
-        <Row $gap={8} $wrap>
-          <Label>Launch a list</Label>
-          {factoryChainId !== undefined && (
-            <ChainChip chainId={factoryChainId} />
-          )}
-        </Row>
-        <Statement>Create a Standard list.</Statement>
-        <Body $muted $large>
-          Describe the list, set the deposits and the item fields, then deploy
-          it with one transaction. Your progress is saved in this browser.
-        </Body>
-      </HeroCopy>
-      <SegmentedControl
-        ariaLabel="List type"
-        value="light"
-        options={[
-          { value: 'light', label: 'Standard' },
-          { value: 'permanent', label: 'Stake' },
-        ]}
-        onChange={(value) => {
-          if (value === 'permanent')
-            navigate(`/factory-permanent/${factoryChainId ?? ''}`)
-        }}
-      />
-    </Hero>
+    <>
+      <Head>
+        <HeadCopy style={{ ['--i' as string]: 0 }}>
+          <Row $gap={10} $wrap>
+            <Label $tone="faint">Launch a list</Label>
+            {factoryChainId !== undefined && (
+              <ChainChip chainId={factoryChainId} size="sm" />
+            )}
+          </Row>
+          <Statement>Create a Standard list.</Statement>
+          <Lede>
+            Four steps and one signature; the draft is saved in this browser as
+            you type.
+          </Lede>
+        </HeadCopy>
+        <div style={{ ['--i' as string]: 1 }}>
+          <SegmentedControl
+            ariaLabel="List type"
+            value="light"
+            options={[
+              { value: 'light', label: 'Standard' },
+              { value: 'permanent', label: 'Stake' },
+            ]}
+            onChange={(value) => {
+              if (value === 'permanent')
+                navigate(`/factory-permanent/${factoryChainId ?? ''}`)
+            }}
+          />
+        </div>
+      </Head>
+      <Section $gap="sm">
+        <Lift style={{ ['--i' as string]: 2 }}>
+          <Explainer
+            id="factory"
+            eyebrow="Before you start"
+            heading="What a list needs"
+            steps={[
+              {
+                title: 'A description and a policy',
+                body: 'A name, a one-line description, a logo and the listing policy: the PDF jurors and challengers use to judge every item.',
+              },
+              {
+                title: 'Deposits, a court and fields',
+                body: 'What a submitter locks while the challenge period runs, which Kleros court rules on disputes, and the fields each item has.',
+              },
+              {
+                title: 'One transaction',
+                body: 'Deploying sends two batched calls to the factory and costs gas only. Deposits are paid by submitters later.',
+              },
+            ]}
+          />
+        </Lift>
+      </Section>
+    </>
   )
 
   if (!cachedFactory || !cachedFactory.tcrState.arbitratorAddress)
     return (
       <Page>
         {header}
-        <Section>
+        <Section $gap="lg">
           {factoryChainId !== undefined && !supportedChain ? (
             <Surface $padding="none">
               <EmptyState
@@ -657,18 +964,26 @@ const FactoryPage = () => {
             </Surface>
           ) : (
             <FactoryWizardGrid aria-busy>
-              <Stack $gap={12}>
+              <Row $gap={16} $justify="space-between">
                 {[0, 1, 2, 3].map((index) => (
-                  <SkeletonBlock key={index} $height="24px" $width="70%" />
+                  <SkeletonBlock
+                    key={index}
+                    $height="36px"
+                    $width="36px"
+                    style={{ borderRadius: '50%' }}
+                  />
                 ))}
-              </Stack>
-              <Surface $padding="standard">
-                <Stack $gap={20}>
-                  <SkeletonBlock $height="24px" $width="40%" />
-                  <SkeletonBlock $height="40px" />
-                  <SkeletonBlock $height="40px" />
-                </Stack>
-              </Surface>
+              </Row>
+              <FactorySplit>
+                <Surface $padding="standard">
+                  <Stack $gap={20}>
+                    <SkeletonBlock $height="28px" $width="40%" />
+                    <SkeletonBlock $height="44px" />
+                    <SkeletonBlock $height="44px" />
+                  </Stack>
+                </Surface>
+                <SkeletonBlock $height="420px" />
+              </FactorySplit>
             </FactoryWizardGrid>
           )}
         </Section>
@@ -677,13 +992,23 @@ const FactoryPage = () => {
 
   const currentFormId = formIds[currentVisualStep.componentStep - 1]
   const isLast = visualStepIndex === LAST_STEP
+  const group = LIGHT_FACTORY_STEPS[currentVisualStep.groupStep - 1]
+  const groupSteps = LIGHT_FACTORY_VISUAL_STEPS.map((step, index) => ({
+    ...step,
+    index,
+  })).filter((step) => step.groupStep === currentVisualStep.groupStep)
+  const nextStep = LIGHT_FACTORY_VISUAL_STEPS[visualStepIndex + 1]
+  const previewSubject =
+    currentVisualStep.kind === 'rel' && tcrState?.relTcrDisabled === false
+      ? 'badges'
+      : 'list'
 
   const renderVisualStep = () => {
     switch (currentVisualStep.kind) {
       case 'tcr':
         return (
           <TCRParams
-            key={`${factoryChainId}-${visualStepIndex}`}
+            key={`${factoryChainId}-${visualStepIndex}-${resets}`}
             formId={currentFormId}
             factorySection={currentVisualStep.section}
             postSubmit={() => goToVisualStep(visualStepIndex + 1)}
@@ -693,7 +1018,7 @@ const FactoryPage = () => {
       case 'item':
         return (
           <ItemParams
-            key={`${factoryChainId}-${visualStepIndex}`}
+            key={`${factoryChainId}-${visualStepIndex}-${resets}`}
             formId={currentFormId}
             section={currentVisualStep.itemSection}
             postSubmit={() => goToVisualStep(visualStepIndex + 1)}
@@ -703,7 +1028,7 @@ const FactoryPage = () => {
       case 'rel':
         return (
           <RelTCRParams
-            key={`${factoryChainId}-${visualStepIndex}`}
+            key={`${factoryChainId}-${visualStepIndex}-${resets}`}
             formId={currentFormId}
             postSubmit={() => goToVisualStep(visualStepIndex + 1)}
             {...cachedFactory}
@@ -712,8 +1037,15 @@ const FactoryPage = () => {
       case 'deploy':
         return (
           <Deploy
-            key={`${factoryChainId}-${visualStepIndex}`}
+            key={`${factoryChainId}-${visualStepIndex}-${resets}`}
             formId={currentFormId}
+            onEditStep={(title) =>
+              goToVisualStep(
+                LIGHT_FACTORY_VISUAL_STEPS.findIndex(
+                  (step) => step.title === title,
+                ),
+              )
+            }
             {...cachedFactory}
           />
         )
@@ -726,123 +1058,170 @@ const FactoryPage = () => {
     <Page>
       {header}
 
-      <Section $gap="sm">
-        <Explainer
-          id="factory"
-          eyebrow="Before you start"
-          heading="What a list needs"
-          steps={[
-            {
-              title: 'A description and a policy',
-              body: 'A name, a one-line description, a logo and the listing policy: the PDF jurors and challengers use to judge every item.',
-            },
-            {
-              title: 'Deposits, a court and fields',
-              body: 'What a submitter locks while the challenge period runs, which Kleros court rules on disputes, and the fields each item has.',
-            },
-            {
-              title: 'One transaction',
-              body: 'Deploying sends two batched calls to the factory and costs gas only. Deposits are paid by submitters later.',
-            },
-          ]}
-        />
-      </Section>
-
-      <Section>
+      <Section $gap="lg">
         <FactoryWizardGrid>
-          <FactoryStepTimeline
-            currentStep={currentVisualStep.groupStep}
-            steps={LIGHT_FACTORY_STEPS}
-            activeSubitem={currentVisualStep.title}
-          />
-          <Stack $gap={16}>
-            <Surface $padding="standard">
-              <Stack $gap={16}>
-                <Label>
-                  Step {visualStepIndex + 1} of{' '}
-                  {LIGHT_FACTORY_VISUAL_STEPS.length} ·{' '}
-                  {LIGHT_FACTORY_STEPS[currentVisualStep.groupStep - 1].title}
-                </Label>
-                {renderVisualStep()}
-              </Stack>
-            </Surface>
+          <Lift style={{ ['--i' as string]: 3 }}>
+            <FactoryStepTimeline
+              currentStep={currentVisualStep.groupStep}
+              steps={LIGHT_FACTORY_STEPS}
+              activeSubitem={currentVisualStep.title}
+              onSelectStep={goToGroup}
+            />
+          </Lift>
+          <FactorySplit>
+            <PanelLift style={{ ['--i' as string]: 4 }}>
+              <StepPanel $padding="none" ref={panelRef}>
+                <PanelTop>
+                  <Label $tone="primary">
+                    {groupSteps.length > 1
+                      ? group.title
+                      : `${group.title} · ${group.description}`}
+                  </Label>
+                  {groupSteps.length > 1 && (
+                    <SubTabs aria-label={`${group.title} steps`}>
+                      {groupSteps.map((step) => {
+                        const state =
+                          step.index < visualStepIndex
+                            ? 'done'
+                            : step.index === visualStepIndex
+                              ? 'current'
+                              : 'next'
+                        return (
+                          <li key={step.title}>
+                            <SubTab
+                              type="button"
+                              $state={state}
+                              disabled={state !== 'done'}
+                              aria-current={
+                                state === 'current' ? 'step' : undefined
+                              }
+                              onClick={() => goToVisualStep(step.index)}
+                            >
+                              {state === 'done' && (
+                                <CurateIcon name="check" size={12} />
+                              )}
+                              {step.title}
+                            </SubTab>
+                          </li>
+                        )
+                      })}
+                    </SubTabs>
+                  )}
+                </PanelTop>
 
-            {confirmingReset && (
-              <Surface
-                $padding="compact"
-                $raised
-                role="alertdialog"
-                aria-label="Start over?"
-              >
-                <Stack $gap={12}>
-                  <Body>
-                    Clear every field and go back to the first step? Previous
-                    deployments are kept.
-                  </Body>
-                  <Row $gap={8} $wrap>
-                    <Button type="button" $variant="danger" onClick={startOver}>
-                      Start over
-                    </Button>
-                    <Button
-                      type="button"
-                      $variant="ghost"
-                      onClick={() => setConfirmingReset(false)}
+                <StepContent>{renderVisualStep()}</StepContent>
+
+                <FactoryActions $inPanel>
+                  {confirmingReset ? (
+                    <ConfirmRow
+                      role="alertdialog"
+                      aria-label="Start over?"
+                      aria-describedby={confirmQuestionId}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Escape') keepEditing()
+                      }}
                     >
-                      Keep editing
-                    </Button>
-                  </Row>
-                </Stack>
-              </Surface>
-            )}
-
-            <ActionBar>
-              <Button
-                type="button"
-                $variant="ghost"
-                onClick={() => setConfirmingReset(true)}
-              >
-                Start over
-              </Button>
-              <Row $gap={8}>
-                <Button
-                  type="button"
-                  $variant="secondary"
-                  disabled={visualStepIndex === 0}
-                  onClick={() => goToVisualStep(visualStepIndex - 1)}
-                >
-                  Previous
-                </Button>
-                {!isLast && (
-                  <Button type="submit" form={currentFormId} $variant="primary">
-                    Next
-                  </Button>
+                      <Small $muted id={confirmQuestionId}>
+                        Clear every field and return to the first step? Previous
+                        deployments are kept.
+                      </Small>
+                      <Row $gap={8} $wrap>
+                        <Button
+                          ref={keepEditingRef}
+                          type="button"
+                          $variant="ghost"
+                          $size="sm"
+                          onClick={keepEditing}
+                        >
+                          Keep editing
+                        </Button>
+                        <Button
+                          type="button"
+                          $variant="danger"
+                          $size="sm"
+                          onClick={startOver}
+                        >
+                          Start over
+                        </Button>
+                      </Row>
+                    </ConfirmRow>
+                  ) : (
+                    <>
+                      <Button
+                        ref={resetTriggerRef}
+                        type="button"
+                        $variant="ghost"
+                        $size="sm"
+                        onClick={() => setConfirmingReset(true)}
+                      >
+                        Start over
+                      </Button>
+                      <FactoryActionGroup>
+                        <Button
+                          type="button"
+                          $variant="secondary"
+                          disabled={visualStepIndex === 0}
+                          onClick={() => goToVisualStep(visualStepIndex - 1)}
+                        >
+                          Previous
+                        </Button>
+                        {!isLast && (
+                          <Button
+                            type="submit"
+                            form={currentFormId}
+                            $variant="primary"
+                            title={
+                              nextStep ? `Next: ${nextStep.title}` : undefined
+                            }
+                          >
+                            Next
+                            <CurateIcon name="submit" size={14} />
+                          </Button>
+                        )}
+                      </FactoryActionGroup>
+                    </>
+                  )}
+                </FactoryActions>
+              </StepPanel>
+            </PanelLift>
+            <FactoryAside aria-label="Preview">
+              <Lift style={{ ['--i' as string]: 5 }}>
+                {tcrState && factoryChainId !== undefined && (
+                  <LivePreview
+                    tcrState={tcrState}
+                    subject={previewSubject}
+                    chainId={factoryChainId}
+                    currency={nativeCurrency}
+                  />
                 )}
-              </Row>
-            </ActionBar>
-          </Stack>
+              </Lift>
+            </FactoryAside>
+          </FactorySplit>
         </FactoryWizardGrid>
       </Section>
 
       {previousDeployments.length > 0 && factoryChainId !== undefined && (
-        <Section>
-          <PanelHeader>
-            <div>
-              <PanelTitle>Previous deployments</PanelTitle>
-              <Small $muted>
-                Lists deployed from this browser on {chainName}.
-              </Small>
-            </div>
-          </PanelHeader>
-          <DeploymentList $padding="none">
-            {previousDeployments.map((contractAddress) => (
+        <section aria-label="Previous deployments">
+          <SectionHead>
+            <h2>
+              Your deployments
+              <Chip>{previousDeployments.length}</Chip>
+            </h2>
+            <Small $faint>
+              Lists deployed from this browser on {chainName}.
+            </Small>
+          </SectionHead>
+          <DeploymentRows>
+            {previousDeployments.map((contractAddress, index) => (
               <DeploymentRow
                 key={contractAddress}
                 address={contractAddress}
                 chainId={factoryChainId}
+                index={index}
               />
             ))}
-          </DeploymentList>
-        </Section>
+          </DeploymentRows>
+        </section>
       )}
     </Page>
   )
