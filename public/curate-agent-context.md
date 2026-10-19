@@ -14,11 +14,17 @@ Curate is a verification layer for policy-driven token-curated registries. A reg
 
 ## Verified Registries
 
-Verified registries are discovered through configured list-of-lists registries:
+A registry is Kleros Verified when it is one of the Kleros lists of lists below, or a Registered entry
+of any of them. Light and Classic lists of lists count the same. New lists are submitted to the Light
+one, with Light Curate `addItem(string)` (the skill's light-curate reference); the skill's
+list-of-lists notes predate it and describe the Classic ones, which take
+`GeneralizedTCR.addItem(bytes)`.
 
-- Mainnet: `0xba0304273a54dfec1fc7f4bccbf4b15519aecf15`
-- Gnosis: `0xe456c79446c4De1A0bA4d06F294Db42bA2fD4F7F`
-- Sepolia: `0xD965Ce430afE0423Ff19A5eb08F7C5722EFabCaF`
+- Ethereum Mainnet, Light: `0x2acf59a420ca888f46d46974f62570f8a38cd4da`
+- Ethereum Mainnet, Classic: `0xba0304273a54dfec1fc7f4bccbf4b15519aecf15`
+- Gnosis, Light: `0x2418d887d0d0fe03b793a6af4321fa488226a0b5`
+- Gnosis, Classic: `0x2442d40b0aecad0298c2724a97f2f1bbdf2c2615`
+- Sepolia, Light: `0xd965ce430afe0423ff19a5eb08f7c5722efabcaf`
 
 ## Required Agent Behavior
 

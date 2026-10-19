@@ -16,6 +16,7 @@ import {
   VERIFIED_LISTS_LABEL,
   VerifiedBadge,
 } from 'components/curate/verified-badge'
+import { isListOfLists } from 'config/list-of-lists'
 import { parseIpfs } from 'utils/ipfs-parse'
 import { formatDate } from 'utils/time'
 import type { DashboardRegistry } from './types'
@@ -26,9 +27,10 @@ import { chainInfo, entryCount, registryHref } from './view'
  * badge of approval, shown as themselves rather than as a share of every
  * list. The badge (its tooltip says what Verified means), how many there
  * are in the page's scope, and a strip of them, newest to earn the badge
- * first: logo, name, chain and when it earned the badge (its registration
- * on the chain's Kleros list of lists), each leading to its list. The
- * lists of lists themselves grant the badge and close the strip. The Most
+ * first: logo, name, chain and when it earned the badge (its earliest
+ * registration on any of the chain's Kleros lists of lists, Light or
+ * Classic), each leading to its list. The lists of lists themselves grant
+ * the badge, read "List of lists" and close the strip. The Most
  * active table below ranks by open requests, so the two never mirror. The
  * last tile leads to every Verified list in Browse. On wide screens the
  * strip shows as many as fit on one row; on phones it scrolls sideways.
@@ -401,7 +403,9 @@ export const VerifiedLists = ({
                   <VisuallyHidden>
                     {chainInfo(registry.chainId)?.name},{' '}
                   </VisuallyHidden>
-                  {registry.verifiedAt ? (
+                  {isListOfLists(registry.chainId, registry.address) ? (
+                    'List of lists'
+                  ) : registry.verifiedAt ? (
                     <time
                       dateTime={new Date(
                         registry.verifiedAt * 1000,
@@ -409,9 +413,7 @@ export const VerifiedLists = ({
                     >
                       Since {monthYear.format(registry.verifiedAt * 1000)}
                     </time>
-                  ) : (
-                    'List of lists'
-                  )}
+                  ) : null}
                 </Meta>
               </Tile>
             </li>

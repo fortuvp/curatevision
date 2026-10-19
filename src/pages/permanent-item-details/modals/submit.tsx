@@ -616,7 +616,7 @@ const SubmitModal: React.FC<{
       {showApprove && (
         <StepRow>
           <Small>
-            Step 1 of 2 · Allow the list to take your {tokenSymbol}. One
+            Step 1 of 2 · Allow the list to lock your {tokenSymbol} stake. One
             transaction, then the submission.
           </Small>
           <Button
@@ -666,7 +666,7 @@ const SubmitModal: React.FC<{
           {
             title: 'If someone challenges: jurors decide',
             branch: true,
-            body: `The challenger stakes ${challengerText} and pays the arbitration cost. If jurors side with you, your stake grows by theirs${multiplierKnown ? ` (${challengerText})` : ''}; if not, they take your ${stakeText} and ${depositText}. If the jurors refuse to rule, both stakes come back, the arbitration deposit is split, and the ${name} is withdrawn.`,
+            body: `The challenger stakes ${challengerText} and pays the arbitration cost. If your ${name} follows the listing policy, jurors side with you: it stays listed and your stake grows by the challenger's${multiplierKnown ? ` (${challengerText})` : ''}, all of it yours when you withdraw. The bounty for a ${name} that breaks the policy is its stake and arbitration deposit. If the jurors refuse to rule, both stakes come back, the arbitration deposit is split, and the ${name} is withdrawn.`,
           },
         ]}
         confirmLabel={typeof title === 'string' ? title : `Submit ${name}`}

@@ -21,7 +21,7 @@ import {
 /**
  * Which lists the explorer shows: the Kleros Verified ones (the default),
  * the Community ones (every other list), or all of them. A list whose
- * standing is not known yet ("unknown": its chain's list of lists did not
+ * standing is not known yet ("unknown": its chain's lists of lists did not
  * answer) shows only under All.
  */
 export type TrustMode = 'verified' | 'community' | 'all'
@@ -92,7 +92,7 @@ const scopeName = (chainId: number): string =>
 export const scopeText = (chains: number[]): string =>
   listFormat.format(scopeChainIds(chains).map(scopeName))
 
-/** Chains that have a Kleros Verified list of lists a registry can be submitted to. */
+/** Chains with a Light Kleros list of lists, where new lists are submitted. */
 export const VERIFICATION_CHAIN_IDS = Object.keys(
   VERIFIED_LIST_OF_LISTS_ADDRESSES,
 ).map(Number)
@@ -103,7 +103,7 @@ export const kindLabel = (kind: RegistryKind): string =>
 export const registryHref = (registry: DashboardRegistry): string =>
   `/tcr/${registry.chainId}/${registry.address}`
 
-/** Submission form of the chain's Kleros Verified list of lists, or null. */
+/** Submission form of the chain's Light Kleros list of lists, or null. */
 export const verificationHref = (chainId: number): string | null => {
   const address =
     VERIFIED_LIST_OF_LISTS_ADDRESSES[

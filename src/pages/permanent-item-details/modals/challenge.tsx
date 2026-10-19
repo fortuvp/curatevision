@@ -320,8 +320,8 @@ const ChallengeModal = ({
             {showApprove && (
               <StepRow>
                 <Small>
-                  Step 1 of 2 · Allow the list to take your {tokenSymbol}. One
-                  transaction, then the challenge itself.
+                  Step 1 of 2 · Allow the list to lock your {tokenSymbol} stake.
+                  One transaction, then the challenge itself.
                 </Small>
                 <Button
                   type="button"

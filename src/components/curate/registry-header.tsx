@@ -16,7 +16,6 @@ import {
 } from './primitives'
 import { CurateIcon } from './icons'
 import { TrustTag } from './verified-badge'
-import { replacedListOfLists } from './registry-shared-verified'
 import { Explainer, type ExplainerStep } from './explainer'
 import { RingGauge } from './motion/ring-gauge'
 import { reveal } from './motion/reveal'
@@ -187,39 +186,6 @@ const Note = styled.span`
   font-size: 12px;
   line-height: 16px;
   text-align: center;
-`
-
-/* A Classic list of lists Kleros replaced: where Kleros Verified is now. */
-const Moved = styled.p`
-  margin: 2px 0 0;
-  padding-top: 10px;
-  border-top: 1px solid var(--glass-border);
-  color: var(--color-muted);
-  font-size: 12px;
-  line-height: 16px;
-  text-align: center;
-
-  a {
-    color: var(--color-primary);
-    font-weight: 500;
-    text-decoration: underline;
-    text-decoration-color: color-mix(
-      in srgb,
-      var(--color-primary) 40%,
-      transparent
-    );
-    text-underline-offset: 2px;
-  }
-
-  a:hover {
-    text-decoration-color: currentColor;
-  }
-
-  a:focus-visible {
-    border-radius: 3px;
-    outline: 2px solid var(--color-primary);
-    outline-offset: 2px;
-  }
 `
 
 /* Every figure sits on the band's bottom line: the headline, the inline
@@ -551,9 +517,6 @@ export const RegistryHeader = ({
   totalCount?: number
 }) => {
   const [paramsOpen, setParamsOpen] = useState(false)
-  // A Classic list of lists Kleros replaced in August 2026: it still takes
-  // submissions, but the badge now comes from the current one.
-  const successor = replacedListOfLists(chainId, address)
   const explorer = chainId
     ? getAddressPage({ networkId: chainId, address })
     : null
@@ -616,13 +579,6 @@ export const RegistryHeader = ({
             {primaryAmount && <Amount>· {primaryAmount}</Amount>}
           </Button>
           <Note>{depositNote ?? depositNoteFor(kindLabel, itemName)}</Note>
-          {successor && chainId && (
-            <Moved>
-              Since August 2026, Kleros Verified lists are registered on the{' '}
-              <Link to={`/tcr/${chainId}/${successor}`}>new list of lists</Link>
-              .
-            </Moved>
-          )}
         </Action>
       </Top>
 

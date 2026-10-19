@@ -1095,11 +1095,15 @@ const Items = () => {
       />
 
       <Legacy style={{ '--i': 1 } as React.CSSProperties}>
-        <Deprecation>
-          <InfoIcon />
-          Classic Curate is deprecated: this list keeps working, but new lists
-          use Light Curate.
-        </Deprecation>
+        {/* Not on a Classic list of lists: it is Kleros Verified and keeps
+            granting the badge, so nothing there may read as retired. */}
+        {!trust.listOfLists && (
+          <Deprecation>
+            <InfoIcon />
+            Classic Curate is deprecated: this list keeps working, but new lists
+            use Light Curate.
+          </Deprecation>
+        )}
         {overview && (
           <ClassicLifetime
             times={overview.latestRequests}

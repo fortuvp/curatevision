@@ -1,7 +1,11 @@
 import { gql, request } from 'graphql-request'
 import { NETWORKS } from 'config/networks'
 import { subgraphUrl, subgraphUrlPermanent } from 'config/tcr-addresses'
-import { verifiedSources } from 'components/curate/registry-shared-verified'
+import { getListOfListsAddresses, isListOfLists } from 'config/list-of-lists'
+import {
+  extractRegistryAddress,
+  verifiedSetFrom,
+} from 'components/curate/verified-rule'
 import { readRegistryMetadata } from 'utils/registry-metadata'
 import {
   applyCreationTimes,
@@ -43,6 +47,8 @@ const LEADERBOARD_MAX_PAGES = 5
 /** Registries read per page; a full page means there may be more. */
 const REGISTRY_PAGE_SIZE = 160
 const REGISTRY_MAX_PAGES = 10
+/** Entries of the lists of lists read per page (a few dozen in all today). */
+const VERIFIED_PAGE_SIZE = 500
 /** Open requests read per chain to count them; a full read caps the count. */
 const OPEN_REQUEST_LIMIT = 1000
 /** Unchallenged requests read per chain for the cards (the count is separate). */
@@ -138,7 +144,6 @@ const CLASSIC_ITEM = `
   }
 `
 
-/** The cards of chosen requests, by request id (Light and Classic). */
 /*
  * When an entry of a list of lists was registered: its latest accepted
  * registration request (a Registered entry has no later one). For the
@@ -158,6 +163,7 @@ const REGISTERED_SINCE = `
   }
 `
 
+/** The cards of chosen requests, by request id (Light and Classic). */
 const ENVIO_REQUEST_CARDS_QUERY = gql`
   query EnvioRequestCards($lightIds: [String!]!, $classicIds: [String!]!) {
     light: LRequest(where: { id: { _in: $lightIds } }) {
@@ -174,11 +180,63 @@ const ENVIO_REQUEST_CARDS_QUERY = gql`
   }
 `
 
+/*
+ * The Registered entries of the chain's Kleros lists of lists, Light and
+ * Classic (config/list-of-lists.ts): the lists they point to are Kleros
+ * Verified (components/curate/verified-rule.ts). The first page comes with
+ * the dashboard query; a full page reads on (ENVIO_VERIFIED_PAGE_QUERY).
+ */
+const VERIFIED_ENTRIES = (offset: 0 | '$offset') => `
+    verifiedClassic: Item(
+      limit: ${VERIFIED_PAGE_SIZE}
+      offset: ${offset}
+      order_by: [{ id: asc }]
+      where: {
+        chainId: { _eq: $chainId }
+        registry_id: { _in: $listsOfLists }
+        status: { _eq: "Registered" }
+      }
+    ) {
+      id
+      data
+      registry_id
+      ${REGISTERED_SINCE}
+    }
+    verifiedLight: LItem(
+      limit: ${VERIFIED_PAGE_SIZE}
+      offset: ${offset}
+      order_by: [{ id: asc }]
+      where: {
+        chainId: { _eq: $chainId }
+        registry_id: { _in: $listsOfLists }
+        status: { _eq: "Registered" }
+      }
+    ) {
+      id
+      data
+      registry_id
+      ${REGISTERED_SINCE}
+      props(order_by: { label: asc }) {
+        value
+      }
+    }
+`
+
+const ENVIO_VERIFIED_PAGE_QUERY = gql`
+  query EnvioVerifiedPage(
+    $chainId: Int!
+    $listsOfLists: [String!]!
+    $offset: Int!
+  ) {
+    ${VERIFIED_ENTRIES('$offset')}
+  }
+`
+
 const ENVIO_DASHBOARD_QUERY = gql`
   query EnvioDashboard(
     $chainId: Int!
     $since: numeric!
-    $verifiedSources: [String!]!
+    $listsOfLists: [String!]!
   ) {
     lregistries: LRegistry(
       limit: ${REGISTRY_PAGE_SIZE}
@@ -337,38 +395,7 @@ const ENVIO_DASHBOARD_QUERY = gql`
       ${REQUEST_FIELDS}
       ${CLASSIC_ITEM}
     }
-    verifiedClassic: Item(
-      limit: 500
-      where: {
-        chainId: { _eq: $chainId }
-        registry_id: { _in: $verifiedSources }
-        status: { _eq: "Registered" }
-      }
-    ) {
-      id
-      data
-      registry_id
-      ${REGISTERED_SINCE}
-    }
-    verifiedLight: LItem(
-      limit: 500
-      where: {
-        chainId: { _eq: $chainId }
-        registry_id: { _in: $verifiedSources }
-        status: { _eq: "Registered" }
-      }
-    ) {
-      id
-      data
-      registry_id
-      ${REGISTERED_SINCE}
-      props(order_by: { label: asc }) {
-        value
-        itemType
-        label
-        isIdentifier
-      }
-    }
+    ${VERIFIED_ENTRIES(0)}
   }
 `
 
@@ -611,6 +638,15 @@ const PERMANENT_DASHBOARD_QUERY = gql`
   }
 `
 
+/*
+ * A page of the 30-day activity: the requests made in the window (by
+ * submission time) and the challenges made in it (by challenge time,
+ * whenever the request was made). A Light request carries its
+ * challengeTime. A Classic one does not: its second round is created by the
+ * challenge (round 0 at submission, later rounds on appeal), so that
+ * round's creationTime is the challenge's. The landing page counts the
+ * same rows (src/landing/boot.ts reads this load).
+ */
 const ENVIO_CURATOR_PAGE_QUERY = gql`
   query EnvioCuratorPage(
     $chainId: Int!
@@ -622,39 +658,72 @@ const ENVIO_CURATOR_PAGE_QUERY = gql`
       limit: $limit
       offset: $offset
       where: { chainId: { _eq: $chainId }, submissionTime: { _gte: $since } }
-      order_by: [{ submissionTime: desc }]
+      order_by: [{ submissionTime: desc }, { id: asc }]
     ) {
       id
-      chainId
       requestType
       requester
-      challenger
-      disputed
-      resolved
-      disputeOutcome
       submissionTime
-      challengeTime
-      resolutionTime
     }
     classicRequests: Request(
       limit: $limit
       offset: $offset
       where: { chainId: { _eq: $chainId }, submissionTime: { _gte: $since } }
-      order_by: [{ submissionTime: desc }]
+      order_by: [{ submissionTime: desc }, { id: asc }]
     ) {
       id
-      chainId
       requestType
       requester
+      submissionTime
+    }
+    lightChallenges: LRequest(
+      limit: $limit
+      offset: $offset
+      where: {
+        chainId: { _eq: $chainId }
+        disputed: { _eq: true }
+        challengeTime: { _gte: $since }
+      }
+      order_by: [{ challengeTime: desc }, { id: asc }]
+    ) {
+      id
       challenger
-      disputed
       resolved
       disputeOutcome
-      submissionTime
-      resolutionTime
+      challengeTime
+    }
+    classicChallenges: Request(
+      limit: $limit
+      offset: $offset
+      where: {
+        chainId: { _eq: $chainId }
+        disputed: { _eq: true }
+        rounds: { creationTime: { _gte: $since } }
+      }
+      order_by: [{ id: asc }]
+    ) {
+      id
+      challenger
+      resolved
+      disputeOutcome
+      rounds(order_by: [{ creationTime: asc }], limit: 2) {
+        creationTime
+      }
     }
   }
 `
+
+/**
+ * When a Light or Classic request was challenged (see
+ * ENVIO_CURATOR_PAGE_QUERY), or 0 when it was not.
+ */
+const challengeTimeOf = (row: {
+  challengeTime?: string | number | null
+  rounds?: { creationTime?: string | number | null }[] | null
+}): number =>
+  row.challengeTime !== undefined
+    ? toNumber(row.challengeTime)
+    : toNumber(row.rounds?.[1]?.creationTime)
 
 const PERMANENT_CURATOR_PAGE_QUERY = gql`
   query PermanentCuratorPage($first: Int!, $skip: Int!) {
@@ -766,24 +835,6 @@ export const formatWei = (value?: string | null, chainId?: number): string => {
           maximumFractionDigits: numeric >= 10 ? 1 : 3,
         }).format(numeric)
   return `${formatted} ${symbol}`
-}
-
-const extractRegistryAddress = (
-  value?: string,
-  props?: any[],
-): string | null => {
-  const propAddress = props
-    ?.map((prop) => prop?.value)
-    .find((candidate) => /^0x[a-fA-F0-9]{40}$/.test(candidate || ''))
-
-  if (propAddress) return normalizeAddress(propAddress)
-
-  if (!value) return null
-  const encodedAddress = value.match(/0xd594([a-fA-F0-9]{40})/)
-  if (encodedAddress) return `0x${encodedAddress[1]}`.toLowerCase()
-
-  const rawAddress = value.match(/0x[a-fA-F0-9]{40}/)
-  return rawAddress ? rawAddress[0].toLowerCase() : null
 }
 
 const registryTitle = (
@@ -1148,21 +1199,20 @@ interface NormalizedChain {
 }
 
 const normalizeEnvio = (payload: any, chainId: number): NormalizedChain => {
-  const verifiedAddresses = new Set<string>()
-  // The shared Kleros Verified rule (registry-shared-verified.ts): the
-  // chain's list of lists and the lists registered on it; a list holds the
-  // badge since its registration there.
-  for (const address of verifiedSources(chainId))
-    verifiedAddresses.add(normalizeAddress(address))
-
-  const verifiedSince: Record<string, number> = {}
-  for (const item of [
+  // The shared Kleros Verified rule (components/curate/verified-rule.ts):
+  // the chain's Kleros lists of lists, Light and Classic, and the lists
+  // registered on any of them. A list holds the badge since its earliest
+  // registration on one; the lists of lists grant it, so have no date.
+  const verifiedEntries = [
     ...(payload.verifiedClassic ?? []),
     ...(payload.verifiedLight ?? []),
-  ]) {
+  ]
+  const verifiedAddresses = verifiedSetFrom(chainId, verifiedEntries)
+
+  const verifiedSince: Record<string, number> = {}
+  for (const item of verifiedEntries) {
     const address = extractRegistryAddress(item.data, item.props)
-    if (!address) continue
-    verifiedAddresses.add(address)
+    if (!address || isListOfLists(chainId, address)) continue
     const registeredAt = toNumber(item.requests?.[0]?.resolutionTime)
     if (registeredAt > 0)
       verifiedSince[address] = Math.min(
@@ -1460,6 +1510,7 @@ const mergeUsers = (maps: Map<string, DashboardUser>[]): DashboardUser[] => {
 const normalizeEnvioLeaderboardPage = (
   payload: any,
   chainId: number,
+  since: number,
 ): Map<string, DashboardUser> => {
   const users = new Map<string, DashboardUser>()
 
@@ -1473,31 +1524,38 @@ const normalizeEnvioLeaderboardPage = (
         ? 'removals'
         : 'submissions'
     accumulateUser(users, chainId, requestEntity.requester, field, timestamp)
+  }
 
-    if (!requestEntity.disputed) continue
-    const challengedAt = toNumber(requestEntity.challengeTime) || timestamp
+  // Challenges on the day each was made (an appeal round in the window does
+  // not make an older Classic challenge new).
+  for (const challenge of [
+    ...(payload.lightChallenges ?? []),
+    ...(payload.classicChallenges ?? []),
+  ]) {
+    const challengedAt = challengeTimeOf(challenge)
+    if (challengedAt < since) continue
     accumulateUser(
       users,
       chainId,
-      requestEntity.challenger,
+      challenge.challenger,
       'challenges',
       challengedAt,
     )
-    if (!requestEntity.resolved) continue
+    if (!challenge.resolved) continue
     // Decided: the court ruled (or refused to). Reject is a ruling for the
     // challenger, whichever request (submission or removal) was challenged.
     accumulateUser(
       users,
       chainId,
-      requestEntity.challenger,
+      challenge.challenger,
       'decidedChallenges',
       challengedAt,
     )
-    if (requestEntity.disputeOutcome === 'Reject')
+    if (challenge.disputeOutcome === 'Reject')
       accumulateUser(
         users,
         chainId,
-        requestEntity.challenger,
+        challenge.challenger,
         'successfulChallenges',
         challengedAt,
       )
@@ -1562,7 +1620,11 @@ interface ActivityEvent {
   kind: 'submissions' | 'removals' | 'challenges'
 }
 
-const envioPageEvents = (payload: any, chainId: number): ActivityEvent[] => {
+const envioPageEvents = (
+  payload: any,
+  chainId: number,
+  since: number,
+): ActivityEvent[] => {
   const events: ActivityEvent[] = []
   for (const requestEntity of [
     ...(payload.lightRequests ?? []),
@@ -1578,11 +1640,13 @@ const envioPageEvents = (payload: any, chainId: number): ActivityEvent[] => {
             ? 'removals'
             : 'submissions',
       })
-    if (requestEntity.disputed) {
-      const challengedAt = toNumber(requestEntity.challengeTime) || at
-      if (challengedAt)
-        events.push({ at: challengedAt, chainId, kind: 'challenges' })
-    }
+  }
+  for (const challenge of [
+    ...(payload.lightChallenges ?? []),
+    ...(payload.classicChallenges ?? []),
+  ]) {
+    const at = challengeTimeOf(challenge)
+    if (at >= since) events.push({ at, chainId, kind: 'challenges' })
   }
   return events
 }
@@ -1649,12 +1713,16 @@ const fetchCuratorLeaderboard = async (
         }).then((payload) =>
           payload
             ? {
-                users: normalizeEnvioLeaderboardPage(payload, chainId),
-                events: envioPageEvents(payload, chainId),
+                users: normalizeEnvioLeaderboardPage(payload, chainId, since),
+                events: envioPageEvents(payload, chainId, since),
                 full:
                   page === lastPage &&
-                  pageRows(payload, ['lightRequests', 'classicRequests']) >=
-                    LEADERBOARD_PAGE_SIZE,
+                  pageRows(payload, [
+                    'lightRequests',
+                    'classicRequests',
+                    'lightChallenges',
+                    'classicChallenges',
+                  ]) >= LEADERBOARD_PAGE_SIZE,
               }
             : noteFailure(chainId),
         ),
@@ -1781,37 +1849,63 @@ const safeRequest = async <T>(
 }
 
 /**
- * The first page of each registry kind comes with the dashboard query; when
- * it is full, read on until a short page, so no list drops out of the totals.
+ * The first page of each registry kind, and of the lists of lists' entries,
+ * comes with the dashboard query; when one is full, read on until a short
+ * page, so no list drops out of the totals or loses its Kleros Verified mark.
  */
 const readRemainingRegistries = async (
   payload: any,
   chainId: number,
   onFail: () => void = () => undefined,
 ) => {
-  const pages: [string, string][] = [
-    ['lregistries', ENVIO_LREGISTRY_PAGE_QUERY],
-    ['registries', ENVIO_REGISTRY_PAGE_QUERY],
+  const listsOfLists = getListOfListsAddresses(chainId)
+  const pages: {
+    keys: string[]
+    query: string
+    size: number
+    maxPages: number
+    variables: Record<string, unknown>
+  }[] = [
+    {
+      keys: ['lregistries'],
+      query: ENVIO_LREGISTRY_PAGE_QUERY,
+      size: REGISTRY_PAGE_SIZE,
+      maxPages: REGISTRY_MAX_PAGES,
+      variables: {},
+    },
+    {
+      keys: ['registries'],
+      query: ENVIO_REGISTRY_PAGE_QUERY,
+      size: REGISTRY_PAGE_SIZE,
+      maxPages: REGISTRY_MAX_PAGES,
+      variables: {},
+    },
+    {
+      keys: ['verifiedClassic', 'verifiedLight'],
+      query: ENVIO_VERIFIED_PAGE_QUERY,
+      size: VERIFIED_PAGE_SIZE,
+      maxPages: REGISTRY_MAX_PAGES,
+      variables: { listsOfLists },
+    },
   ]
   await Promise.all(
-    pages.map(async ([key, query]) => {
-      const rows: unknown[] = payload[key] ?? []
-      let last = rows.length
-      for (
-        let page = 1;
-        last >= REGISTRY_PAGE_SIZE && page < REGISTRY_MAX_PAGES;
-        page += 1
-      ) {
+    pages.map(async ({ keys, query, size, maxPages, variables }) => {
+      const rows = keys.map((key): unknown[] => payload[key] ?? [])
+      let full = rows.some((list) => list.length >= size)
+      for (let page = 1; full && page < maxPages; page += 1) {
         const next = await safeRequest<any>(subgraphUrl[chainId], query, {
           chainId,
-          offset: page * REGISTRY_PAGE_SIZE,
+          offset: page * size,
+          ...variables,
         })
         if (!next) onFail()
-        const more: unknown[] = next?.[key] ?? []
-        rows.push(...more)
-        last = next ? more.length : 0
+        const more = keys.map((key): unknown[] => next?.[key] ?? [])
+        more.forEach((list, index) => rows[index].push(...list))
+        full = !!next && more.some((list) => list.length >= size)
       }
-      payload[key] = rows
+      keys.forEach((key, index) => {
+        payload[key] = rows[index]
+      })
     }),
   )
   return payload
@@ -2154,7 +2248,7 @@ export const loadDashboardData = async ({
         {
           chainId,
           since,
-          verifiedSources: verifiedSources(chainId),
+          listsOfLists: getListOfListsAddresses(chainId),
         },
       )
       if (!payload) failed.add(chainId)
@@ -2201,7 +2295,7 @@ export const loadDashboardData = async ({
     const chainId = chains[index]
     const verifiedRegistryAddresses = new Set(
       envioResults[index]?.verifiedRegistryAddresses ??
-        verifiedSources(chainId),
+        getListOfListsAddresses(chainId),
     )
     if (!payload) failed.add(chainId)
     return payload

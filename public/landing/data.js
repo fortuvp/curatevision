@@ -4,18 +4,19 @@
 // answer; while it shows this object it labels each figure with
 // `snapshotAt` or the series' window, never "now".
 // figures: verified and community split the lists by the shared Kleros
-// Verified rule (components/curate/registry-shared-verified.ts: the chain's
-// current Kleros list of lists and the lists registered on it); unchallenged
-// counts unresolved requests nobody has challenged, openForVerification
-// those still inside their challenge period (absent when the periods could
-// not be read).
+// Verified rule (components/curate/verified-rule.ts: the chain's Kleros
+// lists of lists, Light and Classic, and the lists registered on any of
+// them); unchallenged counts unresolved requests nobody has challenged,
+// openForVerification those still inside their challenge period (absent
+// when the periods could not be read).
 // verifiedLists: the Kleros Verified lists, most open requests first; logo
 // is the IPFS path the list published (the page resolves it through the
 // app's gateway).
 // series30d: one row per UTC day; requests = submissions + removal requests
-// made that day; challenges = challenges made that day (Light: the
-// challenge time; Classic: the dispute's round; Stake: the challenge), each
-// of which opened a dispute in Kleros Court.
+// made that day; challenges = challenges made that day, whenever the
+// request was made (Light: the challenge time; Classic: the round the
+// challenge opened; Stake: the challenge), each of which opened a dispute in
+// Kleros Court. The app's dashboard counts the same way.
 // bounties: what challengers have won, all time, one entry per coin (never
 // added across coins): Light and Classic lists pay the requester's base
 // deposit of every dispute the challenger won, Stake lists the entry's
@@ -26,19 +27,19 @@
 // window.CURATE_LANDING_LIVE (minus `live`); never edit single figures by
 // hand.
 window.CURATE_LANDING_DATA = {
-  snapshotAt: '2026-10-19T15:25:31.046Z',
+  snapshotAt: '2026-10-19T16:32:35.255Z',
   scope: 'Ethereum and Gnosis',
   figures: {
     registries: 237,
-    verified: 13,
-    community: 224,
-    entries: 31499,
-    requestsOpen: 156,
-    unchallenged: 149,
+    verified: 36,
+    community: 201,
+    entries: 31500,
+    requestsOpen: 157,
+    unchallenged: 150,
     unchallengedCapped: false,
-    openForVerification: 149,
+    openForVerification: 150,
     inCourt: 7,
-    curators30d: 11,
+    curators30d: 12,
   },
   verifiedLists: [
     {
@@ -56,8 +57,8 @@ window.CURATE_LANDING_DATA = {
       kind: 'light',
       title: 'Kleros Tokens',
       logo: '/ipfs/QmZ5VC8FHMjs92yQEn9dnJottspM5JUbJUkPtno1hPPYks/t2cr-logo.974d9285.png',
-      entries: 7069,
-      open: 36,
+      entries: 7070,
+      open: 37,
     },
     {
       chainId: 100,
@@ -78,12 +79,48 @@ window.CURATE_LANDING_DATA = {
       open: 2,
     },
     {
+      chainId: 1,
+      address: '0x7884a7adf697e18357087fe8f994669042af4ae9',
+      kind: 'classic',
+      title: 'Kleros Storytelling - Standard Impact',
+      logo: '/ipfs/QmQN9ZPubns9kpW3jxZefyt8sNbeUzj8KEcsT7i81SiXFf/standard-impact-logo-.png',
+      entries: 651,
+      open: 0,
+    },
+    {
       chainId: 100,
       address: '0x5aaf9e23a11440f8c1ad6d2e2e5109c7e52cc672',
       kind: 'light',
       title: 'Seer Markets',
       logo: '/ipfs/QmckmpMuWGiGHCzbYgPqLPcCvLDj4YDPRZB63p7VaAjrbB/seer-logo-2-.png',
       entries: 351,
+      open: 0,
+    },
+    {
+      chainId: 1,
+      address: '0x99a0f0e0d9ee776d791d2e55c215d05ccf7286fc',
+      kind: 'classic',
+      title: 'Kleros Storytelling - High Impact',
+      logo: '/ipfs/QmbfE4m4esbQ8gSYi83ptpRZggENaHhCWYTr6796Y1iRrk/high-impact-logo-.png',
+      entries: 260,
+      open: 0,
+    },
+    {
+      chainId: 1,
+      address: '0xb72103ee8819f2480c25d306eeab7c3382fba612',
+      kind: 'classic',
+      title: 'Omen Verified Market',
+      logo: '/ipfs/QmSvhGvYvwzWVeBPSvTmttAyFU3PLHczRtMMexVcSmfbbh/omen-badge-tcr-.png',
+      entries: 79,
+      open: 0,
+    },
+    {
+      chainId: 1,
+      address: '0x941b4a0dfdc7f15275a4cb6913b395647bb69fc3',
+      kind: 'classic',
+      title: 'DeversiFi Storytelling - Standard Impact',
+      logo: '/ipfs/QmfFy2e6ZGP9tgVPuyDP41QyjFUbwThr8qY3xKm8ToFWgw/silver.png',
+      entries: 61,
       open: 0,
     },
     {
@@ -96,12 +133,102 @@ window.CURATE_LANDING_DATA = {
       open: 0,
     },
     {
+      chainId: 100,
+      address: '0xa78ec5742a5d360f92f6d6d7e775fb35ab559a51',
+      kind: 'light',
+      title: 'List of Web3 auditors',
+      logo: '/ipfs/QmYHqBx1PTDNB8zds9TqsM6MeVRRqjSTksmejkEXyZBozD/audit-icon.png',
+      entries: 52,
+      open: 0,
+    },
+    {
       chainId: 1,
       address: '0x6e31d83b0c696f7d57241d3dffd0f2b628d14c67',
       kind: 'light',
       title: 'Address Tags',
       logo: '/ipfs/QmP1hU1LaheHVGxcSJWg5sC3g25vs5snam3qP1bVVAa7mT/address-tag-2-1.png',
       entries: 31,
+      open: 0,
+    },
+    {
+      chainId: 1,
+      address: '0x2e3b10abf091cdc53cc892a50dabdb432e220398',
+      kind: 'classic',
+      title: 'clr.fund',
+      logo: '/ipfs/QmP8y7LyRyzSH9rroZ5aMYvRWmP8uBvhgqP8MSrdynqjyK/clrfund-white.png',
+      entries: 30,
+      open: 0,
+    },
+    {
+      chainId: 100,
+      address: '0x54a92c21c6553a8085066311f2c8d9db1b5e6610',
+      kind: 'classic',
+      title: 'Pythia',
+      logo: '/ipfs/QmNvHq3LU9Si1w8eFq7vVZdJmRbKb72VAhyesUA6SGV9kZ/twitter.png',
+      entries: 27,
+      open: 0,
+    },
+    {
+      chainId: 100,
+      address: '0xd5994f15be9987104d9821aa99d1c97227c7c08c',
+      kind: 'light',
+      title: 'Authentic NFT Registry',
+      logo: '/ipfs/QmVVBTtSvdvh6MyJr9XWgfFigvpxw3uG8wEcFTfdujjBai/kmanr.png',
+      entries: 23,
+      open: 0,
+    },
+    {
+      chainId: 100,
+      address: '0x2442d40b0aecad0298c2724a97f2f1bbdf2c2615',
+      kind: 'classic',
+      title: 'xDAI List Registry',
+      logo: '/ipfs/QmPCSaA3pXpCtCAdD3jrScM7vNn2G4v8sjYK3sYjSgBakd/logo2.png',
+      entries: 18,
+      open: 0,
+    },
+    {
+      chainId: 1,
+      address: '0x6f15ca438992d9a4d7281e7e80381c4d904b2a24',
+      kind: 'classic',
+      title: 'DeversiFi Storytelling - High Impact',
+      logo: '/ipfs/QmSk4V8PcEes8Lcp7PfLHEUWkd8dVnnMqH2UzzzRXd5phQ/gold.png',
+      entries: 16,
+      open: 0,
+    },
+    {
+      chainId: 1,
+      address: '0xba0304273a54dfec1fc7f4bccbf4b15519aecf15',
+      kind: 'classic',
+      title: 'The Registry',
+      logo: '/ipfs/QmTWoUqEATz6QdFAosbg72yFyjkws2oiY1XSRmYH2RhSZ9/list.svg',
+      entries: 16,
+      open: 0,
+    },
+    {
+      chainId: 100,
+      address: '0x2f19f817bbf800b487b7f2e51f24ad5ea0222463',
+      kind: 'light',
+      title: 'Authentic NFT Collection Registry',
+      logo: '/ipfs/QmV2vTfULSHwV34y4i9WDYCHy5dyBtfivYyZQKvR6botRq/kmancr.png',
+      entries: 10,
+      open: 0,
+    },
+    {
+      chainId: 100,
+      address: '0x86e72802d9abbf7505a889721fd4d6947b02320e',
+      kind: 'classic',
+      title: 'Sports Questions Sets',
+      logo: '/ipfs/QmQDuQ6vTuJ1bEq4J3F57zhxqo92QFrTbfzzPYVrfDYctv/prode-podium.png',
+      entries: 10,
+      open: 0,
+    },
+    {
+      chainId: 1,
+      address: '0xf339047c85d0dd2645f2bd802a1e8a5e7af61053',
+      kind: 'classic',
+      title: 'Safe Farming',
+      logo: '/ipfs/QmNwEpc74Ewq5ui9JSPTvnk6oLpQWZy7TnVK7gumPK1EGX/safe-farming-logo.png',
+      entries: 10,
       open: 0,
     },
     {
@@ -150,6 +277,15 @@ window.CURATE_LANDING_DATA = {
       open: 0,
     },
     {
+      chainId: 1,
+      address: '0x8efff9bb64ed3d766a26a18e873cf171e67becf2',
+      kind: 'classic',
+      title: 'Token Decimals',
+      logo: '/ipfs/QmRVqD3yzaDSyiVvzNwTchiTpA6jgd24uedoSaokkMCV13/token-decimals.png',
+      entries: 3,
+      open: 0,
+    },
+    {
       chainId: 100,
       address: '0x7305c57b731876f452da8574a77d05957820e588',
       kind: 'permanent',
@@ -158,38 +294,230 @@ window.CURATE_LANDING_DATA = {
       entries: 2,
       open: 0,
     },
+    {
+      chainId: 100,
+      address: '0x43adac2fa0fdf58ca585b0e0f4c9914a06ea80e0',
+      kind: 'light',
+      title: 'Metamask Snaps - "Seems Secure" list',
+      logo: '/ipfs/QmZfTETH5kdvYkmAMW9Ck211on2Ntw2UutYCvQbKm8iBEM/kleros-pnk-logo.png',
+      entries: 2,
+      open: 0,
+    },
+    {
+      chainId: 100,
+      address: '0x37c313450a0681c9d5c347a420209a7cedfcfa20',
+      kind: 'light',
+      title: 'Registry of unfinished memes',
+      logo: '/ipfs/QmWEjbFe7s5vewGAPYJBm1NLfeQLhPLj8Yk1Wwskz26aQa/dogecoin-logo.png',
+      entries: 2,
+      open: 0,
+    },
+    {
+      chainId: 100,
+      address: '0x88b507b7e36f8d19e11dfa4f958dba8d6cebdc17',
+      kind: 'light',
+      title: 'Contract-Domain Name Query Registry',
+      logo: '/ipfs/QmZfTETH5kdvYkmAMW9Ck211on2Ntw2UutYCvQbKm8iBEM/kleros-pnk-logo.png',
+      entries: 1,
+      open: 0,
+    },
+    {
+      chainId: 100,
+      address: '0x077d51a02248220b8d04561ad52cc36a3f3cb0c5',
+      kind: 'classic',
+      title: 'On-chain Ads',
+      logo: '/ipfs/QmSCzB3H9t7FxW9ffkY1hhUMP8Vrk2RDmWPDaSWDQQvmQ1/ads-technical-v2.png',
+      entries: 1,
+      open: 0,
+    },
+    {
+      chainId: 1,
+      address: '0x1e9c3b5f57974beadbd8c28ba918d85b8477c618',
+      kind: 'classic',
+      title: 'Fake News Oracle',
+      logo: '/ipfs/QmZPeWnzHGKwvnckQE2QrdRJiUFqQXvQEZGFHdEAh7raHN/fno.png',
+      entries: 1,
+      open: 0,
+    },
+    {
+      chainId: 100,
+      address: '0xc5e81645a95b0c1369fe7610687878ac4e1267fa',
+      kind: 'classic',
+      title: 'On-chain Ads (content moderation)',
+      logo: '/ipfs/QmdQ3mEvVkhMnaML3541QtPFEJxbix3pmp9ATiNkhmwwp3/ads-moderation-v2.png',
+      entries: 1,
+      open: 0,
+    },
+    {
+      chainId: 1,
+      address: '0x156caa835947337904b7f5a0d9bfca365db7a087',
+      kind: 'classic',
+      title: 'Insurance Analysis - Data Only',
+      logo: '/ipfs/QmcYv5jYevcq2JAxB9LDWjtQvSmjyX9fE7QPWhbJfnQW8K/badge-car-insurance-logo-2-transparent-background.png',
+      entries: 0,
+      open: 0,
+    },
+    {
+      chainId: 1,
+      address: '0x6f9073c5c718af1791d1b8c1cc90f47a8c14cf27',
+      kind: 'classic',
+      title: 'Insurance Data & Modelling',
+      logo: '/ipfs/QmVRaKgYi6dCPKqHNzY2XkYQSikcGv86Nm8uzx8Kv7Jtrd/badge-car-insurance-logo-1-transparent-background.png',
+      entries: 0,
+      open: 0,
+    },
   ],
   series30d: [
-    { day: 1789862400, requests: 1, challenges: 1 },
-    { day: 1789948800, requests: 140, challenges: 0 },
-    { day: 1790035200, requests: 15, challenges: 2 },
-    { day: 1790121600, requests: 35, challenges: 0 },
-    { day: 1790208000, requests: 0, challenges: 0 },
-    { day: 1790294400, requests: 118, challenges: 0 },
-    { day: 1790380800, requests: 9, challenges: 0 },
-    { day: 1790467200, requests: 34, challenges: 1 },
-    { day: 1790553600, requests: 0, challenges: 0 },
-    { day: 1790640000, requests: 42, challenges: 2 },
-    { day: 1790726400, requests: 0, challenges: 0 },
-    { day: 1790812800, requests: 117, challenges: 1 },
-    { day: 1790899200, requests: 54, challenges: 0 },
-    { day: 1790985600, requests: 53, challenges: 0 },
-    { day: 1791072000, requests: 33, challenges: 0 },
-    { day: 1791158400, requests: 50, challenges: 1 },
-    { day: 1791244800, requests: 62, challenges: 0 },
-    { day: 1791331200, requests: 16, challenges: 0 },
-    { day: 1791417600, requests: 107, challenges: 1 },
-    { day: 1791504000, requests: 58, challenges: 1 },
-    { day: 1791590400, requests: 51, challenges: 0 },
-    { day: 1791676800, requests: 17, challenges: 2 },
-    { day: 1791763200, requests: 101, challenges: 3 },
-    { day: 1791849600, requests: 57, challenges: 2 },
-    { day: 1791936000, requests: 32, challenges: 0 },
-    { day: 1792022400, requests: 102, challenges: 0 },
-    { day: 1792108800, requests: 46, challenges: 0 },
-    { day: 1792195200, requests: 28, challenges: 0 },
-    { day: 1792281600, requests: 25, challenges: 0 },
-    { day: 1792368000, requests: 60, challenges: 0 },
+    {
+      day: 1789862400,
+      requests: 1,
+      challenges: 1,
+    },
+    {
+      day: 1789948800,
+      requests: 140,
+      challenges: 0,
+    },
+    {
+      day: 1790035200,
+      requests: 15,
+      challenges: 2,
+    },
+    {
+      day: 1790121600,
+      requests: 35,
+      challenges: 0,
+    },
+    {
+      day: 1790208000,
+      requests: 0,
+      challenges: 0,
+    },
+    {
+      day: 1790294400,
+      requests: 118,
+      challenges: 0,
+    },
+    {
+      day: 1790380800,
+      requests: 9,
+      challenges: 0,
+    },
+    {
+      day: 1790467200,
+      requests: 34,
+      challenges: 1,
+    },
+    {
+      day: 1790553600,
+      requests: 0,
+      challenges: 0,
+    },
+    {
+      day: 1790640000,
+      requests: 42,
+      challenges: 2,
+    },
+    {
+      day: 1790726400,
+      requests: 0,
+      challenges: 0,
+    },
+    {
+      day: 1790812800,
+      requests: 117,
+      challenges: 1,
+    },
+    {
+      day: 1790899200,
+      requests: 54,
+      challenges: 0,
+    },
+    {
+      day: 1790985600,
+      requests: 53,
+      challenges: 0,
+    },
+    {
+      day: 1791072000,
+      requests: 33,
+      challenges: 0,
+    },
+    {
+      day: 1791158400,
+      requests: 50,
+      challenges: 1,
+    },
+    {
+      day: 1791244800,
+      requests: 62,
+      challenges: 0,
+    },
+    {
+      day: 1791331200,
+      requests: 16,
+      challenges: 0,
+    },
+    {
+      day: 1791417600,
+      requests: 107,
+      challenges: 1,
+    },
+    {
+      day: 1791504000,
+      requests: 58,
+      challenges: 1,
+    },
+    {
+      day: 1791590400,
+      requests: 51,
+      challenges: 0,
+    },
+    {
+      day: 1791676800,
+      requests: 17,
+      challenges: 2,
+    },
+    {
+      day: 1791763200,
+      requests: 101,
+      challenges: 3,
+    },
+    {
+      day: 1791849600,
+      requests: 57,
+      challenges: 2,
+    },
+    {
+      day: 1791936000,
+      requests: 32,
+      challenges: 0,
+    },
+    {
+      day: 1792022400,
+      requests: 102,
+      challenges: 0,
+    },
+    {
+      day: 1792108800,
+      requests: 46,
+      challenges: 0,
+    },
+    {
+      day: 1792195200,
+      requests: 28,
+      challenges: 0,
+    },
+    {
+      day: 1792281600,
+      requests: 25,
+      challenges: 0,
+    },
+    {
+      day: 1792368000,
+      requests: 61,
+      challenges: 0,
+    },
   ],
   bounties: {
     won: 677,

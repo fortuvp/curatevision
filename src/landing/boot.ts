@@ -1,9 +1,3 @@
-import { gql, request } from 'graphql-request'
-import { subgraphUrl, subgraphUrlPermanent } from 'config/tcr-addresses'
-import {
-  readVerifiedSets,
-  withVerified,
-} from 'components/curate/registry-shared-verified'
 import { loadDashboardData } from 'pages/dashboard/data'
 import type { DashboardRegistry } from 'pages/dashboard/types'
 import {
@@ -21,22 +15,19 @@ import { parseIpfs } from 'utils/ipfs-parse'
 /*
  * Live figures for the standalone landing page (public/landing/landing.js).
  * The page draws the dated snapshot in public/landing/data.js at once and
- * swaps in this promise's figures when it answers. It reads the same
- * indexers with the same query and scope ("All chains": Ethereum and
- * Gnosis) as the app's dashboard (scopedFigures, scopedSeries,
- * scopedBounties), with three corrections the app's other pages already
- * make or that the landing needs:
- *   - Kleros Verified follows the shared rule of Browse and the registry
- *     pages (registry-shared-verified.ts): the chain's current Kleros list of
- *     lists and the lists registered on it. The retired Classic lists of
- *     lists grant nothing.
- *   - Challenges per day are counted on the day each challenge was made
- *     (Light: challengeTime; Classic: the dispute's round; Stake: the
- *     challenge), including challenges to requests made before the window.
- *   - The Kleros Verified lists themselves come along (name, logo, chain),
- *     each leading to its list.
- * On any failure, or past its budget, it resolves to null and the snapshot
- * stays.
+ * swaps in this promise's figures when it answers. It is the app's
+ * dashboard load (loadDashboardData) with the same scope ("All chains":
+ * Ethereum and Gnosis) and the same figures (scopedFigures, scopedSeries,
+ * scopedBounties), so both pages show the same numbers:
+ *   - Kleros Verified by the one rule (components/curate/verified-rule.ts):
+ *     the chain's Kleros lists of lists, Light and Classic, and the lists
+ *     registered on any of them; the load stamps each list with it.
+ *   - Challenges per day on the day each challenge was made, including
+ *     challenges to requests made before the window.
+ * The Kleros Verified lists themselves come along (name, logo, chain), each
+ * leading to its list. No React: this module and its imports are plain
+ * reads. On any failure, or past its budget, it resolves to null and the
+ * snapshot stays.
  */
 
 /*
@@ -50,11 +41,6 @@ const LIVE_BUDGET_MS = 14000
 const METADATA_BUDGET_MS = 4000
 
 const DAY = 86_400
-const PAGE = 500
-/** Stake Curate's indexer (The Graph) answers at most 1000 rows a page. */
-const STAKE_PAGE = 1000
-/** Never page forever: past this many pages the read counts as failed. */
-const MAX_PAGES = 20
 
 /** One coin challengers have won bounties in (never added across coins). */
 export interface LandingBountyCoin {
@@ -131,117 +117,12 @@ const scopeName = (chains: number[]) =>
     .filter(Boolean)
     .join(' and ')
 
-const toNumber = (value: unknown): number => {
-  const number = Number(value)
-  return Number.isFinite(number) ? number : 0
-}
-
 /** Resolves to null once `ms` has passed. */
 const withinBudget = <T>(promise: Promise<T>, ms: number) =>
   Promise.race<T | null>([
     promise,
     new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
   ])
-
-/*
- * Challenges made since `since`, Light and Classic. A Light request carries
- * its challengeTime. A Classic request does not: its second round is
- * created when the challenge opens the dispute (round 0 at submission,
- * later rounds on appeal), so that round's creationTime is the challenge's.
- */
-const CHALLENGES_QUERY = gql`
-  query LandingChallenges($chainId: Int!, $since: numeric!, $offset: Int!) {
-    light: LRequest(
-      limit: ${PAGE}
-      offset: $offset
-      order_by: [{ id: asc }]
-      where: {
-        chainId: { _eq: $chainId }
-        disputed: { _eq: true }
-        challengeTime: { _gte: $since }
-      }
-    ) {
-      challengeTime
-    }
-    classic: Request(
-      limit: ${PAGE}
-      offset: $offset
-      order_by: [{ id: asc }]
-      where: {
-        chainId: { _eq: $chainId }
-        disputed: { _eq: true }
-        rounds: { creationTime: { _gte: $since } }
-      }
-    ) {
-      rounds(order_by: [{ creationTime: asc }], limit: 2) {
-        creationTime
-      }
-    }
-  }
-`
-
-const STAKE_CHALLENGES_QUERY = gql`
-  query LandingStakeChallenges($since: BigInt!, $skip: Int!) {
-    challenges(
-      first: ${STAKE_PAGE}
-      skip: $skip
-      orderBy: createdAt
-      where: { createdAt_gte: $since }
-    ) {
-      createdAt
-    }
-  }
-`
-
-interface ChallengesPage {
-  light?: { challengeTime?: string | number }[] | null
-  classic?: { rounds?: { creationTime?: string | number }[] | null }[] | null
-}
-
-interface StakeChallengesPage {
-  challenges?: { createdAt?: string | number }[] | null
-}
-
-/** The unix time of every challenge made on a chain since `since`. Throws on failure. */
-const readChallengeTimes = async (
-  chainId: number,
-  since: number,
-): Promise<number[]> => {
-  const times: number[] = []
-  const url = subgraphUrl[chainId]
-  if (!url) throw new Error(`No indexer for chain ${chainId}`)
-  for (let page = 0; ; page++) {
-    if (page >= MAX_PAGES) throw new Error('Too many challenges to page')
-    const result = await request<ChallengesPage>(url, CHALLENGES_QUERY, {
-      chainId,
-      since,
-      offset: page * PAGE,
-    })
-    const light = result.light ?? []
-    const classic = result.classic ?? []
-    for (const row of light) times.push(toNumber(row.challengeTime))
-    for (const row of classic) {
-      // An appeal round in the window does not make an old challenge new.
-      const opened = toNumber(row.rounds?.[1]?.creationTime)
-      if (opened >= since) times.push(opened)
-    }
-    if (light.length < PAGE && classic.length < PAGE) break
-  }
-  const stakeUrl = subgraphUrlPermanent[chainId]
-  if (stakeUrl)
-    for (let page = 0; ; page++) {
-      if (page >= MAX_PAGES) throw new Error('Too many challenges to page')
-      const result = await request<StakeChallengesPage>(
-        stakeUrl,
-        STAKE_CHALLENGES_QUERY,
-        { since: String(since), skip: page * STAKE_PAGE },
-      )
-      const rows = result.challenges ?? []
-      for (const row of rows) times.push(toNumber(row.createdAt))
-      if (rows.length < STAKE_PAGE) break
-    }
-  return times.filter((time) => time >= since)
-}
 
 /** "Registry 0x12ab...cdef": the indexer had no title for the list. */
 const FALLBACK_TITLE = /^(permanent )?registry 0x[0-9a-f]{4}/i
@@ -280,8 +161,6 @@ const withMetadata = async (
 
 const readLive = async (): Promise<LandingData | null> => {
   const chains = MAINNET_CHAIN_IDS
-  // The verified sets read alongside the main load.
-  const setsRead = readVerifiedSets(chains)
   // All chains (no testnet), no list metadata for every list (the page
   // needs counts), the challenge periods to place open requests.
   const data = await loadDashboardData({
@@ -292,22 +171,18 @@ const readLive = async (): Promise<LandingData | null> => {
   })
   // Any failed or timed-out query (the rulings ledger included) makes the
   // figures partial: rather than label partial numbers as live, the page
-  // keeps the dated snapshot.
-  if (data.failedChains.length > 0) return null
+  // keeps the dated snapshot. So does a 30-day window cut at its page cap.
+  if (data.failedChains.length > 0 || data.seriesTruncated) return null
   const series = scopedSeries(data, chains)
   if (series.length < 2 || data.registries.length === 0) return null
   const bounties = scopedBounties(data, chains)
   if (bounties.missing.length > 0) return null
 
-  // Kleros Verified by the shared rule; a chain whose set did not load would
-  // leave its lists unknown, so the snapshot stays.
-  const sets = await setsRead
-  if (chains.some((chainId) => !sets.has(chainId))) return null
-  const registries = withVerified(
-    data.registries.filter((registry) => chains.includes(registry.chainId)),
-    sets,
+  // Kleros Verified as the load stamped it (the shared rule).
+  const registries = data.registries.filter((registry) =>
+    chains.includes(registry.chainId),
   )
-  const figures = scopedFigures({ ...data, registries }, chains)
+  const figures = scopedFigures(data, chains)
   const verified = registries.filter(
     (registry) => registry.trustStatus === 'verified',
   )
@@ -333,18 +208,6 @@ const readLive = async (): Promise<LandingData | null> => {
       ),
     registries,
   )
-
-  // Challenges on the day each was made (see CHALLENGES_QUERY).
-  const challengeTimes = (
-    await Promise.all(
-      chains.map((chainId) => readChallengeTimes(chainId, data.since)),
-    )
-  ).flat()
-  const challengesByDay = new Map<number, number>()
-  for (const time of challengeTimes) {
-    const day = data.since + Math.floor((time - data.since) / DAY) * DAY
-    challengesByDay.set(day, (challengesByDay.get(day) ?? 0) + 1)
-  }
 
   // The day of each winning ruling, per coin, for the ledger drawing.
   const days = new Map<string, number[]>()
@@ -381,7 +244,7 @@ const readLive = async (): Promise<LandingData | null> => {
     series30d: series.map((day) => ({
       day: day.day,
       requests: day.submissions + day.removals,
-      challenges: challengesByDay.get(day.day) ?? 0,
+      challenges: day.challenges,
     })),
     bounties: {
       won: bounties.won,

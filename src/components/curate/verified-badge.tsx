@@ -5,16 +5,16 @@ import { litEdgeBackground } from 'components/ui/kit-styles'
 
 /*
  * The trust marks for a list (round 2, item 16). A list is Kleros Verified
- * when it is one of the chain's Kleros lists of lists or a Registered entry
- * of one (the rule in registry-shared-verified.ts). Every other list is a
- * Community list: anyone can launch a Curate list, and this one is simply
- * not on a list of lists. Verified carries a badge of approval; Community
- * is a plain name, never a warning.
+ * when it is one of the chain's Kleros lists of lists (the Light ones and
+ * the older Classic ones) or a Registered entry of any of them (the rule in
+ * verified-rule.ts). Every other list is a Community list: anyone can launch
+ * a Curate list, and this one is simply not on a list of lists. Verified
+ * carries a badge of approval; Community is a plain name, never a warning.
  *
- * Both lists of lists (Ethereum and Gnosis) accept every list except the
- * offensive, obviously insecure, malformed or duplicate ones (their policy
- * documents, read 2026-10-19), so the explanation names what that policy
- * rejects and claims no more.
+ * The lists of lists on Ethereum and Gnosis, Light and Classic, accept
+ * every list except the offensive, obviously insecure, malformed or
+ * duplicate ones (their policy documents, read 2026-10-19), so the
+ * explanation names what that policy rejects and claims no more.
  *
  * API
  *   <VerifiedBadge />                      the seal alone, 16px, named

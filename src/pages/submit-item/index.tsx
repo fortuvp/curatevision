@@ -514,7 +514,7 @@ const PermanentSubmitPage = () => {
             title: 'Jurors side with the challenger',
             status: 'Removed',
             figure: [`−${stake}`, `−${cost}`],
-            note: 'the challenger takes your stake and the arbitration deposit',
+            note: "the stake and arbitration deposit are the challenger's bounty",
           },
         ],
       },

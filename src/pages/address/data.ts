@@ -546,7 +546,7 @@ const readGovernanceParams = async (
 /**
  * The registry index (every indexed list with its title and logo), its
  * Kleros Verified standing stamped by the shared rule
- * (registry-shared-verified.ts). The page passes one that reads the shared
+ * (components/curate/verified-rule.ts). The page passes one that reads the shared
  * query caches, so the profile, the governance scan and the dashboard and
  * browse pages share one load.
  */

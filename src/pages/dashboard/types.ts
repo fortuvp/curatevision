@@ -144,8 +144,10 @@ export interface DashboardMetrics {
 export interface DashboardDay {
   /** Unix seconds at 00:00 UTC */
   day: number
+  /** Requests made that day. */
   submissions: number
   removals: number
+  /** Challenges made that day, whenever the request was made. */
   challenges: number
 }
 
