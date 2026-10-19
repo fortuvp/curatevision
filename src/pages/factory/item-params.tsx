@@ -5,6 +5,7 @@ import { withFormik, FieldArray, useField, type FormikProps } from 'formik'
 import { ItemTypes as AllItemTypes } from '@kleros/gtcr-encoder'
 import objectWithoutKey from 'utils/object-without-key'
 import { CurateIcon } from 'components/curate/icons'
+import Switch from 'components/ui/Switch'
 import { reveal } from 'components/curate/motion/reveal'
 import {
   Button,
@@ -36,6 +37,11 @@ import type { StepProps, TcrState } from '.'
 export const ItemTypes = objectWithoutKey(AllItemTypes, 'TWITTER_USER_ID')
 
 const { IMAGE, FILE, GTCR_ADDRESS, LONG_TEXT } = AllItemTypes
+
+const TYPE_OPTIONS = Object.values(ItemTypes).map((itemType) => ({
+  value: String(itemType),
+  label: String(itemType),
+}))
 
 const MAX_IDENTIFIERS = 5
 
@@ -166,58 +172,14 @@ const FileTypes = styled.div`
   }
 `
 
-const Toggle = styled.input`
-  appearance: none;
-  position: relative;
-  flex: 0 0 auto;
-  width: 42px;
-  height: 24px;
-  margin: 0;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-pill);
-  background: var(--color-surface);
-  cursor: pointer;
-  transition:
-    background var(--motion),
-    border-color var(--motion);
-
-  &::after {
-    content: '';
-    position: absolute;
-    top: 3px;
-    left: 3px;
-    width: 16px;
-    height: 16px;
-    border-radius: var(--radius-pill);
-    background: var(--color-muted);
-    transition:
-      transform 320ms var(--ease-spring),
-      background var(--motion);
-  }
-
-  &:checked {
-    border-color: color-mix(in srgb, var(--color-primary) 60%, transparent);
-    background: var(--color-primary-fill);
-  }
-
-  &:checked::after {
-    transform: translateX(18px);
-    background: var(--color-on-primary);
-  }
-
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.45;
-  }
-`
-
 const ToggleLabel = styled.label`
   display: inline-flex;
   align-items: center;
   gap: 10px;
   cursor: pointer;
 
-  span {
+  /* The visible name, phones only (the switch's own parts are not direct children). */
+  > span {
     display: none;
     color: var(--color-text);
     font-size: var(--fs-body);
@@ -225,7 +187,7 @@ const ToggleLabel = styled.label`
   }
 
   @media (max-width: 900px) {
-    span {
+    > span {
       display: inline;
     }
   }
@@ -394,20 +356,11 @@ const ItemParams = ({
                         <Select
                           id={typeId}
                           aria-label={`Field ${index + 1} type`}
-                          value={column.type}
-                          onChange={(event) =>
-                            onTypeChange(index, event.target.value)
-                          }
-                        >
-                          {Object.values(ItemTypes).map((itemType) => (
-                            <option
-                              value={String(itemType)}
-                              key={String(itemType)}
-                            >
-                              {String(itemType)}
-                            </option>
-                          ))}
-                        </Select>
+                          value={String(column.type)}
+                          onChange={(value) => onTypeChange(index, value)}
+                          options={TYPE_OPTIONS}
+                          menuMinWidth={180}
+                        />
                       </Cell>
                       <ToggleCell>
                         <ToggleLabel
@@ -418,18 +371,15 @@ const ItemParams = ({
                               : 'Long text, image and file fields cannot be indexed.'
                           }
                         >
-                          <Toggle
+                          <Switch
                             id={indexedId}
-                            type="checkbox"
-                            role="switch"
                             aria-label={`Field ${index + 1} indexed`}
-                            aria-checked={!!column.isIdentifier}
                             checked={!!column.isIdentifier}
                             disabled={!canBeIdentifier}
-                            onChange={(event) =>
+                            onChange={(checked) =>
                               setFieldValue(
                                 `columns[${index}].isIdentifier`,
-                                event.target.checked,
+                                checked,
                               )
                             }
                           />

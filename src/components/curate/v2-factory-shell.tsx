@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react'
 import styled, { css } from 'styled-components'
 import { CurateIcon } from 'components/curate/icons'
+import { litThumb } from 'components/ui/kit-styles'
 import { reveal } from 'components/curate/motion/reveal'
 import {
   Button,
@@ -309,7 +310,7 @@ export const useFactoryWizard = <D extends FactoryWizardDraft>({
       return
     }
     const panel = panelRef.current
-    // 72px: below the floating app bar.
+    // 72px: below the sticky app bar (64px) with a little air.
     if (!panel || panel.getBoundingClientRect().top >= 72) return
     const reduced = window.matchMedia?.(
       '(prefers-reduced-motion: reduce)',
@@ -835,12 +836,9 @@ const SubTab = styled.button<{ $state: SubTabState }>`
   ${({ $state }) =>
     $state === 'current'
       ? css`
-          border-color: color-mix(
-            in srgb,
-            var(--color-primary) 35%,
-            transparent
-          );
-          background: var(--color-primary-soft);
+          /* The current step sits on the selectors' lit thumb. */
+          position: relative;
+          ${litThumb}
           color: var(--color-text);
         `
       : $state === 'done' || $state === 'reached'

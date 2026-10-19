@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef, useState } from 'react'
+import React, { useLayoutEffect, useRef } from 'react'
 import styled, { css } from 'styled-components'
 import { Link, useNavigate } from 'react-router-dom'
 import type { ListLayout } from 'hooks/use-stored-layout'
@@ -52,94 +52,17 @@ import {
  * registry and the other party keep their own links.
  */
 
-/* ---------- Filter tabs with counts (sliding indicator) ---------- */
+/* ---------- Filter tabs with counts ---------- */
 
-const Track = styled.div`
-  position: relative;
-  isolation: isolate;
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
+/*
+ * The kind filter is the app's SegmentedControl (radio group, lit thumb,
+ * a count after each label). On a narrow screen its track scrolls, so the
+ * chosen option is kept in view: a link to ?show=challenge lands with it
+ * off to the right otherwise.
+ */
+const FilterTabsSlot = styled.div`
+  min-width: 0;
   max-width: 100%;
-  padding: 4px;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-pill);
-  background: var(--color-raised);
-  box-shadow: inset 0 1px 2px color-mix(in srgb, var(--stage) 45%, transparent);
-  overflow-x: auto;
-  scrollbar-width: none;
-
-  &::-webkit-scrollbar {
-    display: none;
-  }
-`
-
-const Indicator = styled.span`
-  position: absolute;
-  top: 4px;
-  bottom: 4px;
-  left: 0;
-  z-index: -1;
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--color-text) 9%, transparent);
-  box-shadow:
-    inset 0 1px 0 var(--glass-highlight),
-    0 1px 2px color-mix(in srgb, var(--stage) 60%, transparent);
-  transition:
-    transform 380ms cubic-bezier(0.34, 1.3, 0.64, 1),
-    width 380ms cubic-bezier(0.34, 1.3, 0.64, 1);
-
-  @media (prefers-reduced-motion: reduce) {
-    transition: none;
-  }
-`
-
-const Tab = styled.button`
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 32px;
-  padding: 0 10px 0 14px;
-  border: 0;
-  border-radius: var(--radius-pill);
-  background: transparent;
-  color: var(--color-muted);
-  font-size: 13px;
-  line-height: 18px;
-  font-weight: 500;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: color var(--motion);
-
-  &:hover,
-  &[aria-checked='true'] {
-    color: var(--color-text);
-  }
-
-  b {
-    display: inline-flex;
-    align-items: center;
-    height: 18px;
-    padding: 0 6px;
-    border: 1px solid var(--glass-border);
-    border-radius: 6px;
-    background: var(--glass);
-    color: var(--color-muted);
-    font-family: var(--font-figure);
-    font-size: 11px;
-    font-weight: 500;
-    font-variant-numeric: tabular-nums;
-    transition:
-      color var(--motion),
-      background var(--motion),
-      border-color var(--motion);
-  }
-
-  &[aria-checked='true'] b {
-    border-color: color-mix(in srgb, var(--color-primary) 45%, transparent);
-    background: var(--color-primary-soft);
-    color: var(--color-primary-on-soft);
-  }
 `
 
 const FilterTabs = ({
@@ -151,69 +74,37 @@ const FilterTabs = ({
   counts?: Record<ActivityFilter, number>
   onChange: (value: ActivityFilter) => void
 }) => {
-  const track = useRef<HTMLDivElement>(null)
-  const [pill, setPill] = useState<{ left: number; width: number }>()
+  const slot = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
-    const node = track.current?.querySelector<HTMLButtonElement>(
-      '[aria-checked="true"]',
-    )
-    if (!node) return
-    setPill({ left: node.offsetLeft, width: node.offsetWidth })
-    // On a narrow screen the track scrolls: keep the chosen tab in view
-    // (a link to ?show=challenge lands with it off to the right).
-    const box = track.current
+    const box = slot.current?.querySelector<HTMLElement>('[role="radiogroup"]')
+    const node = box?.querySelector<HTMLElement>('[aria-checked="true"]')
+    if (!box || !node) return
     if (
-      box &&
-      (node.offsetLeft < box.scrollLeft ||
-        node.offsetLeft + node.offsetWidth > box.scrollLeft + box.clientWidth)
+      node.offsetLeft < box.scrollLeft ||
+      node.offsetLeft + node.offsetWidth > box.scrollLeft + box.clientWidth
     )
       box.scrollLeft = node.offsetLeft - 4
   }, [value, counts])
-  // One tab stop for the group; arrows, Home and End move the selection.
-  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    const last = FILTERS.length - 1
-    const index = FILTERS.findIndex((option) => option.value === value)
-    let next: number
-    if (event.key === 'ArrowRight' || event.key === 'ArrowDown')
-      next = index >= last ? 0 : index + 1
-    else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp')
-      next = index <= 0 ? last : index - 1
-    else if (event.key === 'Home') next = 0
-    else if (event.key === 'End') next = last
-    else return
-    event.preventDefault()
-    onChange(FILTERS[next].value)
-    track.current
-      ?.querySelectorAll<HTMLButtonElement>('[role="radio"]')
-      [next]?.focus()
-  }
   return (
-    <Track
-      ref={track}
-      role="radiogroup"
-      aria-label="Show"
-      onKeyDown={onKeyDown}
-    >
-      {pill && (
-        <Indicator
-          aria-hidden
-          style={{ transform: `translateX(${pill.left}px)`, width: pill.width }}
-        />
-      )}
-      {FILTERS.map((option) => (
-        <Tab
-          key={option.value}
-          type="button"
-          role="radio"
-          aria-checked={option.value === value}
-          tabIndex={option.value === value ? 0 : -1}
-          onClick={() => onChange(option.value)}
-        >
-          {option.label}
-          {counts && <b>{formatInt(counts[option.value])}</b>}
-        </Tab>
-      ))}
-    </Track>
+    <FilterTabsSlot ref={slot}>
+      <SegmentedControl<ActivityFilter>
+        // Counts widen the labels inside a track that may not resize (it
+        // scrolls on phones), so the thumb is placed afresh when they change.
+        key={
+          counts
+            ? FILTERS.map((option) => counts[option.value]).join('-')
+            : 'loading'
+        }
+        ariaLabel="Show"
+        value={value}
+        onChange={onChange}
+        options={FILTERS.map((option) => ({
+          value: option.value,
+          label: option.label,
+          count: counts?.[option.value],
+        }))}
+      />
+    </FilterTabsSlot>
   )
 }
 

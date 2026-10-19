@@ -356,8 +356,8 @@
       setText(
         'source',
         live
-          ? `Figures: public Curate data on ${scope || 'Curate mainnets'}, read live from the indexers at ${stamp}, as the app's dashboard shows them.`
-          : `Figures: public Curate data on ${scope || 'Curate mainnets'}, snapshot of ${stamp}. The app shows them live.`,
+          ? `Figures: public Curate data on ${scope || 'Ethereum and Gnosis'}, read live from the indexers at ${stamp}, as the app's dashboard shows them.`
+          : `Figures: public Curate data on ${scope || 'Ethereum and Gnosis'}, snapshot of ${stamp}. The app shows them live.`,
       )
     }
 

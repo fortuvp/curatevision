@@ -8,6 +8,7 @@ import { useAccount, useSwitchChain, useWalletClient } from 'wagmi'
 import { formatEther, isAddress, parseEther } from 'viem'
 import { useAtlasProvider } from '@kleros/kleros-app'
 import EnsureAuth from 'components/ensure-auth'
+import Select from 'components/ui/Select'
 import { CurateIcon } from 'components/curate/icons'
 import {
   Button,
@@ -502,31 +503,15 @@ const TwoUp = styled.div`
   }
 `
 
-const SelectInput = styled.select`
+/* The app's glass Select, at the field's full width. */
+const CourtSelect = styled(Select)`
+  display: block;
   width: 100%;
-  height: 44px;
-  padding: 0 12px;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius);
-  background: var(--color-raised);
-  color: var(--color-text);
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
-  transition: border-color var(--motion);
+  min-width: 0;
 
-  &:hover {
-    border-color: var(--color-border-strong);
-  }
-
-  &:focus {
-    outline: none;
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 4px var(--color-primary-soft);
-  }
-
-  &:disabled {
-    color: var(--color-muted);
-    cursor: not-allowed;
+  .ui-select-trigger {
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
   }
 `
 
@@ -717,26 +702,33 @@ const ArbitrationGovernanceField = ({
           )}
           <TwoUp>
             <Stack $gap={4}>
-              <Label as="label" htmlFor={`${ids}-court`}>
+              <Label
+                as="label"
+                id={`${ids}-court-label`}
+                htmlFor={`${ids}-court`}
+              >
                 Court
               </Label>
-              <SelectInput
+              <CourtSelect
                 id={`${ids}-court`}
+                aria-labelledby={`${ids}-court-label`}
                 value={courtID}
                 disabled={locked || courts.length === 0}
-                onChange={(event) => updateCourt(event.currentTarget.value)}
+                placeholder={
+                  courts.length > 0 ? 'Select court' : 'Court list unavailable'
+                }
+                onChange={(value) =>
+                  updateCourt(
+                    String(typeof value === 'object' ? value.key : value),
+                  )
+                }
               >
-                <option value="">
-                  {courts.length > 0
-                    ? 'Select court'
-                    : 'Court list unavailable'}
-                </option>
                 {courts.map((court) => (
-                  <option key={court.value} value={court.value}>
+                  <Select.Option key={court.value} value={String(court.value)}>
                     {court.label} · ID {court.courtID}
-                  </option>
+                  </Select.Option>
                 ))}
-              </SelectInput>
+              </CourtSelect>
             </Stack>
             <Stack $gap={4}>
               <Label as="label" htmlFor={`${ids}-jurors`}>

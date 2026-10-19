@@ -445,7 +445,7 @@ const StatValue = ({ value }: { value?: React.ReactNode }) =>
 const depositNoteFor = (kindLabel: string, itemName: string) =>
   /stake/i.test(kindLabel)
     ? `Locked, not spent: it stays locked while your ${itemName} is listed and comes back when you withdraw, unless a challenge succeeds.`
-    : `A deposit, not a fee: back in full if nobody challenges your ${itemName}.`
+    : `A deposit, not a fee: it comes back when your ${itemName} follows the list’s policy.`
 
 export const RegistryHeader = ({
   title,

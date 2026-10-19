@@ -172,15 +172,13 @@ const KlerosParams = ({
               {...a11y}
               value={typeof courtID === 'number' ? String(courtID) : ''}
               disabled={loadingCourts}
-              onChange={(event) => onCourtChanged(event.target.value)}
-            >
-              {loadingCourts && <option value="">Loading courts…</option>}
-              {courts.map(({ value, label }) => (
-                <option value={value} key={value}>
-                  {label}
-                </option>
-              ))}
-            </Select>
+              placeholder={loadingCourts ? 'Loading courts…' : undefined}
+              onChange={onCourtChanged}
+              options={courts.map(({ value, label }) => ({
+                value: String(value),
+                label,
+              }))}
+            />
           )}
         </FormField>
         <FormField

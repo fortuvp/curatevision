@@ -1503,7 +1503,7 @@ const CuratePro = () => {
             },
             {
               title: 'Deposits',
-              body: 'In Light and Classic Curate, each request locks a base deposit plus the arbitration cost; it comes back in full if nobody challenges. A challenger locks the same kind of deposit.',
+              body: 'In Light and Classic Curate, each request locks a base deposit plus the arbitration cost; it comes back in full when the entry follows the policy. A challenger locks the same kind of deposit and earns the submitter’s base deposit by spotting one that breaks it.',
             },
             {
               title: 'Indexing and front end',

@@ -9,7 +9,7 @@ import {
 /*
  * Live figures for the standalone landing page (public/landing/landing.js).
  * The page waits for this promise before drawing its figures; it reads the
- * same indexers with the same query and scope ("Mainnets": Ethereum and
+ * same indexers with the same query and scope ("All chains": Ethereum and
  * Gnosis) as the app's dashboard, so the two never disagree. On any failure,
  * or after a few seconds, it resolves to null and the page falls back to the
  * dated snapshot in public/landing/data.js.
@@ -41,7 +41,7 @@ const scopeName = (chains: number[]) =>
 
 const readLive = async (): Promise<LandingData | null> => {
   const chains = MAINNET_CHAIN_IDS
-  // Mainnets only, no list metadata from IPFS: the page needs counts.
+  // All chains (no testnet), no list metadata from IPFS: the page needs counts.
   const data = await loadDashboardData({
     refreshCreationTimes: false,
     chains,
