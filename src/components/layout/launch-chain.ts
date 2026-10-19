@@ -18,7 +18,7 @@ const readSavedChainId = (): number | null => {
 /**
  * The chain "Launch a list" opens, one rule for every link to it (the nav,
  * the phone menu, the dashboard hero). On the dashboard it follows the page
- * scope (Gnosis for "Mainnets"); elsewhere the chain in the URL, then the
+ * scope (Gnosis for "All chains"); elsewhere the chain in the URL, then the
  * last chain used, then the wallet's.
  */
 export const useLaunchChainId = (): number => {

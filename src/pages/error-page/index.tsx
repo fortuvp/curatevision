@@ -43,7 +43,7 @@ const draw = keyframes`
 const Stage = styled(Page)`
   display: grid;
   place-items: center;
-  min-height: calc(100vh - var(--app-bar-height) - 2 * var(--frame-gap) - 64px);
+  min-height: calc(100vh - var(--app-bar-height) - 64px);
   padding-top: 32px;
   padding-bottom: 64px;
 `
@@ -96,7 +96,7 @@ const Dawn = styled.span`
   animation: ${dawn} 1400ms var(--ease-out) 200ms both;
 
   /* Narrow: the light keeps to the content and fades out at its sides, so it
-     never runs into the frame or ends in a hard cut along the horizon. */
+     never runs into the screen edge or ends in a hard cut along the horizon. */
   @media (max-width: 720px) {
     width: 100%;
     -webkit-mask-image: linear-gradient(

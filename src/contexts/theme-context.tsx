@@ -11,7 +11,8 @@ import { ThemeProvider as StyledThemeProvider } from 'styled-components'
  * Three color themes built from one semantic palette each, so every legacy theme key the
  * app reads stays defined and consistent. See DESIGN.md for the roles and rules.
  *
- *  - light:  cool neutral canvas, one blue accent, no glow
+ *  - light:  cool neutral canvas, one blue accent; its controls are lit white
+ *            glass with a coloured edge (never an ink pill)
  *  - dark:   the glow stage: blue-tinted near-black with a single accent bloom
  *  - kleros: the production Kleros dApp palette (deep purple surfaces)
  *
@@ -22,47 +23,20 @@ export type ThemeName = 'light' | 'dark' | 'kleros'
 
 export const THEME_STORAGE_KEY = 'kleros-curate-theme'
 
-/** Typeface pairing, switchable from the theme menu so the owner can compare live. */
-export type Typeface = 'kleros' | 'geist' | 'plex'
-export const TYPEFACE_STORAGE_KEY = 'curatevision-typeface'
-export const DEFAULT_TYPEFACE: Typeface = 'kleros'
-export const TYPEFACES: { value: Typeface; label: string; hint: string }[] = [
-  {
-    value: 'kleros',
-    label: 'Urbanist + Geist',
-    hint: 'Kleros brand display, Geist text',
-  },
-  { value: 'geist', label: 'Geist', hint: 'One grotesk throughout' },
-  { value: 'plex', label: 'IBM Plex', hint: 'Plex Sans + Plex Mono' },
-]
-const TYPEFACE_FONT_CSS: Record<Typeface, string> = {
-  kleros:
-    'https://fonts.googleapis.com/css2?family=Urbanist:wght@300;400;500;600&family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap',
-  geist:
-    'https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap',
-  plex: 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap',
-}
-const isTypeface = (value: unknown): value is Typeface =>
-  value === 'kleros' || value === 'geist' || value === 'plex'
-/** Loads a pairing's stylesheet once; the default is in index.html already. */
-const ensureTypefaceLoaded = (face: Typeface) => {
-  if (typeof document === 'undefined') return
-  const id = `cv-font-${face}`
-  if (document.querySelector(`#${id}`)) return
-  const link = document.createElement('link')
-  link.id = id
-  link.rel = 'stylesheet'
-  link.href = TYPEFACE_FONT_CSS[face]
-  document.head.append(link)
-}
-const readSavedTypeface = (): Typeface => {
+/**
+ * The typeface switch (Urbanist + Geist, Geist, IBM Plex) is gone: the app
+ * always sets Urbanist for display and Geist for text. A preference stored by
+ * the old switch is removed once, so it can never restyle the page.
+ */
+const LEGACY_TYPEFACE_STORAGE_KEY = 'curatevision-typeface'
+const forgetLegacyTypeface = () => {
   try {
-    const saved = localStorage.getItem(TYPEFACE_STORAGE_KEY)
-    if (isTypeface(saved)) return saved
+    localStorage.removeItem(LEGACY_TYPEFACE_STORAGE_KEY)
   } catch {
-    // Storage can be blocked; fall through to the default.
+    // Storage can be blocked; nothing reads the key any more.
   }
-  return DEFAULT_TYPEFACE
+  if (typeof document !== 'undefined')
+    document.body.removeAttribute('data-type')
 }
 
 interface Palette {
@@ -113,6 +87,38 @@ interface Palette {
    * order, none of them a status colour, each 3:1 or more on the surface.
    */
   viz: [string, string, string, string]
+  /**
+   * Controls (DESIGN.md, Surfaces and controls): the three hues of the lit
+   * 1px edge on primary buttons, switches and the connect button.
+   */
+  edge: [string, string, string]
+  /** Width of the lit edge on primary buttons and Connect. */
+  edgeWidth: string
+  /** Primary button glass: top and bottom of its fill, its label, its glow. */
+  ctaTop: string
+  ctaBottom: string
+  ctaInk: string
+  ctaGlow: string
+  /** The glass's top sheen and its 1px inner top highlight. */
+  ctaSheen: string
+  ctaHighlight: string
+  /** The bright head of the light that travels the Connect edge. */
+  sweepHead: string
+  /** A switch while on: its track (top, bottom of the glass) and its bead. */
+  trackOnTop: string
+  trackOnBottom: string
+  beadOn: string
+  /** Recessed track (segmented controls, switches) and its inner shadow. */
+  recess: string
+  recessShadow: string
+  /** The raised, lit thumb that sits in a recessed track. */
+  thumb: string
+  thumbShadow: string
+  /** A switch's thumb while off. */
+  beadOff: string
+  /** Glass popover fill (dropdowns, select menus) and its row hover. */
+  popover: string
+  hoverFill: string
 }
 
 const light: Palette = {
@@ -122,7 +128,7 @@ const light: Palette = {
   raised: '#f1f4fa',
   text: '#0b1220',
   textMuted: '#4d5a6e',
-  textFaint: '#647083',
+  textFaint: '#5e6a7d',
   textInverted: '#ffffff',
   border: 'rgba(16, 24, 40, 0.08)',
   borderStrong: 'rgba(16, 24, 40, 0.16)',
@@ -149,11 +155,36 @@ const light: Palette = {
   glass: '#ffffff',
   glassBorder: 'rgba(16, 24, 40, 0.08)',
   glassHighlight: 'rgba(255, 255, 255, 1)',
-  stage: '#dfe6f7',
+  stage: '#f5f7fc',
   auroraA: '#9db7ff',
   auroraB: '#b8e3ff',
   auroraC: '#c9b8ff',
   viz: ['#2a63f0', '#0a87ad', '#7b4fd6', '#c43c84'],
+  edge: ['#2a63f0', '#00a0dc', '#8a4dff'],
+  // Lit white glass: a white pill tinted toward the bottom lip, a 1.5px
+  // edge in the three hues and a blue glow pooled inside and under it.
+  edgeWidth: '1.5px',
+  ctaTop: '#ffffff',
+  ctaBottom: '#dde7ff',
+  ctaInk: '#0d1838',
+  ctaGlow: 'rgba(42, 99, 240, 0.5)',
+  ctaSheen: 'rgba(255, 255, 255, 0.85)',
+  ctaHighlight: '#ffffff',
+  sweepHead: '#2a63f0',
+  trackOnTop: '#1d2742',
+  trackOnBottom: '#0b1220',
+  beadOn: '#ffffff',
+  recess: 'rgba(16, 24, 40, 0.055)',
+  recessShadow:
+    'inset 0 1px 2px rgba(16, 24, 40, 0.12), inset 0 0 0 1px rgba(16, 24, 40, 0.06), 0 1px 0 #ffffff',
+  // The chosen segment: white glass with a blue hairline and a blue glow
+  // under it (its lamp is drawn by litThumb), not a plain white chip.
+  thumb: 'linear-gradient(180deg, #ffffff, #f1f5ff)',
+  thumbShadow:
+    '0 0 0 1px rgba(42, 99, 240, 0.24), 0 1px 2px rgba(16, 24, 40, 0.1), 0 6px 14px -6px rgba(42, 99, 240, 0.45)',
+  beadOff: 'linear-gradient(180deg, #ffffff, #e9edf5)',
+  popover: 'rgba(255, 255, 255, 0.92)',
+  hoverFill: 'rgba(16, 24, 40, 0.06)',
 }
 
 const dark: Palette = {
@@ -194,6 +225,28 @@ const dark: Palette = {
   auroraB: '#0a7cff',
   auroraC: '#5b2bff',
   viz: ['#3d7bff', '#1aa3c4', '#a274ff', '#d9558f'],
+  edge: ['#7aa7ff', '#45d4ff', '#9b7bff'],
+  edgeWidth: '1px',
+  ctaTop: '#15264f',
+  ctaBottom: '#0a1226',
+  ctaInk: '#f4f6fb',
+  ctaGlow: 'rgba(61, 123, 255, 0.55)',
+  ctaSheen: 'rgba(244, 246, 251, 0.09)',
+  ctaHighlight: 'rgba(244, 246, 251, 0.16)',
+  sweepHead: '#ffffff',
+  trackOnTop: '#15264f',
+  trackOnBottom: '#0a1226',
+  beadOn: '#f4f6fb',
+  recess: 'rgba(0, 0, 0, 0.32)',
+  recessShadow:
+    'inset 0 1px 2px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.05), 0 1px 0 rgba(255, 255, 255, 0.04)',
+  thumb:
+    'linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.05))',
+  thumbShadow:
+    'inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 0 0 1px rgba(255, 255, 255, 0.07), 0 2px 6px rgba(0, 0, 0, 0.5)',
+  beadOff: 'linear-gradient(180deg, #9aa3b8, #5f6880)',
+  popover: 'rgba(14, 19, 32, 0.94)',
+  hoverFill: 'rgba(255, 255, 255, 0.07)',
 }
 
 // Values from @kleros/ui-components-library theme.css (dark set), see DESIGN.md.
@@ -235,6 +288,28 @@ const kleros: Palette = {
   auroraB: '#4d00b4',
   auroraC: '#27cdfe',
   viz: ['#3d7bff', '#1aa3c4', '#a274ff', '#d9558f'],
+  edge: ['#c084ff', '#27cdfe', '#6cc5ff'],
+  edgeWidth: '1px',
+  ctaTop: '#2c1266',
+  ctaBottom: '#150437',
+  ctaInk: '#eaf4ff',
+  ctaGlow: 'rgba(180, 95, 255, 0.5)',
+  ctaSheen: 'rgba(234, 244, 255, 0.09)',
+  ctaHighlight: 'rgba(234, 244, 255, 0.16)',
+  sweepHead: '#ffffff',
+  trackOnTop: '#2c1266',
+  trackOnBottom: '#150437',
+  beadOn: '#eaf4ff',
+  recess: 'rgba(0, 0, 0, 0.3)',
+  recessShadow:
+    'inset 0 1px 2px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.06), 0 1px 0 rgba(255, 255, 255, 0.05)',
+  thumb:
+    'linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06))',
+  thumbShadow:
+    'inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 0 0 1px rgba(255, 255, 255, 0.08), 0 2px 6px rgba(0, 0, 0, 0.5)',
+  beadOff: 'linear-gradient(180deg, #b3acd6, #6f679b)',
+  popover: 'rgba(30, 10, 66, 0.94)',
+  hoverFill: 'rgba(255, 255, 255, 0.08)',
 }
 
 /** Expands a palette into the full set of keys the app's styled components read. */
@@ -368,6 +443,25 @@ const buildTheme = (p: Palette) => ({
   auroraB: p.auroraB,
   auroraC: p.auroraC,
   viz: p.viz,
+  edge: p.edge,
+  edgeWidth: p.edgeWidth,
+  ctaTop: p.ctaTop,
+  ctaBottom: p.ctaBottom,
+  ctaInk: p.ctaInk,
+  ctaGlow: p.ctaGlow,
+  ctaSheen: p.ctaSheen,
+  ctaHighlight: p.ctaHighlight,
+  sweepHead: p.sweepHead,
+  trackOnTop: p.trackOnTop,
+  trackOnBottom: p.trackOnBottom,
+  beadOn: p.beadOn,
+  recess: p.recess,
+  recessShadow: p.recessShadow,
+  thumb: p.thumb,
+  thumbShadow: p.thumbShadow,
+  beadOff: p.beadOff,
+  popover: p.popover,
+  hoverFill: p.hoverFill,
 })
 
 export const lightTheme = buildTheme(light)
@@ -384,10 +478,10 @@ const THEMES: Record<ThemeName, Theme> = {
 
 export const THEME_MODES: { value: ThemeMode; label: string; hint: string }[] =
   [
-    { value: 'system', label: 'System', hint: 'Follows your device' },
-    { value: 'light', label: 'Light', hint: 'Cool neutral canvas' },
-    { value: 'dark', label: 'Dark', hint: 'Glow stage' },
-    { value: 'kleros', label: 'Kleros', hint: 'Brand purple' },
+    { value: 'system', label: 'System', hint: 'Matches your device' },
+    { value: 'light', label: 'Light', hint: 'Light background' },
+    { value: 'dark', label: 'Dark', hint: 'Dark background' },
+    { value: 'kleros', label: 'Kleros', hint: 'Kleros purple' },
   ]
 
 const isThemeMode = (value: unknown): value is ThemeMode =>
@@ -441,8 +535,6 @@ interface ThemeContextValue {
   mode: ThemeMode
   setMode: (mode: ThemeMode) => void
   resolved: ThemeName
-  typeface: Typeface
-  setTypeface: (face: Typeface) => void
 }
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined)
@@ -450,21 +542,8 @@ const ThemeContext = createContext<ThemeContextValue | undefined>(undefined)
 const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
   const [mode, setModeState] = useState<ThemeMode>(readSavedMode)
   const [prefersDark, setPrefersDark] = useState<boolean>(systemPrefersDark)
-  const [typeface, setTypefaceState] = useState<Typeface>(readSavedTypeface)
 
-  const setTypeface = useCallback((next: Typeface) => {
-    setTypefaceState(next)
-    try {
-      localStorage.setItem(TYPEFACE_STORAGE_KEY, next)
-    } catch {
-      // Storage can be blocked; the choice then lasts for the session.
-    }
-  }, [])
-
-  useEffect(() => {
-    ensureTypefaceLoaded(typeface)
-    document.body.setAttribute('data-type', typeface)
-  }, [typeface])
+  useEffect(forgetLegacyTypeface, [])
 
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return
@@ -509,19 +588,8 @@ const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
       mode,
       setMode,
       resolved,
-      typeface,
-      setTypeface,
     }),
-    [
-      isDarkMode,
-      toggleTheme,
-      theme,
-      mode,
-      setMode,
-      resolved,
-      typeface,
-      setTypeface,
-    ],
+    [isDarkMode, toggleTheme, theme, mode, setMode, resolved],
   )
 
   return (

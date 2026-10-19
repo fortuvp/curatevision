@@ -1,164 +1,99 @@
-import React, { useContext, useState } from 'react'
-import styled from 'styled-components'
-import { Dropdown } from 'components/ui'
+import React, { useContext } from 'react'
 import {
   ThemeContext,
   type ThemeMode,
   THEME_MODES,
-  TYPEFACES,
 } from 'contexts/theme-context'
-import { CurateIcon, type CurateIconName } from 'components/curate/icons'
-import { BarIconButton } from './app-bar-controls'
+import type { CurateIconName } from 'components/curate/icons'
+import { SelectMenu } from 'components/curate/primitives'
 
-const MODE_ICON: Record<ThemeMode, CurateIconName> = {
+/*
+ * Icosahedron, seen down a three-fold axis: the hexagon outline, the front
+ * face as a triangle and the nine edges joining them (ten faces in view).
+ * Drawn for this menu; it stands for the Kleros theme.
+ */
+const HEX = [
+  [12, 2.5],
+  [20.2, 7.25],
+  [20.2, 16.75],
+  [12, 21.5],
+  [3.8, 16.75],
+  [3.8, 7.25],
+]
+const FACE = [
+  [12, 7],
+  [16.4, 14.6],
+  [7.6, 14.6],
+]
+// Each corner of the front face joins its three nearest outline corners.
+const SPOKES: [number, number][] = [
+  [0, 0],
+  [0, 1],
+  [0, 5],
+  [1, 1],
+  [1, 2],
+  [1, 3],
+  [2, 3],
+  [2, 4],
+  [2, 5],
+]
+
+export const IcosahedronIcon = ({ size = 18 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
+    <g
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d={`M${HEX.map((point) => point.join(' ')).join(' L')} Z`} />
+      <path d={`M${FACE.map((point) => point.join(' ')).join(' L')} Z`} />
+      {SPOKES.map(([face, corner]) => (
+        <path
+          key={`${face}-${corner}`}
+          d={`M${FACE[face].join(' ')} L${HEX[corner].join(' ')}`}
+          strokeWidth="1.1"
+          opacity="0.8"
+        />
+      ))}
+    </g>
+  </svg>
+)
+
+const MODE_ICON: Record<ThemeMode, CurateIconName | React.ReactElement> = {
   system: 'monitor',
   light: 'sun',
   dark: 'moon',
-  kleros: 'layers',
+  kleros: <IcosahedronIcon size={18} />,
 }
 
-const Menu = styled.div`
-  min-width: 240px;
-  padding: 6px;
-`
-
-const Divider = styled.div`
-  height: 1px;
-  margin: 6px 4px;
-  background: var(--glass-border);
-`
-
-const MenuTitle = styled.div`
-  padding: 6px 10px 4px;
-  color: var(--color-faint);
-  font-family: var(--font-label);
-  font-size: var(--fs-label);
-  line-height: var(--lh-label);
-  font-weight: 500;
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
-`
-
-const MenuItem = styled.button<{ $active?: boolean }>`
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr) 16px;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-height: 40px;
-  padding: 4px 10px;
-  border: 0;
-  border-radius: var(--radius);
-  background: ${({ $active }) =>
-    $active ? 'var(--color-primary-soft)' : 'transparent'};
-  color: ${({ $active }) =>
-    $active ? 'var(--color-primary-on-soft)' : 'var(--color-text)'};
-  text-align: left;
-  cursor: pointer;
-  transition: background var(--motion);
-
-  &:hover {
-    background: ${({ $active }) =>
-      $active ? 'var(--color-primary-soft)' : 'var(--color-raised)'};
-  }
-`
-
-const ItemLabel = styled.span`
-  display: block;
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
-  font-weight: 500;
-`
-
-const ItemHint = styled.span`
-  display: block;
-  color: var(--color-muted);
-  font-size: var(--fs-small);
-  line-height: var(--lh-small);
-`
-
 /**
- * App-bar theme switcher: System, Light, Dark, Kleros (DESIGN.md, Layout).
- * The trigger shows the icon of the chosen mode; the menu marks it with a check.
+ * App-bar theme switcher: System, Light, Dark, Kleros (DESIGN.md, Themes).
+ * A round icon button showing the chosen mode; the glass menu names each
+ * mode with a hint and checks the chosen one.
  */
 const ThemeMenu = () => {
   const themeContext = useContext(ThemeContext)
-  const [open, setOpen] = useState(false)
   if (!themeContext) return null
-  const { mode, setMode, typeface, setTypeface } = themeContext
+  const { mode, setMode } = themeContext
 
   return (
-    <Dropdown
-      trigger={['click']}
-      visible={open}
-      onVisibleChange={setOpen}
-      placement="bottomRight"
-      overlay={
-        <Menu role="menu" aria-label="Theme">
-          <MenuTitle>Theme</MenuTitle>
-          {THEME_MODES.map((option) => (
-            <MenuItem
-              key={option.value}
-              type="button"
-              role="menuitemradio"
-              aria-label={`${option.label}: ${option.hint}`}
-              aria-checked={option.value === mode}
-              $active={option.value === mode}
-              onClick={(event) => {
-                event.stopPropagation()
-                setMode(option.value)
-                setOpen(false)
-              }}
-            >
-              <CurateIcon name={MODE_ICON[option.value]} size={18} />
-              <span>
-                <ItemLabel>{option.label}</ItemLabel>
-                <ItemHint>{option.hint}</ItemHint>
-              </span>
-              {option.value === mode && <CurateIcon name="check" size={16} />}
-            </MenuItem>
-          ))}
-          <Divider />
-          <MenuTitle>Typeface</MenuTitle>
-          {TYPEFACES.map((option) => (
-            <MenuItem
-              key={option.value}
-              type="button"
-              role="menuitemradio"
-              aria-label={`${option.label}: ${option.hint}`}
-              aria-checked={option.value === typeface}
-              $active={option.value === typeface}
-              onClick={(event) => {
-                event.stopPropagation()
-                setTypeface(option.value)
-                setOpen(false)
-              }}
-            >
-              <span aria-hidden style={{ fontWeight: 500 }}>
-                Aa
-              </span>
-              <span>
-                <ItemLabel>{option.label}</ItemLabel>
-                <ItemHint>{option.hint}</ItemHint>
-              </span>
-              {option.value === typeface && (
-                <CurateIcon name="check" size={16} />
-              )}
-            </MenuItem>
-          ))}
-        </Menu>
-      }
-    >
-      <BarIconButton
-        type="button"
-        aria-label="Theme"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        title="Theme"
-      >
-        <CurateIcon name={MODE_ICON[mode]} size={19} />
-      </BarIconButton>
-    </Dropdown>
+    <SelectMenu<ThemeMode>
+      label="Theme"
+      heading="Theme"
+      appearance="icon"
+      align="end"
+      menuWidth={244}
+      title="Theme"
+      value={mode}
+      onChange={setMode}
+      options={THEME_MODES.map((option) => ({
+        value: option.value,
+        label: option.label,
+        hint: option.hint,
+        icon: MODE_ICON[option.value],
+      }))}
+    />
   )
 }
 

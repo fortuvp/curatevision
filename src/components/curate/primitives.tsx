@@ -1,9 +1,20 @@
 import React from 'react'
+import { createPortal } from 'react-dom'
 import styled, { css, keyframes } from 'styled-components'
 import { Link } from 'react-router-dom'
 import { CurateIcon, type CurateIconName } from './icons'
 import ChainLogo from 'components/chain-logo'
 import { NETWORKS_INFO } from 'config/networks'
+import {
+  ctaButton,
+  ctaButtonLit,
+  edgeTransition,
+  glassPopover,
+  litThumb,
+  quietButton,
+  quietButtonHover,
+  recessTrack,
+} from 'components/ui/kit-styles'
 
 /*
  * CurateVision primitives, built from DESIGN.md. Every page composes these:
@@ -323,6 +334,13 @@ export const VisuallyHidden = styled.span`
 
 /* ---------- Controls ---------- */
 
+/*
+ * The control language (round 2, "Lit edge"; DESIGN.md, Surfaces and
+ * controls). Primary is a dark glass pill with a luminous 1px edge that
+ * sweeps round and glows on hover and focus; secondary is a quiet ghost with
+ * a hairline; ghost is text that fills on hover; danger is a soft red tint.
+ * No flat blue fill anywhere. Every button is a pill.
+ */
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger'
 
 const buttonStyles = css<{
@@ -331,6 +349,7 @@ const buttonStyles = css<{
   $block?: boolean
 }>`
   position: relative;
+  isolation: isolate;
   display: ${({ $block }) => ($block ? 'flex' : 'inline-flex')};
   width: ${({ $block }) => ($block ? '100%' : 'auto')};
   align-items: center;
@@ -338,9 +357,11 @@ const buttonStyles = css<{
   gap: 8px;
   height: ${({ $size }) => ($size === 'sm' ? '34px' : '44px')};
   padding: 0 ${({ $size }) => ($size === 'sm' ? '14px' : '20px')};
-  border-radius: 10px;
+  border-radius: var(--radius-pill);
   border: 1px solid transparent;
-  font-size: var(--fs-body);
+  font-family: var(--font-sans);
+  font-size: ${({ $size }) =>
+    $size === 'sm' ? 'var(--fs-small)' : 'var(--fs-body)'};
   line-height: var(--lh-body);
   font-weight: 500;
   letter-spacing: -0.005em;
@@ -348,26 +369,27 @@ const buttonStyles = css<{
   text-decoration: none;
   cursor: pointer;
   transition:
-    background var(--motion),
+    background-color var(--motion),
     border-color var(--motion),
-    box-shadow var(--motion),
+    box-shadow 260ms var(--ease-out),
     color var(--motion),
-    transform var(--motion);
+    transform 260ms var(--ease-spring),
+    ${edgeTransition};
 
-  &:active:not(:disabled) {
-    transform: translateY(1px);
+  @media (prefers-reduced-motion: no-preference) {
+    &:active:not(:disabled):not([aria-disabled='true']) {
+      transform: scale(0.97);
+      transition-duration: var(--dur-press);
+    }
   }
 
   ${({ $variant }) =>
     $variant === 'secondary'
       ? css`
-          background: var(--color-raised);
-          border-color: var(--glass-border);
-          box-shadow: inset 0 1px 0 var(--glass-highlight);
-          color: var(--color-text);
+          ${quietButton}
 
           &:hover:not(:disabled) {
-            border-color: var(--color-border-strong);
+            ${quietButtonHover}
             color: var(--color-text);
           }
         `
@@ -383,30 +405,38 @@ const buttonStyles = css<{
           `
         : $variant === 'danger'
           ? css`
-              background: var(--color-danger);
-              color: var(--color-on-primary);
+              border-color: color-mix(
+                in srgb,
+                var(--color-danger) 38%,
+                transparent
+              );
+              background: var(--color-danger-soft);
+              color: var(--color-danger);
 
               &:hover:not(:disabled) {
-                filter: brightness(1.08);
+                border-color: color-mix(
+                  in srgb,
+                  var(--color-danger) 60%,
+                  transparent
+                );
+                background: color-mix(
+                  in srgb,
+                  var(--color-danger) 20%,
+                  transparent
+                );
+                color: var(--color-danger);
               }
             `
           : css`
-              background: var(--color-primary-fill);
-              color: var(--color-on-primary);
-              box-shadow:
-                inset 0 1px 0 color-mix(in srgb, white 24%, transparent),
-                0 10px 30px -12px var(--color-primary);
+              ${ctaButton}
 
-              &:hover:not(:disabled) {
-                background: var(--color-primary-fill-hover);
-                color: var(--color-on-primary);
-                box-shadow:
-                  inset 0 1px 0 color-mix(in srgb, white 32%, transparent),
-                  0 12px 32px -10px var(--color-primary);
+              &:hover:not(:disabled):not([aria-disabled='true']),
+              &:focus-visible:not(:disabled) {
+                ${ctaButtonLit}
               }
             `}
 
-  /* Disabled keeps its label legible: muted text on the raised fill, no fade. */
+  /* Disabled keeps its label legible: muted text on the raised fill, no glow. */
   &&:disabled,
   &&[aria-disabled='true'] {
     cursor: not-allowed;
@@ -416,6 +446,10 @@ const buttonStyles = css<{
     box-shadow: none;
     filter: none;
     transform: none;
+
+    &::before {
+      content: none;
+    }
   }
 `
 
@@ -526,15 +560,55 @@ export const ChainChip = ({
   )
 }
 
-/** Segmented control (table / cards / rows, filters). */
+const StackWrap = styled.span<{ $size: number }>`
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+
+  > span {
+    background-color: var(--color-surface);
+    background-image: linear-gradient(var(--color-raised), var(--color-raised));
+  }
+
+  > span + span {
+    margin-left: ${({ $size }) => -Math.round($size * 0.38)}px;
+  }
+`
+
+/**
+ * Several chain marks, overlapped: the glyph for a scope that covers more
+ * than one chain ("All chains" is the Ethereum and Gnosis marks), so the
+ * icon says what it covers. Decorative; the label names the chains.
+ */
+export const ChainStack = ({
+  chainIds,
+  size = 16,
+}: {
+  chainIds: number[]
+  size?: number
+}) => (
+  <StackWrap $size={size} aria-hidden>
+    {chainIds.map((chainId) => (
+      <ChainLogo key={chainId} chainId={chainId} size={size} />
+    ))}
+  </StackWrap>
+)
+
+/*
+ * Selectors (round 2): a recessed track with a raised, lit glass thumb.
+ * `Segmented` and `Segment` are the static parts (the active segment draws
+ * its own thumb); `SegmentedControl` is the full control, whose thumb slides
+ * on a spring, leading edge first.
+ */
 export const Segmented = styled.div`
+  position: relative;
+  isolation: isolate;
   display: inline-flex;
   align-items: center;
   gap: 2px;
   padding: 3px;
-  border: 1px solid var(--glass-border);
-  border-radius: 12px;
-  background: var(--color-raised);
+  border-radius: var(--radius-pill);
+  ${recessTrack}
   max-width: 100%;
   overflow-x: auto;
   scrollbar-width: none;
@@ -546,91 +620,201 @@ export const Segmented = styled.div`
 
 export const Segment = styled.button<{
   $active?: boolean
-  /** Inside a sliding track the pill draws the active state. */
+  /** Inside a sliding track the thumb draws the active state. */
   $sliding?: boolean
+  $size?: 'sm' | 'md'
 }>`
+  position: relative;
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  height: 30px;
-  padding: 0 12px;
+  height: ${({ $size }) => ($size === 'sm' ? '28px' : '32px')};
+  padding: 0 ${({ $size }) => ($size === 'sm' ? '12px' : '14px')};
   border: 0;
-  border-radius: 9px;
-  background: ${({ $active, $sliding }) =>
-    $active && !$sliding ? 'var(--color-primary-soft)' : 'transparent'};
+  border-radius: var(--radius-pill);
+  background: transparent;
   color: ${({ $active }) =>
     $active ? 'var(--color-text)' : 'var(--color-muted)'};
+  font-family: var(--font-sans);
   font-size: var(--fs-small);
   line-height: var(--lh-small);
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
-  transition:
-    background var(--motion),
-    color var(--motion);
+  transition: color var(--motion);
+
+  ${({ $active, $sliding }) =>
+    $active &&
+    !$sliding &&
+    css`
+      ${litThumb}
+    `}
 
   &:hover {
     color: var(--color-text);
   }
+
+  /* The track clips, so the focus ring sits inside the segment. */
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: -2px;
+  }
+
+  svg {
+    flex: 0 0 auto;
+  }
 `
 
-const SlidingTrack = styled(Segmented)`
-  position: relative;
-  isolation: isolate;
-`
-
-const SlidingPill = styled.span`
+const SlidingThumb = styled.span`
   position: absolute;
   top: 3px;
   bottom: 3px;
-  left: 0;
   z-index: -1;
-  border-radius: 9px;
-  background: var(--color-primary-soft);
-  box-shadow: inset 0 0 0 1px
-    color-mix(in srgb, var(--color-primary) 30%, transparent);
-  transition:
-    transform 380ms cubic-bezier(0.34, 1.4, 0.64, 1),
-    width 380ms cubic-bezier(0.34, 1.4, 0.64, 1);
+  border-radius: var(--radius-pill);
+  ${litThumb}
 
-  @media (prefers-reduced-motion: reduce) {
+  /* Stretchy: the edge in the direction of travel leads, the other follows. */
+  &[data-dir='right'] {
+    transition:
+      right 260ms var(--ease-spring),
+      left 360ms var(--ease-spring) 40ms;
+  }
+
+  &[data-dir='left'] {
+    transition:
+      left 260ms var(--ease-spring),
+      right 360ms var(--ease-spring) 40ms;
+  }
+
+  &[data-instant] {
     transition: none;
   }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none !important;
+  }
 `
+
+/** A segment's count: small tabular figure, brighter on the chosen segment. */
+const SegmentCount = styled.span`
+  color: var(--color-faint);
+  font-family: var(--font-figure);
+  font-size: var(--fs-meta);
+  font-variant-numeric: tabular-nums;
+  transition: color var(--motion);
+
+  [aria-checked='true'] > &,
+  [aria-pressed='true'] > & {
+    color: var(--color-muted);
+  }
+`
+
+/** A segment's qualifier, e.g. "testnet": tiny, quiet, outlined. */
+const SegmentTag = styled.span`
+  padding: 1px 6px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  color: var(--color-muted);
+  font-size: var(--fs-micro);
+  line-height: 14px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+`
+
+/** A CurateIcon by name, or an element; an element with a `size` prop takes this size. */
+const renderGlyph = (
+  icon: CurateIconName | React.ReactElement | undefined,
+  size: number,
+) => {
+  if (icon === undefined) return null
+  if (typeof icon === 'string') return <CurateIcon name={icon} size={size} />
+  const props = icon.props as { size?: number }
+  return 'size' in props
+    ? React.cloneElement(icon as React.ReactElement<{ size?: number }>, {
+        size,
+      })
+    : icon
+}
 
 export type SegmentOption<T extends string> = {
   value: T
   label: string
-  icon?: CurateIconName
+  /** A CurateIcon name or any element (a custom glyph, a chain logo). */
+  icon?: CurateIconName | React.ReactElement
+  /** A count shown after the label (from the same query as the list). */
+  count?: number
+  /** A qualifier after the label, e.g. "testnet". */
+  tag?: string
+  /** Show the icon only; the label stays the accessible name and tooltip. */
+  hideLabel?: boolean
 }
 
-/** Segmented control whose active pill slides between options. */
+const segmentCount = new Intl.NumberFormat('en-US')
+
+/**
+ * Segmented control: a radio group in a recessed track whose lit thumb
+ * slides between options. Arrows and Home/End move the choice and focus.
+ */
 export function SegmentedControl<T extends string>({
   value,
   options,
   onChange,
   ariaLabel,
+  size = 'md',
+  className,
 }: {
   value: T
   options: SegmentOption<T>[]
   onChange: (value: T) => void
   ariaLabel: string
+  size?: 'sm' | 'md'
+  className?: string
 }) {
   const track = React.useRef<HTMLDivElement>(null)
-  const [pill, setPill] = React.useState<{ left: number; width: number }>()
-  const measure = React.useCallback(() => {
-    const node = track.current?.querySelector<HTMLButtonElement>(
+  const [thumb, setThumb] = React.useState<{
+    left: number
+    right: number
+    dir?: 'left' | 'right'
+    instant?: boolean
+  }>()
+  const measure = React.useCallback((instant: boolean) => {
+    const node = track.current
+    const checked = node?.querySelector<HTMLButtonElement>(
       '[aria-checked="true"]',
     )
-    if (node) setPill({ left: node.offsetLeft, width: node.offsetWidth })
+    if (!node || !checked) {
+      setThumb(undefined)
+      return
+    }
+    const left = checked.offsetLeft
+    const right = node.clientWidth - left - checked.offsetWidth
+    setThumb((previous) => {
+      if (
+        previous &&
+        previous.left === left &&
+        previous.right === right &&
+        Boolean(previous.instant) === instant
+      )
+        return previous
+      const dir =
+        previous && left !== previous.left
+          ? left > previous.left
+            ? 'right'
+            : 'left'
+          : previous?.dir
+      // The first placement never animates in from nowhere.
+      return { left, right, dir, instant: instant || !previous }
+    })
   }, [])
-  React.useLayoutEffect(measure, [measure, value, options.length])
-  // Re-measure when the track resizes (layout changes, late web fonts).
+  React.useLayoutEffect(() => measure(false), [measure, value, options.length])
+  // Re-measure without animating when the track resizes (late web fonts).
   React.useEffect(() => {
     const node = track.current
     if (!node || typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(() => measure())
+    const observer = new ResizeObserver(() => measure(true))
     observer.observe(node)
     return () => observer.disconnect()
   }, [measure])
@@ -661,16 +845,19 @@ export function SegmentedControl<T extends string>({
   }
   const selected = options.some((option) => option.value === value)
   return (
-    <SlidingTrack
+    <Segmented
       ref={track}
       role="radiogroup"
       aria-label={ariaLabel}
       onKeyDown={onKeyDown}
+      className={className}
     >
-      {pill && (
-        <SlidingPill
+      {thumb && (
+        <SlidingThumb
           aria-hidden
-          style={{ transform: `translateX(${pill.left}px)`, width: pill.width }}
+          data-dir={thumb.dir}
+          data-instant={thumb.instant ? '' : undefined}
+          style={{ left: thumb.left, right: thumb.right }}
         />
       )}
       {options.map((option, index) => (
@@ -679,18 +866,779 @@ export function SegmentedControl<T extends string>({
           type="button"
           role="radio"
           aria-checked={option.value === value}
+          aria-label={option.hideLabel ? option.label : undefined}
+          title={option.hideLabel ? option.label : undefined}
           tabIndex={
             option.value === value || (!selected && index === 0) ? 0 : -1
           }
           $active={option.value === value}
           $sliding
+          $size={size}
+          style={option.hideLabel ? { paddingInline: 10 } : undefined}
           onClick={() => onChange(option.value)}
         >
-          {option.icon && <CurateIcon name={option.icon} size={14} />}
-          {option.label}
+          {renderGlyph(option.icon, 15)}
+          {!option.hideLabel && option.label}
+          {option.tag && <SegmentTag>{option.tag}</SegmentTag>}
+          {option.count !== undefined && (
+            <SegmentCount>{segmentCount.format(option.count)}</SegmentCount>
+          )}
         </Segment>
       ))}
-    </SlidingTrack>
+    </Segmented>
+  )
+}
+
+export type ToggleOption<T extends string> = {
+  value: T
+  label: string
+  /** A CurateIcon name or any element. */
+  icon?: CurateIconName | React.ReactElement
+  /** A count shown after the label (from the same query as the list). */
+  count?: number
+  /** Show the icon only; the label stays the accessible name and tooltip. */
+  hideLabel?: boolean
+}
+
+/**
+ * Toggle group: several independent on/off choices in one recessed track,
+ * e.g. the registry types (Light, Classic, Stake). Each pressed option sits
+ * on its own lit thumb, the same thumb SegmentedControl slides. Buttons with
+ * aria-pressed, each its own tab stop; Space or Enter flips one. `value`
+ * holds the pressed options and onChange gets them back in option order.
+ * For one choice out of several, use SegmentedControl instead.
+ *
+ *   <ToggleGroup
+ *     ariaLabel="Registry type"
+ *     value={kinds}
+ *     onChange={setKinds}
+ *     options={[
+ *       { value: 'light', label: 'Light' },
+ *       { value: 'classic', label: 'Classic' },
+ *       { value: 'stake', label: 'Stake' },
+ *     ]}
+ *   />
+ */
+export function ToggleGroup<T extends string>({
+  value,
+  options,
+  onChange,
+  ariaLabel,
+  size = 'md',
+  className,
+}: {
+  value: T[]
+  options: ToggleOption<T>[]
+  onChange: (value: T[]) => void
+  ariaLabel: string
+  size?: 'sm' | 'md'
+  className?: string
+}) {
+  return (
+    <Segmented role="group" aria-label={ariaLabel} className={className}>
+      {options.map((option) => {
+        const pressed = value.includes(option.value)
+        return (
+          <Segment
+            key={option.value}
+            type="button"
+            aria-pressed={pressed}
+            aria-label={option.hideLabel ? option.label : undefined}
+            title={option.hideLabel ? option.label : undefined}
+            $active={pressed}
+            $size={size}
+            style={option.hideLabel ? { paddingInline: 10 } : undefined}
+            onClick={() =>
+              onChange(
+                options
+                  .filter((other) =>
+                    other.value === option.value
+                      ? !pressed
+                      : value.includes(other.value),
+                  )
+                  .map((other) => other.value),
+              )
+            }
+          >
+            {renderGlyph(option.icon, 15)}
+            {!option.hideLabel && option.label}
+            {option.count !== undefined && (
+              <SegmentCount>{segmentCount.format(option.count)}</SegmentCount>
+            )}
+          </Segment>
+        )
+      })}
+    </Segmented>
+  )
+}
+
+/* ---------- Select menu ---------- */
+
+/*
+ * SelectMenu: the app's dropdown for picking one value (sort orders, chain
+ * scopes, the theme). Replaces native <select> and menu-of-radios patterns.
+ *
+ *   <SelectMenu
+ *     label="Sort"                       // names the choice (trigger + a11y)
+ *     value={sort}
+ *     onChange={setSort}
+ *     options={[
+ *       { value: 'recent', label: 'Latest activity' },
+ *       { value: 'entries', label: 'Most entries', hint: 'Largest first' },
+ *       { value: 'sepolia', label: 'Sepolia', tag: 'testnet', divider: true },
+ *     ]}
+ *   />
+ *
+ * Appearances: 'quiet' (default) is a hairline pill reading "Sort  Latest
+ * activity ⌄" (hideLabel drops the label, keeping it for screen readers);
+ * 'chip' is the app bar's glass chip (icon + value); 'icon' is a round icon
+ * button showing the chosen option's icon. Options take an icon (a
+ * CurateIcon name or any element, e.g. a chain logo), a hint line, a tag and
+ * a divider above them. `align="end"` opens the panel from the right edge.
+ *
+ * The panel is glass, portalled to <body> so no overflow clips it, placed
+ * under the trigger (above when there is no room) and kept there on scroll
+ * and resize. A highlight slides to the hovered or keyboard-active row; the
+ * chosen row carries a check.
+ *
+ * ARIA: the trigger is a combobox button (aria-haspopup="listbox",
+ * aria-expanded, aria-controls, aria-activedescendant) that keeps focus;
+ * the panel is a listbox of options with aria-selected. Keys: ArrowDown /
+ * ArrowUp / Home / End / Enter / Space open it; inside, the arrows, Home,
+ * End, PageUp and PageDown move, Enter or Space pick, Escape closes (and
+ * only the menu, never a dialog around it), Tab closes, and typing jumps to
+ * the next option starting with the typed letters.
+ */
+export type SelectMenuOption<T extends string> = {
+  value: T
+  label: string
+  /** A muted second line under the label. */
+  hint?: string
+  /** Leading glyph: a CurateIcon name or any element (a chain logo). */
+  icon?: CurateIconName | React.ReactElement
+  /** A small qualifier after the label, e.g. "testnet". */
+  tag?: string
+  /** Draw a hairline above this option to start a new group. */
+  divider?: boolean
+  disabled?: boolean
+}
+
+export type SelectMenuProps<T extends string> = {
+  /** Names the choice: shown on the quiet trigger, read by screen readers. */
+  label: string
+  value: T
+  options: SelectMenuOption<T>[]
+  onChange: (value: T) => void
+  appearance?: 'quiet' | 'chip' | 'icon'
+  /** Quiet trigger: show only the value (the label stays the accessible name). */
+  hideLabel?: boolean
+  /** Which trigger edge the panel lines up with. */
+  align?: 'start' | 'end'
+  /** A small heading at the top of the panel. */
+  heading?: string
+  /** Shown when the value matches no option. */
+  placeholder?: string
+  /** Custom trigger value (e.g. to hide the text at some widths). */
+  renderValue?: (option: SelectMenuOption<T> | undefined) => React.ReactNode
+  /** Tooltip on the trigger. */
+  title?: string
+  /** Panel width floor in px (it is never narrower than the trigger). */
+  menuWidth?: number
+  disabled?: boolean
+  id?: string
+  className?: string
+}
+
+const MENU_GAP = 8
+const MENU_EDGE = 8
+const MENU_MAX = 360
+const TYPEAHEAD_MS = 600
+
+const MenuChevron = styled.span`
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--color-muted);
+  transition: transform var(--dur-control) var(--ease-spring);
+
+  [aria-expanded='true'] > & {
+    transform: rotate(180deg);
+  }
+`
+
+const MenuTrigger = styled.button<{ $appearance: 'quiet' | 'chip' | 'icon' }>`
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  max-width: 100%;
+  min-width: 0;
+  height: 38px;
+  padding: ${({ $appearance }) =>
+    $appearance === 'icon'
+      ? '0'
+      : $appearance === 'chip'
+        ? '0 12px 0 10px'
+        : '0 12px 0 14px'};
+  width: ${({ $appearance }) => ($appearance === 'icon' ? '38px' : 'auto')};
+  border: 1px solid
+    ${({ $appearance }) =>
+      $appearance === 'icon'
+        ? 'transparent'
+        : $appearance === 'chip'
+          ? 'var(--glass-border)'
+          : 'var(--color-border-strong)'};
+  border-radius: var(--radius-pill);
+  background: ${({ $appearance }) =>
+    $appearance === 'chip' ? 'var(--glass)' : 'transparent'};
+  box-shadow: ${({ $appearance }) =>
+    $appearance === 'chip' ? 'inset 0 1px 0 var(--glass-highlight)' : 'none'};
+  color: ${({ $appearance }) =>
+    $appearance === 'icon' ? 'var(--color-muted)' : 'var(--color-text)'};
+  font-family: var(--font-sans);
+  font-size: var(--fs-small);
+  line-height: 16px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--motion),
+    border-color var(--motion),
+    color var(--motion);
+
+  &:hover:not(:disabled),
+  &[aria-expanded='true'] {
+    border-color: ${({ $appearance }) =>
+      $appearance === 'icon'
+        ? 'var(--color-border)'
+        : 'color-mix(in srgb, var(--color-text) 26%, transparent)'};
+    background: var(--color-raised);
+    color: var(--color-text);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    color: var(--color-muted);
+  }
+`
+
+const MenuTriggerLabel = styled.span`
+  color: var(--color-muted);
+  font-weight: 400;
+`
+
+const MenuTriggerValue = styled.span`
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`
+
+const menuIn = keyframes`
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+`
+
+const menuInUp = keyframes`
+  from { opacity: 0; transform: translateY(4px) scale(0.98); }
+`
+
+const MenuPanel = styled.div<{ $up?: boolean }>`
+  position: fixed;
+  z-index: 1100;
+  padding: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  ${glassPopover}
+  transform-origin: ${({ $up }) => ($up ? '50% 100%' : '50% 0')};
+  animation: ${({ $up }) => ($up ? menuInUp : menuIn)} 200ms var(--ease-out)
+    both;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+`
+
+const MenuHeading = styled.div`
+  padding: 6px 10px 6px;
+  color: var(--color-muted);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: 500;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+`
+
+const MenuList = styled.div`
+  position: relative;
+  isolation: isolate;
+  outline: none;
+`
+
+const MenuHighlight = styled.span`
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: -1;
+  border-radius: 10px;
+  background: var(--hover-fill);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  transition:
+    transform 220ms var(--ease-out),
+    height 220ms var(--ease-out),
+    opacity 120ms linear;
+  pointer-events: none;
+
+  &[data-instant] {
+    transition: opacity 120ms linear;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+`
+
+const MenuOption = styled.div<{ $divider?: boolean; $disabled?: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 7px 10px 7px 12px;
+  border-radius: 10px;
+  color: ${({ $disabled }) =>
+    $disabled ? 'var(--color-faint)' : 'var(--color-muted)'};
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
+  transition: color var(--motion);
+  ${({ $divider }) =>
+    $divider &&
+    css`
+      position: relative;
+      margin-top: 11px;
+
+      &::before {
+        content: '';
+        position: absolute;
+        top: -6px;
+        left: 10px;
+        right: 10px;
+        height: 1px;
+        background: var(--color-border);
+      }
+    `}
+
+  &[data-active='true'] {
+    color: var(--color-text);
+  }
+
+  &[aria-selected='true'] {
+    color: var(--color-text);
+    font-weight: 500;
+  }
+
+  > svg,
+  > img {
+    flex: 0 0 auto;
+  }
+`
+
+const MenuOptionText = styled.span`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+`
+
+const MenuOptionLabel = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+`
+
+const MenuOptionHint = styled.span`
+  color: var(--color-muted);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  font-weight: 400;
+`
+
+const MenuCheck = styled.span`
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 16px;
+  color: var(--color-primary);
+`
+
+type MenuPlace = {
+  left: number
+  width: number
+  maxHeight: number
+  top?: number
+  bottom?: number
+  up: boolean
+}
+
+export function SelectMenu<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+  appearance = 'quiet',
+  hideLabel,
+  align = 'start',
+  heading,
+  placeholder = 'Choose',
+  renderValue,
+  title,
+  menuWidth = 220,
+  disabled,
+  id,
+  className,
+}: SelectMenuProps<T>) {
+  const baseId = React.useId()
+  const listId = `${baseId}-list`
+  const optionId = (index: number) => `${baseId}-option-${index}`
+  const triggerRef = React.useRef<HTMLButtonElement>(null)
+  const panelRef = React.useRef<HTMLDivElement>(null)
+  const optionRefs = React.useRef<Array<HTMLDivElement | null>>([])
+  const [open, setOpen] = React.useState(false)
+  const [active, setActive] = React.useState(-1)
+  const [place, setPlace] = React.useState<MenuPlace>()
+  const [highlight, setHighlight] = React.useState<{
+    top: number
+    height: number
+    instant: boolean
+  }>()
+  const typed = React.useRef({ text: '', at: 0 })
+
+  const selectedIndex = options.findIndex((option) => option.value === value)
+  const selected = options[selectedIndex]
+  const enabled = (index: number) =>
+    index >= 0 && index < options.length && !options[index].disabled
+
+  const close = React.useCallback(() => {
+    setOpen(false)
+    setActive(-1)
+    setHighlight(undefined)
+  }, [])
+
+  const openAt = (index: number) => {
+    if (disabled) return
+    setActive(index)
+    setOpen(true)
+  }
+
+  const pick = (index: number) => {
+    if (!enabled(index)) return
+    if (options[index].value !== value) onChange(options[index].value)
+    close()
+    triggerRef.current?.focus()
+  }
+
+  const step = (from: number, delta: number) => {
+    let index = from
+    for (let moved = 0; moved < options.length; moved += 1) {
+      const next = index + delta
+      if (next < 0 || next >= options.length) break
+      index = next
+      if (enabled(index)) return index
+    }
+    return enabled(from) ? from : -1
+  }
+  const firstEnabled = () => options.findIndex((option) => !option.disabled)
+  const lastEnabled = () => {
+    for (let index = options.length - 1; index >= 0; index -= 1)
+      if (!options[index].disabled) return index
+    return -1
+  }
+
+  /** Type-ahead: the next option whose label starts with the typed letters. */
+  const matchTyped = (key: string, from: number) => {
+    const now = Date.now()
+    const memory = typed.current
+    memory.text = now - memory.at > TYPEAHEAD_MS ? key : `${memory.text}${key}`
+    memory.at = now
+    const query = memory.text.toLowerCase()
+    const repeat =
+      query.length > 1 && query.split('').every((c) => c === query[0])
+    const needle = repeat ? query[0] : query
+    const start = repeat || query.length === 1 ? from + 1 : from
+    for (let offset = 0; offset < options.length; offset += 1) {
+      const index = (Math.max(start, 0) + offset) % options.length
+      if (
+        enabled(index) &&
+        options[index].label.toLowerCase().startsWith(needle)
+      )
+        return index
+    }
+    return -1
+  }
+
+  const onKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (disabled) return
+    const { key } = event
+    const printable =
+      key.length === 1 && key !== ' ' && !event.metaKey && !event.ctrlKey
+    if (!open) {
+      if (
+        key === 'ArrowDown' ||
+        key === 'ArrowUp' ||
+        key === 'Enter' ||
+        key === ' '
+      ) {
+        event.preventDefault()
+        openAt(enabled(selectedIndex) ? selectedIndex : firstEnabled())
+      } else if (key === 'Home') {
+        event.preventDefault()
+        openAt(firstEnabled())
+      } else if (key === 'End') {
+        event.preventDefault()
+        openAt(lastEnabled())
+      } else if (printable) {
+        const match = matchTyped(key, selectedIndex)
+        if (match >= 0) {
+          event.preventDefault()
+          openAt(match)
+        }
+      }
+      return
+    }
+    let next = -2
+    if (key === 'ArrowDown') next = step(active, 1)
+    else if (key === 'ArrowUp')
+      next = step(active < 0 ? options.length : active, -1)
+    else if (key === 'Home') next = firstEnabled()
+    else if (key === 'End') next = lastEnabled()
+    else if (key === 'PageDown')
+      next = step(Math.min(active + 9, options.length - 1), 1)
+    else if (key === 'PageUp') next = step(Math.max(active - 9, 0), -1)
+    else if (key === 'Enter' || key === ' ') {
+      event.preventDefault()
+      if (active >= 0) pick(active)
+      else close()
+      return
+    } else if (key === 'Escape') {
+      // The menu alone answers Escape, never a dialog around it.
+      event.preventDefault()
+      event.stopPropagation()
+      close()
+      return
+    } else if (key === 'Tab') {
+      close()
+      return
+    } else if (printable) {
+      const match = matchTyped(key, active)
+      if (match >= 0) next = match
+    }
+    if (next === -2) return
+    event.preventDefault()
+    if (next >= 0) setActive(next)
+  }
+
+  // Place the panel under (or above) the trigger, inside the viewport.
+  const measure = React.useCallback(() => {
+    const trigger = triggerRef.current
+    if (!trigger) return
+    const rect = trigger.getBoundingClientRect()
+    const viewportWidth = document.documentElement.clientWidth
+    const viewportHeight = window.innerHeight
+    const width = Math.min(
+      Math.max(rect.width, menuWidth),
+      viewportWidth - MENU_EDGE * 2,
+    )
+    const natural = panelRef.current?.scrollHeight ?? 0
+    const below = viewportHeight - rect.bottom - MENU_GAP - MENU_EDGE
+    const above = rect.top - MENU_GAP - MENU_EDGE
+    const up = natural > below && above > below
+    const room = up ? above : below
+    const maxHeight = Math.max(160, Math.min(MENU_MAX, room))
+    const start = align === 'end' ? rect.right - width : rect.left
+    const left = Math.min(
+      Math.max(MENU_EDGE, start),
+      viewportWidth - MENU_EDGE - width,
+    )
+    setPlace({
+      left,
+      width,
+      maxHeight,
+      up,
+      top: up ? undefined : rect.bottom + MENU_GAP,
+      bottom: up ? viewportHeight - rect.top + MENU_GAP : undefined,
+    })
+  }, [align, menuWidth])
+
+  React.useLayoutEffect(() => {
+    if (!open) {
+      setPlace(undefined)
+      return undefined
+    }
+    measure()
+    const onMove = () => measure()
+    window.addEventListener('scroll', onMove, true)
+    window.addEventListener('resize', onMove)
+    return () => {
+      window.removeEventListener('scroll', onMove, true)
+      window.removeEventListener('resize', onMove)
+    }
+  }, [open, measure])
+
+  // Outside presses close the menu (the trigger toggles it itself).
+  React.useEffect(() => {
+    if (!open) return undefined
+    const onPress = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node
+      if (
+        triggerRef.current?.contains(target) ||
+        panelRef.current?.contains(target)
+      )
+        return
+      close()
+    }
+    document.addEventListener('mousedown', onPress)
+    document.addEventListener('touchstart', onPress)
+    return () => {
+      document.removeEventListener('mousedown', onPress)
+      document.removeEventListener('touchstart', onPress)
+    }
+  }, [open, close])
+
+  // The highlight follows the active row; it jumps on open, then slides.
+  React.useLayoutEffect(() => {
+    if (!open || !place) return
+    const node = optionRefs.current[active]
+    if (!node) {
+      setHighlight(undefined)
+      return
+    }
+    setHighlight((previous) => ({
+      top: node.offsetTop,
+      height: node.offsetHeight,
+      instant: !previous,
+    }))
+    node.scrollIntoView?.({ block: 'nearest' })
+  }, [active, open, place])
+
+  const trigger = (() => {
+    if (appearance === 'icon')
+      return renderGlyph(selected?.icon ?? 'chevron-down', 19)
+    const valueNode = renderValue
+      ? renderValue(selected)
+      : (selected?.label ?? placeholder)
+    return (
+      <>
+        {appearance === 'chip' && renderGlyph(selected?.icon, 16)}
+        {appearance === 'quiet' && !hideLabel && (
+          <MenuTriggerLabel>{label}</MenuTriggerLabel>
+        )}
+        {appearance === 'quiet' &&
+          selected?.icon !== undefined &&
+          renderGlyph(selected.icon, 15)}
+        <MenuTriggerValue data-part="value">{valueNode}</MenuTriggerValue>
+        <MenuChevron aria-hidden>
+          <CurateIcon name="chevron-down" size={13} />
+        </MenuChevron>
+      </>
+    )
+  })()
+
+  return (
+    <>
+      <MenuTrigger
+        ref={triggerRef}
+        id={id}
+        type="button"
+        role="combobox"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? listId : undefined}
+        aria-activedescendant={
+          open && active >= 0 ? optionId(active) : undefined
+        }
+        aria-label={`${label}: ${selected?.label ?? placeholder}`}
+        title={title}
+        disabled={disabled}
+        className={className}
+        $appearance={appearance}
+        onClick={() =>
+          open ? close() : openAt(enabled(selectedIndex) ? selectedIndex : -1)
+        }
+        onKeyDown={onKeyDown}
+        onBlur={(event) => {
+          if (!panelRef.current?.contains(event.relatedTarget as Node)) close()
+        }}
+      >
+        {trigger}
+      </MenuTrigger>
+      {open &&
+        createPortal(
+          <MenuPanel
+            ref={panelRef}
+            $up={place?.up}
+            style={{
+              left: place?.left ?? 0,
+              top: place?.top,
+              bottom: place?.bottom,
+              width: place?.width ?? menuWidth,
+              maxHeight: place?.maxHeight ?? MENU_MAX,
+              visibility: place ? 'visible' : 'hidden',
+            }}
+            // Presses inside keep focus on the trigger.
+            onMouseDown={(event) => event.preventDefault()}
+          >
+            {heading && <MenuHeading aria-hidden>{heading}</MenuHeading>}
+            <MenuList
+              id={listId}
+              role="listbox"
+              aria-label={label}
+              onMouseLeave={() => setActive(-1)}
+            >
+              <MenuHighlight
+                aria-hidden
+                data-instant={highlight?.instant ? '' : undefined}
+                style={{
+                  transform: `translateY(${highlight?.top ?? 0}px)`,
+                  height: highlight?.height ?? 0,
+                  opacity: highlight ? 1 : 0,
+                }}
+              />
+              {options.map((option, index) => (
+                <MenuOption
+                  key={option.value}
+                  ref={(node) => {
+                    optionRefs.current[index] = node
+                  }}
+                  id={optionId(index)}
+                  role="option"
+                  aria-selected={index === selectedIndex}
+                  aria-disabled={option.disabled || undefined}
+                  data-active={index === active}
+                  $divider={option.divider}
+                  $disabled={option.disabled}
+                  onMouseEnter={() => enabled(index) && setActive(index)}
+                  onClick={() => pick(index)}
+                >
+                  {renderGlyph(option.icon, 16)}
+                  <MenuOptionText>
+                    <MenuOptionLabel>
+                      {option.label}
+                      {option.tag && <SegmentTag>{option.tag}</SegmentTag>}
+                    </MenuOptionLabel>
+                    {option.hint && (
+                      <MenuOptionHint>{option.hint}</MenuOptionHint>
+                    )}
+                  </MenuOptionText>
+                  <MenuCheck aria-hidden>
+                    {index === selectedIndex && (
+                      <CurateIcon name="check" size={16} />
+                    )}
+                  </MenuCheck>
+                </MenuOption>
+              ))}
+            </MenuList>
+          </MenuPanel>,
+          document.body,
+        )}
+    </>
   )
 }
 

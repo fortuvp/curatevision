@@ -1,12 +1,14 @@
 import React, { useState, useCallback, useEffect } from 'react'
 import styled from 'styled-components'
 import { useFormItemControl } from './form-item-context'
-import { joinClassNames } from './kit-styles'
+import { edgeTransition, joinClassNames, litEdgeBackground } from './kit-styles'
 
 /*
- * Switch, v2: a 40x24 pill (32x18 small). Off is a recessed raised track,
- * on is the action fill with a soft glow. The thumb springs across with a
- * slight overshoot and stretches while pressed.
+ * Switch, round 2 ("Lit edge", DESIGN.md): a 40x24 pill (32x18 small). Off
+ * is a recessed track with a quiet bead; on, the track turns into deep
+ * glass (--track-on-top/bottom, dark in every theme) with the lit edge and
+ * the bead becomes a bright glowing light (--bead-on). The bead springs
+ * across with a slight overshoot and stretches while pressed.
  */
 const SIZES = {
   default: { width: 40, height: 24, thumb: 18 },
@@ -25,16 +27,18 @@ const Handle = styled.span<{ $checked: boolean; $size?: string }>`
   height: ${({ $size }) => dims($size).thumb}px;
   border-radius: var(--radius-pill);
   background: ${({ $checked }) =>
-    $checked ? 'var(--color-on-primary)' : 'var(--switch-thumb-off)'};
-  box-shadow:
-    0 1px 2px color-mix(in srgb, var(--stage) 50%, transparent),
-    inset 0 1px 0 var(--glass-highlight);
+    $checked ? 'var(--bead-on)' : 'var(--bead-off)'};
+  box-shadow: ${({ $checked }) =>
+    $checked
+      ? '0 0 0 3px color-mix(in srgb, var(--edge-2) 22%, transparent), 0 0 12px var(--edge-2)'
+      : '0 1px 3px color-mix(in srgb, var(--stage) 45%, transparent), inset 0 1px 0 var(--glass-highlight)'};
   transform: translateY(-50%);
   transition:
     left var(--dur-control) var(--ease-spring),
     width var(--dur-hover) var(--ease-out),
     margin var(--dur-hover) var(--ease-out),
-    background var(--dur-hover) var(--ease-out);
+    background var(--dur-hover) var(--ease-out),
+    box-shadow var(--dur-hover) var(--ease-out);
 
   @media (prefers-reduced-motion: reduce) {
     transition: background var(--dur-hover) linear;
@@ -49,39 +53,35 @@ const SwitchButton = styled.button<{ $checked: boolean; $size?: string }>`
   min-width: ${({ $size }) => dims($size).width}px;
   height: ${({ $size }) => dims($size).height}px;
   padding: 0;
-  border: 1px solid
-    ${({ $checked }) =>
-      $checked
-        ? 'color-mix(in srgb, var(--color-primary) 50%, transparent)'
-        : 'var(--glass-border)'};
+  border: 1px solid transparent;
   border-radius: var(--radius-pill);
-  /* Off colors per theme; light gets a grey track and a white thumb. */
-  --switch-track-off: var(--color-raised);
-  --switch-thumb-off: var(--color-muted);
+  /* Declared here so the lit edge survives a browser without @property. */
+  --edge-angle: 210deg;
+  /* Off track per theme; light gets a deeper grey so the white bead reads. */
+  --switch-track-off: var(--recess);
   background: ${({ $checked }) =>
-    $checked ? 'var(--color-primary-fill)' : 'var(--switch-track-off)'};
+    $checked
+      ? litEdgeBackground(
+          'linear-gradient(90deg, var(--track-on-bottom), var(--track-on-top))',
+        )
+      : 'linear-gradient(var(--switch-track-off), var(--switch-track-off)) padding-box, linear-gradient(var(--glass-border), var(--glass-border)) border-box'};
   box-shadow: ${({ $checked }) =>
     $checked
-      ? '0 0 16px -4px var(--color-primary), inset 0 1px 0 var(--glass-highlight)'
-      : 'inset 0 1px 2px color-mix(in srgb, var(--stage) 40%, transparent)'};
+      ? 'inset 0 1px 0 color-mix(in srgb, var(--bead-on) 14%, transparent), 0 6px 18px -10px var(--cta-glow)'
+      : 'var(--recess-shadow)'};
   vertical-align: middle;
   cursor: pointer;
   transition:
-    background var(--dur-control) var(--ease-out),
-    border-color var(--dur-control) var(--ease-out),
-    box-shadow var(--dur-control) var(--ease-out);
+    box-shadow var(--dur-control) var(--ease-out),
+    ${edgeTransition};
 
   /* Static selector (no props): styled-components scopes it to every switch. */
   body[data-theme='light'] & {
-    --switch-track-off: var(--color-border-strong);
-    --switch-thumb-off: var(--color-surface);
+    --switch-track-off: color-mix(in srgb, var(--color-text) 14%, transparent);
   }
 
   &:hover:not(:disabled) {
-    border-color: ${({ $checked }) =>
-      $checked
-        ? 'color-mix(in srgb, var(--color-primary) 70%, transparent)'
-        : 'var(--color-border-strong)'};
+    --edge-angle: 570deg;
   }
 
   /* Press: the thumb stretches toward where it is going. */
@@ -101,8 +101,9 @@ const InnerText = styled.span<{ $checked: boolean; $size?: string }>`
   font-size: var(--fs-label);
   line-height: 1;
   font-weight: 500;
+  /* On, the label sits on the deep track in the bead's light ink. */
   color: ${({ $checked }) =>
-    $checked ? 'var(--color-on-primary)' : 'var(--color-muted)'};
+    $checked ? 'var(--bead-on)' : 'var(--color-muted)'};
   padding: ${({ $checked, $size }) => {
     const handleSpace = `${dims($size).thumb + 8}px`
     return $checked ? `0 ${handleSpace} 0 8px` : `0 8px 0 ${handleSpace}`
