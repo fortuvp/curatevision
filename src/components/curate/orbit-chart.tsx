@@ -150,37 +150,63 @@ export const OrbitChart = ({
           stroke="var(--glass-border)"
           strokeWidth="1"
         />
-        {arcs.map((arc, index) => (
-          <ArcPath
-            key={`${arc.key}-halo`}
-            d={arcPath(c, c, r, arc.start, arc.end)}
-            fill="none"
-            stroke={arc.color}
-            strokeWidth="34"
-            strokeOpacity="0.16"
-            strokeLinecap="round"
-            pathLength={1000}
-            style={{
-              ['--len' as string]: '1000',
-              ['--delay' as string]: `${index * 180}ms`,
-            }}
-          />
-        ))}
-        {arcs.map((arc, index) => (
-          <ArcPath
-            key={arc.key}
-            d={arcPath(c, c, r, arc.start, arc.end)}
-            fill="none"
-            stroke={arc.color}
-            strokeWidth="18"
-            strokeLinecap="round"
-            pathLength={1000}
-            style={{
-              ['--len' as string]: '1000',
-              ['--delay' as string]: `${index * 180}ms`,
-            }}
-          />
-        ))}
+        {arcs.length === 1 ? (
+          // One segment holds everything: an arc from 0 to 360 degrees
+          // has the same start and end point and would draw nothing.
+          <>
+            <circle
+              cx={c}
+              cy={c}
+              r={r}
+              fill="none"
+              stroke={arcs[0].color}
+              strokeWidth="34"
+              strokeOpacity="0.16"
+            />
+            <ArcPath
+              d={`M ${c} ${c - r} a ${r} ${r} 0 1 1 0 ${2 * r} a ${r} ${r} 0 1 1 0 ${-2 * r}`}
+              fill="none"
+              stroke={arcs[0].color}
+              strokeWidth="18"
+              pathLength={1000}
+              style={{ ['--len' as string]: '1000' }}
+            />
+          </>
+        ) : (
+          <>
+            {arcs.map((arc, index) => (
+              <ArcPath
+                key={`${arc.key}-halo`}
+                d={arcPath(c, c, r, arc.start, arc.end)}
+                fill="none"
+                stroke={arc.color}
+                strokeWidth="34"
+                strokeOpacity="0.16"
+                strokeLinecap="round"
+                pathLength={1000}
+                style={{
+                  ['--len' as string]: '1000',
+                  ['--delay' as string]: `${index * 180}ms`,
+                }}
+              />
+            ))}
+            {arcs.map((arc, index) => (
+              <ArcPath
+                key={arc.key}
+                d={arcPath(c, c, r, arc.start, arc.end)}
+                fill="none"
+                stroke={arc.color}
+                strokeWidth="18"
+                strokeLinecap="round"
+                pathLength={1000}
+                style={{
+                  ['--len' as string]: '1000',
+                  ['--delay' as string]: `${index * 180}ms`,
+                }}
+              />
+            ))}
+          </>
+        )}
       </Svg>
       <Center>
         <Total>{total}</Total>

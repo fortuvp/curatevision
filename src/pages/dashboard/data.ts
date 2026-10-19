@@ -1233,13 +1233,23 @@ const normalizePermanent = (
         title: registryTitle(address, metadata?.title, 'permanent'),
         description: metadata?.description,
         logoURI: metadata?.logoURI,
-        // The Stake Curate subgraph can report negative counters on some
-        // lists; never show a count below zero.
-        itemCount:
-          Math.max(0, toNumber(registry.numberOfSubmitted)) +
-          Math.max(0, toNumber(registry.numberOfAbsent)),
+        // The Stake Curate subgraph's per-status counters drift (some go
+        // negative), but each status change moves one entry between them,
+        // so their raw sum is the true total, and submitted + disputed the
+        // entries still listed (checked against lists counted entry by
+        // entry). "In court" comes from the open challenges further down.
+        itemCount: Math.max(
+          0,
+          toNumber(registry.numberOfSubmitted) +
+            toNumber(registry.numberOfAbsent) +
+            toNumber(registry.numberOfDisputed),
+        ),
         activeCount: 0,
-        pendingCount: Math.max(0, toNumber(registry.numberOfSubmitted)),
+        pendingCount: Math.max(
+          0,
+          toNumber(registry.numberOfSubmitted) +
+            toNumber(registry.numberOfDisputed),
+        ),
         disputeCount: Math.max(0, toNumber(registry.numberOfDisputed)),
         bountyWei: registry.submissionMinDeposit,
         token: registry.token,
