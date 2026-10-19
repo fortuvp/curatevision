@@ -699,6 +699,7 @@ export const StakePreview = ({
   const {
     symbol,
     decimals: tokenDecimals,
+    decimalsRead,
     loading: loadingSymbol,
   } = useTokenSymbol(tcrState.tokenAddress || undefined)
   const court = useCourtSummary(
@@ -710,7 +711,7 @@ export const StakePreview = ({
   const symbolKnown = !!tcrState.tokenAddress && symbol !== 'tokens'
   const unit = symbolKnown ? symbol : 'tokens'
   // Until the token is read its decimals are unknown: 18 as a placeholder.
-  const decimals = symbolKnown ? tokenDecimals : 18
+  const decimals = symbolKnown && decimalsRead ? tokenDecimals : 18
   // Base units, as the deploy call encodes the typed minimum (token decimals).
   const stake = parseAmount(tcrState.submissionMinDeposit, decimals)
   const percent = effectivePercent(tcrState.challengeStakeMultiplier)

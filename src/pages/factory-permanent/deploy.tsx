@@ -54,6 +54,8 @@ import {
   plainDecimal,
   readExtraData,
   shareOf,
+  stakeProblem,
+  stakeProblemText,
 } from './format'
 import { deployBlocker, deployProblems } from './schemas'
 import type { StepProps, TcrState } from '.'
@@ -306,10 +308,14 @@ const Deploy = ({
   const {
     symbol: tokenSymbol,
     decimals: tokenDecimals,
+    decimalsRead,
     loading: loadingToken,
   } = useTokenSymbol(tcrState.tokenAddress || undefined)
   const tokenFound =
-    !!tcrState.tokenAddress && !loadingToken && tokenSymbol !== 'tokens'
+    !!tcrState.tokenAddress &&
+    !loadingToken &&
+    tokenSymbol !== 'tokens' &&
+    decimalsRead
   // What the stake figures are in: the token's decimals once it is read.
   const decimals = tokenFound ? tokenDecimals : 18
   const gate = useWalletGate({ verb: 'deploy', needsChain: true })
@@ -359,11 +365,15 @@ const Deploy = ({
     ? ''
     : loadingToken
       ? 'Reading the stake token'
-      : !tokenFound
+      : tokenSymbol === 'tokens'
         ? 'No ERC-20 token could be read at the stake token address'
-        : parseAmount(tcrState.submissionMinDeposit, tokenDecimals) === null
-          ? `The minimum stake has more decimal places than ${tokenSymbol} allows (${tokenDecimals})`
-          : ''
+        : !decimalsRead
+          ? `Could not read how many decimals ${tokenSymbol} has`
+          : (stakeProblemText(
+              stakeProblem(tcrState.submissionMinDeposit, tokenDecimals),
+              tokenSymbol,
+              tokenDecimals,
+            ) ?? '')
 
   let blocker = ''
   if (configError) blocker = configError

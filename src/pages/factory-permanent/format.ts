@@ -47,10 +47,13 @@ export const formatToken = (
  * "0.00000000000005"), so parseUnits reads it.
  */
 export const plainDecimal = (value: unknown): string => {
-  const text = String(value ?? '').trim()
-  const match = /^(-?)(\d+)(?:\.(\d+))?e([+-]?\d+)$/i.exec(text)
-  if (!match) return text
-  const [, sign, whole, fraction = '', exponentText] = match
+  const text = String(value ?? '')
+    .trim()
+    .replace(/^\+/, '')
+  const match = /^(-?)(\d*)(?:\.(\d*))?e([+-]?\d+)$/i.exec(text)
+  if (!match || !`${match[2]}${match[3] ?? ''}`) return text
+  const [, sign, wholeText, fraction = '', exponentText] = match
+  const whole = wholeText || '0'
   const exponent = Number(exponentText)
   const digits = `${whole}${fraction}`
   const point = whole.length + exponent
@@ -66,7 +69,8 @@ export const plainDecimal = (value: unknown): string => {
 
 /**
  * A typed token amount in the token's base units, as the deploy call encodes
- * it, or null if it is not one (or has more decimals than the token).
+ * it, or null if it is not one (not a plain non-negative number, more decimal
+ * places than the token has, or more than a uint256 holds).
  */
 export const parseAmount = (
   value: unknown,
@@ -75,11 +79,48 @@ export const parseAmount = (
   if (value === '' || value === undefined || value === null) return null
   try {
     const parsed = ethers.utils.parseUnits(plainDecimal(value), decimals)
-    return parsed.isNegative() ? null : parsed
+    return parsed.isNegative() || parsed.gt(ethers.constants.MaxUint256)
+      ? null
+      : parsed
   } catch {
     return null
   }
 }
+
+/**
+ * Why a typed minimum stake cannot be encoded for a token, or null when it
+ * can (or is empty: the form's own rules cover that).
+ */
+export const stakeProblem = (
+  value: unknown,
+  decimals: number,
+): 'invalid' | 'precision' | 'too-large' | null => {
+  if (value === '' || value === undefined || value === null) return null
+  const plain = plainDecimal(value)
+  if (!/^(\d+\.?\d*|\.\d+)$/.test(plain)) return 'invalid'
+  const fraction = plain.split('.')[1] ?? ''
+  if (trimZeros(`0.${fraction}`).length - 2 > decimals) return 'precision'
+  try {
+    const parsed = ethers.utils.parseUnits(plain, decimals)
+    return parsed.gt(ethers.constants.MaxUint256) ? 'too-large' : null
+  } catch {
+    return 'invalid'
+  }
+}
+
+/** The message for a stakeProblem, in the token's own terms. */
+export const stakeProblemText = (
+  problem: ReturnType<typeof stakeProblem>,
+  symbol: string,
+  decimals: number,
+): string | null =>
+  problem === 'precision'
+    ? `${symbol} has ${decimals} decimals: use at most ${decimals} decimal places.`
+    : problem === 'too-large'
+      ? 'The minimum stake is too large.'
+      : problem === 'invalid'
+        ? 'Enter the minimum stake as a plain number, such as 0.05.'
+        : null
 
 /** The percent the deploy call sends: rounded up, or null if not a number. */
 export const effectivePercent = (value: unknown): number | null => {

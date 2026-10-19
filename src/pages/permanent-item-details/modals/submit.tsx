@@ -302,8 +302,11 @@ const SubmitModal: React.FC<{
   const {
     symbol: tokenSymbol,
     decimals: tokenDecimals,
+    decimalsRead,
     loading: tokenLoading,
   } = useTokenSymbol(tokenAddress)
+  // The stake is parsed in the token's base units: never on a guessed 18.
+  const decimalsMissing = !tokenLoading && !!tokenAddress && !decimalsRead
 
   const { itemName, title: tcrTitle, policyURI } = metadata || {}
   const name = itemName || 'item'
@@ -529,22 +532,26 @@ const SubmitModal: React.FC<{
   // The first blocker wins; the approve step is its own button above the confirm.
   const blocker = !gate.ready
     ? gate.blocker
-    : checkingToken
+    : checkingToken || tokenLoading
       ? 'Checking balances'
-      : stakeError
-        ? stakeError
-        : !fieldsComplete
-          ? 'Fill in every required field'
-          : !hasEnoughBalance
-            ? `Not enough ${tokenSymbol}: you hold ${tokenText(balance, tokenDecimals, tokenSymbol)}`
-            : !hasEnoughNativeBalance
-              ? `Not enough ${nativeCurrency} for the arbitration deposit`
-              : !hasEnoughAllowance
-                ? `Approve ${tokenSymbol} first`
-                : undefined
+      : decimalsMissing
+        ? `Could not read how many decimals ${tokenSymbol} has; try again later`
+        : stakeError
+          ? stakeError
+          : !fieldsComplete
+            ? 'Fill in every required field'
+            : !hasEnoughBalance
+              ? `Not enough ${tokenSymbol}: you hold ${tokenText(balance, tokenDecimals, tokenSymbol)}`
+              : !hasEnoughNativeBalance
+                ? `Not enough ${nativeCurrency} for the arbitration deposit`
+                : !hasEnoughAllowance
+                  ? `Approve ${tokenSymbol} first`
+                  : undefined
   const showApprove =
     gate.ready &&
     !checkingToken &&
+    !tokenLoading &&
+    !decimalsMissing &&
     !stakeError &&
     hasEnoughBalance &&
     !hasEnoughAllowance

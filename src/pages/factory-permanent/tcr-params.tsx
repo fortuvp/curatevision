@@ -54,7 +54,8 @@ import {
   formatMaybe,
   enforcedStake as enforcedStakeText,
   groupAmount,
-  parseAmount,
+  stakeProblem,
+  stakeProblemText,
   plainDecimal,
 } from './format'
 import { tcrSchemaFor, type FactorySection } from './schemas'
@@ -297,6 +298,7 @@ const TCRParams = (props: TCRParamsProps) => {
   const {
     symbol: tokenSymbol,
     decimals: tokenDecimals,
+    decimalsRead,
     loading: loadingSymbol,
   } = useTokenSymbol(values.tokenAddress || undefined)
   const setArbitratorExtraData = useCallback(
@@ -349,9 +351,11 @@ const TCRParams = (props: TCRParamsProps) => {
     [setFieldTouched, setFieldValue, uploadFile],
   )
 
+  // The typed text is stored as typed: a float would round an 18-decimal
+  // amount before it is encoded. The slider stores its plain numbers.
   const onChangeDepositVal = useCallback(
-    (value: number) => {
-      if (Number.isNaN(value)) return
+    (value: number | string) => {
+      if (typeof value === 'number' && Number.isNaN(value)) return
       setFieldValue('submissionMinDeposit', value)
     },
     [setFieldValue],
@@ -366,7 +370,10 @@ const TCRParams = (props: TCRParamsProps) => {
     : WIZARD_DEFAULTS.submissionMinDeposit
   const depositText = depositDraft ?? plainDecimal(values.submissionMinDeposit)
   const tokenFound =
-    !!values.tokenAddress && !loadingSymbol && tokenSymbol !== 'tokens'
+    !!values.tokenAddress &&
+    !loadingSymbol &&
+    tokenSymbol !== 'tokens' &&
+    decimalsRead
   const enforcedStake = groupAmount(
     enforcedStakeText(
       values.submissionMinDeposit,
@@ -374,18 +381,29 @@ const TCRParams = (props: TCRParamsProps) => {
     ),
   )
   const costText = formatMaybe(arbitrationCost)
-  // The minimum is encoded in the token's base units, so it cannot carry more
-  // decimal places than the token has.
-  const typedStake = String(values.submissionMinDeposit ?? '').trim()
+  // The minimum is encoded in the token's base units: it must be a plain
+  // number with no more decimal places than the token has, within a uint256.
+  // The form's own rules (required, not negative) speak first.
+  const problem = tokenFound
+    ? stakeProblem(values.submissionMinDeposit, tokenDecimals)
+    : null
+  const schemaAccepts = (() => {
+    try {
+      tcrSchemaFor('stake').validateSyncAt('submissionMinDeposit', values)
+      return true
+    } catch {
+      return false
+    }
+  })()
   const stakeError =
-    tokenFound &&
-    typedStake !== '' &&
-    Number.isFinite(Number(typedStake)) &&
-    parseAmount(values.submissionMinDeposit, tokenDecimals) === null
-      ? `${tokenSymbol} has ${tokenDecimals} decimals: use at most ${tokenDecimals} decimal places.`
+    problem && schemaAccepts
+      ? stakeProblemText(problem, tokenSymbol, tokenDecimals)
       : null
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    if (stakeError && (!factorySection || factorySection === 'stake')) {
+    const stakeShown = !factorySection || factorySection === 'stake'
+    // Wait for the token's decimals before judging the stake.
+    const tokenPending = !!values.tokenAddress && loadingSymbol
+    if (stakeShown && (stakeError || tokenPending)) {
       event.preventDefault()
       return
     }
@@ -512,7 +530,7 @@ const TCRParams = (props: TCRParamsProps) => {
                     onChange={(event) => {
                       setDepositDraft(event.target.value)
                       if (event.target.value.trim() !== '')
-                        onChangeDepositVal(Number(event.target.value))
+                        onChangeDepositVal(event.target.value.trim())
                     }}
                     onBlur={() => setDepositDraft(null)}
                   />

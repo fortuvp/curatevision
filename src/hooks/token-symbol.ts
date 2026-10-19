@@ -11,12 +11,22 @@ const ERC20_METADATA_ABI = [
 
 const useTokenSymbol = (
   tokenAddress: string | undefined,
-): { symbol: string; decimals: number; loading: boolean } => {
+): {
+  symbol: string
+  decimals: number
+  /** False while loading, or when decimals() failed and 18 stands in. */
+  decimalsRead: boolean
+  loading: boolean
+} => {
   const { networkId } = useWeb3Context()
   const urlChainId = useUrlChainId()
   const library = useEthersProvider({ chainId: urlChainId ?? networkId })
 
-  const { data, isLoading } = useQuery<{ symbol: string; decimals: number }>({
+  const { data, isLoading } = useQuery<{
+    symbol: string
+    decimals: number
+    decimalsRead: boolean
+  }>({
     queryKey: [
       'tokenSymbol',
       urlChainId ?? networkId,
@@ -30,11 +40,12 @@ const useTokenSymbol = (
       )
       const [symbol, decimals] = await Promise.all([
         token.symbol(),
-        token.decimals().catch(() => 18),
+        token.decimals().catch(() => null),
       ])
       return {
         symbol,
-        decimals: Number(decimals),
+        decimals: decimals === null ? 18 : Number(decimals),
+        decimalsRead: decimals !== null,
       }
     },
     enabled: !!tokenAddress && !!library,
@@ -44,6 +55,7 @@ const useTokenSymbol = (
   return {
     symbol: data?.symbol ?? 'tokens',
     decimals: data?.decimals ?? 18,
+    decimalsRead: data?.decimalsRead ?? false,
     loading: isLoading,
   }
 }

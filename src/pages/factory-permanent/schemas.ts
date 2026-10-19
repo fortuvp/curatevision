@@ -29,6 +29,11 @@ const amount = yup
   .typeError('Amount should be a number.')
   .required('A value is required.')
   .min(0, 'The amount must not be negative.')
+  .test(
+    'finite',
+    'Amount should be a number.',
+    (value) => value === undefined || Number.isFinite(value),
+  )
 
 const multiplier = yup
   .number()

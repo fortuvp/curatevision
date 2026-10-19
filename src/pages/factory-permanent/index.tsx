@@ -9,6 +9,7 @@ import useUrlChainId from 'hooks/use-url-chain-id'
 import useDocumentHead from 'hooks/use-document-head'
 import useTcrMetaEvidence from 'hooks/use-tcr-meta-evidence'
 import useNativeCurrency from 'hooks/native-currency'
+import useTokenSymbol from 'hooks/token-symbol'
 import _GTCRFactory from 'assets/abis/PermanentGTCRFactory.json'
 import { version } from '../../../package.json'
 import { parseIpfs } from 'utils/ipfs-parse'
@@ -71,6 +72,7 @@ import {
   itemSchema,
   tcrSchemaFor,
 } from './schemas'
+import { stakeProblem } from './format'
 
 /*
  * Stake Curate factory (route /factory-permanent/:chainId): the page's
@@ -99,7 +101,8 @@ interface TransactionInfo {
 export interface TcrState {
   tcrTitle: string
   tcrDescription: string
-  submissionMinDeposit: number
+  /** As typed (text keeps every decimal), or the slider's number. */
+  submissionMinDeposit: number | string
   arbitratorAddress: string
   governorAddress: string
   tokenAddress: string
@@ -235,9 +238,23 @@ const VISUAL_STEPS: StakeVisualStep[] = [
   { title: 'Deploy', componentStep: 3, groupStep: 4, kind: 'deploy' },
 ]
 
-/** Whether a step's stored values still pass its own Next. */
-const stepValid = (step: StakeVisualStep, state: TcrState): boolean => {
-  if (step.kind === 'tcr') return tcrSchemaFor(step.section).isValidSync(state)
+/**
+ * Whether a step's stored values still pass its own Next. `stakeDecimals` is
+ * the stake token's decimals once read: the Stake step also needs a minimum
+ * the deploy call can encode for it.
+ */
+const stepValid = (
+  step: StakeVisualStep,
+  state: TcrState,
+  stakeDecimals?: number,
+): boolean => {
+  if (step.kind === 'tcr')
+    return (
+      tcrSchemaFor(step.section).isValidSync(state) &&
+      (step.section !== 'stake' ||
+        stakeDecimals === undefined ||
+        stakeProblem(state.submissionMinDeposit, stakeDecimals) === null)
+    )
   if (step.kind === 'item')
     return (
       itemSchema.isValidSync(state) &&
@@ -477,10 +494,19 @@ const FactoryPermanentPage = () => {
   // Set by an Edit in the review that points at an advanced field.
   const [openAdvanced, setOpenAdvanced] = useState(false)
   const closeAdvanced = useCallback(() => setOpenAdvanced(false), [])
+  // The stake token's decimals, once read, for the Stake step's validity.
+  const stakeToken = useTokenSymbol(tcrState?.tokenAddress || undefined)
+  const stakeDecimals =
+    !stakeToken.loading &&
+    stakeToken.decimalsRead &&
+    stakeToken.symbol !== 'tokens'
+      ? stakeToken.decimals
+      : undefined
   const isStepValid = useCallback(
     (step: FactoryWizardStep, index: number) =>
-      !tcrState || stepValid(VISUAL_STEPS[index] ?? step, tcrState),
-    [tcrState],
+      !tcrState ||
+      stepValid(VISUAL_STEPS[index] ?? step, tcrState, stakeDecimals),
+    [tcrState, stakeDecimals],
   )
   const wizard = useFactoryWizard({
     steps: VISUAL_STEPS,
