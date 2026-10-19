@@ -19,7 +19,6 @@ import {
   TextInput,
   truncateMiddle,
 } from 'components/curate/primitives'
-import { groupAmount, plainDecimal, stakeReading } from './format'
 
 /*
  * The Stake wizard's controls: a labelled field with one line of help and
@@ -182,69 +181,6 @@ export const ErrorText = styled.p`
     box-shadow: 0 0 0 3px var(--color-danger-soft);
   }
 `
-
-const WarnLine = styled.p`
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin: 0;
-  color: var(--color-danger);
-  font-size: var(--fs-small);
-  line-height: var(--lh-small);
-  overflow-wrap: anywhere;
-
-  &::before {
-    content: '';
-    flex: 0 0 auto;
-    width: 6px;
-    height: 6px;
-    margin-top: calc((var(--lh-small) - 6px) / 2);
-    border-radius: var(--radius-pill);
-    background: var(--color-danger);
-    box-shadow: 0 0 0 3px var(--color-danger-soft);
-  }
-
-  b {
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-  }
-`
-
-/**
- * For a stake token that does not use 18 decimals: what the typed minimum
- * really requires (the factory encodes it with 18) and what to type instead.
- * Renders nothing for an 18-decimal token or an amount that does not parse.
- */
-export const DecimalsWarning = ({
-  value,
-  symbol,
-  decimals,
-  className,
-}: {
-  value: unknown
-  symbol: string
-  decimals: number
-  className?: string
-}) => {
-  if (decimals === 18) return null
-  const { enforced, suggestion } = stakeReading(value, decimals)
-  if (enforced === null) return null
-  const typed = plainDecimal(value)
-  return (
-    <WarnLine className={className}>
-      <span>
-        {symbol} has {decimals} decimals and the factory reads the stake with
-        18: <b>{typed}</b> requires <b>{groupAmount(enforced)}</b> {symbol}.
-        {suggestion && (
-          <>
-            {' '}
-            Type <b>{suggestion}</b> to require {typed} {symbol}.
-          </>
-        )}
-      </span>
-    </WarnLine>
-  )
-}
 
 export const TextLink = styled.a`
   color: var(--color-primary);

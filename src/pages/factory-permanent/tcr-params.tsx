@@ -26,7 +26,6 @@ import { FACTORY_COPY } from 'components/curate/v2-factory-shell'
 import KlerosParams from './kleros-params'
 import {
   AmountInput,
-  DecimalsWarning,
   Divider,
   ErrorText,
   FieldGrid,
@@ -53,10 +52,10 @@ import {
 } from './defaults'
 import {
   formatMaybe,
+  enforcedStake as enforcedStakeText,
   groupAmount,
-  oneTokenTyped,
+  parseAmount,
   plainDecimal,
-  stakeReading,
 } from './format'
 import { tcrSchemaFor, type FactorySection } from './schemas'
 import type { StepProps, TcrState } from '.'
@@ -150,14 +149,6 @@ const TokenFacts = styled.dl`
   }
 `
 
-const TokenWarning = styled(ErrorText)`
-  align-items: flex-start;
-
-  &::before {
-    margin-top: 6px;
-  }
-`
-
 /**
  * What the chain says is at the typed address: the ERC-20's symbol and
  * decimals, or why none could be read. Read only; it never blocks Next.
@@ -205,15 +196,6 @@ const TokenReadout = ({
               ? 'Check the address and the network: the token must be on this chain.'
               : 'An address is 0x followed by 40 hexadecimal characters.'}
           </Small>
-        )}
-        {found && decimals !== 18 && (
-          <TokenWarning>
-            {symbol} uses {decimals} decimals, but the factory encodes the
-            minimum stake with 18
-            {oneTokenTyped(decimals)
-              ? `: to require 1 ${symbol}, type ${oneTokenTyped(decimals)}.`
-              : '.'}
-          </TokenWarning>
         )}
       </Stack>
       {found && (
@@ -386,20 +368,32 @@ const TCRParams = (props: TCRParamsProps) => {
   const tokenFound =
     !!values.tokenAddress && !loadingSymbol && tokenSymbol !== 'tokens'
   const enforcedStake = groupAmount(
-    stakeReading(values.submissionMinDeposit, tokenFound ? tokenDecimals : 18)
-      .enforced,
+    enforcedStakeText(
+      values.submissionMinDeposit,
+      tokenFound ? tokenDecimals : 18,
+    ),
   )
-  const decimalsWarning = tokenFound ? (
-    <DecimalsWarning
-      value={values.submissionMinDeposit}
-      symbol={tokenSymbol}
-      decimals={tokenDecimals}
-    />
-  ) : null
   const costText = formatMaybe(arbitrationCost)
+  // The minimum is encoded in the token's base units, so it cannot carry more
+  // decimal places than the token has.
+  const typedStake = String(values.submissionMinDeposit ?? '').trim()
+  const stakeError =
+    tokenFound &&
+    typedStake !== '' &&
+    Number.isFinite(Number(typedStake)) &&
+    parseAmount(values.submissionMinDeposit, tokenDecimals) === null
+      ? `${tokenSymbol} has ${tokenDecimals} decimals: use at most ${tokenDecimals} decimal places.`
+      : null
+  const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    if (stakeError && (!factorySection || factorySection === 'stake')) {
+      event.preventDefault()
+      return
+    }
+    handleSubmit(event)
+  }
 
   return (
-    <form id={formId} noValidate onSubmit={handleSubmit}>
+    <form id={formId} noValidate onSubmit={onSubmit}>
       <StepBody>
         <StepHeader
           heading={copy ? copy.heading : 'List parameters'}
@@ -530,7 +524,7 @@ const TCRParams = (props: TCRParamsProps) => {
                   <Small $faint>Lower: more submissions</Small>
                   <Small $faint>Higher: wrong entries cost more</Small>
                 </SliderEnds>
-                {decimalsWarning}
+                {stakeError && <ErrorText role="alert">{stakeError}</ErrorText>}
                 <NarrowOnly>
                   <Small $muted>
                     A submitter locks at least{' '}
@@ -589,7 +583,11 @@ const TCRParams = (props: TCRParamsProps) => {
                 unit={tokenSymbol}
                 placeholder={String(WIZARD_DEFAULTS.submissionMinDeposit)}
                 help="The least a submitter can stake. A successful challenger takes it."
-                trailing={decimalsWarning}
+                trailing={
+                  stakeError ? (
+                    <ErrorText role="alert">{stakeError}</ErrorText>
+                  ) : undefined
+                }
               />
               <TextField
                 name="challengeStakeMultiplier"

@@ -2,14 +2,12 @@ import { BigNumber, ethers, type BigNumberish } from 'ethers'
 import { jurorsAndCourtIDFromExtraData } from 'utils/string'
 
 /*
- * Amounts, durations and extra data for the Stake wizard. The factory
- * encodes the typed minimum stake with parseEther: the number times 10^18
- * base units of the stake token. What that is in tokens depends on the
- * token's own decimals, so every stake figure here is
- * formatUnits(parseEther(typed), decimals): for an 18-decimal token it is the
- * typed number, for any other token it is the amount the contract really
- * enforces. The challenger's share uses the deploy call's rounding (the
- * percent rounded up, times 100, over a divisor of 10 000).
+ * Amounts, durations and extra data for the Stake wizard. The typed minimum
+ * stake is in tokens: the deploy call encodes it in the stake token's own
+ * base units (parseUnits with the token's decimals), the same way the submit
+ * dialog and the item pages read stakes. The challenger's share uses the
+ * deploy call's rounding (the percent rounded up, times 100, over a divisor
+ * of 10 000).
  */
 
 const trimZeros = (text: string) => text.replace(/\.?0+$/, '')
@@ -46,7 +44,7 @@ export const formatToken = (
 /**
  * A stored amount as a plain decimal string: the shortest form JavaScript
  * gives a number, with its exponent written out ("5e-14" becomes
- * "0.00000000000005"), so parseEther reads it.
+ * "0.00000000000005"), so parseUnits reads it.
  */
 export const plainDecimal = (value: unknown): string => {
   const text = String(value ?? '').trim()
@@ -66,11 +64,17 @@ export const plainDecimal = (value: unknown): string => {
   return `${sign}${tidy.replace(/^0+(?=\d)/, '')}`
 }
 
-/** A typed amount in wei as the factory encodes it, or null if it is not one. */
-export const parseAmount = (value: unknown): BigNumber | null => {
+/**
+ * A typed token amount in the token's base units, as the deploy call encodes
+ * it, or null if it is not one (or has more decimals than the token).
+ */
+export const parseAmount = (
+  value: unknown,
+  decimals = 18,
+): BigNumber | null => {
   if (value === '' || value === undefined || value === null) return null
   try {
-    const parsed = ethers.utils.parseEther(plainDecimal(value))
+    const parsed = ethers.utils.parseUnits(plainDecimal(value), decimals)
     return parsed.isNegative() ? null : parsed
   } catch {
     return null
@@ -88,39 +92,11 @@ export const effectivePercent = (value: unknown): number | null => {
 export const shareOf = (stake: BigNumber, percent: number): BigNumber =>
   stake.mul(percent * 100).div(10_000)
 
-/**
- * What a typed minimum stake means for a token with `decimals`: the amount
- * the contract enforces, and, when the token does not use 18 decimals, what
- * to type for the typed number to be the stake in tokens (null when the
- * typed number has more decimals than the token, or when it already is).
- */
-export const stakeReading = (
+/** The typed minimum stake as the contract will enforce it, in tokens. */
+export const enforcedStake = (
   value: unknown,
   decimals: number,
-): { enforced: string | null; suggestion: string | null } => {
-  const units = parseAmount(value)
-  const enforced = formatToken(units, decimals)
-  if (decimals === 18 || !units) return { enforced, suggestion: null }
-  try {
-    const wanted = ethers.utils.parseUnits(plainDecimal(value), decimals)
-    const suggestion = formatNative(wanted)
-    return {
-      enforced,
-      suggestion: suggestion === plainDecimal(value) ? null : suggestion,
-    }
-  } catch {
-    return { enforced, suggestion: null }
-  }
-}
-
-/** What to type for the factory to require one whole token with `decimals`. */
-export const oneTokenTyped = (decimals: number): string | null => {
-  try {
-    return formatNative(ethers.utils.parseUnits('1', decimals))
-  } catch {
-    return null
-  }
-}
+): string | null => formatToken(parseAmount(value, decimals), decimals)
 
 const grouped = (exact: string) => {
   const [whole, fraction] = exact.split('.')

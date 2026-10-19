@@ -18,7 +18,7 @@ import {
   Surface,
   truncateMiddle,
 } from 'components/curate/primitives'
-import { DecimalsWarning, SafeImage, VisuallyHidden } from './controls'
+import { SafeImage, VisuallyHidden } from './controls'
 import { useCourtSummary } from './court'
 import {
   amountFormat,
@@ -188,11 +188,6 @@ const SideName = styled.span`
     font-size: 12px;
     line-height: 16px;
   }
-`
-
-const SideWarning = styled(DecimalsWarning)`
-  grid-column: 1 / -1;
-  margin-top: 8px;
 `
 
 const Amount = styled.span<{ $long?: boolean }>`
@@ -714,10 +709,10 @@ export const StakePreview = ({
 
   const symbolKnown = !!tcrState.tokenAddress && symbol !== 'tokens'
   const unit = symbolKnown ? symbol : 'tokens'
-  // Until the token is read its decimals are unknown: 18, as the factory encodes.
+  // Until the token is read its decimals are unknown: 18 as a placeholder.
   const decimals = symbolKnown ? tokenDecimals : 18
-  // Base units, as the deploy call encodes the typed minimum (parseEther).
-  const stake = parseAmount(tcrState.submissionMinDeposit)
+  // Base units, as the deploy call encodes the typed minimum (token decimals).
+  const stake = parseAmount(tcrState.submissionMinDeposit, decimals)
   const percent = effectivePercent(tcrState.challengeStakeMultiplier)
   const challenger: BigNumber | null =
     stake && percent !== null ? shareOf(stake, percent) : null
@@ -804,13 +799,6 @@ export const StakePreview = ({
             </SideName>
             <AmountFigure text={stakeText} unit={unit} />
             {native('arbitration deposit')}
-            {symbolKnown && (
-              <SideWarning
-                value={tcrState.submissionMinDeposit}
-                symbol={symbol}
-                decimals={tokenDecimals}
-              />
-            )}
           </SideTop>
           <Bar
             role="img"

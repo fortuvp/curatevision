@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import styled from 'styled-components'
-import { parseEther, decodeEventLog, type Address } from 'viem'
+import { parseUnits, decodeEventLog, type Address } from 'viem'
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
 import { simulateContract } from '@wagmi/core'
 import { Roles, useAtlasProvider } from '@kleros/kleros-app'
@@ -41,13 +41,7 @@ import {
   TxStep,
   type TxStatus,
 } from 'components/curate/stake-factory-shell'
-import {
-  DecimalsWarning,
-  SafeImage,
-  StepBody,
-  StepHeader,
-  useWalletGate,
-} from './controls'
+import { SafeImage, StepBody, StepHeader, useWalletGate } from './controls'
 import { useCourtSummary } from './court'
 import {
   effectivePercent,
@@ -360,14 +354,30 @@ const Deploy = ({
       : `No evidence display is configured for ${chainName}, so lists cannot be deployed there yet.`
     : `No Stake Curate factory is configured for ${chainName}, so lists cannot be deployed there.`
 
+  // The stake is encoded with the token's decimals, so they must be read first.
+  const tokenBlocker = !tcrState.tokenAddress
+    ? ''
+    : loadingToken
+      ? 'Reading the stake token'
+      : !tokenFound
+        ? 'No ERC-20 token could be read at the stake token address'
+        : parseAmount(tcrState.submissionMinDeposit, tokenDecimals) === null
+          ? `The minimum stake has more decimal places than ${tokenSymbol} allows (${tokenDecimals})`
+          : ''
+
   let blocker = ''
   if (configError) blocker = configError
   else if (phase === 'done') blocker = 'This list is deployed'
   else if (problems.length > 0) blocker = deployBlocker(problems)
+  else if (tokenBlocker) blocker = tokenBlocker
   else if (gate.blocker) blocker = gate.blocker
   // Only the wallet stands in the way: its fix becomes the primary action.
   const walletFix =
-    !busy && !configError && problems.length === 0 && gate.blocker
+    !busy &&
+    !configError &&
+    problems.length === 0 &&
+    !tokenBlocker &&
+    gate.blocker
       ? gate.fix
       : undefined
 
@@ -376,12 +386,15 @@ const Deploy = ({
       !factoryAddress ||
       !evidenceDisplayInterfaceURI ||
       !publicClient ||
-      !walletClient
+      !walletClient ||
+      !tokenFound
     ) {
       // Nothing was attempted: no stage failed, the reason is the status line.
       setFailedAt(undefined)
       setFailure(
-        configError || 'Your wallet is not ready. Reconnect and try again.',
+        configError ||
+          tokenBlocker ||
+          'Your wallet is not ready. Reconnect and try again.',
       )
       return
     }
@@ -413,8 +426,12 @@ const Deploy = ({
           ipfsMetaEvidencePath,
           tcrState.governorAddress,
           tcrState.tokenAddress,
-          // plainDecimal only writes out an exponent ("5e-14"); the encoding is unchanged.
-          parseEther(plainDecimal(tcrState.submissionMinDeposit)),
+          // The typed minimum is in tokens: encode it in the token's base units
+          // (plainDecimal writes out an exponent such as "5e-14" first).
+          parseUnits(
+            plainDecimal(tcrState.submissionMinDeposit),
+            tokenDecimals,
+          ),
           [
             Number(tcrState.submissionPeriodDuration) * 60 * 60,
             Number(tcrState.reinclusionPeriodDuration) * 60 * 60,
@@ -523,8 +540,8 @@ const Deploy = ({
     .filter(Boolean)
     .join(', ')
   const percent = effectivePercent(tcrState.challengeStakeMultiplier)
-  // Base units as the deploy call encodes them, shown in the token's decimals.
-  const stake = parseAmount(tcrState.submissionMinDeposit)
+  // Base units as the deploy call encodes them (the token's own decimals).
+  const stake = parseAmount(tcrState.submissionMinDeposit, decimals)
   const stakeText = groupAmount(formatToken(stake, decimals))
   const challengerText =
     stake && percent !== null
@@ -609,14 +626,6 @@ const Deploy = ({
           : `${stakeText} ${tokenSymbol}`,
       empty: stakeText === null,
       step: 'Stake',
-      warning:
-        tokenFound && tokenDecimals !== 18 ? (
-          <DecimalsWarning
-            value={tcrState.submissionMinDeposit}
-            symbol={tokenSymbol}
-            decimals={tokenDecimals}
-          />
-        ) : undefined,
     },
     {
       label: 'Challenger stake',
