@@ -151,12 +151,7 @@ const _SubmissionForm: React.FC<
         <Stack $gap={12}>
           <Subheading>Read the listing policy</Subheading>
           <Body>
-            Kleros jurors rule against this policy when an entry is challenged.
-            Entries that break it can be challenged and lose the deposit.
-          </Body>
-          <Body>
-            The deposit is returned in full if the submission is accepted and no
-            challenge succeeds.
+            Kleros jurors rule on this policy if an entry is challenged.
           </Body>
           <div>
             <Button
@@ -498,16 +493,16 @@ const SubmitModal: React.FC<{
   const steps: OutcomeStep[] = [
     {
       title: `You deposit ${total} now`,
-      body: `The ${name} is published and a challenge window of ${period} opens.`,
+      body: `The ${name} is published and a challenge period of ${period} opens.`,
     },
     {
-      title: 'Nobody challenges',
-      body: `After ${period} anyone can execute the request: the ${name} is registered and your deposit comes back in full.`,
+      title: 'No challenge',
+      body: `After ${period} the request can be executed: the ${name} is registered and your ${total} comes back.`,
     },
     {
-      title: 'Someone challenges',
+      title: 'If someone challenges',
       branch: true,
-      body: 'Kleros jurors decide on the listing policy. The winner takes both deposits minus one arbitration cost; the loser loses the deposit.',
+      body: "Kleros jurors check it against the listing policy. If they side with you, you get your deposit back plus the challenger's, less the arbitration cost; if not, it goes to the challenger.",
     },
   ]
   const confirmBlocker = !fieldsComplete

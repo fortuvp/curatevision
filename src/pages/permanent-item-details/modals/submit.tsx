@@ -656,17 +656,17 @@ const SubmitModal: React.FC<{
                 ? `Submission period of ${submissionWindow}`
                 : 'Submission period',
             body: acceptsAtOnce
-              ? `This list has no submission period: the ${name} is accepted on submission, and stays challengeable while listed.`
-              : `Anyone can challenge from now. If nobody does${submissionWindow ? ` within ${submissionWindow}` : ''}, the ${name} is accepted, and stays challengeable while listed.`,
+              ? `This list has no submission period: the ${name} is accepted on submission. It stays open to challenges while listed.`
+              : `If it follows the listing policy, the ${name} is accepted${submissionWindow ? ` after ${submissionWindow}` : ' when the period ends'}. It stays open to challenges while listed.`,
           },
           {
-            title: 'Nobody challenges: withdraw whenever you want',
+            title: 'Withdraw whenever you want',
             body: `Start a withdrawal${withdrawingWindow ? `, wait ${withdrawingWindow}` : ''}, then execute it. ${stakeText} and ${depositText} come back in full.`,
           },
           {
-            title: 'Someone challenges: jurors decide',
+            title: 'If someone challenges: jurors decide',
             branch: true,
-            body: `The challenger stakes ${challengerText} and pays the arbitration cost. Win and your stake grows by theirs${multiplierKnown ? ` (${challengerText})` : ''}; lose and they take your ${stakeText} and ${depositText}. If the jurors refuse to rule, both stakes come back, the arbitration deposit is split, and the ${name} is withdrawn.`,
+            body: `The challenger stakes ${challengerText} and pays the arbitration cost. If jurors side with you, your stake grows by theirs${multiplierKnown ? ` (${challengerText})` : ''}; if not, they take your ${stakeText} and ${depositText}. If the jurors refuse to rule, both stakes come back, the arbitration deposit is split, and the ${name} is withdrawn.`,
           },
         ]}
         confirmLabel={typeof title === 'string' ? title : `Submit ${name}`}

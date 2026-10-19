@@ -440,7 +440,7 @@ const ItemStatusCard = ({
   // Once one side is fully funded, the clock is the other side's.
   const funding = appealFunding(request, facts, statusCode)
   const prompt = isPending
-    ? `The window closed ${formatAgo(windowEnd, now)} with no challenge. Anyone can execute it; the deposit returns to the ${requesterName}. Gas only.`
+    ? `The window closed ${formatAgo(windowEnd, now)} with no challenge. Anyone can execute it; the deposit returns to the ${requesterName}.`
     : funding
       ? `The ${funding.funded} is fully funded. The ${funding.pending} has ${formatDuration(funding.deadline - now)} to fund too, or loses.`
       : appealable
@@ -596,7 +596,7 @@ const ItemStatusCard = ({
           )}
           {(statusCode === STATUS_CODE.REGISTERED || isResubmit) && (
             <div>
-              <dt>Challenge window once sent</dt>
+              <dt>Challenge period once sent</dt>
               <dd
                 title={formatDurationLong(challengePeriodDuration.toNumber())}
               >

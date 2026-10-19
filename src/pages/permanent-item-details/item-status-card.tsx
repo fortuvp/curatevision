@@ -810,7 +810,7 @@ const ItemStatusCard = ({
                   {formatDate(facts.endedAt)}
                 </span>
               ) : (
-                'Anyone, gas only'
+                'Anyone'
               ),
             ]}
           />

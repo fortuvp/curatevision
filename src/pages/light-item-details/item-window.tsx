@@ -433,7 +433,7 @@ export const WindowPanel = ({
   if (facts.inWindow || facts.isPending)
     return (
       <WindowRing
-        title="Challenge window"
+        title="Challenge period"
         start={submissionTime}
         end={windowEnd}
         now={now}

@@ -185,22 +185,22 @@ const DepositSubmitPage = ({
       {
         key: 'clear',
         tone: 'registered',
-        title: 'Nobody challenges',
+        title: 'No challenge',
         status: 'Registered',
         figure: `${total} back`,
-        note: 'returned when the request is executed',
+        note: 'when the request is executed',
       },
       {
         key: 'challenged',
         tone: 'contested',
-        title: 'Someone challenges',
+        title: 'If challenged',
         status: 'Challenged',
-        note: 'Kleros jurors decide',
+        note: 'Kleros jurors check it against the policy',
         children: [
           {
             key: 'win',
             tone: 'registered',
-            title: 'You win',
+            title: 'Jurors side with you',
             status: 'Registered',
             figure: challengerBase
               ? [`${total} back`, `+${challengerBase}`]
@@ -212,7 +212,7 @@ const DepositSubmitPage = ({
           {
             key: 'lose',
             tone: 'off',
-            title: 'You lose',
+            title: 'Jurors side with the challenger',
             status: 'Rejected',
             figure: `−${total}`,
             note: `${base} to the challenger, ${cost} for arbitration`,
@@ -252,9 +252,14 @@ const DepositSubmitPage = ({
       lede={
         seconds === undefined
           ? undefined
+          : `If your ${itemName} follows the list's policy, it is verified and your deposit comes back.`
+      }
+      ledeMeta={
+        seconds === undefined
+          ? undefined
           : seconds > 0
-            ? `Anyone can challenge it for ${formatDurationLong(seconds)}; if nobody does, your deposit comes back in full.`
-            : 'This list has no challenge period; your deposit comes back once the request is executed.'
+            ? `Challenge period · ${formatDurationLong(seconds)}`
+            : 'No challenge period'
       }
       columns={columns}
       initialValues={linkValues}
@@ -473,16 +478,16 @@ const PermanentSubmitPage = () => {
       submissionSeconds !== undefined && Number.isFinite(submissionSeconds)
         ? {
             seconds: submissionSeconds,
-            label: 'Pending period',
+            label: 'Submission period',
             endLabel: 'Accepted',
-            noneText: 'No pending period: it is accepted right away.',
+            noneText: 'No submission period: it is accepted right away.',
           }
         : undefined,
     outcomes: [
       {
         key: 'clear',
         tone: 'registered',
-        title: 'Nobody challenges',
+        title: 'No challenge',
         status: 'Accepted',
         figure: `${stake} locked`,
         note: withdrawingPeriod
@@ -492,21 +497,21 @@ const PermanentSubmitPage = () => {
       {
         key: 'challenged',
         tone: 'contested',
-        title: 'Someone challenges',
+        title: 'If challenged',
         status: 'Disputed',
         note: 'possible any time while listed, even while withdrawing',
         children: [
           {
             key: 'win',
             tone: 'registered',
-            title: 'You win',
+            title: 'Jurors side with you',
             status: 'Accepted',
             note: "your stake grows by the challenger's stake",
           },
           {
             key: 'lose',
             tone: 'off',
-            title: 'You lose',
+            title: 'Jurors side with the challenger',
             status: 'Removed',
             figure: [`−${stake}`, `−${cost}`],
             note: 'the challenger takes your stake and the arbitration deposit',
@@ -575,7 +580,14 @@ const PermanentSubmitPage = () => {
       lede={
         tokenLoading
           ? undefined
-          : `Listed against a stake in ${symbol} that stays locked while it is on the list, plus an arbitration deposit in ${nativeCurrency}.`
+          : `If your ${itemName} follows the list's policy, it stays listed and you get your stake back when you withdraw.`
+      }
+      ledeMeta={
+        submissionSeconds !== undefined &&
+        Number.isFinite(submissionSeconds) &&
+        submissionSeconds > 0
+          ? `Submission period · ${formatDurationLong(submissionSeconds)}`
+          : undefined
       }
       columns={columns}
       initialValues={linkValues}

@@ -22,7 +22,11 @@ import { WalletContext } from 'contexts/wallet-context'
 import { useGraphqlBatcher } from 'contexts/graphql-batcher'
 import { capitalizeFirstLetter } from 'utils/string'
 import { LIGHT_ITEM_DETAILS_QUERY } from 'utils/graphql'
-import { itemToStatusCode } from 'utils/item-status'
+import {
+  CONTRACT_STATUS,
+  hasPendingRequest,
+  itemToStatusCode,
+} from 'utils/item-status'
 import { formatAbsolute, formatAgo } from 'utils/time'
 import { STALE_TIME } from 'consts'
 import { parseIpfs } from 'utils/ipfs-parse'
@@ -37,6 +41,7 @@ import {
 } from 'components/curate/primitives'
 import { EntryStatus, lightEntryStatus } from 'components/curate/entry-status'
 import { Explainer } from 'components/curate/explainer'
+import { EvidenceClosed } from 'components/inline-evidence-composer'
 import { AnimatedNumber } from 'components/curate/motion/animated-number'
 import { reveal } from 'components/curate/motion/reveal'
 import {
@@ -311,7 +316,7 @@ const Main = styled.div`
   }
 `
 
-/* Sticky under the floating app bar (64px tall, 8px off the top). */
+/* Sticky under the app bar. */
 const Rail = styled.aside`
   position: sticky;
   top: calc(var(--app-bar-height) + 24px);
@@ -831,22 +836,33 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
             metaEvidence={metaEvidence}
             caseInHero={!!facts?.inCourt && !!facts.disputeID}
           />
+          {/* The contracts take evidence only while the latest request is
+              open; otherwise the section stays, saying when it opens. */}
+          {item && !hasPendingRequest(item.status) && (
+            <EvidenceClosed
+              reason={
+                item.status === CONTRACT_STATUS.REGISTERED
+                  ? `Opens if someone asks to remove this ${itemName || 'entry'}.`
+                  : `Opens if this ${itemName || 'entry'} is submitted again.`
+              }
+            />
+          )}
           <Explainer
             id="item-light-how-entries-are-judged"
             eyebrow="How this entry is judged"
-            heading="A deposit, a window, then jurors if anyone objects."
+            heading="A deposit you get back, a bounty for spotting mistakes."
             steps={[
               {
-                title: 'A request locks a deposit',
-                body: `Submitting or removing a ${itemName || 'entry'} locks a deposit. It comes back in full if nobody challenges.`,
+                title: 'Follow the policy, get your deposit back',
+                body: `Submitting or removing a ${itemName || 'entry'} takes a deposit. A request that follows the listing policy gets it back in full.`,
               },
               {
-                title: 'Anyone can challenge during the window',
-                body: 'A challenger locks their own deposit and gives a reason.',
+                title: 'Spot a mistake, earn a bounty',
+                body: "Challenge a request that breaks the policy during its challenge period. If jurors agree, you earn the requester's base deposit and yours comes back.",
               },
               {
-                title: 'Kleros jurors decide; the winner is paid',
-                body: 'The winner takes both deposits minus one arbitration cost.',
+                title: 'Kleros jurors decide',
+                body: "The side they agree with gets its deposit back plus the other side's, less the arbitration cost.",
               },
             ]}
             footer={<Link to="/guide">Read the guide</Link>}

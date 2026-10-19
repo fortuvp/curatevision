@@ -30,6 +30,7 @@ import {
   type OutcomeStep,
   type ReceiptLine,
 } from 'components/curate/what-happens-next'
+import Select from 'components/ui/Select'
 import { Dialog } from 'components/curate/item-light-dialog'
 import { gatedConfirm, useActionGate } from 'components/curate/item-light-gate'
 import { FieldLabel, Notice } from 'components/curate/item-light-notice'
@@ -48,31 +49,15 @@ const FieldBlock = styled.div`
   gap: 6px;
 `
 
-const Select = styled.select`
+/* The app's glass Select, at the field's full width. */
+const ColumnSelect = styled(Select)`
+  display: block;
   width: 100%;
-  height: 40px;
-  padding: 0 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-family: var(--font-sans);
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
-  transition: border-color var(--motion);
+  min-width: 0;
 
-  &:hover {
-    border-color: var(--color-border-strong);
-  }
-
-  &:focus {
-    outline: none;
-    border-color: var(--color-primary);
-  }
-
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.55;
+  .ui-select-trigger {
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
   }
 `
 
@@ -368,16 +353,16 @@ const SubmitConnectModal = (props: SubmitConnectModalProps) => {
   const steps: OutcomeStep[] = [
     {
       title: `You deposit ${total} now`,
-      body: 'The badge connection is submitted to the connected list and its challenge window opens.',
+      body: 'The badge connection is submitted to the connected list and its challenge period opens.',
     },
     {
-      title: 'Nobody challenges',
-      body: 'Anyone executes the request after the window: the badge is enabled and your deposit comes back in full.',
+      title: 'No challenge',
+      body: 'After the challenge period the request can be executed: the badge is enabled and your deposit comes back.',
     },
     {
-      title: 'Someone challenges',
+      title: 'If someone challenges',
       branch: true,
-      body: 'Kleros jurors decide on the listing policy. The winner takes both deposits minus one arbitration cost; the loser loses the deposit.',
+      body: "Kleros jurors check it against the listing policy. If they side with you, you get your deposit back plus the challenger's, less the arbitration cost; if not, it goes to the challenger.",
     },
   ]
   const confirmBlocker = submitDisabled
@@ -480,6 +465,7 @@ const SubmitConnectModal = (props: SubmitConnectModalProps) => {
                 return (
                   <MatchRow key={i}>
                     <FieldLabel
+                      id={`${selectId}-label`}
                       htmlFor={selectId}
                       title={
                         column.description
@@ -490,23 +476,22 @@ const SubmitConnectModal = (props: SubmitConnectModalProps) => {
                       {column.label}
                     </FieldLabel>
                     {tcrMetaEvidence?.metadata ? (
-                      <Select
+                      <ColumnSelect
                         id={selectId}
-                        defaultValue="0"
+                        aria-labelledby={`${selectId}-label`}
+                        defaultValue={0}
                         disabled={!column.isIdentifier}
-                        onChange={(event) =>
-                          handleChange(i, event.currentTarget.value)
-                        }
+                        onChange={(value) => handleChange(i, Number(value))}
                       >
                         {[
                           { label: NONE },
                           ...(tcrMetaEvidence.metadata.columns ?? []),
                         ].map((parentColumn, j) => (
-                          <option value={j} key={j}>
+                          <Select.Option value={j} key={j}>
                             {parentColumn.label}
-                          </option>
+                          </Select.Option>
                         ))}
-                      </Select>
+                      </ColumnSelect>
                     ) : (
                       <SkeletonBlock $height="40px" />
                     )}

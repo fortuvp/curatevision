@@ -233,7 +233,7 @@ const ChallengeModal = ({
       body: 'They rule on the listing policy. Anyone can add evidence until the request is resolved.',
     },
     {
-      title: 'Jurors agree with you',
+      title: 'Jurors agree: you earn the bounty',
       body: `${
         isRemoval
           ? `The ${name} stays on the list.`
@@ -249,7 +249,7 @@ const ChallengeModal = ({
       branch: true,
       body: `${
         isRemoval ? `The ${name} is removed.` : `The ${name} is registered.`
-      } You lose your ${total}: it goes to the ${requesterName} minus the arbitration cost.`,
+      } Your ${total} goes to the ${requesterName}, less the arbitration cost.`,
     },
   ]
 

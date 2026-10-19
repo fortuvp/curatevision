@@ -1,85 +1,47 @@
-import React, { useContext, useEffect, useId, useRef, useState } from 'react'
+import React, { useEffect, useId, useRef, useState } from 'react'
 import styled from 'styled-components'
 import EvidenceForm, { type EvidenceFormValues } from 'components/evidence-form'
-import { CurateIcon } from 'components/curate/icons'
-import { Button, Row, Small, Surface } from 'components/curate/primitives'
+import {
+  Button,
+  Small,
+  Surface,
+  VisuallyHidden,
+} from 'components/curate/primitives'
 import { useActionGate } from 'components/curate/item-light-gate'
 
 /*
- * Inline evidence composer at the end of an entry's history: the evidence
- * form, the one submit button, and the blocker named when it is disabled
- * (connect, sign in for the upload, switch network). Where the history
- * folds it (EvidenceComposerCollapse), it waits as one row and opens in
- * place; the action card and the phone bar open it with
- * `openEvidenceComposer()`, which also scrolls to it and focuses the form.
+ * "Add evidence" on an entry page, always open under the history: one
+ * message box (title, description, attachment) and one button. At rest the
+ * button is quiet; once something is written it lights up. While the wallet
+ * blocks (connect, switch network, sign in for the upload) the same button
+ * runs that step and says so. Where the contract takes no evidence for the
+ * entry right now, `EvidenceClosed` keeps the section in place with one line
+ * saying when it opens. The action card and the phone bar call
+ * `openEvidenceComposer()`, which scrolls to the box and focuses it.
  */
 
-/** When true, the composer starts folded to its title row. */
+/**
+ * Kept for the request timelines, which still provide it: the composer no
+ * longer folds, so the value is ignored.
+ */
 export const EvidenceComposerCollapse = React.createContext(false)
 
 const OPEN_EVENT = 'cv:open-evidence'
 
-/** Open the composer on this page, scroll to it and focus its first field. */
+/** Scroll to the composer on this page and focus its first field. */
 export const openEvidenceComposer = () => {
   window.dispatchEvent(new Event(OPEN_EVENT))
 }
 
-const DURATION = 180
-
 const Shell = styled(Surface)`
   display: flex;
   flex-direction: column;
+  gap: 16px;
   scroll-margin-top: calc(var(--app-bar-height, 64px) + 24px);
   scroll-margin-bottom: 140px;
 `
 
-const Intro = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-`
-
-/* The disclosure pattern: the heading holds the button that opens it. */
-const ToggleHeading = styled.h2`
-  margin: 0;
-  font: inherit;
-`
-
-const Toggle = styled.button`
-  display: flex;
-  width: 100%;
-  align-items: center;
-  gap: 12px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-
-  &:focus-visible {
-    outline: 2px solid var(--color-primary);
-    outline-offset: 6px;
-    border-radius: 6px;
-  }
-
-  &:hover svg {
-    color: var(--color-text);
-  }
-`
-
-const Head = styled.span`
-  display: flex;
-  flex: 1 1 auto;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 12px;
-  min-width: 0;
-`
-
-const Title = styled.span`
+const Title = styled.h2`
   margin: 0;
   color: var(--color-text);
   font-family: var(--font-display);
@@ -89,78 +51,46 @@ const Title = styled.span`
   letter-spacing: -0.02em;
 `
 
-const Chevron = styled.span<{ $open: boolean }>`
-  display: inline-flex;
-  flex: 0 0 auto;
-  color: var(--color-muted);
-  transform: rotate(${({ $open }) => ($open ? 180 : 0)}deg);
-  transition: transform ${DURATION}ms cubic-bezier(0.2, 0.8, 0.2, 1);
-
-  svg {
-    transition: color var(--motion);
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    transition: none;
-  }
-`
-
-/* Opens in place: the row track grows from 0fr to 1fr while it fades in. */
-const Fold = styled.div<{ $open: boolean }>`
-  display: grid;
-  grid-template-rows: ${({ $open }) => ($open ? '1fr' : '0fr')};
-  opacity: ${({ $open }) => ($open ? 1 : 0)};
-  transition:
-    grid-template-rows ${DURATION}ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    opacity ${DURATION}ms ease;
-
-  > div {
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-    min-height: 0;
-    overflow: hidden;
-  }
-
-  > div::before {
-    content: '';
-    flex: 0 0 auto;
-    height: 0;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    transition: none;
-  }
-`
-
-const Footer = styled.div`
+const ClosedRow = styled.div`
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  gap: 12px;
-  padding-top: 16px;
-  border-top: 1px solid var(--glass-border);
+  gap: 6px 16px;
+`
 
-  @media (max-width: 560px) {
-    flex-direction: column;
-    align-items: stretch;
+const ClosedNote = styled.p`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
 
-    > div {
-      flex-direction: column;
-      align-items: stretch;
-    }
-
-    /* The gate's Connect / Sign in (a components/ui Button: a wrapper
-       around the button) stretch like Submit evidence. */
-    button,
-    .ui-btn,
-    .ui-btn > .gtcr-v2-button {
-      display: flex;
-      width: 100%;
-    }
+  svg {
+    flex: 0 0 auto;
+    color: var(--color-faint);
   }
 `
+
+const LockIcon = () => (
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden
+    focusable="false"
+  >
+    <rect x="5" y="10.5" width="14" height="10" rx="2.5" />
+    <path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3" />
+  </svg>
+)
 
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' &&
@@ -181,48 +111,18 @@ const InlineEvidenceComposer = ({
   isSubmitting,
   onSubmit,
 }: InlineEvidenceComposerProps) => {
-  const collapsible = useContext(EvidenceComposerCollapse)
   const gate = useActionGate({ verb: 'submit evidence', needsAuth: true })
-  const disabled = !!isSubmitting || !gate.ready
-  const bodyId = useId()
   const shellRef = useRef<HTMLDivElement>(null)
-  const [open, setOpen] = useState(!collapsible)
-  // The form stays mounted while the fold closes, then leaves, so nothing
-  // inside it validates or takes focus while it is hidden.
-  const [mounted, setMounted] = useState(!collapsible)
-  const [focusRequest, setFocusRequest] = useState(0)
-  const pendingFocus = useRef(false)
+  const statusId = useId()
+  const [drafted, setDrafted] = useState(false)
 
-  useEffect(() => {
-    if (open) {
-      setMounted(true)
-      return
-    }
-    const timer = window.setTimeout(
-      () => setMounted(false),
-      prefersReducedMotion() ? 0 : DURATION,
-    )
-    return () => window.clearTimeout(timer)
-  }, [open])
+  // A sent piece remounts the form (formKey), which starts empty again.
+  useEffect(() => setDrafted(false), [formKey])
 
   useEffect(() => {
     const onOpen = () => {
-      pendingFocus.current = true
-      setOpen(true)
-      setFocusRequest((count) => count + 1)
-    }
-    window.addEventListener(OPEN_EVENT, onOpen)
-    return () => window.removeEventListener(OPEN_EVENT, onOpen)
-  }, [])
-
-  // After the open has rendered: bring the composer into view and put the
-  // cursor in its first field.
-  useEffect(() => {
-    if (!focusRequest || !mounted || !pendingFocus.current) return
-    const frame = requestAnimationFrame(() => {
       const shell = shellRef.current
       if (!shell) return
-      pendingFocus.current = false
       shell.scrollIntoView({
         behavior: prefersReducedMotion() ? 'auto' : 'smooth',
         block: 'start',
@@ -230,63 +130,40 @@ const InlineEvidenceComposer = ({
       shell
         .querySelector<HTMLElement>('input:not([type="file"]), textarea')
         ?.focus({ preventScroll: true })
-    })
-    return () => cancelAnimationFrame(frame)
-  }, [focusRequest, mounted])
+    }
+    window.addEventListener(OPEN_EVENT, onOpen)
+    return () => window.removeEventListener(OPEN_EVENT, onOpen)
+  }, [])
 
-  const form = (
+  const fix = gate.ready ? undefined : gate.fix
+  const disabled = !!isSubmitting || !gate.ready
+  const action = fix ? (
+    <Button
+      type="button"
+      $size="sm"
+      $variant={drafted ? 'primary' : 'secondary'}
+      disabled={!!fix.loading}
+      onClick={fix.onClick}
+    >
+      {fix.label}
+    </Button>
+  ) : (
     <>
-      <EvidenceForm
-        key={formKey}
-        onSubmit={onSubmit}
-        formID={formID}
-        detailed
-      />
-      <Footer>
-        <Small $muted role="status">
-          {gate.blocker ??
-            'Publishing costs gas only; evidence needs no deposit.'}
-        </Small>
-        <Row $gap={8} $wrap>
-          {gate.controls}
-          {/* One coloured button per view: while the gate's own control
-              (Connect, Sign in, Switch) is the next step, submit waits as
-              a secondary button. */}
-          <Button
-            type="submit"
-            form={formID}
-            $variant={gate.ready ? 'primary' : 'secondary'}
-            disabled={disabled}
-            aria-disabled={disabled}
-            title={gate.blocker}
-          >
-            {isSubmitting ? 'Waiting for your wallet…' : 'Submit evidence'}
-          </Button>
-        </Row>
-      </Footer>
+      {!gate.ready && gate.controls}
+      <Button
+        type="submit"
+        form={formID}
+        $size="sm"
+        $variant={drafted && gate.ready ? 'primary' : 'secondary'}
+        disabled={disabled}
+        aria-disabled={disabled}
+        aria-describedby={gate.blocker ? statusId : undefined}
+        title={gate.blocker}
+      >
+        {isSubmitting ? 'Waiting for your wallet…' : 'Submit evidence'}
+      </Button>
     </>
   )
-
-  if (!collapsible)
-    return (
-      <Shell
-        ref={shellRef}
-        id={id}
-        tabIndex={-1}
-        $padding="standard"
-        role="region"
-        aria-label="Add evidence"
-        style={{ gap: 18 }}
-      >
-        <Intro>
-          <Title as="h2">Add evidence</Title>
-          <Small $muted>
-            Published on-chain with this entry, for jurors and curators to read.
-          </Small>
-        </Intro>
-        {form}
-      </Shell>
-    )
 
   return (
     <Shell
@@ -295,29 +172,62 @@ const InlineEvidenceComposer = ({
       tabIndex={-1}
       $padding="standard"
       role="region"
-      aria-label="Add evidence"
+      aria-labelledby={`${id}-title`}
     >
-      <ToggleHeading>
-        <Toggle
-          type="button"
-          aria-expanded={open}
-          aria-controls={bodyId}
-          onClick={() => setOpen((value) => !value)}
-        >
-          <Head>
-            <Title>Add evidence</Title>
-            <Small $muted>Gas only, no deposit</Small>
-          </Head>
-          <Chevron $open={open} aria-hidden>
-            <CurateIcon name="chevron-down" size={18} />
-          </Chevron>
-        </Toggle>
-      </ToggleHeading>
-      <Fold id={bodyId} $open={open} aria-hidden={!open || undefined}>
-        <div>{mounted && form}</div>
-      </Fold>
+      <Title id={`${id}-title`}>Add evidence</Title>
+      <EvidenceForm
+        key={formKey}
+        onSubmit={(values) => {
+          // The parent checks the account, not the network or the sign-in.
+          if (gate.ready && !isSubmitting) onSubmit(values)
+        }}
+        formID={formID}
+        detailed
+        variant="composer"
+        actions={action}
+        onDraftChange={setDrafted}
+        blocked={disabled}
+      />
+      {/* The button names the wallet step; this says it for screen readers,
+          and in words when no single button clears it. */}
+      {gate.blocker && !fix ? (
+        <Small $muted id={statusId} role="status">
+          {gate.blocker}
+        </Small>
+      ) : (
+        <VisuallyHidden id={statusId} role="status">
+          {gate.blocker ?? ''}
+        </VisuallyHidden>
+      )}
     </Shell>
   )
 }
+
+/**
+ * The section where the contract takes no evidence right now: the same
+ * title, and one line saying when it opens.
+ */
+export const EvidenceClosed = ({
+  reason,
+  id = 'evidence-closed',
+}: {
+  reason: string
+  id?: string
+}) => (
+  <Shell
+    id={id}
+    $padding="standard"
+    role="region"
+    aria-labelledby={`${id}-title`}
+  >
+    <ClosedRow>
+      <Title id={`${id}-title`}>Add evidence</Title>
+      <ClosedNote>
+        <LockIcon />
+        {reason}
+      </ClosedNote>
+    </ClosedRow>
+  </Shell>
+)
 
 export default InlineEvidenceComposer

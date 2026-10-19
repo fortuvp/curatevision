@@ -360,11 +360,11 @@ const ChallengeModal = ({
                   body: 'Both sides can add evidence while the case runs. A ruling can be appealed by funding the next round.',
                 },
                 {
-                  title: 'You win',
+                  title: 'Jurors agree: you earn the stake',
                   body: `You receive the ${name}'s stake of ${itemStakeText}, your ${stakeText} back and ${depositText}. The ${name} leaves the list.`,
                 },
                 {
-                  title: 'You lose',
+                  title: `Jurors keep the ${name}`,
                   branch: true,
                   body: `Your ${stakeText} is added to the ${name}'s stake and the ${costText} is not returned. The ${name} stays listed.`,
                 },
