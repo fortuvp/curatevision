@@ -116,7 +116,10 @@ const getLogs = async (
     ],
   })
   if (reply.result) return reply.result
-  if (depth >= 14 || to - from < 2000)
+  // Six halvings (at most 64 requests per factory): enough for a node with a
+  // range cap and a cached cursor, without flooding a fallback node that
+  // refuses every wide range on a cold cache.
+  if (depth >= 6 || to - from < 2000)
     throw new Error(reply.error?.message ?? 'eth_getLogs failed')
   const mid = Math.floor((from + to) / 2)
   const [left, right] = await Promise.all([
