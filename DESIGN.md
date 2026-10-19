@@ -194,8 +194,8 @@ open, amber contested, red off the list, grey neutral; always a haloed dot plus 
 - `ActivityWave`: one series as a glowing area above a baseline with a live head at the newest
   point, a second series mirrored below as bars on its own labelled scale; scanner reveal; hover
   tooltip.
-- `AreaChart`, `OrbitChart` (multi-segment ring on crisp halos, no blur), `reveal` (staggered
-  entrance). Curves are monotone cubic, so they never overshoot the data.
+- `reveal` (staggered entrance); `OrbitChart` in `components/curate/orbit-chart.tsx` (multi-segment
+  ring on crisp halos, no blur). Curves are monotone cubic, so they never overshoot the data.
 - Easing `cubic-bezier(0.16, 1, 0.3, 1)` for entrances, `(0.2, 0.8, 0.2, 1)` for state changes,
   springs for indicators. All respect `prefers-reduced-motion`.
 
@@ -211,7 +211,9 @@ open, amber contested, red off the list, grey neutral; always a haloed dot plus 
   that query hits its cap.
 - "Entries" is every entry a list holds, the figure its registry page shows (Light: settled entries
   plus those with an open request).
-- Stake Curate has no requests; its listed count is never shown as "open requests".
+- Stake Curate has no requests; its listed count is never shown as "open requests". Its status
+  counters drift (some go negative): the total is their raw sum and "listed" is submitted +
+  disputed; the registry page counts its entries directly when it can.
 - Sepolia is a test network: selectable, never part of the default "Mainnets" scope.
 - List creation time is the factory's `NewGTCR` block time (cached), not the first request.
 
