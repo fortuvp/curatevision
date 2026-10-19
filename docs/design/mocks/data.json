@@ -1,0 +1,237 @@
+{
+ "_source": "Real Address Tags (Light Curate, Gnosis) data read from chain/IPFS on 2026-10-17 ~18:50 UTC by the domain research agent. Status labels simplified for the mocks.",
+ "registry": {
+  "name": "Address Tags",
+  "description": "A list of public name tags, associated with contract addresses on various blockchains.",
+  "chain": "Gnosis",
+  "counts": "8,636 registered · 34 pending · 6 in dispute"
+ },
+ "items": [
+  {
+   "project": "OpenSea",
+   "tag": "TransferHelper",
+   "chain": "Polygon",
+   "address_short": "0x0000…1a72",
+   "domain": "opensea.io",
+   "state_text": "Registered"
+  },
+  {
+   "project": "Polygon FastLane",
+   "tag": "FastLaneAuctionHandler V1.99",
+   "chain": "Polygon",
+   "address_short": "0xCACe…C8BA",
+   "domain": "—",
+   "state_text": "Registered"
+  },
+  {
+   "project": "cattlerancher",
+   "tag": "SportsBetValidator",
+   "chain": "Base",
+   "address_short": "0x3F16…d237",
+   "domain": "—",
+   "state_text": "Submitted · 1h 26m left"
+  },
+  {
+   "project": "Wasabi",
+   "tag": "Price Oracle (Deprecated)",
+   "chain": "Base",
+   "address_short": "0x8852…615f",
+   "domain": "wasabi.xyz",
+   "state_text": "Submitted · 1h 36m left"
+  },
+  {
+   "project": "ADAO",
+   "tag": "Turbine Pool",
+   "chain": "Polygon",
+   "address_short": "0x4320…aa74",
+   "domain": "—",
+   "state_text": "Submitted · 1d 19h left"
+  },
+  {
+   "project": "ADAO",
+   "tag": "AS 180-Day Staking",
+   "chain": "Polygon",
+   "address_short": "0x2641…4bB6",
+   "domain": "—",
+   "state_text": "Submitted · 3d 7h left"
+  },
+  {
+   "project": "Ministry of Post and Telecommunications, Cambodia",
+   "tag": "DocumentStore v2.3.0",
+   "chain": "Polygon",
+   "address_short": "0x03Ab…3e7d",
+   "domain": "verify.gov.kh",
+   "state_text": "Challenged · case #1038"
+  },
+  {
+   "project": "Axiom",
+   "tag": "Swap Router Proxy",
+   "chain": "Robinhood",
+   "address_short": "0x9689…8341",
+   "domain": "axiom.trade",
+   "state_text": "Challenged · case #1040"
+  },
+  {
+   "project": "LOL",
+   "tag": "LOL",
+   "chain": "Robinhood",
+   "address_short": "0xFb2B…0dcc",
+   "domain": "lolonhood.com",
+   "state_text": "Appeal · closes in 1h 40m"
+  }
+ ],
+ "status_rows": [
+  {
+   "project": "OpenSea",
+   "tag": "TransferHelper",
+   "chain": "Polygon",
+   "address_short": "0x0000…1a72",
+   "status": "Registered",
+   "detail_short": "on the list",
+   "countdown": "—",
+   "progress": null,
+   "deposit": "—",
+   "sentence": "On the list. Anyone can request its removal."
+  },
+  {
+   "project": "cattlerancher",
+   "tag": "SportsBetValidator",
+   "chain": "Base",
+   "address_short": "0x3F16…d237",
+   "status": "Submitted",
+   "detail_short": "1h 26m to challenge",
+   "countdown": "1h 26m left",
+   "progress": 98,
+   "deposit": "51.6 xDAI",
+   "sentence": "Joins the list in 1 hour 26 minutes unless someone challenges it."
+  },
+  {
+   "project": "ADAO",
+   "tag": "Turbine Pool",
+   "chain": "Polygon",
+   "address_short": "0x4320…aa74",
+   "status": "Submitted",
+   "detail_short": "1d 19h to challenge",
+   "countdown": "1d 19h left",
+   "progress": 48,
+   "deposit": "51.6 xDAI",
+   "sentence": "Joins the list in 1 day 19 hours unless someone challenges it."
+  },
+  {
+   "project": "Ministry of Post and Telecommunications, Cambodia",
+   "tag": "DocumentStore v2.3.0",
+   "chain": "Polygon",
+   "address_short": "0x03Ab…3e7d",
+   "status": "Challenged",
+   "detail_short": "jurors voting · #1038",
+   "countdown": "Voting · #1038",
+   "progress": null,
+   "deposit": "51.6 xDAI",
+   "sentence": "Challenged. Kleros jurors are voting in case #1038."
+  },
+  {
+   "project": "Axiom",
+   "tag": "Swap Router Proxy",
+   "chain": "Robinhood",
+   "address_short": "0x9689…8341",
+   "status": "Challenged",
+   "detail_short": "jurors committing · #1040",
+   "countdown": "Commit · #1040",
+   "progress": null,
+   "deposit": "51.6 xDAI",
+   "sentence": "Challenged. Kleros jurors are committing their votes in case #1040."
+  },
+  {
+   "project": "LOL",
+   "tag": "LOL",
+   "chain": "Robinhood",
+   "address_short": "0xFb2B…0dcc",
+   "status": "Appeal",
+   "detail_short": "closes in 1h 40m",
+   "countdown": "1h 40m left",
+   "progress": 97,
+   "deposit": "51.6 xDAI",
+   "sentence": "Jurors ruled “No, don’t add it”. The appeal window closes in 1 hour 40 minutes and nobody has funded an appeal."
+  }
+ ],
+ "deposit": {
+  "chain": "Polygon",
+  "address": "0x4320…aa74",
+  "tag": "Turbine Pool",
+  "project": "ADAO",
+  "total": "51.6 xDAI",
+  "total_fiat": "$51.60",
+  "challenge_period": "3 days 12 hours",
+  "breakdown": [
+   [
+    "Submission deposit",
+    "30.0 xDAI"
+   ],
+   [
+    "Arbitration cost (3 jurors)",
+    "21.6 xDAI"
+   ]
+  ]
+ },
+ "type_pairs": [
+  {
+   "id": "neutral",
+   "label": "A · Neutral: Inter",
+   "import": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
+   "display": "'Inter', sans-serif",
+   "body": "'Inter', sans-serif",
+   "numbers": "'Inter', sans-serif",
+   "display_weight": 650
+  },
+  {
+   "id": "technical",
+   "label": "B · Technical: Geist + Geist Mono",
+   "import": "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap",
+   "display": "'Geist', sans-serif",
+   "body": "'Geist', sans-serif",
+   "numbers": "'Geist Mono', monospace",
+   "display_weight": 600,
+   "tracking": "-0.035em"
+  },
+  {
+   "id": "characterful",
+   "label": "C · Characterful: Funnel Display + Funnel Sans",
+   "import": "https://fonts.googleapis.com/css2?family=Funnel+Display:wght@500;700&family=Funnel+Sans:wght@400;500;600&display=swap",
+   "display": "'Funnel Display', sans-serif",
+   "body": "'Funnel Sans', sans-serif",
+   "numbers": "'Funnel Sans', sans-serif",
+   "display_weight": 700,
+   "tracking": "-0.03em"
+  },
+  {
+   "id": "institutional",
+   "label": "D · Institutional: Newsreader + Inter",
+   "import": "https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Inter:wght@400;500;600&display=swap",
+   "display": "'Newsreader', serif",
+   "body": "'Inter', sans-serif",
+   "numbers": "'Inter', sans-serif",
+   "display_weight": 500,
+   "tracking": "-0.015em"
+  },
+  {
+   "id": "urbanist",
+   "label": "E · Kleros brand: Urbanist",
+   "import": "https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700&display=swap",
+   "display": "'Urbanist', sans-serif",
+   "body": "'Urbanist', sans-serif",
+   "numbers": "'Urbanist', sans-serif",
+   "display_weight": 700,
+   "tracking": "-0.02em"
+  },
+  {
+   "id": "mono",
+   "label": "F · Mono-forward: IBM Plex Mono + Plex Sans",
+   "import": "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap",
+   "display": "'IBM Plex Mono', monospace",
+   "body": "'IBM Plex Sans', sans-serif",
+   "numbers": "'IBM Plex Mono', monospace",
+   "display_weight": 600,
+   "tracking": "-0.03em"
+  }
+ ]
+}

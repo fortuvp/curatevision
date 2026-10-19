@@ -55,7 +55,14 @@ export const getNativeCurrency = (
   chainId: number | string,
 ): { name: string; symbol: string; decimals: number } => {
   const chain = getChainById(chainId)
-  return chain?.nativeCurrency ?? { name: 'Ether', symbol: 'ETH', decimals: 18 }
+  const currency = chain?.nativeCurrency ?? {
+    name: 'Ether',
+    symbol: 'ETH',
+    decimals: 18,
+  }
+  // viem spells Gnosis's coin "XDAI"; the app (useNativeCurrency) and the
+  // Kleros docs write xDAI, so every page shows the same symbol.
+  return currency.symbol === 'XDAI' ? { ...currency, symbol: 'xDAI' } : currency
 }
 
 export { mainnet, sepolia }

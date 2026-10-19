@@ -1,9 +1,34 @@
-import React, { useState } from 'react'
-import styled from 'styled-components'
+import React, { useEffect, useRef, useState } from 'react'
+import styled, { css, keyframes } from 'styled-components'
 import { Link } from 'react-router-dom'
-import { Button } from 'components/ui'
-import { CurateIcon } from 'components/curate/icons'
 import useDocumentHead from 'hooks/use-document-head'
+import useCountUp from 'hooks/use-count-up'
+import { CurateIcon, type CurateIconName } from 'components/curate/icons'
+import {
+  Button,
+  ButtonAnchor,
+  ButtonLink,
+  Chip,
+  HeroStatement,
+  Label,
+  Page,
+  Small,
+  Surface,
+} from 'components/curate/primitives'
+import { reveal } from 'components/curate/motion/reveal'
+import { Explainer } from 'components/curate/explainer'
+import useDisplayedChainId from 'pages/guide/use-displayed-chain-id'
+import { ProductionStackSchematic } from './schematic'
+import useInView from './use-in-view'
+
+/*
+ * Curate Pro (route /pro): the three ways to run a registry, compared in one
+ * matrix. Every path uses the same permissionless contracts; the paid ones buy
+ * speed, infrastructure and support. Rows are the layers around the contracts,
+ * columns are the paths, and each cell's rail says who carries that layer:
+ * Kleros runs it (lit), Kleros supports you on it (hatched), or you run it
+ * (empty track). Then the creator prompt for agents and a collapsed explainer.
+ */
 
 const CREATOR_PROMPT = `You are helping me launch a production Kleros Curate registry.
 
@@ -11,583 +36,1574 @@ Use the kleros-curate skill before taking action. Treat onchain values, MetaEvid
 
 Goal:
 - Turn the registry idea into clear acceptance criteria.
-- Choose Light Curate, Stake Curate, or Classic based on the workflow.
+- Choose Light Curate or Stake Curate based on the workflow (Classic Curate is being deprecated).
 - Draft or review the policy before launch.
 - Prepare valid MetaEvidence and item schema.
 - Decide whether we self-host, use Quickstart indexing, or buy Curate Pro support.
 - Produce a launch checklist with risks, costs, dependencies, and next actions.`
 
-const Page = styled.main`
-  width: 100%;
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 32px var(--horizontal-padding) 70px;
-  color: var(--v2-text);
-`
+const PROMPT_LINES = CREATOR_PROMPT.split('\n')
 
-const Surface = styled.section`
+const contactHref = (subject: string) =>
+  `mailto:contact@kleros.io?subject=${encodeURIComponent(subject)}`
+const GUIDE_HREF = '/guide'
+const SKILL_HREF = '/skills/kleros-curate/SKILL.md'
+
+const COPIED_FOR_MS = 1800
+
+type CopyState = 'idle' | 'copied' | 'failed'
+
+type LayerKey = 'registry' | 'frontend' | 'indexing' | 'policy'
+
+/** The pieces around the contracts that someone has to build and run. */
+const LAYERS: { key: LayerKey; label: string }[] = [
+  { key: 'registry', label: 'Registry' },
+  { key: 'frontend', label: 'Frontend' },
+  { key: 'indexing', label: 'Indexing' },
+  { key: 'policy', label: 'Policy' },
+]
+
+/** Who carries a layer: Kleros runs it, Kleros supports you on it, or you. */
+type Owner = 'runs' | 'supports' | 'you'
+
+const OWNERS: { owner: Owner; text: string }[] = [
+  { owner: 'runs', text: 'Kleros runs it' },
+  { owner: 'supports', text: 'Kleros supports you' },
+  { owner: 'you', text: 'You run it' },
+]
+
+const ownerText = (owner: Owner) =>
+  OWNERS.find((entry) => entry.owner === owner)?.text ?? ''
+
+interface Layer {
+  owner: Owner
+  /** Two to four words, shown in the cell. */
+  label: string
+  /** The full sentence, shown on hover or on a tap. */
+  text: string
+}
+
+/** Free path: the launch chooser on the header's chain. Paid: an email. */
+type TierAction =
+  | { kind: 'launch'; label: string; icon: CurateIconName }
+  | {
+      kind: 'contact'
+      label: string
+      /** Names the plan in the email and in the phone's stacked buttons. */
+      subject: string
+      phoneLabel: string
+    }
+
+interface Tier {
+  name: string
+  path: string
+  featured: boolean
+  /** US dollars per month. */
+  price: number
+  priceDetail: string
+  layers: Record<LayerKey, Layer>
+  action: TierAction
+}
+
+const TIERS: Tier[] = [
+  {
+    name: 'Permissionless',
+    path: 'Default path',
+    featured: false,
+    price: 0,
+    priceDetail: 'self-operated',
+    layers: {
+      registry: {
+        owner: 'you',
+        label: 'Deploy yourself',
+        text: 'Deploy a registry without approval from Kleros.',
+      },
+      frontend: {
+        owner: 'you',
+        label: 'Build and host',
+        text: 'Build, host, and maintain your own frontend.',
+      },
+      indexing: {
+        owner: 'you',
+        label: 'Local or third\u2011party',
+        text: 'Run local indexing or connect a third-party indexer.',
+      },
+      policy: {
+        owner: 'you',
+        label: 'Write and maintain',
+        text: 'Write, publish, and maintain the policy; monitoring and operations are yours too.',
+      },
+    },
+    action: { kind: 'launch', label: 'Create a registry', icon: 'factory' },
+  },
+  {
+    name: 'Quickstart',
+    path: 'Fastest path',
+    featured: true,
+    price: 19.99,
+    priceDetail: 'API access',
+    layers: {
+      registry: {
+        owner: 'you',
+        label: 'Deploy yourself',
+        text: 'Deploy a registry without approval from Kleros.',
+      },
+      frontend: {
+        owner: 'you',
+        label: 'Build and host',
+        text: 'Build, host, and maintain your own frontend.',
+      },
+      indexing: {
+        owner: 'runs',
+        label: 'Ready API',
+        text: 'A ready API for agents and frontends, instead of running the indexer.',
+      },
+      policy: {
+        owner: 'you',
+        label: 'Write and maintain',
+        text: 'Write and maintain your own policy; product decisions stay in-house.',
+      },
+    },
+    action: {
+      kind: 'contact',
+      label: 'Talk to Kleros',
+      subject: 'Curate Quickstart',
+      phoneLabel: 'Quickstart: talk to Kleros',
+    },
+  },
+  {
+    name: 'Curate Pro',
+    path: 'Supported path',
+    featured: false,
+    price: 199,
+    priceDetail: 'managed support',
+    layers: {
+      registry: {
+        owner: 'supports',
+        label: 'Help with parameters',
+        text: 'Launch with help on registry parameters.',
+      },
+      frontend: {
+        owner: 'supports',
+        label: 'Dedicated frontend',
+        text: 'Support creating a dedicated frontend.',
+      },
+      indexing: {
+        owner: 'runs',
+        label: 'API and guidance',
+        text: 'A ready API with operational support and guidance.',
+      },
+      policy: {
+        owner: 'supports',
+        label: 'Drafting and review',
+        text: 'Policy drafting and review support.',
+      },
+    },
+    action: {
+      kind: 'contact',
+      label: 'Talk to Kleros',
+      subject: 'Curate Pro',
+      phoneLabel: 'Pro: talk to Kleros',
+    },
+  },
+]
+
+const usd = (value: number) =>
+  `$${Number.isInteger(value) ? value : value.toFixed(2)}`
+
+const prices = TIERS.map((tier) => tier.price)
+const lowestPrice = Math.min(...prices)
+const highestPrice = Math.max(...prices)
+
+const countOwned = (tier: Tier, owner: Owner) =>
+  LAYERS.filter(({ key }) => tier.layers[key].owner === owner).length
+
+/* ---------- Shared ---------- */
+
+const SrOnly = styled.span`
+  position: absolute;
+  width: 1px;
+  height: 1px;
   overflow: hidden;
-  border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
-  background: var(--v2-card);
-  box-shadow: var(--v2-shadow);
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 `
 
-const Hero = styled(Surface)`
-  min-height: 0;
-  padding: clamp(24px, 4vw, 42px);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.46fr);
-  gap: clamp(22px, 4vw, 48px);
-  align-items: end;
-  background: var(--v2-card);
-  border-top: 5px solid var(--v2-purple);
+const ArrowIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+    <path
+      d="M5 12h14M13 6l6 6-6 6"
+      stroke="currentColor"
+      strokeWidth="1.85"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+)
 
-  @media (max-width: 980px) {
-    grid-template-columns: 1fr;
-    min-height: 0;
+/* ---------- Hero ---------- */
+
+const Hero = styled.section`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 8px 0 0;
+  text-align: center;
+
+  > * {
+    ${reveal}
+  }
+
+  @media (max-width: 720px) {
+    padding-top: 0;
+    align-items: flex-start;
+    text-align: left;
+  }
+`
+
+const HeroPill = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-raised);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+
+  b {
+    color: var(--color-primary);
+    font-weight: 500;
+  }
+`
+
+const Headline = styled(HeroStatement)`
+  max-width: none;
+  font-size: clamp(38px, 3vw + 16px, 60px);
+
+  em {
+    display: block;
+  }
+
+  @media (max-width: 720px) {
+    em {
+      display: inline;
+    }
+  }
+`
+
+const Lede = styled.p`
+  margin: 0;
+  max-width: 52ch;
+  color: var(--color-muted);
+  font-size: 17px;
+  line-height: 26px;
+`
+
+/* ---------- Layer matrix ---------- */
+
+/*
+ * One grid holds the whole comparison. Desktop: a label column plus one column
+ * per path; rows are eyebrow, name, price, action, the four layers and the
+ * total. Phone: the three paths side by side, each layer's name on its own
+ * full-width row above its cells. Each path is an <article> spanning its
+ * column on a row subgrid, so every row lines up across the paths.
+ */
+const DESKTOP_ROWS = 9
+const PHONE_ROWS = 14
+
+/** Row of each piece inside a path column (subgrid lines), desktop / phone. */
+const ROW = {
+  eyebrow: [1, 1],
+  name: [2, 2],
+  price: [3, 3],
+  action: [4, 4],
+  layer: (index: number) => [5 + index, 6 + 2 * index] as const,
+  total: [9, 14],
+} as const
+
+/** Rows of the full-width pieces in the outer grid, desktop / phone. */
+const OUTER = {
+  /** The phone layout starts with the legend, so path rows sit one lower. */
+  layerLabel: (index: number) => [5 + index, 6 + 2 * index] as const,
+  totalLabel: [9, 14],
+} as const
+
+const cssVars = (vars: Record<string, string | number>) =>
+  vars as React.CSSProperties
+
+/** Places an outer-grid item from --c/--r (desktop) and --mc/--mr (phone). */
+const placed = css`
+  grid-column: var(--c);
+  grid-row: var(--r);
+
+  @media (max-width: 720px) {
+    grid-column: var(--mc);
+    grid-row: var(--mr);
+  }
+`
+
+/** Places a piece inside a path column on its subgrid row. */
+const inColumn = css`
+  grid-column: 1;
+  grid-row: var(--row);
+
+  @media (max-width: 720px) {
+    grid-row: var(--mrow);
+  }
+`
+
+const Module = styled(Surface)`
+  margin-top: 44px;
+  padding: 26px 26px 22px;
+  ${reveal}
+
+  @media (max-width: 720px) {
+    margin-top: 32px;
+    padding: 18px 12px 16px;
+  }
+`
+
+const Matrix = styled.div`
+  display: grid;
+  grid-template-columns: minmax(150px, 0.72fr) repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(${DESKTOP_ROWS}, auto);
+  column-gap: 10px;
+
+  @media (max-width: 720px) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: repeat(${PHONE_ROWS + 1}, auto);
+    column-gap: 6px;
+  }
+`
+
+const Column = styled.article<{ $featured: boolean }>`
+  ${placed}
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: subgrid;
+  min-width: 0;
+  padding: 18px 0 16px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  transition:
+    background-color var(--motion),
+    border-color var(--motion);
+
+  ${({ $featured }) =>
+    $featured
+      ? css`
+          border-color: color-mix(
+            in srgb,
+            var(--color-primary) 30%,
+            transparent
+          );
+          background: linear-gradient(
+            180deg,
+            color-mix(in srgb, var(--color-primary) 10%, transparent),
+            color-mix(in srgb, var(--color-primary) 3%, transparent) 55%
+          );
+          box-shadow: inset 0 1px 0
+            color-mix(in srgb, var(--color-primary) 22%, transparent);
+        `
+      : css`
+          &:hover {
+            background-color: color-mix(
+              in srgb,
+              var(--color-text) 3%,
+              transparent
+            );
+          }
+        `}
+
+  @media (max-width: 720px) {
+    padding: 14px 0 12px;
+    border-radius: 12px;
+  }
+`
+
+/* Row rules run across every column, over the featured band. */
+const RowRule = styled.span`
+  ${placed}
+  position: relative;
+  z-index: 1;
+  align-self: start;
+  height: 1px;
+  background: var(--glass-border);
+  pointer-events: none;
+`
+
+const cellPad = css`
+  padding-left: 16px;
+  padding-right: 16px;
+
+  @media (max-width: 720px) {
+    padding-left: 8px;
+    padding-right: 8px;
   }
 `
 
 const Eyebrow = styled.div`
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  width: fit-content;
-  min-height: 30px;
-  padding: 0 11px;
-  border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
-  color: var(--v2-blue);
-  background: var(--v2-blue-soft);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0;
-  text-transform: uppercase;
-`
-
-const Title = styled.h1`
-  max-width: 920px;
-  margin: 18px 0 14px;
-  color: var(--v2-text);
-  font-size: clamp(32px, 5vw, 56px);
-  line-height: 1.08;
-  font-weight: 600;
-  letter-spacing: 0;
-`
-
-const Copy = styled.p`
-  max-width: 790px;
-  margin: 0;
-  color: var(--v2-muted);
-  font-size: clamp(16px, 1.7vw, 19px);
-  line-height: 1.65;
-`
-
-const ActionRow = styled.div`
+  ${inColumn}
+  ${cellPad}
   display: flex;
-  align-items: center;
   flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 28px;
-`
-
-const HeroStats = styled.div`
-  display: grid;
-  gap: 12px;
-`
-
-const SignalCard = styled.div`
-  padding: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
-  background: rgba(1, 4, 9, 0.55);
-`
-
-const SignalLabel = styled.div`
-  color: var(--curate-faint);
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-`
-
-const SignalValue = styled.div`
-  margin-top: 8px;
-  color: var(--curate-text);
-  font-size: 28px;
-  font-weight: 950;
-`
-
-const SectionHeader = styled.div`
-  margin: 34px 0 14px;
-  display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  gap: 18px;
+  gap: 6px;
+  padding-bottom: 10px;
 
-  @media (max-width: 760px) {
-    align-items: flex-start;
-    flex-direction: column;
+  @media (max-width: 720px) {
+    > span:last-child:not(:first-child) {
+      display: none;
+    }
   }
 `
 
-const SectionTitle = styled.h2`
+const TierName = styled.h2`
+  ${inColumn}
+  ${cellPad}
   margin: 0;
-  color: var(--v2-text);
-  font-size: clamp(24px, 3vw, 38px);
-  font-weight: 600;
-`
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 28px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
 
-const SectionCopy = styled.p`
-  max-width: 720px;
-  margin: 8px 0 0;
-  color: var(--v2-muted);
-  font-size: 15px;
-  line-height: 1.6;
-`
-
-const PlanGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-
-  @media (max-width: 1020px) {
-    grid-template-columns: 1fr;
+  @media (max-width: 720px) {
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 20px;
+    letter-spacing: -0.01em;
   }
 `
 
-const PlanCard = styled(Surface)<{ $featured?: boolean }>`
-  min-height: 430px;
-  padding: 20px;
+const PriceRow = styled.div`
+  ${inColumn}
+  ${cellPad}
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  padding-top: 14px;
+  padding-bottom: 18px;
+
+  @media (max-width: 720px) {
+    padding-top: 8px;
+    padding-bottom: 14px;
+  }
+`
+
+/* Animated, so set in Geist with tabular figures (Urbanist has none). The
+ * currency and the cents sit small, muted and on the baseline. */
+const PriceFigure = styled.span`
+  display: inline-flex;
+  align-items: baseline;
+  color: var(--color-text);
+  font-family: var(--font-figure);
+  font-size: clamp(40px, 1.6vw + 20px, 48px);
+  line-height: 1;
+  font-weight: 500;
+  letter-spacing: -0.045em;
+  font-variant-numeric: tabular-nums;
+
+  i,
+  small {
+    color: var(--color-muted);
+    font-size: 0.5em;
+    font-style: normal;
+    font-weight: 400;
+    letter-spacing: -0.02em;
+  }
+
+  i {
+    margin-right: 0.06em;
+  }
+
+  small {
+    margin-left: 0.04em;
+  }
+
+  @media (max-width: 720px) {
+    font-size: 28px;
+  }
+`
+
+/* "/ month · detail" on one line; on a phone each part gets its own line. */
+const PriceMeta = styled.span`
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+
+  > span + span::before {
+    content: ' · ';
+  }
+
+  @media (max-width: 720px) {
+    flex-basis: 100%;
+    font-size: 12px;
+    line-height: 16px;
+
+    > span {
+      display: block;
+    }
+
+    > span + span::before {
+      content: none;
+    }
+  }
+`
+
+/* Parts joined by a middle dot; stacked on a phone. */
+const Breakdown = styled(Small)`
+  > span + span::before {
+    content: ' · ';
+  }
+
+  @media (max-width: 720px) {
+    font-size: 12px;
+    line-height: 16px;
+
+    > span {
+      display: block;
+    }
+
+    > span + span::before {
+      content: none;
+    }
+  }
+`
+
+/* Text color, not primary: the tinted column leaves primary under 4.5:1. */
+const Recommended = styled(Chip)`
+  color: var(--color-text);
+`
+
+const ActionCell = styled.div`
+  ${inColumn}
+  ${cellPad}
+  padding-bottom: 20px;
+
+  @media (max-width: 720px) {
+    display: none;
+  }
+`
+
+const LegendBox = styled.div`
+  ${placed}
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  border-color: ${({ $featured }) =>
-    $featured ? 'var(--v2-blue)' : 'var(--v2-stroke)'};
-  background: ${({ $featured }) =>
-    $featured ? 'var(--v2-blue-soft)' : 'var(--v2-card)'};
-`
-
-const PlanTop = styled.div`
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
-`
+  padding: 18px 8px 22px 0;
 
-const IconBox = styled.div`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 42px;
-  height: 42px;
-  border: 1px solid currentColor;
-  border-radius: 3px;
-  color: var(--v2-blue);
-  background: var(--v2-card);
-`
-
-const Pill = styled.div`
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
-  color: var(--v2-muted);
-  background: var(--v2-card);
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-`
-
-const PlanName = styled.h3`
-  margin: 0;
-  color: var(--v2-text);
-  font-size: 22px;
-  font-weight: 600;
-`
-
-const Price = styled.div`
-  color: var(--v2-text);
-  font-size: 38px;
-  font-weight: 700;
-  line-height: 1;
-
-  span {
-    color: var(--v2-muted);
-    font-size: 13px;
-    font-weight: 800;
+  ul {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
   }
-`
-
-const FeatureList = styled.ul`
-  display: grid;
-  gap: 10px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  color: var(--curate-muted);
-  font-size: 14px;
-  line-height: 1.45;
 
   li {
     display: grid;
-    grid-template-columns: 18px minmax(0, 1fr);
-    gap: 8px;
+    grid-template-columns: 28px auto;
+    align-items: center;
+    gap: 10px;
+    color: var(--color-muted);
+    font-size: var(--fs-small);
+    line-height: var(--lh-small);
+  }
+
+  @media (max-width: 720px) {
+    padding: 0 4px 14px;
+
+    ul {
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: 8px 16px;
+    }
+
+    li {
+      grid-template-columns: 20px auto;
+      gap: 8px;
+      font-size: 12px;
+      line-height: 16px;
+    }
   }
 `
 
-const Compare = styled(Surface)`
-  margin-top: 14px;
-  overflow-x: auto;
-`
+const RowLabel = styled.div`
+  ${placed}
+  position: relative;
+  z-index: 1;
+  /* Centred on the rail of its row (cells: 20px pad, 8px rail). */
+  padding: 14px 8px 14px 0;
+  color: var(--color-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: 500;
 
-const CompareGrid = styled.div`
-  min-width: 960px;
-  display: grid;
-  grid-template-columns: 0.9fr repeat(3, minmax(0, 1fr));
-`
-
-const CompareCell = styled.div<{ $head?: boolean; $featured?: boolean }>`
-  min-height: ${({ $head }) => ($head ? '86px' : '78px')};
-  padding: 15px;
-  border-right: 1px solid rgba(255, 255, 255, 0.075);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.075);
-  background: ${({ $featured }) =>
-    $featured ? 'rgba(0, 163, 255, 0.065)' : 'transparent'};
-
-  &:nth-child(4n) {
-    border-right: 0;
+  @media (max-width: 720px) {
+    padding: 12px 6px 8px 4px;
+    color: var(--color-faint);
+    font-size: var(--fs-label);
+    line-height: var(--lh-label);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
   }
 `
 
-const CompareTitle = styled.div`
-  color: var(--curate-text);
-  font-size: 14px;
-  font-weight: 950;
+const grow = keyframes`
+  from { clip-path: inset(-12px 100% -12px -12px); }
+  to { clip-path: inset(-12px -12px -12px -12px); }
 `
 
-const CompareMeta = styled.div`
-  margin-top: 6px;
-  color: var(--curate-muted);
-  font-size: 13px;
-  line-height: 1.45;
-`
+/*
+ * The rail: an empty track (you run it), a hatched fill (Kleros supports you)
+ * or a solid lit fill (Kleros runs it). It fills from the left once the
+ * matrix is in view.
+ */
+const Rail = styled.span<{ $owner: Owner; $still?: boolean }>`
+  position: relative;
+  display: block;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--color-text) 7%, transparent);
+  /* The empty track's outline clears 3:1 on the panel in every theme. */
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--color-faint) 85%, transparent);
 
-const SkillPanel = styled(Surface)`
-  display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-  gap: 0;
+  ${({ $owner }) =>
+    $owner !== 'you' &&
+    css`
+      &::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+      }
+    `}
 
-  @media (max-width: 980px) {
-    grid-template-columns: 1fr;
+  ${({ $owner }) =>
+    $owner === 'runs' &&
+    css`
+      &::after {
+        background: linear-gradient(
+          90deg,
+          color-mix(in srgb, var(--color-primary) 55%, transparent),
+          var(--color-primary)
+        );
+        box-shadow: 0 0 14px
+          color-mix(in srgb, var(--color-primary) 55%, transparent);
+      }
+    `}
+
+  ${({ $owner }) =>
+    $owner === 'supports' &&
+    css`
+      &::after {
+        background: repeating-linear-gradient(
+          135deg,
+          color-mix(in srgb, var(--color-primary) 85%, transparent) 0 2px,
+          transparent 2px 6px
+        );
+        box-shadow: inset 0 0 0 1px
+          color-mix(in srgb, var(--color-primary) 55%, transparent);
+      }
+    `}
+
+  ${({ $still }) =>
+    !$still &&
+    css`
+      [data-inview='false'] &::after {
+        clip-path: inset(-12px 100% -12px -12px);
+      }
+
+      [data-inview='true'] &::after {
+        animation: ${grow} 760ms var(--ease-out) both;
+        animation-delay: var(--d, 0ms);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        [data-inview] &::after {
+          clip-path: none;
+          animation: none;
+        }
+      }
+    `}
+
+  @media (max-width: 720px) {
+    height: 6px;
   }
 `
 
-const SkillIntro = styled.div`
-  padding: 22px;
-`
-
-const SkillCode = styled.pre`
-  min-height: 440px;
-  max-height: 620px;
-  margin: 0;
-  padding: 18px;
-  overflow: auto;
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
-  color: #d9f7ff;
-  background: rgba(1, 4, 9, 0.78);
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
-    monospace;
+/* Opens below its cell so it never covers the path's button above. */
+const Tip = styled.span<{ $align: 'start' | 'center' | 'end' }>`
+  position: absolute;
+  top: calc(100% - 10px);
+  z-index: 5;
+  width: max-content;
+  max-width: min(260px, 70vw);
+  padding: 8px 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 10px;
+  /* Opaque: the raised tint laid over the solid surface. */
+  background:
+    linear-gradient(var(--color-raised), var(--color-raised)),
+    var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+  color: var(--color-text);
   font-size: 12px;
-  line-height: 1.55;
-  white-space: pre-wrap;
+  line-height: 17px;
+  font-weight: 400;
+  text-align: left;
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition:
+    opacity 160ms var(--ease-out),
+    transform 160ms var(--ease-out);
+
+  ${({ $align }) =>
+    $align === 'start'
+      ? css`
+          left: 8px;
+        `
+      : $align === 'end'
+        ? css`
+            right: 8px;
+          `
+        : css`
+            left: 50%;
+            translate: -50% 0;
+          `}
 `
 
-const LinkLine = styled.a`
-  display: inline-flex;
-  margin-top: 14px;
-  color: var(--curate-live);
-  font-size: 13px;
-  font-weight: 850;
+/* A button: a tap or Enter opens the sentence, hover shows it too. */
+const Cell = styled.button<{ $owner: Owner }>`
+  ${inColumn}
+  ${cellPad}
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  padding-top: 20px;
+  padding-bottom: 18px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  outline-offset: -2px;
+
+  > b {
+    color: ${({ $owner }) =>
+      $owner === 'you' ? 'var(--color-muted)' : 'var(--color-text)'};
+    font-size: var(--fs-small);
+    line-height: var(--lh-small);
+    font-weight: ${({ $owner }) => ($owner === 'you' ? 400 : 500)};
+  }
+
+  &[aria-expanded='true'] ${Tip} {
+    opacity: 1;
+    transform: none;
+  }
+
+  @media (hover: hover) {
+    &:hover ${Tip} {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @media (max-width: 720px) {
+    gap: 8px;
+    padding-top: 2px;
+    padding-bottom: 14px;
+
+    > b {
+      font-size: 12px;
+      line-height: 16px;
+    }
+  }
+`
+
+const TotalCell = styled.div`
+  ${inColumn}
+  ${cellPad}
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 18px;
+
+  @media (max-width: 720px) {
+    padding-top: 2px;
+  }
+`
+
+const TotalFigure = styled.span`
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  line-height: 24px;
+  font-variant-numeric: tabular-nums;
+
+  b {
+    margin-right: 4px;
+    color: var(--color-text);
+    font-family: var(--font-figure);
+    font-size: 22px;
+    font-weight: 500;
+    letter-spacing: -0.03em;
+  }
+
+  @media (max-width: 720px) {
+    font-size: 12px;
+
+    b {
+      font-size: 18px;
+    }
+  }
+`
+
+const PhoneActions = styled.div`
+  display: none;
+
+  @media (max-width: 720px) {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 16px;
+    padding: 0 4px;
+  }
+`
+
+const ExplainerSlot = styled.div`
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
+
+  > div {
+    width: 100%;
+  }
+
+  @media (max-width: 720px) {
+    justify-content: flex-start;
+  }
+`
+
+const FooterLink = styled(Link)`
+  color: var(--color-primary);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  font-weight: 500;
   text-decoration: none;
 
   &:hover {
+    color: var(--color-primary-hover);
     text-decoration: underline;
   }
 `
 
-const plans = [
-  {
-    icon: 'factory',
-    featured: false,
-    name: 'Permissionless',
-    price: '$0',
-    meta: 'Open-source, self-operated',
-    badge: 'Build yourself',
-    features: [
-      'Deploy a registry without approval from Kleros.',
-      'Build and host the frontend yourself.',
-      'Run local indexing or wire a third-party indexer.',
-      'Own the policy, monitoring, and operations.',
-    ],
-  },
-  {
-    icon: 'activity',
-    name: 'Quickstart',
-    price: '$19.99',
-    meta: 'Indexing without the setup drag',
-    badge: 'API only',
-    featured: true,
-    features: [
-      'Deploy a registry without approval from Kleros.',
-      'Build and host the frontend yourself.',
-      'Use a ready API instead of running the indexer.',
-      'Keep policy and product decisions in-house.',
-    ],
-  },
-  {
-    icon: 'policy',
-    featured: false,
-    name: 'Curate Pro',
-    price: '$199',
-    meta: 'A supported path to production',
-    badge: 'Kleros support',
-    features: [
-      'Launch with help on registry parameters.',
-      'Get support for a dedicated frontend.',
-      'Use a ready API with operational guidance.',
-      'Get policy drafting and review support.',
-    ],
-  },
-] as const
+/* ---------- Creator prompt ---------- */
+
+const PromptSection = styled.section`
+  display: grid;
+  grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
+  gap: 24px 48px;
+  align-items: start;
+  margin-top: 88px;
+
+  @media (max-width: 1020px) {
+    grid-template-columns: 1fr;
+    margin-top: 64px;
+  }
+`
+
+const PromptIntro = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 8px;
+
+  h2 {
+    margin: 0;
+    color: var(--color-text);
+    font-family: var(--font-display);
+    font-size: 30px;
+    line-height: 34px;
+    font-weight: 500;
+    letter-spacing: -0.03em;
+  }
+
+  p {
+    margin: 0;
+    color: var(--color-muted);
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+  }
+`
+
+const PromptLinks = styled.div`
+  display: flex;
+  flex-direction: column;
+  margin-top: 8px;
+  border-top: 1px solid var(--glass-border);
+`
+
+const linkRow = css`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  border-bottom: 1px solid var(--glass-border);
+  color: var(--color-text);
+  font-size: var(--fs-body);
+  font-weight: 500;
+  text-decoration: none;
+
+  svg {
+    color: var(--color-faint);
+    transition:
+      transform var(--motion),
+      color var(--motion);
+  }
+
+  &:hover {
+    color: var(--color-primary);
+
+    svg {
+      color: var(--color-primary);
+      transform: translateX(3px);
+    }
+  }
+`
+
+const PromptLink = styled(Link)`
+  ${linkRow}
+`
+
+const PromptAnchor = styled.a`
+  ${linkRow}
+`
+
+/* Hidden until it scrolls into view, then it rises in (SPEC 5.2). */
+const PromptPanel = styled(Surface)<{ $copied: boolean }>`
+  overflow: hidden;
+
+  &[data-inview='false'] {
+    opacity: 0;
+  }
+
+  &[data-inview='true'] {
+    ${reveal}
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &[data-inview] {
+      opacity: 1;
+    }
+  }
+
+  ${({ $copied }) =>
+    $copied &&
+    css`
+      border-color: color-mix(in srgb, var(--color-primary) 55%, transparent);
+      box-shadow:
+        inset 0 1px 0 var(--glass-highlight),
+        0 0 0 3px color-mix(in srgb, var(--color-primary) 14%, transparent),
+        var(--shadow-card);
+    `}
+`
+
+const PromptBar = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 58px;
+  padding: 10px 12px 10px 20px;
+  border-bottom: 1px solid var(--glass-border);
+`
+
+const PromptTitle = styled.div`
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  min-width: 0;
+`
+
+const CopyLabel = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  svg {
+    transition: transform var(--motion);
+  }
+`
+
+/* Both labels share one cell so the button keeps its width when it flips;
+ * the visible one starts at the icon, so "Copied" sits right beside it. */
+const CopyText = styled.span`
+  display: inline-grid;
+  justify-items: start;
+
+  > * {
+    grid-area: 1 / 1;
+  }
+
+  > [aria-hidden] {
+    visibility: hidden;
+  }
+`
+
+const sweep = keyframes`
+  from { transform: translateY(-100%); }
+  to { transform: translateY(100%); }
+`
+
+const CodeWrap = styled.div`
+  position: relative;
+  overflow: hidden;
+`
+
+/* After a copy, a band of light runs down the text once: what was copied. */
+const Sweep = styled.span`
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    color-mix(in srgb, var(--color-primary) 14%, transparent) 50%,
+    transparent
+  );
+  pointer-events: none;
+  animation: ${sweep} 760ms cubic-bezier(0.45, 0, 0.2, 1) both;
+
+  @media (prefers-reduced-motion: reduce) {
+    display: none;
+  }
+`
+
+const PromptCode = styled.pre`
+  position: relative;
+  margin: 0;
+  max-height: 480px;
+  padding: 18px 20px 20px 12px;
+  overflow: auto;
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-data);
+  line-height: 22px;
+  font-weight: 400;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  counter-reset: line;
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: -2px;
+  }
+
+  @media (max-width: 720px) {
+    max-height: none;
+    padding: 14px 14px 16px 6px;
+  }
+`
+
+/* Each line carries its number in a gutter (not selectable, not copied). */
+const PromptLine = styled.span<{ $kind: 'head' | 'item' | 'text' }>`
+  position: relative;
+  display: block;
+  min-height: 22px;
+  padding-left: 40px;
+  counter-increment: line;
+  color: ${({ $kind }) =>
+    $kind === 'text' ? 'var(--color-muted)' : 'var(--color-text)'};
+  font-weight: ${({ $kind }) => ($kind === 'head' ? 500 : 400)};
+
+  &::before {
+    content: counter(line);
+    position: absolute;
+    left: 0;
+    width: 24px;
+    color: var(--color-faint);
+    text-align: right;
+    user-select: none;
+  }
+
+  b {
+    color: var(--color-primary);
+    font-weight: 400;
+  }
+`
+
+/* Live region for the copy failure; it takes no space while empty. */
+const CopyNotice = styled(Small)`
+  display: block;
+  padding: 0 20px 16px;
+
+  &:empty {
+    display: none;
+  }
+`
+
+/* ---------- Pieces ---------- */
+
+const Price = ({ value, play }: { value: number; play: boolean }) => {
+  const current = useCountUp(play ? value : undefined, 1200)
+  const cents = !Number.isInteger(value)
+  const [whole, fraction] = (
+    cents ? current.toFixed(2) : String(Math.round(current))
+  ).split('.')
+  return (
+    <PriceFigure>
+      <SrOnly>{usd(value)} per month</SrOnly>
+      <span
+        aria-hidden
+        style={{ display: 'inline-flex', alignItems: 'baseline' }}
+      >
+        <i>$</i>
+        {whole}
+        {fraction && <small>.{fraction}</small>}
+      </span>
+    </PriceFigure>
+  )
+}
+
+const HelpTotal = ({ tier, play }: { tier: Tier; play: boolean }) => {
+  const runs = countOwned(tier, 'runs')
+  const supports = countOwned(tier, 'supports')
+  const helped = runs + supports
+  const shown = useCountUp(play ? helped : undefined, 900)
+  const breakdown =
+    helped === 0
+      ? [`You run all ${LAYERS.length}`]
+      : [
+          runs > 0 ? `${runs} run by Kleros` : '',
+          supports > 0 ? `${supports} supported` : '',
+        ].filter(Boolean)
+  return (
+    <>
+      <TotalFigure>
+        <SrOnly>
+          Kleros helps on {helped} of {LAYERS.length} layers.
+        </SrOnly>
+        <span aria-hidden>
+          <b>{Math.round(shown)}</b>of {LAYERS.length} layers
+        </span>
+      </TotalFigure>
+      <Breakdown $muted>
+        {breakdown.map((part) => (
+          <span key={part}>{part}</span>
+        ))}
+      </Breakdown>
+    </>
+  )
+}
+
+const PathButton = ({
+  tier,
+  launchHref,
+  phone,
+}: {
+  tier: Tier
+  launchHref: string
+  /** The phone's stacked buttons name the plan on each contact button. */
+  phone?: boolean
+}) => {
+  const { action } = tier
+  const variant = tier.featured ? 'primary' : 'secondary'
+  return action.kind === 'launch' ? (
+    <ButtonLink to={launchHref} $variant={variant} $block>
+      <CurateIcon name={action.icon} size={16} />
+      {action.label}
+    </ButtonLink>
+  ) : (
+    <ButtonAnchor href={contactHref(action.subject)} $variant={variant} $block>
+      {phone ? action.phoneLabel : action.label}
+    </ButtonAnchor>
+  )
+}
+
+const TierColumn = ({
+  tier,
+  index,
+  play,
+  launchHref,
+  openTip,
+  onToggleTip,
+}: {
+  tier: Tier
+  index: number
+  play: boolean
+  launchHref: string
+  openTip: string | null
+  onToggleTip: (id: string) => void
+}) => {
+  const at = (rows: readonly [number, number]) =>
+    cssVars({ '--row': rows[0], '--mrow': rows[1] })
+  const align =
+    index === 0 ? 'start' : index === TIERS.length - 1 ? 'end' : 'center'
+  return (
+    <Column
+      aria-label={tier.name}
+      $featured={tier.featured}
+      style={cssVars({
+        '--c': index + 2,
+        '--r': `1 / span ${DESKTOP_ROWS}`,
+        '--mc': index + 1,
+        '--mr': `2 / span ${PHONE_ROWS}`,
+      })}
+    >
+      <Eyebrow style={at(ROW.eyebrow)}>
+        <Label $tone={tier.featured ? 'text' : 'faint'}>{tier.path}</Label>
+        {tier.featured && <Recommended $selected>Recommended</Recommended>}
+      </Eyebrow>
+      <TierName style={at(ROW.name)}>{tier.name}</TierName>
+      <PriceRow style={at(ROW.price)}>
+        <Price value={tier.price} play={play} />
+        <PriceMeta>
+          <span aria-hidden>/ month</span>
+          <span>{tier.priceDetail}</span>
+        </PriceMeta>
+      </PriceRow>
+      <ActionCell style={at(ROW.action)}>
+        <PathButton tier={tier} launchHref={launchHref} />
+      </ActionCell>
+      {LAYERS.map(({ key, label }, row) => {
+        const layer = tier.layers[key]
+        const tipId = `curate-pro-${index}-${key}`
+        return (
+          <Cell
+            key={key}
+            type="button"
+            data-layer-cell
+            $owner={layer.owner}
+            aria-expanded={openTip === tipId}
+            aria-describedby={tipId}
+            onClick={() => onToggleTip(tipId)}
+            style={at(ROW.layer(row))}
+          >
+            <SrOnly>
+              {label}: {ownerText(layer.owner)}.
+            </SrOnly>
+            <Rail
+              $owner={layer.owner}
+              aria-hidden
+              style={cssVars({ '--d': `${160 + index * 120 + row * 90}ms` })}
+            />
+            <b>{layer.label}</b>
+            <Tip id={tipId} role="tooltip" $align={align}>
+              {layer.text}
+            </Tip>
+          </Cell>
+        )
+      })}
+      <TotalCell style={at(ROW.total)}>
+        <HelpTotal tier={tier} play={play} />
+      </TotalCell>
+    </Column>
+  )
+}
+
+const LayerMatrix = () => {
+  const [ref, inView] = useInView<HTMLDivElement>()
+  const launchHref = `/launch/${useDisplayedChainId()}`
+  const [openTip, setOpenTip] = useState<string | null>(null)
+  const toggleTip = (id: string) =>
+    setOpenTip((current) => (current === id ? null : id))
+
+  // An open sentence closes on Escape or a tap anywhere but a cell.
+  useEffect(() => {
+    if (!openTip) return
+    const onPointer = (event: PointerEvent) => {
+      if (!(event.target as Element | null)?.closest?.('[data-layer-cell]'))
+        setOpenTip(null)
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpenTip(null)
+    }
+    document.addEventListener('pointerdown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onPointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [openTip])
+  const outer = (
+    desktop: readonly [number, number] | [number, number],
+    phone: number,
+    column: { c: string | number; mc: string | number },
+  ) =>
+    cssVars({
+      '--c': column.c,
+      '--r': `${desktop[0]} / span ${desktop[1]}`,
+      '--mc': column.mc,
+      '--mr': phone,
+    })
+  const full = { c: 1, mc: '1 / -1' }
+  // Row names stay in the first column on a phone, clear of the featured band.
+  const name = { c: 1, mc: 1 }
+  const rule = { c: '1 / -1', mc: '1 / -1' }
+
+  return (
+    <Module
+      as="section"
+      $featured
+      $padding="none"
+      aria-label="Launch paths compared"
+      style={{ ['--i' as string]: 3 }}
+    >
+      <Matrix ref={ref} data-inview={inView ? 'true' : 'false'}>
+        <LegendBox style={outer([1, 4], 1, full)}>
+          <Label $tone="faint">Where Kleros helps</Label>
+          <ul aria-label="Legend">
+            {OWNERS.map(({ owner, text }) => (
+              <li key={owner}>
+                <Rail $owner={owner} $still aria-hidden />
+                {text}
+              </li>
+            ))}
+          </ul>
+        </LegendBox>
+
+        {LAYERS.map(({ key, label }, row) => {
+          const [desktop, phone] = OUTER.layerLabel(row)
+          return (
+            <React.Fragment key={key}>
+              <RowRule aria-hidden style={outer([desktop, 1], phone, rule)} />
+              <RowLabel aria-hidden style={outer([desktop, 1], phone, name)}>
+                {label}
+              </RowLabel>
+            </React.Fragment>
+          )
+        })}
+        <RowRule
+          aria-hidden
+          style={outer([OUTER.totalLabel[0], 1], OUTER.totalLabel[1], rule)}
+        />
+        <RowLabel
+          aria-hidden
+          style={outer([OUTER.totalLabel[0], 1], OUTER.totalLabel[1], name)}
+        >
+          Kleros helps
+        </RowLabel>
+
+        {TIERS.map((tier, index) => (
+          <TierColumn
+            key={tier.name}
+            tier={tier}
+            index={index}
+            play={inView}
+            launchHref={launchHref}
+            openTip={openTip}
+            onToggleTip={toggleTip}
+          />
+        ))}
+      </Matrix>
+
+      <PhoneActions>
+        {[...TIERS]
+          .sort((a, b) => Number(b.featured) - Number(a.featured))
+          .map((tier) => (
+            <PathButton
+              key={tier.name}
+              tier={tier}
+              launchHref={launchHref}
+              phone
+            />
+          ))}
+      </PhoneActions>
+    </Module>
+  )
+}
+
+/* ---------- Page ---------- */
 
 const CuratePro = () => {
-  const [copied, setCopied] = useState(false)
-
   useDocumentHead(
     'Curate Pro | Kleros Curate',
     'Launch a Kleros Curate registry with permissionless contracts, Quickstart indexing, or supported policy and frontend delivery.',
   )
 
+  const [copyState, setCopyState] = useState<CopyState>('idle')
+  const [copies, setCopies] = useState(0)
+  const copiedTimer = useRef<number | undefined>(undefined)
+  // A panel entrance, not a data draw-in: start it as soon as it shows.
+  const [promptRef, promptInView] = useInView<HTMLDivElement>(0.15)
+
+  useEffect(() => () => window.clearTimeout(copiedTimer.current), [])
+
   const copyCreatorPrompt = async () => {
-    await navigator.clipboard.writeText(CREATOR_PROMPT)
-    setCopied(true)
-    window.setTimeout(() => setCopied(false), 1800)
+    window.clearTimeout(copiedTimer.current)
+    const clipboard = navigator.clipboard
+    if (!clipboard) {
+      setCopyState('failed')
+      return
+    }
+    try {
+      await clipboard.writeText(CREATOR_PROMPT)
+      setCopyState('copied')
+      setCopies((count) => count + 1)
+      copiedTimer.current = window.setTimeout(
+        () => setCopyState('idle'),
+        COPIED_FOR_MS,
+      )
+    } catch {
+      setCopyState('failed')
+    }
   }
+
+  const copied = copyState === 'copied'
 
   return (
     <Page>
       <Hero>
-        <div>
-          <Eyebrow>
-            <CurateIcon name="spark" size={15} />
-            Curate Pro
-          </Eyebrow>
-          <Title>Launch a registry without building the whole stack.</Title>
-          <Copy>
-            Curate is open source and permissionless. Use it yourself for free,
-            add Quickstart when indexing slows you down, or work with Kleros
-            when you want policy, API, and frontend support in one launch path.
-          </Copy>
-          <ActionRow>
-            <Button
-              type="primary"
-              size="large"
-              as={Link as any}
-              to="/factory/100"
-            >
-              Create a registry
-            </Button>
-            <Button
-              size="large"
-              href="mailto:contact@kleros.io?subject=Curate%20Pro"
-            >
-              Talk to Kleros
-            </Button>
-          </ActionRow>
-        </div>
-        <HeroStats>
-          <SignalCard>
-            <SignalLabel>Default path</SignalLabel>
-            <SignalValue>Permissionless</SignalValue>
-            <Copy>Deploy and operate your own registry without approval.</Copy>
-          </SignalCard>
-          <SignalCard>
-            <SignalLabel>Fastest path</SignalLabel>
-            <SignalValue>Quickstart</SignalValue>
-            <Copy>Skip the indexer setup and build against a ready API.</Copy>
-          </SignalCard>
-          <SignalCard>
-            <SignalLabel>Supported path</SignalLabel>
-            <SignalValue>Curate Pro</SignalValue>
-            <Copy>
-              Get direct help packaging the registry into a usable product.
-            </Copy>
-          </SignalCard>
-        </HeroStats>
+        <HeroPill style={{ ['--i' as string]: 0 }}>
+          <b>{TIERS.length} launch paths</b>
+          {usd(lowestPrice)} to {usd(highestPrice)} a month
+        </HeroPill>
+        <Headline style={{ ['--i' as string]: 1 }}>
+          Launch a registry <em>without building the whole stack.</em>
+        </Headline>
+        <Lede style={{ ['--i' as string]: 2 }}>
+          The same open-source, permissionless protocol on every path; the paid
+          ones buy speed, infrastructure and direct support, not access.
+        </Lede>
       </Hero>
 
-      <SectionHeader>
-        <div>
-          <SectionTitle>
-            Choose the amount of stack you want to own
-          </SectionTitle>
-          <SectionCopy>
-            The protocol stays permissionless in every option. The paid paths do
-            not buy access to Curate; they buy speed, infrastructure, and direct
-            support.
-          </SectionCopy>
-        </div>
-      </SectionHeader>
+      <LayerMatrix />
 
-      <PlanGrid>
-        {plans.map((plan) => (
-          <PlanCard key={plan.name} $featured={plan.featured}>
-            <PlanTop>
-              <IconBox>
-                <CurateIcon name={plan.icon} size={20} />
-              </IconBox>
-              <Pill>{plan.badge}</Pill>
-            </PlanTop>
-            <div>
-              <PlanName>{plan.name}</PlanName>
-              <CompareMeta>{plan.meta}</CompareMeta>
-            </div>
-            <Price>
-              {plan.price} <span>/ month</span>
-            </Price>
-            <FeatureList>
-              {plan.features.map((feature) => (
-                <li key={feature}>
-                  <CurateIcon name="verified" size={15} />
-                  <span>{feature}</span>
-                </li>
-              ))}
-            </FeatureList>
-          </PlanCard>
-        ))}
-      </PlanGrid>
+      <ExplainerSlot>
+        <Explainer
+          id="curate-pro-production-registry"
+          eyebrow="Before you launch"
+          heading="What a production registry needs"
+          intro="Every path runs the same contracts; what changes is who runs the pieces around them."
+          steps={[
+            {
+              title: 'Policy and court',
+              body: 'A policy PDF says what belongs on the list, and the list names a Kleros court and juror count. Jurors rule by the policy.',
+            },
+            {
+              title: 'Deposits',
+              body: 'In Light and Classic Curate, each request locks a base deposit plus the arbitration cost; it comes back in full if nobody challenges. A challenger locks the same kind of deposit.',
+            },
+            {
+              title: 'Indexing and front end',
+              body: 'Search needs an indexer: run one, connect a third party, or use the ready API in Quickstart and Curate Pro. The front end is yours to build, with support on Curate Pro.',
+            },
+          ]}
+          schematic={<ProductionStackSchematic />}
+          footer={<FooterLink to={GUIDE_HREF}>Read the guide</FooterLink>}
+        />
+      </ExplainerSlot>
 
-      <SectionHeader>
-        <div>
-          <SectionTitle>Same protocol, different operating burden</SectionTitle>
-          <SectionCopy>
-            Permissionless and Quickstart both leave product ownership with you.
-            Quickstart removes indexing work. Curate Pro adds Kleros support
-            where mistakes are expensive: policy, data access, and the frontend
-            users will actually touch.
-          </SectionCopy>
-        </div>
-      </SectionHeader>
+      <PromptSection aria-label="Creator prompt">
+        <PromptIntro>
+          <h2>Creator prompt for new lists</h2>
+          <p>
+            For creators deciding how to launch and run a new list; paste it
+            after the agent loads the Curate skill.
+          </p>
+          <PromptLinks>
+            <PromptLink to={GUIDE_HREF}>
+              Open the guide
+              <ArrowIcon />
+            </PromptLink>
+            <PromptAnchor href={SKILL_HREF}>
+              Open the Curate skill (SKILL.md)
+              <ArrowIcon />
+            </PromptAnchor>
+          </PromptLinks>
+        </PromptIntro>
 
-      <Compare>
-        <CompareGrid>
-          <CompareCell $head>
-            <CompareTitle>Capability</CompareTitle>
-          </CompareCell>
-          <CompareCell $head>
-            <CompareTitle>Permissionless</CompareTitle>
-            <CompareMeta>$0, self-operated</CompareMeta>
-          </CompareCell>
-          <CompareCell $head $featured>
-            <CompareTitle>Quickstart</CompareTitle>
-            <CompareMeta>$19.99, API access</CompareMeta>
-          </CompareCell>
-          <CompareCell $head>
-            <CompareTitle>Curate Pro</CompareTitle>
-            <CompareMeta>$199, managed support</CompareMeta>
-          </CompareCell>
-
-          <CompareCell>
-            <CompareTitle>Frontend</CompareTitle>
-          </CompareCell>
-          <CompareCell>
-            <CompareMeta>
-              Build, host, and maintain your own frontend.
-            </CompareMeta>
-          </CompareCell>
-          <CompareCell $featured>
-            <CompareMeta>
-              Build, host, and maintain your own frontend.
-            </CompareMeta>
-          </CompareCell>
-          <CompareCell>
-            <CompareMeta>Support creating a dedicated frontend.</CompareMeta>
-          </CompareCell>
-
-          <CompareCell>
-            <CompareTitle>Indexing</CompareTitle>
-          </CompareCell>
-          <CompareCell>
-            <CompareMeta>
-              Run local indexing or connect a third-party indexer.
-            </CompareMeta>
-          </CompareCell>
-          <CompareCell $featured>
-            <CompareMeta>Ready API for agents and frontends.</CompareMeta>
-          </CompareCell>
-          <CompareCell>
-            <CompareMeta>Ready API with operational support.</CompareMeta>
-          </CompareCell>
-
-          <CompareCell>
-            <CompareTitle>Policy</CompareTitle>
-          </CompareCell>
-          <CompareCell>
-            <CompareMeta>
-              Write, publish, and maintain your own policy.
-            </CompareMeta>
-          </CompareCell>
-          <CompareCell $featured>
-            <CompareMeta>
-              Write, publish, and maintain your own policy.
-            </CompareMeta>
-          </CompareCell>
-          <CompareCell>
-            <CompareMeta>Policy creation and review support.</CompareMeta>
-          </CompareCell>
-        </CompareGrid>
-      </Compare>
-
-      <SectionHeader>
-        <div>
-          <SectionTitle>Creator prompt for new lists</SectionTitle>
-          <SectionCopy>
-            The global Curate skill is for every registry. This prompt is only
-            for creators deciding how to launch and operate a new list.
-          </SectionCopy>
-        </div>
-        <Button type="primary" onClick={copyCreatorPrompt}>
-          <CurateIcon name="copy" size={16} />
-          {copied ? 'Copied' : 'Copy creator prompt'}
-        </Button>
-      </SectionHeader>
-
-      <SkillPanel>
-        <SkillIntro>
-          <Eyebrow>
-            <CurateIcon name="activity" size={15} />
-            Agent context
-          </Eyebrow>
-          <SectionTitle style={{ marginTop: 16 }}>
-            Start a launch conversation.
-          </SectionTitle>
-          <SectionCopy>
-            Paste this after the agent loads the Curate skill. It keeps the
-            conversation focused on policy, indexing, frontend, and the real
-            operating choices behind a registry launch.
-          </SectionCopy>
-          <LinkLine href="/guide">Open Guide & Skills</LinkLine>
-          <LinkLine href="/skills/kleros-curate/SKILL.md">
-            Open local SKILL.md
-          </LinkLine>
-        </SkillIntro>
-        <SkillCode>{CREATOR_PROMPT}</SkillCode>
-      </SkillPanel>
+        <PromptPanel
+          ref={promptRef}
+          data-inview={promptInView ? 'true' : 'false'}
+          $padding="none"
+          $copied={copied}
+          style={{ ['--i' as string]: 1 }}
+        >
+          <PromptBar>
+            <PromptTitle>
+              <Label>Creator prompt</Label>
+              <Small $faint>{PROMPT_LINES.length} lines · plain text</Small>
+            </PromptTitle>
+            <Button
+              type="button"
+              $variant="primary"
+              $size="sm"
+              onClick={copyCreatorPrompt}
+            >
+              <CopyLabel>
+                <CurateIcon
+                  name={copied ? 'check' : 'copy'}
+                  size={14}
+                  style={copied ? { transform: 'scale(1.15)' } : undefined}
+                />
+                <CopyText>
+                  <span aria-live="polite">
+                    {copied ? 'Copied' : 'Copy creator prompt'}
+                  </span>
+                  <span aria-hidden>Copy creator prompt</span>
+                </CopyText>
+              </CopyLabel>
+            </Button>
+          </PromptBar>
+          <CodeWrap>
+            <PromptCode
+              role="region"
+              tabIndex={0}
+              aria-label="Creator prompt text"
+            >
+              {PROMPT_LINES.map((line, index) => {
+                const item = line.startsWith('- ')
+                const kind = item
+                  ? 'item'
+                  : line.endsWith(':')
+                    ? 'head'
+                    : 'text'
+                return (
+                  <PromptLine key={index} $kind={kind}>
+                    {item ? (
+                      <>
+                        <b>-</b>
+                        {line.slice(1)}
+                      </>
+                    ) : (
+                      line
+                    )}
+                    {'\n'}
+                  </PromptLine>
+                )
+              })}
+            </PromptCode>
+            {copied && <Sweep key={copies} aria-hidden />}
+          </CodeWrap>
+          <CopyNotice $muted role="status">
+            {copyState === 'failed'
+              ? 'Copy failed. Select the text above to copy it.'
+              : null}
+          </CopyNotice>
+        </PromptPanel>
+      </PromptSection>
     </Page>
   )
 }

@@ -1,285 +1,531 @@
-import React, { createContext, useState, useEffect, useCallback } from 'react'
+import React, {
+  createContext,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 import { ThemeProvider as StyledThemeProvider } from 'styled-components'
 
-const THEME_STORAGE_KEY = 'kleros-curate-theme'
+/**
+ * Three color themes built from one semantic palette each, so every legacy theme key the
+ * app reads stays defined and consistent. See DESIGN.md for the roles and rules.
+ *
+ *  - light:  cool neutral canvas, one blue accent, no glow
+ *  - dark:   the glow stage: blue-tinted near-black with a single accent bloom
+ *  - kleros: the production Kleros dApp palette (deep purple surfaces)
+ *
+ * "system" follows the OS between light and dark.
+ */
+export type ThemeMode = 'system' | 'light' | 'dark' | 'kleros'
+export type ThemeName = 'light' | 'dark' | 'kleros'
 
-export const lightTheme = {
+export const THEME_STORAGE_KEY = 'kleros-curate-theme'
+
+/** Typeface pairing, switchable from the theme menu so the owner can compare live. */
+export type Typeface = 'kleros' | 'geist' | 'plex'
+export const TYPEFACE_STORAGE_KEY = 'curatevision-typeface'
+export const DEFAULT_TYPEFACE: Typeface = 'kleros'
+export const TYPEFACES: { value: Typeface; label: string; hint: string }[] = [
+  {
+    value: 'kleros',
+    label: 'Urbanist + Geist',
+    hint: 'Kleros brand display, Geist text',
+  },
+  { value: 'geist', label: 'Geist', hint: 'One grotesk throughout' },
+  { value: 'plex', label: 'IBM Plex', hint: 'Plex Sans + Plex Mono' },
+]
+const TYPEFACE_FONT_CSS: Record<Typeface, string> = {
+  kleros:
+    'https://fonts.googleapis.com/css2?family=Urbanist:wght@300;400;500;600&family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap',
+  geist:
+    'https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap',
+  plex: 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap',
+}
+const isTypeface = (value: unknown): value is Typeface =>
+  value === 'kleros' || value === 'geist' || value === 'plex'
+/** Loads a pairing's stylesheet once; the default is in index.html already. */
+const ensureTypefaceLoaded = (face: Typeface) => {
+  if (typeof document === 'undefined') return
+  const id = `cv-font-${face}`
+  if (document.querySelector(`#${id}`)) return
+  const link = document.createElement('link')
+  link.id = id
+  link.rel = 'stylesheet'
+  link.href = TYPEFACE_FONT_CSS[face]
+  document.head.append(link)
+}
+const readSavedTypeface = (): Typeface => {
+  try {
+    const saved = localStorage.getItem(TYPEFACE_STORAGE_KEY)
+    if (isTypeface(saved)) return saved
+  } catch {
+    // Storage can be blocked; fall through to the default.
+  }
+  return DEFAULT_TYPEFACE
+}
+
+interface Palette {
+  name: ThemeName
+  background: string
+  surface: string
+  raised: string
+  text: string
+  textMuted: string
+  textFaint: string
+  textInverted: string
+  border: string
+  borderStrong: string
+  primary: string
+  /** Button fill: may be deeper than `primary` so white text clears 4.5:1. */
+  primaryFill: string
+  /** Button fill on hover: keeps its on-primary label at 4.5:1 or more. */
+  primaryFillHover: string
+  /** Link and text hover. */
+  primaryHover: string
+  onPrimary: string
+  primarySoft: string
+  indigo: string
+  indigoSoft: string
+  success: string
+  successSoft: string
+  warning: string
+  warningSoft: string
+  danger: string
+  dangerSoft: string
+  shadow: string
+  shadowHover: string
+  overlayShadow: string
+  glow: string
+  /** Second, fainter hue at the rim of the bloom (iridescent trace). */
+  glowRim: string
+  /** Translucent card fill, its hairline and its top highlight. */
+  glass: string
+  glassBorder: string
+  glassHighlight: string
+  /** Outside the app frame: the aurora's base and its three hues. */
+  stage: string
+  auroraA: string
+  auroraB: string
+  auroraC: string
+  /**
+   * Categorical data colours (rings, legends): four distinct hues in a fixed
+   * order, none of them a status colour, each 3:1 or more on the surface.
+   */
+  viz: [string, string, string, string]
+}
+
+const light: Palette = {
   name: 'light',
-  bodyBackground: '#f7f3ff',
-  componentBackground: '#ffffff',
-  cardBackground: '#ffffff',
-  elevatedBackground: '#f0e9ff',
-  textPrimary: '#220050',
-  textSecondary: '#5b4d74',
-  textTertiary: '#8c7aa8',
+  background: '#fbfcfe',
+  surface: '#ffffff',
+  raised: '#f1f4fa',
+  text: '#0b1220',
+  textMuted: '#4d5a6e',
+  textFaint: '#647083',
   textInverted: '#ffffff',
-  textOnPrimary: '#ffffff',
-  primaryColor: '#009aff',
-  primaryColorHover: '#0077c8',
-  secondaryColor: '#4d00b4',
-  tertiaryColor: '#6a1dcd',
-  quaternaryColor: '#f0e9ff',
-  gradientStart: '#4d00b4',
-  gradientEnd: '#220050',
-  gradientMid: '#6a1dcd',
-  navbarBackground: '#4d00b4',
-  footerBackground: '#4d00b4',
-  borderColor: '#e6def4',
-  shadowColor: 'rgba(77, 0, 180, 0.08)',
-  successColor: '#00b341',
-  errorColor: '#e54545',
-  warningColor: '#f28c1b',
-  infoColor: '#009aff',
-  linkColor: '#009aff',
-  disabledColor: 'rgba(0, 0, 0, 0.25)',
-  bannerGradient:
-    'linear-gradient(135deg, rgba(255,255,255,0.92) 0%, rgba(233,240,249,0.82) 100%)',
-  bannerTextColor: '#101722',
-  bannerTitleColor: '#101722',
-  bannerDescriptionColor: '#4c5a6d',
-  bannerLinkColor: '#1677ff',
-  bannerLinkHoverColor: '#4cc9f0',
-  bannerPolicyLinkColor: '#1677ff',
-  bannerPolicyLinkHoverColor: '#4cc9f0',
-  buttonPrimaryBg: '#4d00b4',
-  buttonPrimaryText: '#ffffff',
-  buttonPrimaryHoverBg: '#6a1dcd',
-  buttonSecondaryBg: '#ffffff',
-  buttonSecondaryText: '#4d00b4',
-  switchOffBg: 'rgba(0, 0, 0, 0.25)',
-  switchHoverBg: '#7c3aed',
-  switchHandleBg: '#ffffff',
-  focusBorderColor: 'rgba(104, 38, 191, 0.4)',
-  focusShadowColor: 'rgba(104, 38, 191, 0.2)',
-  cardHeaderGradient: '#ffffff',
-  cardHeaderLinkColor: '#009aff',
-  cardHeaderLinkHoverColor: '#0077c8',
-  evidenceCardBorder: '#e0d4f0',
-  timelineDotColor: '#b09cd0',
-  cardShadow: '0 2px 3px rgba(0, 0, 0, 0.06)',
-  cardNsfwText: '#ffffff',
-  dropdownShadow: 'rgba(188, 156, 255, 0.3)',
-  dropdownHoverBg: 'rgba(104, 38, 191, 0.1)',
-  dropdownSelectedBg: 'rgba(104, 38, 191, 0.15)',
-  modalBackground: '#ffffff',
-  modalShadow: 'rgba(188, 156, 255, 0.3)',
-  modalCloseColor: '#6826bf',
-  notificationPending: '#ccc',
-  notificationAccepted: '#009aff',
-  notificationChallenged: '#fa8d39',
-  notificationAppealable: '#722ed1',
-  notificationFinalRuling: '#f95638',
-  statusCrowdfundingWinner: '#9d52d6',
-  loadingIconColor: '#009aff',
-  skeletonBase: '#ebebeb',
-  skeletonHighlight: '#f5f5f5',
-  countdownTextColor: '#ffffffa0',
-  filterBorderColor: '#cbd5e1',
-  filterTextColor: '#1f2937',
-  tourAccentColor: '#1677ff',
-  explorerGradientStart: '#1677ffd9',
-  explorerGradientEnd: '#1d4ed8d9',
-  explorerTextColor: '#4c5a6d',
-  welcomeModalShadow: 'rgba(188, 156, 255, 0.3)',
-  betaWarningBg: '#fffbe6',
-  badgeFallbackColor: '#ccc',
-  stakeTagBg: '#5a3490',
-  stakeTagText: '#e8dff5',
-  itemDetailsTitleColor: '#4d00b4',
-  itemDetailsSubtitleColor: 'rgba(77, 0, 180, 0.45)',
-  crowdfundingCardText: '#ffffff',
-  richAddressWarningColor: '#787800',
-  seerBorderColor: '#e0e0e0',
-  seerLinkColor: '#009aff',
-  seerTextPrimary: '#333',
-  seerTextSecondary: '#666',
-  seerBackgroundAlt: '#f9f9f9',
-  seerShadow: 'rgba(0, 0, 0, 0.1)',
-  tooltipBg: '#101722',
-  tooltipText: '#ffffff',
-  tooltipBorder: '#243044',
-  tooltipShadow: 'rgba(18, 26, 38, 0.24)',
-  curateBg: '#f7f3ff',
-  curateBgSoft: '#ffffff',
-  curateSurface: '#ffffff',
-  curateSurfaceStrong: '#ffffff',
-  curateBorder: '#e6def4',
-  curateBorderStrong: '#009aff',
-  curateText: '#220050',
-  curateMuted: '#5b4d74',
-  curateFaint: '#8c7aa8',
-  curateLive: '#009aff',
-  curateLiveSoft: '#e4f5ff',
-  curateViolet: '#4d00b4',
-  curateVioletSoft: '#f0e6ff',
-  curateSuccess: '#00b341',
-  curateSuccessSoft: '#e4f8e9',
-  curateWarning: '#f28c1b',
-  curateWarningSoft: '#fff2df',
-  curateDanger: '#e54545',
-  curateDangerSoft: '#ffe8e8',
-  curateShadow: '0 2px 3px rgba(0, 0, 0, 0.06)',
-  curateShadowHover: '0 10px 24px rgba(77, 0, 180, 0.12)',
-  curateGlowA: 'transparent',
-  curateGlowB: 'transparent',
+  border: 'rgba(16, 24, 40, 0.08)',
+  borderStrong: 'rgba(16, 24, 40, 0.16)',
+  primary: '#2a63f0',
+  primaryFill: '#2a63f0',
+  primaryFillHover: '#2459e0',
+  primaryHover: '#2459e0',
+  onPrimary: '#ffffff',
+  primarySoft: 'rgba(42, 99, 240, 0.1)',
+  indigo: '#5b61d6',
+  indigoSoft: 'rgba(91, 97, 214, 0.1)',
+  success: '#127d47',
+  successSoft: 'rgba(20, 138, 78, 0.1)',
+  warning: '#9a5b00',
+  warningSoft: 'rgba(154, 91, 0, 0.1)',
+  danger: '#c92a2a',
+  dangerSoft: 'rgba(201, 42, 42, 0.1)',
+  shadow: '0 1px 2px rgba(16, 24, 40, 0.05), 0 8px 24px rgba(16, 24, 40, 0.05)',
+  shadowHover:
+    '0 2px 6px rgba(16, 24, 40, 0.08), 0 16px 40px rgba(16, 24, 40, 0.08)',
+  overlayShadow: '0 20px 60px rgba(16, 24, 40, 0.16)',
+  glow: 'rgba(47, 107, 255, 0.08)',
+  glowRim: 'rgba(124, 92, 255, 0.05)',
+  glass: '#ffffff',
+  glassBorder: 'rgba(16, 24, 40, 0.08)',
+  glassHighlight: 'rgba(255, 255, 255, 1)',
+  stage: '#dfe6f7',
+  auroraA: '#9db7ff',
+  auroraB: '#b8e3ff',
+  auroraC: '#c9b8ff',
+  viz: ['#2a63f0', '#0a87ad', '#7b4fd6', '#c43c84'],
 }
 
-export const darkTheme = {
+const dark: Palette = {
   name: 'dark',
-  bodyBackground: '#02030a',
-  componentBackground: '#070914',
-  cardBackground: '#070914',
-  elevatedBackground: '#0d1224',
-  textPrimary: '#ffffff',
-  textSecondary: '#d8def2',
-  textTertiary: '#8790b0',
-  textInverted: '#03060a',
-  textOnPrimary: '#02030a',
-  primaryColorHover: '#66c7ff',
-  primaryColor: '#48b9ff',
-  secondaryColor: '#8f5cff',
-  tertiaryColor: '#ff4fd8',
-  quaternaryColor: '#0d1224',
-  gradientStart: '#050814',
-  gradientEnd: '#02030a',
-  gradientMid: '#10183a',
-  navbarBackground: '#02030a',
-  footerBackground: '#02030a',
-  borderColor: 'rgba(140, 161, 214, 0.18)',
-  shadowColor: 'rgba(0, 0, 0, 0.72)',
-  successColor: '#16f195',
-  errorColor: '#ff4d67',
-  warningColor: '#ffb14a',
-  infoColor: '#48b9ff',
-  linkColor: '#48b9ff',
-  disabledColor: 'rgba(255, 255, 255, 0.35)',
-  bannerGradient:
-    'linear-gradient(135deg, rgba(2,3,10,0.98) 0%, rgba(7,9,20,0.94) 100%)',
-  bannerTextColor: '#e8eef7',
-  bannerTitleColor: '#f8fbff',
-  bannerDescriptionColor: 'rgba(232, 238, 247, 0.68)',
-  bannerLinkColor: '#00a3ff',
-  bannerLinkHoverColor: '#6ca1ff',
-  bannerPolicyLinkColor: '#00a3ff',
-  bannerPolicyLinkHoverColor: '#6ca1ff',
-  buttonPrimaryBg: '#48b9ff',
-  buttonPrimaryText: '#02030a',
-  buttonPrimaryHoverBg: '#7bd0ff',
-  buttonSecondaryBg: '#0d1224',
-  buttonSecondaryText: '#ffffff',
-  switchOffBg: '#12182a',
-  switchHoverBg: '#48b9ff',
-  switchHandleBg: '#ffffff',
-  focusBorderColor: 'rgba(95, 173, 219, 0.5)',
-  focusShadowColor: 'rgba(95, 173, 219, 0.2)',
-  cardHeaderGradient: '#070914',
-  cardHeaderLinkColor: '#66c7ff',
-  cardHeaderLinkHoverColor: '#acffff',
-  evidenceCardBorder: '#1d2938',
-  timelineDotColor: '#45556b',
-  cardShadow: '0 18px 46px rgba(0, 0, 0, 0.34)',
-  cardNsfwText: '#ffffff',
-  dropdownShadow: 'rgba(0, 0, 0, 0.5)',
-  dropdownHoverBg: 'rgba(72, 185, 255, 0.1)',
-  dropdownSelectedBg: 'rgba(72, 185, 255, 0.15)',
-  modalBackground: '#070914',
-  modalShadow: 'rgba(0, 0, 0, 0.5)',
-  modalCloseColor: '#00a3ff',
-  notificationPending: '#ccc',
-  notificationAccepted: '#00a3ff',
-  notificationChallenged: '#fa8d39',
-  notificationAppealable: '#722ed1',
-  notificationFinalRuling: '#f95638',
-  statusCrowdfundingWinner: '#9d52d6',
-  loadingIconColor: '#48b9ff',
-  skeletonBase: '#0a0f1f',
-  skeletonHighlight: '#16203a',
-  countdownTextColor: '#ffffff5c',
-  filterBorderColor: 'rgba(140, 161, 214, 0.22)',
-  filterTextColor: '#d8def2',
-  tourAccentColor: '#48b9ff',
-  explorerGradientStart: '#48b9ffd9',
-  explorerGradientEnd: '#8f5cffd9',
-  explorerTextColor: '#a5b1c2',
-  welcomeModalShadow: 'rgba(0, 0, 0, 0.5)',
-  betaWarningBg: '#20182d',
-  badgeFallbackColor: '#ccc',
-  stakeTagBg: '#101a32',
-  stakeTagText: '#dff8ff',
-  itemDetailsTitleColor: '#6ca1ff',
-  itemDetailsSubtitleColor: 'rgba(255, 255, 255, 0.6)',
-  crowdfundingCardText: '#ffffff',
-  richAddressWarningColor: '#ffc53d',
-  seerBorderColor: 'rgba(140, 161, 214, 0.18)',
-  seerLinkColor: '#48b9ff',
-  seerTextPrimary: '#eef7ff',
-  seerTextSecondary: '#a5b1c2',
-  seerBackgroundAlt: '#0d1224',
-  seerShadow: 'rgba(0, 0, 0, 0.3)',
-  tooltipBg: '#070914',
-  tooltipText: '#ffffff',
-  tooltipBorder: 'rgba(140, 161, 214, 0.18)',
-  tooltipShadow: 'rgba(0, 0, 0, 0.6)',
-  curateBg: '#02030a',
-  curateBgSoft: '#050814',
-  curateSurface: '#070914',
-  curateSurfaceStrong: '#0d1224',
-  curateBorder: 'rgba(140, 161, 214, 0.18)',
-  curateBorderStrong: '#48b9ff',
-  curateText: '#ffffff',
-  curateMuted: '#d8def2',
-  curateFaint: '#8790b0',
-  curateLive: '#48b9ff',
-  curateLiveSoft: 'rgba(72, 185, 255, 0.14)',
-  curateViolet: '#8f5cff',
-  curateVioletSoft: 'rgba(143, 92, 255, 0.14)',
-  curateSuccess: '#5ce28b',
-  curateSuccessSoft: 'rgba(92, 226, 139, 0.14)',
-  curateWarning: '#ffb55b',
-  curateWarningSoft: 'rgba(255, 181, 91, 0.16)',
-  curateDanger: '#ff7777',
-  curateDangerSoft: 'rgba(255, 119, 119, 0.16)',
-  curateShadow: '0 18px 46px rgba(0, 0, 0, 0.34)',
-  curateShadowHover: '0 24px 70px rgba(0, 0, 0, 0.46)',
-  curateGlowA: 'rgba(72, 185, 255, 0.18)',
-  curateGlowB: 'rgba(255, 79, 216, 0.13)',
+  background: '#060912',
+  surface: '#0c111d',
+  raised: 'rgba(255, 255, 255, 0.045)',
+  text: '#f4f6fb',
+  textMuted: '#a1abc0',
+  textFaint: '#7a849e',
+  textInverted: '#04101f',
+  border: 'rgba(255, 255, 255, 0.07)',
+  borderStrong: 'rgba(255, 255, 255, 0.16)',
+  primary: '#3d7bff',
+  primaryFill: '#2962ff',
+  primaryFillHover: '#1f56f5',
+  primaryHover: '#5a8fff',
+  onPrimary: '#ffffff',
+  primarySoft: 'rgba(61, 123, 255, 0.16)',
+  indigo: '#8b93ff',
+  indigoSoft: 'rgba(139, 147, 255, 0.14)',
+  success: '#34d399',
+  successSoft: 'rgba(52, 211, 153, 0.14)',
+  warning: '#f5b04a',
+  warningSoft: 'rgba(245, 176, 74, 0.14)',
+  danger: '#ff6b7a',
+  dangerSoft: 'rgba(255, 107, 122, 0.14)',
+  shadow: 'none',
+  shadowHover: '0 12px 40px rgba(0, 0, 0, 0.35)',
+  overlayShadow: '0 24px 80px rgba(0, 0, 0, 0.6)',
+  glow: 'rgba(61, 123, 255, 0.16)',
+  glowRim: 'rgba(120, 90, 255, 0.10)',
+  glass: 'rgba(255, 255, 255, 0.03)',
+  glassBorder: 'rgba(255, 255, 255, 0.07)',
+  glassHighlight: 'rgba(255, 255, 255, 0.06)',
+  stage: '#02040b',
+  auroraA: '#1b2fff',
+  auroraB: '#0a7cff',
+  auroraC: '#5b2bff',
+  viz: ['#3d7bff', '#1aa3c4', '#a274ff', '#d9558f'],
 }
+
+// Values from @kleros/ui-components-library theme.css (dark set), see DESIGN.md.
+const kleros: Palette = {
+  name: 'kleros',
+  background: '#10022a',
+  surface: '#1a073d',
+  raised: 'rgba(255, 255, 255, 0.05)',
+  text: '#eaf4ff',
+  textMuted: '#b9c6e0',
+  textFaint: '#8f87bd',
+  textInverted: '#14002f',
+  border: 'rgba(255, 255, 255, 0.1)',
+  borderStrong: 'rgba(255, 255, 255, 0.2)',
+  primary: '#6cc5ff',
+  primaryFill: '#6cc5ff',
+  primaryFillHover: '#a5dbff',
+  primaryHover: '#a5dbff',
+  onPrimary: '#14002f',
+  primarySoft: 'rgba(108, 197, 255, 0.16)',
+  indigo: '#b45fff',
+  indigoSoft: 'rgba(180, 95, 255, 0.16)',
+  success: '#65dc7f',
+  successSoft: 'rgba(101, 220, 127, 0.14)',
+  warning: '#ffc46b',
+  warningSoft: 'rgba(255, 196, 107, 0.14)',
+  danger: '#ff5a78',
+  dangerSoft: 'rgba(255, 90, 120, 0.14)',
+  shadow: 'none',
+  shadowHover: '0 12px 40px rgba(0, 0, 0, 0.4)',
+  overlayShadow: '0 24px 80px rgba(0, 0, 0, 0.6)',
+  glow: 'rgba(144, 19, 254, 0.18)',
+  glowRim: 'rgba(108, 197, 255, 0.10)',
+  glass: 'rgba(255, 255, 255, 0.035)',
+  glassBorder: 'rgba(255, 255, 255, 0.1)',
+  glassHighlight: 'rgba(255, 255, 255, 0.1)',
+  stage: '#07001a',
+  auroraA: '#7e1bd4',
+  auroraB: '#4d00b4',
+  auroraC: '#27cdfe',
+  viz: ['#3d7bff', '#1aa3c4', '#a274ff', '#d9558f'],
+}
+
+/** Expands a palette into the full set of keys the app's styled components read. */
+const buildTheme = (p: Palette) => ({
+  name: p.name,
+  bodyBackground: p.background,
+  componentBackground: p.surface,
+  cardBackground: p.surface,
+  elevatedBackground: p.raised,
+  textPrimary: p.text,
+  textSecondary: p.textMuted,
+  textTertiary: p.textFaint,
+  textInverted: p.textInverted,
+  textOnPrimary: p.onPrimary,
+  primaryColor: p.primary,
+  primaryColorHover: p.primaryHover,
+  secondaryColor: p.indigo,
+  tertiaryColor: p.indigo,
+  quaternaryColor: p.raised,
+  gradientStart: p.surface,
+  gradientEnd: p.background,
+  gradientMid: p.raised,
+  navbarBackground: p.surface,
+  footerBackground: p.surface,
+  borderColor: p.border,
+  shadowColor:
+    p.name === 'light' ? 'rgba(16, 24, 40, 0.08)' : 'rgba(0, 0, 0, 0.5)',
+  successColor: p.success,
+  errorColor: p.danger,
+  warningColor: p.warning,
+  infoColor: p.primary,
+  linkColor: p.primary,
+  disabledColor:
+    p.name === 'light' ? 'rgba(15, 20, 25, 0.3)' : 'rgba(233, 238, 245, 0.35)',
+  bannerGradient: p.raised,
+  bannerTextColor: p.text,
+  bannerTitleColor: p.text,
+  bannerDescriptionColor: p.textMuted,
+  bannerLinkColor: p.primary,
+  bannerLinkHoverColor: p.primaryHover,
+  bannerPolicyLinkColor: p.primary,
+  bannerPolicyLinkHoverColor: p.primaryHover,
+  buttonPrimaryBg: p.primaryFill,
+  primaryFill: p.primaryFill,
+  buttonPrimaryText: p.onPrimary,
+  buttonPrimaryHoverBg: p.primaryFillHover,
+  primaryFillHover: p.primaryFillHover,
+  buttonSecondaryBg: p.surface,
+  buttonSecondaryText: p.text,
+  switchOffBg: p.borderStrong,
+  switchHoverBg: p.primaryHover,
+  switchHandleBg: '#ffffff',
+  focusBorderColor: p.primary,
+  focusShadowColor: p.primarySoft,
+  cardHeaderGradient: p.surface,
+  cardHeaderLinkColor: p.primary,
+  cardHeaderLinkHoverColor: p.primaryHover,
+  evidenceCardBorder: p.border,
+  timelineDotColor: p.borderStrong,
+  cardShadow: p.shadow,
+  cardNsfwText: p.text,
+  dropdownShadow: p.overlayShadow,
+  dropdownHoverBg: p.raised,
+  dropdownSelectedBg: p.primarySoft,
+  modalBackground: p.surface,
+  modalShadow: p.overlayShadow,
+  modalCloseColor: p.textMuted,
+  notificationPending: p.textFaint,
+  notificationAccepted: p.success,
+  notificationChallenged: p.warning,
+  notificationAppealable: p.warning,
+  notificationFinalRuling: p.danger,
+  statusCrowdfundingWinner: p.warning,
+  loadingIconColor: p.primary,
+  skeletonBase: p.raised,
+  skeletonHighlight: p.surface,
+  countdownTextColor: p.textMuted,
+  filterBorderColor: p.border,
+  filterTextColor: p.text,
+  tourAccentColor: p.primary,
+  explorerGradientStart: p.raised,
+  explorerGradientEnd: p.raised,
+  explorerTextColor: p.textMuted,
+  welcomeModalShadow: p.overlayShadow,
+  betaWarningBg: p.warningSoft,
+  badgeFallbackColor: p.borderStrong,
+  stakeTagBg: p.indigoSoft,
+  stakeTagText: p.indigo,
+  itemDetailsTitleColor: p.text,
+  itemDetailsSubtitleColor: p.textMuted,
+  crowdfundingCardText: p.text,
+  richAddressWarningColor: p.warning,
+  seerBorderColor: p.border,
+  seerLinkColor: p.primary,
+  seerTextPrimary: p.text,
+  seerTextSecondary: p.textMuted,
+  seerBackgroundAlt: p.raised,
+  seerShadow: p.shadow,
+  tooltipBg: p.name === 'light' ? '#0f1419' : p.raised,
+  tooltipText: p.name === 'light' ? '#ffffff' : p.text,
+  tooltipBorder: p.name === 'light' ? '#0f1419' : p.borderStrong,
+  tooltipShadow: p.overlayShadow,
+  curateBg: p.background,
+  curateBgSoft: p.surface,
+  curateSurface: p.surface,
+  curateSurfaceStrong: p.surface,
+  curateBorder: p.border,
+  curateBorderStrong: p.borderStrong,
+  curateText: p.text,
+  curateMuted: p.textMuted,
+  curateFaint: p.textFaint,
+  curateLive: p.primary,
+  curateLiveSoft: p.primarySoft,
+  curateViolet: p.indigo,
+  curateVioletSoft: p.indigoSoft,
+  curateSuccess: p.success,
+  curateSuccessSoft: p.successSoft,
+  curateWarning: p.warning,
+  curateWarningSoft: p.warningSoft,
+  curateDanger: p.danger,
+  curateDangerSoft: p.dangerSoft,
+  curateShadow: p.shadow,
+  curateShadowHover: p.shadowHover,
+  curateGlowA: p.glow,
+  curateGlowB: p.glowRim,
+  glass: p.glass,
+  glassBorder: p.glassBorder,
+  glassHighlight: p.glassHighlight,
+  stage: p.stage,
+  auroraA: p.auroraA,
+  auroraB: p.auroraB,
+  auroraC: p.auroraC,
+  viz: p.viz,
+})
+
+export const lightTheme = buildTheme(light)
+export const darkTheme = buildTheme(dark)
+export const klerosTheme = buildTheme(kleros)
 
 export type Theme = typeof lightTheme
 
+const THEMES: Record<ThemeName, Theme> = {
+  light: lightTheme,
+  dark: darkTheme,
+  kleros: klerosTheme,
+}
+
+export const THEME_MODES: { value: ThemeMode; label: string; hint: string }[] =
+  [
+    { value: 'system', label: 'System', hint: 'Follows your device' },
+    { value: 'light', label: 'Light', hint: 'Cool neutral canvas' },
+    { value: 'dark', label: 'Dark', hint: 'Glow stage' },
+    { value: 'kleros', label: 'Kleros', hint: 'Brand purple' },
+  ]
+
+const isThemeMode = (value: unknown): value is ThemeMode =>
+  value === 'system' ||
+  value === 'light' ||
+  value === 'dark' ||
+  value === 'kleros'
+
+const systemPrefersDark = () =>
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-color-scheme: dark)').matches
+
+const resolveMode = (mode: ThemeMode, prefersDark: boolean): ThemeName =>
+  mode === 'system' ? (prefersDark ? 'dark' : 'light') : mode
+
+/**
+ * Default mode for visitors who never picked one: follow the operating system
+ * (DESIGN.md). Must match DEFAULT_MODE in index.html, which applies the saved
+ * mode before React mounts.
+ */
+export const DEFAULT_THEME_MODE: ThemeMode = 'system'
+
+/** ?cv-theme=light|dark|kleros previews a theme for one visit without saving it. */
+const forcedMode = (): ThemeMode | null => {
+  if (typeof window === 'undefined') return null
+  const value = new URLSearchParams(window.location.search).get('cv-theme')
+  return value === 'light' || value === 'dark' || value === 'kleros'
+    ? value
+    : null
+}
+
+const readSavedMode = (): ThemeMode => {
+  const forced = forcedMode()
+  if (forced) return forced
+  try {
+    const saved = localStorage.getItem(THEME_STORAGE_KEY)
+    if (isThemeMode(saved)) return saved
+  } catch {
+    // Storage can be blocked; fall through to the default.
+  }
+  return DEFAULT_THEME_MODE
+}
+
 interface ThemeContextValue {
+  /** True for dark and kleros; kept for components written against the old toggle. */
   isDarkMode: boolean
+  /** Switches between light and dark; kept for the old toggle button. */
   toggleTheme: () => void
   theme: Theme
+  mode: ThemeMode
+  setMode: (mode: ThemeMode) => void
+  resolved: ThemeName
+  typeface: Typeface
+  setTypeface: (face: Typeface) => void
 }
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined)
 
 const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    const saved = localStorage.getItem(THEME_STORAGE_KEY)
-    if (saved !== null) return saved === 'dark'
+  const [mode, setModeState] = useState<ThemeMode>(readSavedMode)
+  const [prefersDark, setPrefersDark] = useState<boolean>(systemPrefersDark)
+  const [typeface, setTypefaceState] = useState<Typeface>(readSavedTypeface)
 
-    return true
-  })
-
-  const theme = isDarkMode ? darkTheme : lightTheme
-
-  const toggleTheme = useCallback(() => {
-    setIsDarkMode((prev) => !prev)
+  const setTypeface = useCallback((next: Typeface) => {
+    setTypefaceState(next)
+    try {
+      localStorage.setItem(TYPEFACE_STORAGE_KEY, next)
+    } catch {
+      // Storage can be blocked; the choice then lasts for the session.
+    }
   }, [])
 
   useEffect(() => {
-    localStorage.setItem(THEME_STORAGE_KEY, isDarkMode ? 'dark' : 'light')
-    document.body.setAttribute('data-theme', isDarkMode ? 'dark' : 'light')
-    document.body.style.backgroundColor = theme.curateBg
+    ensureTypefaceLoaded(typeface)
+    document.body.setAttribute('data-type', typeface)
+  }, [typeface])
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const onChange = (event: MediaQueryListEvent) =>
+      setPrefersDark(event.matches)
+    media.addEventListener('change', onChange)
+    return () => media.removeEventListener('change', onChange)
+  }, [])
+
+  const resolved = resolveMode(mode, prefersDark)
+  const theme = THEMES[resolved]
+  const isDarkMode = resolved !== 'light'
+
+  const setMode = useCallback((next: ThemeMode) => {
+    setModeState(next)
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, next)
+    } catch {
+      // Storage can be blocked; the choice then lasts for the session.
+    }
+  }, [])
+
+  const toggleTheme = useCallback(() => {
+    setMode(resolved === 'light' ? 'dark' : 'light')
+  }, [resolved, setMode])
+
+  useEffect(() => {
+    document.body.setAttribute('data-theme', resolved)
+    document.body.style.backgroundColor = theme.stage
+    document.body.style.colorScheme = isDarkMode ? 'dark' : 'light'
     // Shared @kleros/ui-components-library components (e.g. FileViewer) read
     // their CSS variables from `:root.dark`, so keep that class in sync.
     document.documentElement.classList.toggle('dark', isDarkMode)
-  }, [isDarkMode, theme.curateBg])
+  }, [resolved, isDarkMode, theme.stage])
+
+  const value = useMemo(
+    () => ({
+      isDarkMode,
+      toggleTheme,
+      theme,
+      mode,
+      setMode,
+      resolved,
+      typeface,
+      setTypeface,
+    }),
+    [
+      isDarkMode,
+      toggleTheme,
+      theme,
+      mode,
+      setMode,
+      resolved,
+      typeface,
+      setTypeface,
+    ],
+  )
 
   return (
-    <ThemeContext.Provider value={{ isDarkMode, toggleTheme, theme }}>
+    <ThemeContext.Provider value={value}>
       <StyledThemeProvider theme={theme}>{children}</StyledThemeProvider>
     </ThemeContext.Provider>
   )

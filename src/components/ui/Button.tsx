@@ -1,109 +1,218 @@
 import React from 'react'
-import styled from 'styled-components'
+import styled, {
+  css,
+  keyframes,
+  type FlattenSimpleInterpolation,
+} from 'styled-components'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import type { IconProp } from '@fortawesome/fontawesome-svg-core'
+import { joinClassNames, kitRadius, motionOk } from './kit-styles'
 
-const variantMap: Record<string, 'primary' | 'secondary' | 'tertiary'> = {
+/*
+ * Button, v2: primary (blue fill with a soft glow and grain), secondary
+ * (raised glass), ghost, link and danger (soft danger tint). Height 40, 32
+ * small, radius 10, labels at 500. Press dips to 97% and springs back.
+ * Disabled turns neutral with its label at full contrast.
+ * `type` keeps the legacy names and maps them onto those looks; indigo is
+ * never used on buttons. A pending action runs a thin shimmer along the
+ * bottom edge instead of a spinner.
+ */
+
+type Variant = 'primary' | 'secondary' | 'ghost' | 'link' | 'danger'
+
+const variantMap: Record<string, Variant> = {
   default: 'secondary',
   primary: 'primary',
   secondary: 'secondary',
-  ghost: 'secondary',
-  link: 'secondary',
-  purple: 'tertiary',
-  danger: 'tertiary',
+  dashed: 'secondary',
+  ghost: 'ghost',
+  link: 'link',
+  purple: 'primary',
+  danger: 'danger',
 }
+
+const enabledState =
+  ':not(:disabled):not([aria-disabled="true"]):not([data-loading="true"])'
+const enabled = `&${enabledState}`
+
+const variantStyles: Record<Variant, FlattenSimpleInterpolation> = {
+  primary: css`
+    border-color: transparent;
+    background: var(--color-primary-fill);
+    color: var(--color-on-primary);
+    box-shadow:
+      inset 0 1px 0 var(--glass-highlight),
+      0 0 0 1px color-mix(in srgb, var(--color-primary) 45%, transparent),
+      0 10px 28px -12px var(--color-primary);
+
+    /* Fine grain over the fill so it reads as a lit material, not flat paint. */
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background-image: var(--noise);
+      background-size: 120px;
+      opacity: 0.1;
+      mix-blend-mode: overlay;
+      pointer-events: none;
+    }
+
+    ${enabled}:hover {
+      filter: brightness(1.08);
+      box-shadow:
+        inset 0 1px 0 var(--glass-highlight),
+        0 0 0 1px color-mix(in srgb, var(--color-primary) 60%, transparent),
+        0 12px 32px -10px var(--color-primary);
+    }
+  `,
+  secondary: css`
+    border-color: var(--glass-border);
+    background: var(--color-raised);
+    color: var(--color-text);
+    box-shadow: inset 0 1px 0 var(--glass-highlight);
+
+    ${enabled}:hover {
+      border-color: var(--color-border-strong);
+      background: color-mix(in srgb, var(--color-text) 7%, transparent);
+    }
+  `,
+  ghost: css`
+    border-color: transparent;
+    background: transparent;
+    color: var(--color-muted);
+
+    ${enabled}:hover {
+      color: var(--color-text);
+      background: var(--color-raised);
+    }
+  `,
+  link: css`
+    /* Inline links stay compact but keep a 24px touch target. */
+    height: auto;
+    min-height: 24px;
+    padding-inline: 0;
+    border-color: transparent;
+    background: transparent;
+    color: var(--color-primary);
+
+    ${enabled}:hover {
+      color: var(--color-primary-hover);
+    }
+
+    ${enabled}:active {
+      transform: none;
+    }
+  `,
+  danger: css`
+    border-color: color-mix(in srgb, var(--color-danger) 38%, transparent);
+    background: var(--color-danger-soft);
+    color: var(--color-danger);
+
+    ${enabled}:hover {
+      border-color: color-mix(in srgb, var(--color-danger) 60%, transparent);
+      background: color-mix(in srgb, var(--color-danger) 20%, transparent);
+    }
+  `,
+}
+
+const pending = keyframes`
+  from { background-position: 160% 0; }
+  to { background-position: -60% 0; }
+`
 
 const ButtonScope = styled.span<{
   $block?: boolean
-  $link?: boolean
   $small?: boolean
   $shape?: string
-  $variant?: 'primary' | 'secondary' | 'tertiary'
+  $variant: Variant
 }>`
   display: ${({ $block }) => ($block ? 'flex' : 'inline-flex')};
   width: ${({ $block }) => ($block ? '100%' : 'auto')};
+  max-width: 100%;
+  vertical-align: middle;
 
   > .gtcr-v2-button {
     position: relative;
+    isolation: isolate;
     box-sizing: border-box;
     display: inline-flex;
-    flex-direction: row;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    width: ${({ $block }) => ($block ? '100%' : 'fit-content')};
-    min-height: ${({ $small }) => ($small ? '32px' : '46px')};
-    padding: ${({ $small, $variant }) =>
-      $variant === 'secondary'
-        ? $small
-          ? '5px 23px'
-          : '10.5px 31px'
-        : $small
-          ? '6px 24px'
-          : '11.5px 32px'};
-    border: ${({ $variant }) =>
-      $variant === 'secondary'
-        ? '1px solid var(--klerosUIComponentsPrimaryBlue)'
-        : '1px solid transparent'};
-    border-radius: ${({ $shape }) => ($shape === 'round' ? '999px' : '3px')};
-    background: ${({ $variant }) =>
-      $variant === 'tertiary'
-        ? 'var(--klerosUIComponentsSecondaryPurple)'
-        : $variant === 'secondary'
-          ? 'var(--klerosUIComponentsWhiteBackground)'
-          : 'var(--klerosUIComponentsPrimaryBlue)'};
-    color: ${({ $variant }) =>
-      $variant === 'secondary'
-        ? 'var(--klerosUIComponentsPrimaryBlue)'
-        : 'var(--klerosUIComponentsWhiteBackground)'};
+    width: ${({ $block }) => ($block ? '100%' : 'auto')};
+    height: ${({ $small }) => ($small ? '32px' : '40px')};
+    padding: 0 ${({ $small }) => ($small ? '12px' : '18px')};
+    overflow: hidden;
+    border: 1px solid transparent;
+    border-radius: ${({ $shape }) =>
+      $shape === 'round' || $shape === 'circle'
+        ? 'var(--radius-pill)'
+        : kitRadius.control};
+    font-family: var(--font-sans);
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+    font-weight: 500;
+    letter-spacing: -0.005em;
+    white-space: nowrap;
+    text-decoration: none;
     cursor: pointer;
     appearance: none;
-    font: inherit;
-    transform: translateZ(0);
     transition:
-      background var(--klerosUIComponentsTransitionSpeed),
-      transform var(--klerosUIComponentsTransitionSpeed);
-    text-decoration: none;
+      background var(--dur-hover) var(--ease-out),
+      border-color var(--dur-hover) var(--ease-out),
+      box-shadow var(--dur-hover) var(--ease-out),
+      color var(--dur-hover) var(--ease-out),
+      filter var(--dur-hover) var(--ease-out),
+      transform 260ms var(--ease-spring);
+
+    ${({ $variant }) => variantStyles[$variant]}
   }
 
-  > .gtcr-v2-button:hover {
-    background: ${({ $variant }) =>
-      $variant === 'tertiary'
-        ? 'var(--klerosUIComponentsPrimaryPurple)'
-        : $variant === 'secondary'
-          ? 'var(--klerosUIComponentsMediumBlue)'
-          : 'var(--klerosUIComponentsSecondaryBlue)'};
-  }
+  /* Press dips to 97% and springs back; no movement under reduced motion. */
+  ${motionOk(css`
+    > .gtcr-v2-button${enabledState}:active {
+      transform: scale(0.97);
+      transition-duration: var(--dur-press);
+      transition-timing-function: var(--ease-out);
+    }
+  `)}
 
-  > .gtcr-v2-button:active {
-    transform: scale(0.95);
-  }
-
-  > .gtcr-v2-button[disabled],
-  > .gtcr-v2-button[aria-disabled='true'],
-  > .gtcr-v2-button[data-loading='true'] {
+  /*
+   * Disabled keeps its label fully legible (it often names the blocker,
+   * "Connect wallet to submit"): a neutral raised look in the muted text
+   * role, no fill colour, no glow, no fade.
+   */
+  > .gtcr-v2-button:disabled:not([data-loading='true']),
+  > .gtcr-v2-button[aria-disabled='true']:not([data-loading='true']) {
     border-color: ${({ $variant }) =>
-      $variant === 'secondary'
-        ? 'var(--klerosUIComponentsStroke)'
-        : 'transparent'};
-    background: var(--klerosUIComponentsLightGrey);
+      $variant === 'link' || $variant === 'ghost'
+        ? 'transparent'
+        : 'var(--glass-border)'};
+    background: ${({ $variant }) =>
+      $variant === 'link' || $variant === 'ghost'
+        ? 'transparent'
+        : 'var(--color-raised)'};
+    color: var(--color-muted);
+    box-shadow: none;
+    filter: none;
     cursor: not-allowed;
+
+    &::after {
+      content: none;
+    }
+  }
+
+  > .gtcr-v2-button[data-loading='true'] {
+    cursor: progress;
+    opacity: 0.85;
   }
 
   .button-text {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
     gap: 8px;
-    color: ${({ $variant }) =>
-      $variant === 'secondary'
-        ? 'var(--klerosUIComponentsPrimaryBlue)'
-        : 'var(--klerosUIComponentsWhiteBackground)'};
-    text-align: center;
-    font-size: 16px;
-    line-height: 22px;
-    font-weight: 600;
-    white-space: nowrap;
+    min-width: 0;
 
     > svg {
       display: block;
@@ -118,11 +227,6 @@ const ButtonScope = styled.span<{
     flex-shrink: 0;
     width: 16px;
     height: 16px;
-    color: ${({ $variant }) =>
-      $variant === 'secondary'
-        ? 'var(--klerosUIComponentsPrimaryBlue)'
-        : 'var(--klerosUIComponentsWhiteBackground)'};
-    fill: currentColor;
 
     > svg {
       display: block;
@@ -131,61 +235,44 @@ const ButtonScope = styled.span<{
     }
   }
 
+  /* Pending: a thin light runs along the bottom edge while the wallet works. */
   .button-loading {
-    width: 16px;
-    height: 16px;
-    border: 2px solid currentColor;
-    border-right-color: transparent;
-    border-radius: 50%;
-    animation: gtcr-button-spin 800ms linear infinite;
-  }
+    position: absolute;
+    right: 10px;
+    bottom: 0;
+    left: 10px;
+    height: 2px;
+    border-radius: var(--radius-pill);
+    background-image: linear-gradient(
+      90deg,
+      transparent 20%,
+      currentColor 50%,
+      transparent 80%
+    );
+    background-size: 200% 100%;
+    background-repeat: no-repeat;
+    animation: ${pending} 1.1s linear infinite;
+    pointer-events: none;
 
-  @keyframes gtcr-button-spin {
-    to {
-      transform: rotate(360deg);
+    @media (prefers-reduced-motion: reduce) {
+      animation: none;
+      background-image: none;
+      background-color: currentColor;
+      opacity: 0.6;
     }
   }
 
   ${({ $shape, $small }) =>
     $shape === 'circle' &&
-    `
+    css`
       > .gtcr-v2-button {
-        width: ${$small ? '32px' : '46px'};
-        min-width: ${$small ? '32px' : '46px'};
+        width: ${$small ? '32px' : '40px'};
+        min-width: ${$small ? '32px' : '40px'};
         padding: 0;
-        border-radius: 50%;
-      }
-
-      .button-svg {
-        margin-right: 0;
       }
 
       .button-text {
         display: none;
-      }
-    `}
-
-  > .gtcr-v2-button[disabled] .button-text,
-  > .gtcr-v2-button[aria-disabled='true'] .button-text,
-  > .gtcr-v2-button[data-loading='true'] .button-text,
-  > .gtcr-v2-button[disabled] .button-svg,
-  > .gtcr-v2-button[aria-disabled='true'] .button-svg,
-  > .gtcr-v2-button[data-loading='true'] .button-svg {
-    color: var(--klerosUIComponentsStroke);
-    fill: var(--klerosUIComponentsStroke);
-  }
-
-  ${({ $link }) =>
-    $link &&
-    `
-      > .gtcr-v2-button {
-        border: 0 !important;
-        padding-inline: 0 !important;
-        background: transparent !important;
-      }
-
-      > .gtcr-v2-button:hover {
-        background: transparent !important;
       }
     `}
 `
@@ -291,24 +378,26 @@ const Button: React.FC<ButtonProps> & { Group: React.FC<ButtonGroupProps> } = ({
       )}
     </IconWrap>
   ) : null
+  const innerClassName = joinClassNames('gtcr-v2-button', className)
 
   return (
     <ButtonScope
       $block={block}
-      $link={type === 'link' || type === 'ghost'}
       $shape={shape}
       $small={size === 'small'}
       $variant={variant}
-      className={className}
+      className={joinClassNames('ui-btn', `ui-btn-${variant}`, className)}
       style={style}
     >
       {href ? (
         <a
           id={id}
-          className={['gtcr-v2-button', className].filter(Boolean).join(' ')}
+          className={innerClassName}
           href={isDisabled ? undefined : href}
           target={target}
+          rel={target === '_blank' ? 'noopener noreferrer' : undefined}
           aria-disabled={isDisabled}
+          aria-busy={loading || undefined}
           data-loading={loading ? 'true' : undefined}
           onClick={handleClick}
           {...rest}
@@ -320,8 +409,9 @@ const Button: React.FC<ButtonProps> & { Group: React.FC<ButtonGroupProps> } = ({
       ) : (
         <button
           id={id}
-          className={['gtcr-v2-button', className].filter(Boolean).join(' ')}
+          className={innerClassName}
           disabled={isDisabled}
+          aria-busy={loading || undefined}
           data-loading={loading ? 'true' : undefined}
           type={htmlType}
           form={form}
@@ -338,7 +428,11 @@ const Button: React.FC<ButtonProps> & { Group: React.FC<ButtonGroupProps> } = ({
 }
 
 Button.Group = ({ children, style, className }: ButtonGroupProps) => (
-  <GroupWrapper style={style} className={className}>
+  <GroupWrapper
+    style={style}
+    className={joinClassNames('ui-btn-group', className)}
+    role="group"
+  >
     {children}
   </GroupWrapper>
 )

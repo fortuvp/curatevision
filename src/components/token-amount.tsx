@@ -1,17 +1,6 @@
 import React from 'react'
 import { BigNumberish, ethers } from 'ethers'
-import { Skeleton } from 'components/ui'
-import styled from 'styled-components'
-
-const SkeletonTitleProps = { width: 30 }
-
-const StyledSkeleton = styled(Skeleton)`
-  display: inline;
-
-  .ui-skeleton-title {
-    margin: -3px 0;
-  }
-`
+import { AmountPending } from 'components/curate/chrome-amount'
 
 const trimToPrecision = (value: string, precision: number) => {
   const [whole, fraction = ''] = value.split('.')
@@ -20,16 +9,14 @@ const trimToPrecision = (value: string, precision: number) => {
   return trimmedFraction ? `${whole}.${trimmedFraction}` : whole
 }
 
+/** A token amount from its smallest unit; a short shimmer while unknown. */
 const TokenAmount: React.FC<{
   amount: BigNumberish | bigint | null | undefined
   tokenDecimals?: number
   precision?: number
   displayUnit?: string
 }> = ({ amount, tokenDecimals = 18, precision = 3, displayUnit = '' }) => {
-  if (amount == null)
-    return (
-      <StyledSkeleton active paragraph={false} title={SkeletonTitleProps} />
-    )
+  if (amount == null) return <AmountPending />
 
   const formatted = ethers.utils.formatUnits(String(amount), tokenDecimals)
   const valueDisplayed = trimToPrecision(formatted, precision)

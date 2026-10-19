@@ -1,595 +1,1004 @@
 import React from 'react'
 import styled, { css, keyframes } from 'styled-components'
-import { CurateIcon, CurateIconName } from './icons'
+import { Link } from 'react-router-dom'
+import { CurateIcon, type CurateIconName } from './icons'
+import ChainLogo from 'components/chain-logo'
+import { NETWORKS_INFO } from 'config/networks'
 
-export const pageMaxWidth = '1440px'
+/*
+ * CurateVision primitives, built from DESIGN.md. Every page composes these:
+ * layout (Page, Section, Surface), type (Statement, Heading, Label, Data, Figure),
+ * controls (Button, Chip, Segmented), status (StatusDot, Status), tables and
+ * empty/skeleton states. Colors come only from the token roles in global-styles.
+ */
 
-const shimmer = keyframes`
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
-`
-
-export const AppSurface = styled.div`
-  min-height: 100%;
-  color: var(--curate-text);
-`
+/* ---------- Layout ---------- */
 
 export const Page = styled.main`
+  position: relative;
+  z-index: 1;
   width: 100%;
-  max-width: ${pageMaxWidth};
+  max-width: var(--page-max-width);
   margin: 0 auto;
-  padding: 28px var(--horizontal-padding) 56px;
+  padding: 40px var(--horizontal-padding) 96px;
 
   @media (max-width: 720px) {
-    padding-top: 18px;
-    padding-bottom: 36px;
+    padding-top: 24px;
+    padding-bottom: 64px;
   }
 `
 
-export const Section = styled.section<{ $compact?: boolean }>`
-  margin-top: ${({ $compact }) => ($compact ? '18px' : '28px')};
+export const Section = styled.section<{ $gap?: 'sm' | 'md' | 'lg' }>`
+  margin-top: ${({ $gap }) =>
+    $gap === 'sm' ? '16px' : $gap === 'lg' ? '48px' : '32px'};
+
+  &:first-child {
+    margin-top: 0;
+  }
+`
+
+export const Stack = styled.div<{ $gap?: number }>`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ $gap }) => $gap ?? 12}px;
+`
+
+export const Row = styled.div<{
+  $gap?: number
+  $wrap?: boolean
+  $align?: string
+  $justify?: string
+}>`
+  display: flex;
+  align-items: ${({ $align }) => $align ?? 'center'};
+  justify-content: ${({ $justify }) => $justify ?? 'flex-start'};
+  flex-wrap: ${({ $wrap }) => ($wrap ? 'wrap' : 'nowrap')};
+  gap: ${({ $gap }) => $gap ?? 8}px;
+  min-width: 0;
 `
 
 export const Surface = styled.div<{
+  $padding?: 'none' | 'compact' | 'standard'
   $interactive?: boolean
-  $tone?: 'soft' | 'strong'
+  $raised?: boolean
+  /** One panel per page may carry the iridescent rim (YMax's chart frame). */
+  $featured?: boolean
 }>`
   position: relative;
-  overflow: hidden;
-  background: ${({ $tone }) =>
-    $tone === 'strong' ? 'var(--curate-card)' : 'var(--curate-panel)'};
-  border: 1px solid var(--curate-border);
-  border-radius: var(--curate-radius);
-  box-shadow: var(--curate-shadow);
-  backdrop-filter: blur(24px);
+  min-width: 0;
+  background: ${({ $raised }) =>
+    $raised ? 'var(--color-raised)' : 'var(--color-surface)'};
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    var(--shadow-card);
+  padding: ${({ $padding }) =>
+    $padding === 'none' ? 0 : $padding === 'compact' ? '18px' : '24px'};
   transition:
-    border-color 160ms ease,
-    background 160ms ease,
-    transform 160ms ease,
-    box-shadow 160ms ease;
+    border-color var(--motion),
+    box-shadow var(--motion),
+    transform var(--motion);
+
+  ${({ $featured }) =>
+    $featured &&
+    css`
+      border-color: transparent;
+      background:
+        linear-gradient(var(--color-surface), var(--color-surface)) padding-box,
+        linear-gradient(
+            120deg,
+            var(--aurora-b),
+            color-mix(in srgb, var(--color-warning) 70%, transparent) 38%,
+            var(--aurora-c) 68%,
+            var(--aurora-a)
+          )
+          border-box;
+      border-width: 1.5px;
+
+      &::after {
+        content: '';
+        position: absolute;
+        inset: -1.5px;
+        padding: 1.5px;
+        border-radius: inherit;
+        background: conic-gradient(
+          from var(--cv-comet),
+          transparent 0deg 290deg,
+          color-mix(in srgb, var(--color-primary) 80%, transparent) 340deg,
+          white 354deg,
+          transparent 360deg
+        );
+        -webkit-mask:
+          linear-gradient(#000 0 0) content-box,
+          linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor;
+        mask-composite: exclude;
+        pointer-events: none;
+        opacity: 0;
+        animation: cv-comet 2800ms cubic-bezier(0.45, 0, 0.2, 1) 500ms 1 both;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        &::after {
+          display: none;
+        }
+      }
+    `}
 
   ${({ $interactive }) =>
     $interactive &&
     css`
       cursor: pointer;
+      color: inherit;
+      text-decoration: none;
 
       &:hover {
-        border-color: var(--curate-border-strong);
-        transform: translateY(-2px);
-        box-shadow: var(--curate-shadow-hover);
+        border-color: var(--color-border-strong);
+        box-shadow:
+          inset 0 1px 0 var(--glass-highlight),
+          var(--shadow-card-hover);
+        transform: translateY(-1px);
       }
     `}
 `
 
-export const DashboardHero = styled(Surface)`
-  min-height: 310px;
-  padding: clamp(24px, 4vw, 44px);
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
-  gap: clamp(24px, 5vw, 52px);
-  align-items: stretch;
-
-  &::before {
-    content: '';
-    position: absolute;
-    inset: -35% -15% auto auto;
-    width: 620px;
-    height: 620px;
-    background:
-      radial-gradient(circle, rgba(76, 201, 240, 0.16), transparent 55%),
-      radial-gradient(
-        circle at 35% 35%,
-        rgba(108, 161, 255, 0.18),
-        transparent 45%
-      );
-    pointer-events: none;
-  }
-
-  @media (max-width: 980px) {
-    grid-template-columns: 1fr;
-  }
-`
-
-export const Eyebrow = styled.div`
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 28px;
-  padding: 6px 10px;
-  border: 1px solid rgba(0, 163, 255, 0.24);
-  border-radius: 999px;
-  background: rgba(0, 163, 255, 0.08);
-  color: var(--curate-live);
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-`
-
-export const LiveDot = styled.span<{
-  $tone?: 'live' | 'verified' | 'warning' | 'danger'
-}>`
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: ${({ $tone }) =>
-    $tone === 'verified'
-      ? 'var(--curate-success)'
-      : $tone === 'warning'
-        ? 'var(--curate-warning)'
-        : $tone === 'danger'
-          ? 'var(--curate-danger)'
-          : 'var(--curate-live)'};
-  box-shadow: 0 0 18px currentColor;
-`
-
-export const HeroTitle = styled.h1`
-  margin: 18px 0 12px;
-  max-width: 880px;
-  color: var(--curate-text);
-  font-size: clamp(44px, 7vw, 82px);
-  line-height: 0.96;
-  font-weight: 900;
-  letter-spacing: 0;
-`
-
-export const HeroCopy = styled.p`
+export const Hairline = styled.hr`
   margin: 0;
-  max-width: 740px;
-  color: var(--curate-muted);
-  font-size: clamp(16px, 2vw, 19px);
-  line-height: 1.65;
+  border: 0;
+  border-top: 1px solid var(--color-border);
 `
 
-export const ActionRow = styled.div`
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 24px;
-`
-
-export const SearchShell = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 46px;
-  padding: 0 14px;
-  border: 1px solid var(--curate-border);
-  border-radius: 18px;
-  background: var(--curate-field);
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.045);
-  color: var(--curate-muted);
-  transition:
-    border-color 160ms ease,
-    background 160ms ease;
-
-  &:focus-within {
-    border-color: var(--curate-border-strong);
-    background: rgba(2, 6, 12, 0.92);
-  }
-
-  input {
-    width: 100%;
-    min-width: 160px;
-    border: 0;
-    outline: 0;
-    color: var(--curate-text);
-    background: transparent;
-    font-size: 14px;
-  }
-
-  input::placeholder {
-    color: var(--curate-faint);
-  }
-`
-
-export const MetricsGrid = styled.div`
+export const Grid = styled.div<{ $min?: number; $gap?: number }>`
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 14px;
-
-  @media (max-width: 1180px) {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  @media (max-width: 680px) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(${({ $min }) => $min ?? 280}px, 1fr)
+  );
+  gap: ${({ $gap }) => $gap ?? 16}px;
 `
 
-export const MetricTile = styled(Surface)`
-  min-height: 134px;
-  padding: 18px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-`
-
-export const MetricIcon = styled.div<{
-  $tone?: 'live' | 'success' | 'warning' | 'danger' | 'violet'
-}>`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  border: 1px solid currentColor;
-  border-radius: 13px;
-  color: ${({ $tone }) =>
-    $tone === 'success'
-      ? 'var(--curate-success)'
-      : $tone === 'warning'
-        ? 'var(--curate-warning)'
-        : $tone === 'danger'
-          ? 'var(--curate-danger)'
-          : $tone === 'violet'
-            ? 'var(--curate-violet)'
-            : 'var(--curate-live)'};
-  background: color-mix(in srgb, currentColor 12%, transparent);
-
-  svg {
-    color: currentColor;
-  }
-`
-
-export const MetricValue = styled.div`
-  margin-top: 18px;
-  color: var(--curate-text);
-  font-size: 30px;
-  line-height: 1;
-  font-weight: 900;
-  font-variant-numeric: tabular-nums;
-`
-
-export const MetricLabel = styled.div`
-  margin-top: 7px;
-  color: var(--curate-muted);
-  font-size: 12px;
-  font-weight: 850;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-`
-
-export const SplitGrid = styled.div`
+export const SplitGrid = styled.div<{ $rail?: number }>`
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 390px;
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) ${({ $rail }) => $rail ?? 360}px;
+  gap: 24px;
+  align-items: start;
 
   @media (max-width: 1100px) {
     grid-template-columns: 1fr;
   }
 `
 
-export const PanelHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 16px;
-`
+/* ---------- Type ---------- */
 
-export const PanelTitle = styled.h2`
-  display: flex;
-  align-items: center;
-  gap: 10px;
+/** The page's one statement: large, light, tight (no serif). */
+export const Statement = styled.h1`
   margin: 0;
-  color: var(--curate-text);
-  font-size: 18px;
-  font-weight: 800;
+  max-width: 22ch;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: var(--fs-display);
+  line-height: var(--lh-display);
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
 `
 
-export const PanelHint = styled.span`
-  color: var(--curate-faint);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+/** Oversized hero line for the landing moments (dashboard, launch). */
+export const HeroStatement = styled.h1`
+  margin: 0;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: var(--fs-hero);
+  line-height: var(--lh-hero);
+  font-weight: 500;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+
+  em {
+    font-style: normal;
+    color: var(--color-primary);
+  }
+`
+
+export const Heading = styled.h2`
+  margin: 0;
+  font-family: var(--font-display);
+  color: var(--color-text);
+  font-size: var(--fs-heading);
+  line-height: var(--lh-heading);
+  font-weight: 500;
+  letter-spacing: var(--tracking-tight);
+`
+
+export const Subheading = styled.h3`
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--fs-subheading);
+  line-height: var(--lh-subheading);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+`
+
+export const Title = styled.h4`
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--fs-body-lg);
+  line-height: var(--lh-body-lg);
+  font-weight: 600;
+`
+
+export const Body = styled.p<{ $muted?: boolean; $large?: boolean }>`
+  margin: 0;
+  max-width: 68ch;
+  color: ${({ $muted }) =>
+    $muted ? 'var(--color-muted)' : 'var(--color-text)'};
+  font-size: ${({ $large }) =>
+    $large ? 'var(--fs-body-lg)' : 'var(--fs-body)'};
+  line-height: ${({ $large }) =>
+    $large ? 'var(--lh-body-lg)' : 'var(--lh-body)'};
+`
+
+export const Small = styled.span<{ $muted?: boolean; $faint?: boolean }>`
+  color: ${({ $muted, $faint }) =>
+    $faint
+      ? 'var(--color-faint)'
+      : $muted
+        ? 'var(--color-muted)'
+        : 'var(--color-text)'};
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+`
+
+/** Small uppercase label (eyebrows, column headers): sans, tracked, quiet. */
+export const Label = styled.span<{
+  $tone?: 'muted' | 'faint' | 'text' | 'primary'
+}>`
+  display: inline-block;
+  color: ${({ $tone }) =>
+    $tone === 'faint'
+      ? 'var(--color-faint)'
+      : $tone === 'text'
+        ? 'var(--color-text)'
+        : $tone === 'primary'
+          ? 'var(--color-primary)'
+          : 'var(--color-muted)'};
+  font-family: var(--font-label);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: 500;
+  letter-spacing: var(--tracking-label);
   text-transform: uppercase;
 `
 
-export const Toolbar = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 16px;
+/**
+ * Data: figures, amounts and short values (13/18, tabular figures).
+ * `$mono` sets Geist Mono, for addresses, hashes and IDs only.
+ */
+export const Data = styled.span<{
+  $muted?: boolean
+  $weight?: 400 | 500 | 600
+  $mono?: boolean
+}>`
+  color: ${({ $muted }) =>
+    $muted ? 'var(--color-muted)' : 'var(--color-text)'};
+  font-family: ${({ $mono }) =>
+    $mono ? 'var(--font-mono)' : 'var(--font-figure)'};
+  font-size: var(--fs-data);
+  line-height: var(--lh-data);
+  font-weight: ${({ $weight }) => $weight ?? 500};
+  font-variant-numeric: tabular-nums;
 `
 
-export const Segmented = styled.div`
-  display: inline-flex;
-  align-items: center;
-  min-height: 38px;
-  padding: 4px;
-  border: 1px solid var(--curate-border);
-  border-radius: 14px;
-  background: rgba(3, 6, 14, 0.58);
+/** Big figure (hero counts, countdowns): light, large, tabular. */
+export const Figure = styled.span<{ $size?: 'md' | 'lg' }>`
+  display: block;
+  color: var(--color-text);
+  font-family: var(--font-figure);
+  font-size: ${({ $size }) =>
+    $size === 'lg' ? 'clamp(40px, 3.4vw + 16px, 64px)' : 'var(--fs-figure)'};
+  line-height: var(--lh-figure);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-display);
 `
 
-export const SegmentButton = styled.button<{ $active?: boolean }>`
-  display: inline-flex;
+export const Mono = styled.span`
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+`
+
+/** Text for screen readers only (e.g. the final value of an animated figure). */
+export const VisuallyHidden = styled.span`
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+`
+
+/* ---------- Controls ---------- */
+
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger'
+
+const buttonStyles = css<{
+  $variant?: ButtonVariant
+  $size?: 'sm' | 'md'
+  $block?: boolean
+}>`
+  position: relative;
+  display: ${({ $block }) => ($block ? 'flex' : 'inline-flex')};
+  width: ${({ $block }) => ($block ? '100%' : 'auto')};
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  min-height: 30px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 10px;
-  color: ${({ $active }) =>
-    $active ? 'var(--curate-text)' : 'var(--curate-muted)'};
-  background: ${({ $active }) =>
-    $active ? 'rgba(255, 255, 255, 0.11)' : 'transparent'};
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 750;
-  transition:
-    background 160ms ease,
-    color 160ms ease;
-
-  &:hover {
-    color: var(--curate-text);
-    background: rgba(255, 255, 255, 0.08);
-  }
-`
-
-export const RegistryGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-
-  @media (max-width: 1200px) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  @media (max-width: 720px) {
-    grid-template-columns: 1fr;
-  }
-`
-
-export const RegistryCardShell = styled(Surface).attrs({ $interactive: true })`
-  min-height: 360px;
-  display: flex;
-  flex-direction: column;
-`
-
-export const CardMedia = styled.div<{ $image?: string | null }>`
-  position: relative;
-  min-height: 154px;
-  background:
-    linear-gradient(180deg, transparent 0%, rgba(3, 6, 14, 0.72) 100%),
-    ${({ $image }) =>
-      $image
-        ? `url(${$image}) center / cover`
-        : 'radial-gradient(circle at 30% 20%, rgba(76, 201, 240, 0.22), transparent 42%), radial-gradient(circle at 78% 40%, rgba(124, 92, 255, 0.28), transparent 38%), #101622'};
-`
-
-export const CardBody = styled.div`
-  padding: 18px;
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-`
-
-export const CardTitle = styled.h3`
-  margin: 0;
-  color: var(--curate-text);
-  font-size: 18px;
-  line-height: 1.25;
-  font-weight: 800;
-`
-
-export const CardDescription = styled.p`
-  margin: 9px 0 0;
-  color: var(--curate-muted);
-  font-size: 13px;
-  line-height: 1.55;
-`
-
-export const CardStats = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  margin-top: auto;
-  padding-top: 18px;
-`
-
-export const StatBox = styled.div`
-  min-width: 0;
-  padding: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
-  background: rgba(3, 6, 14, 0.48);
-`
-
-export const StatValue = styled.div`
-  color: var(--curate-text);
-  font-size: 16px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  overflow: hidden;
-  text-overflow: ellipsis;
-`
-
-export const StatLabel = styled.div`
-  margin-top: 4px;
-  color: var(--curate-faint);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-`
-
-export const ListPanel = styled(Surface)`
-  padding: 18px;
-`
-
-export const ActivityList = styled.div`
-  display: flex;
-  flex-direction: column;
-`
-
-export const ActivityRow = styled.a`
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: center;
-  min-height: 62px;
-  padding: 12px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  color: inherit;
+  height: ${({ $size }) => ($size === 'sm' ? '34px' : '44px')};
+  padding: 0 ${({ $size }) => ($size === 'sm' ? '14px' : '20px')};
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
   text-decoration: none;
+  cursor: pointer;
+  transition:
+    background var(--motion),
+    border-color var(--motion),
+    box-shadow var(--motion),
+    color var(--motion),
+    transform var(--motion);
 
-  &:last-child {
-    border-bottom: 0;
+  &:active:not(:disabled) {
+    transform: translateY(1px);
   }
 
-  &:hover {
-    color: var(--curate-text);
+  ${({ $variant }) =>
+    $variant === 'secondary'
+      ? css`
+          background: var(--color-raised);
+          border-color: var(--glass-border);
+          box-shadow: inset 0 1px 0 var(--glass-highlight);
+          color: var(--color-text);
+
+          &:hover:not(:disabled) {
+            border-color: var(--color-border-strong);
+            color: var(--color-text);
+          }
+        `
+      : $variant === 'ghost'
+        ? css`
+            background: transparent;
+            color: var(--color-muted);
+
+            &:hover:not(:disabled) {
+              color: var(--color-text);
+              background: var(--color-raised);
+            }
+          `
+        : $variant === 'danger'
+          ? css`
+              background: var(--color-danger);
+              color: var(--color-on-primary);
+
+              &:hover:not(:disabled) {
+                filter: brightness(1.08);
+              }
+            `
+          : css`
+              background: var(--color-primary-fill);
+              color: var(--color-on-primary);
+              box-shadow:
+                inset 0 1px 0 color-mix(in srgb, white 24%, transparent),
+                0 10px 30px -12px var(--color-primary);
+
+              &:hover:not(:disabled) {
+                background: var(--color-primary-fill-hover);
+                color: var(--color-on-primary);
+                box-shadow:
+                  inset 0 1px 0 color-mix(in srgb, white 32%, transparent),
+                  0 12px 32px -10px var(--color-primary);
+              }
+            `}
+
+  /* Disabled keeps its label legible: muted text on the raised fill, no fade. */
+  &&:disabled,
+  &&[aria-disabled='true'] {
+    cursor: not-allowed;
+    background: var(--color-raised);
+    border-color: var(--glass-border);
+    color: var(--color-muted);
+    box-shadow: none;
+    filter: none;
+    transform: none;
   }
 `
 
-export const RowTitle = styled.div`
-  color: var(--curate-text);
-  font-size: 14px;
-  font-weight: 750;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`
-
-export const RowMeta = styled.div`
-  margin-top: 4px;
-  color: var(--curate-muted);
-  font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`
-
-export const StatusPill = styled.span<{
-  $tone?: 'verified' | 'unverified' | 'pending' | 'danger' | 'live' | 'neutral'
+export const Button = styled.button<{
+  $variant?: ButtonVariant
+  $size?: 'sm' | 'md'
+  $block?: boolean
 }>`
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 26px;
-  padding: 0 9px;
-  border-radius: 999px;
-  border: 1px solid;
-  white-space: nowrap;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: ${({ $tone }) =>
-    $tone === 'verified'
-      ? 'var(--curate-success)'
-      : $tone === 'pending'
-        ? 'var(--curate-warning)'
-        : $tone === 'danger'
-          ? 'var(--curate-danger)'
-          : $tone === 'live'
-            ? 'var(--curate-live)'
-            : $tone === 'unverified'
-              ? 'var(--curate-muted)'
-              : 'var(--curate-text)'};
-  background: currentColor;
-  border-color: currentColor;
-  box-shadow: inset 0 0 0 999px rgba(3, 6, 14, 0.88);
+  ${buttonStyles}
 `
 
-export const ChainChip = styled.span<{ $color?: string }>`
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  min-height: 30px;
-  padding: 0 10px;
-  border: 1px solid var(--curate-border);
-  border-radius: 999px;
-  color: var(--curate-text);
-  background: rgba(255, 255, 255, 0.04);
-  font-size: 12px;
-  font-weight: 750;
+export const ButtonLink = styled(Link)<{
+  $variant?: ButtonVariant
+  $size?: 'sm' | 'md'
+  $block?: boolean
+}>`
+  ${buttonStyles}
+`
 
-  &::before {
-    content: '';
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: ${({ $color }) => $color || 'var(--curate-live)'};
-    box-shadow: 0 0 14px ${({ $color }) => $color || 'var(--curate-live)'};
-  }
+export const ButtonAnchor = styled.a<{
+  $variant?: ButtonVariant
+  $size?: 'sm' | 'md'
+  $block?: boolean
+}>`
+  ${buttonStyles}
 `
 
 export const IconButton = styled.button<{ $active?: boolean }>`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
-  border: 1px solid var(--curate-border);
-  border-radius: 12px;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid
+    ${({ $active }) => ($active ? 'var(--glass-border)' : 'transparent')};
+  border-radius: var(--radius-pill);
+  background: ${({ $active }) => ($active ? 'var(--glass)' : 'transparent')};
   color: ${({ $active }) =>
-    $active ? 'var(--curate-text)' : 'var(--curate-muted)'};
-  background: ${({ $active }) =>
-    $active ? 'rgba(255, 255, 255, 0.11)' : 'rgba(255, 255, 255, 0.04)'};
+    $active ? 'var(--color-text)' : 'var(--color-muted)'};
   cursor: pointer;
-  transition: all 160ms ease;
+  transition:
+    background var(--motion),
+    color var(--motion);
 
   &:hover {
-    color: var(--curate-text);
-    border-color: var(--curate-border-strong);
-    background: rgba(255, 255, 255, 0.1);
+    color: var(--color-text);
+    background: var(--color-raised);
   }
 `
 
-export const DataTable = styled.div`
-  overflow: hidden;
-  border: 1px solid var(--curate-border);
-  border-radius: var(--curate-radius);
-  background: rgba(3, 6, 14, 0.44);
+/** 24px pill chip, sans label; selected = primary-soft fill and primary-on-soft text. */
+const chipStyles = css<{ $selected?: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid
+    ${({ $selected }) =>
+      $selected
+        ? 'color-mix(in srgb, var(--color-primary) 40%, transparent)'
+        : 'var(--glass-border)'};
+  border-radius: var(--radius-pill);
+  background: ${({ $selected }) =>
+    $selected ? 'var(--color-primary-soft)' : 'var(--glass)'};
+  color: ${({ $selected }) =>
+    $selected ? 'var(--color-primary-on-soft)' : 'var(--color-muted)'};
+  font-family: var(--font-label);
+  font-size: 11px;
+  line-height: var(--lh-label);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
 `
 
-export const TableRow = styled.a<{ $header?: boolean }>`
-  display: grid;
-  grid-template-columns: minmax(230px, 1fr) 104px 104px 112px 120px;
-  gap: 12px;
+export const Chip = styled.span<{ $selected?: boolean }>`
+  ${chipStyles}
+`
+
+export const ChipButton = styled.button<{ $selected?: boolean }>`
+  ${chipStyles}
+  height: 28px;
+  cursor: pointer;
+  transition:
+    background var(--motion),
+    color var(--motion);
+
+  &:hover {
+    color: ${({ $selected }) =>
+      $selected ? 'var(--color-primary-on-soft)' : 'var(--color-text)'};
+  }
+`
+
+export const ChainChip = ({
+  chainId,
+  size = 'md',
+}: {
+  chainId: number
+  size?: 'sm' | 'md'
+}) => {
+  const info = NETWORKS_INFO[chainId as keyof typeof NETWORKS_INFO]
+  return (
+    <Chip title={info ? `${info.name} (chain ${chainId})` : `Chain ${chainId}`}>
+      <ChainLogo chainId={chainId} size={size === 'sm' ? 12 : 14} />
+      {info?.name ?? `Chain ${chainId}`}
+    </Chip>
+  )
+}
+
+/** Segmented control (table / cards / rows, filters). */
+export const Segmented = styled.div`
+  display: inline-flex;
   align-items: center;
-  min-height: ${({ $header }) => ($header ? '42px' : '66px')};
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  background: var(--color-raised);
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+`
+
+export const Segment = styled.button<{
+  $active?: boolean
+  /** Inside a sliding track the pill draws the active state. */
+  $sliding?: boolean
+}>`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 9px;
+  background: ${({ $active, $sliding }) =>
+    $active && !$sliding ? 'var(--color-primary-soft)' : 'transparent'};
+  color: ${({ $active }) =>
+    $active ? 'var(--color-text)' : 'var(--color-muted)'};
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--motion),
+    color var(--motion);
+
+  &:hover {
+    color: var(--color-text);
+  }
+`
+
+const SlidingTrack = styled(Segmented)`
+  position: relative;
+  isolation: isolate;
+`
+
+const SlidingPill = styled.span`
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  z-index: -1;
+  border-radius: 9px;
+  background: var(--color-primary-soft);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--color-primary) 30%, transparent);
+  transition:
+    transform 380ms cubic-bezier(0.34, 1.4, 0.64, 1),
+    width 380ms cubic-bezier(0.34, 1.4, 0.64, 1);
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+`
+
+export type SegmentOption<T extends string> = {
+  value: T
+  label: string
+  icon?: CurateIconName
+}
+
+/** Segmented control whose active pill slides between options. */
+export function SegmentedControl<T extends string>({
+  value,
+  options,
+  onChange,
+  ariaLabel,
+}: {
+  value: T
+  options: SegmentOption<T>[]
+  onChange: (value: T) => void
+  ariaLabel: string
+}) {
+  const track = React.useRef<HTMLDivElement>(null)
+  const [pill, setPill] = React.useState<{ left: number; width: number }>()
+  const measure = React.useCallback(() => {
+    const node = track.current?.querySelector<HTMLButtonElement>(
+      '[aria-checked="true"]',
+    )
+    if (node) setPill({ left: node.offsetLeft, width: node.offsetWidth })
+  }, [])
+  React.useLayoutEffect(measure, [measure, value, options.length])
+  // Re-measure when the track resizes (layout changes, late web fonts).
+  React.useEffect(() => {
+    const node = track.current
+    if (!node || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => measure())
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [measure])
+  // Radio group keys: arrows and Home/End move the selection and the focus.
+  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const index = options.findIndex((option) => option.value === value)
+    const last = options.length - 1
+    const next =
+      event.key === 'ArrowRight' || event.key === 'ArrowDown'
+        ? index >= last
+          ? 0
+          : index + 1
+        : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+          ? index <= 0
+            ? last
+            : index - 1
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? last
+              : -1
+    if (next < 0 || !options[next]) return
+    event.preventDefault()
+    onChange(options[next].value)
+    track.current
+      ?.querySelectorAll<HTMLButtonElement>('[role="radio"]')
+      [next]?.focus()
+  }
+  const selected = options.some((option) => option.value === value)
+  return (
+    <SlidingTrack
+      ref={track}
+      role="radiogroup"
+      aria-label={ariaLabel}
+      onKeyDown={onKeyDown}
+    >
+      {pill && (
+        <SlidingPill
+          aria-hidden
+          style={{ transform: `translateX(${pill.left}px)`, width: pill.width }}
+        />
+      )}
+      {options.map((option, index) => (
+        <Segment
+          key={option.value}
+          type="button"
+          role="radio"
+          aria-checked={option.value === value}
+          tabIndex={
+            option.value === value || (!selected && index === 0) ? 0 : -1
+          }
+          $active={option.value === value}
+          $sliding
+          onClick={() => onChange(option.value)}
+        >
+          {option.icon && <CurateIcon name={option.icon} size={14} />}
+          {option.label}
+        </Segment>
+      ))}
+    </SlidingTrack>
+  )
+}
+
+export const TextInput = styled.input`
+  width: 100%;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: var(--color-raised);
+  color: var(--color-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  transition:
+    border-color var(--motion),
+    box-shadow var(--motion);
+
+  &::placeholder {
+    color: var(--color-faint);
+  }
+
+  &:hover {
+    border-color: var(--color-border-strong);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 4px var(--color-primary-soft);
+  }
+`
+
+export const SearchField = styled.label`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
   padding: 0 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  color: ${({ $header }) =>
-    $header ? 'var(--curate-faint)' : 'var(--curate-text)'};
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: var(--color-raised);
+  color: var(--color-faint);
+  transition:
+    border-color var(--motion),
+    box-shadow var(--motion);
+
+  &:hover {
+    border-color: var(--color-border-strong);
+  }
+
+  &:focus-within {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 4px var(--color-primary-soft);
+  }
+
+  input {
+    flex: 1;
+    min-width: 0;
+    border: 0 !important;
+    outline: 0;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: var(--color-text);
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+  }
+
+  input::placeholder {
+    color: var(--color-faint);
+  }
+`
+
+/* ---------- Status ---------- */
+
+export type StatusTone =
+  | 'registered'
+  | 'window'
+  | 'contested'
+  | 'off'
+  | 'neutral'
+
+/** 8px dot in a status role color with a soft halo. Never alone: pair it with a label. */
+export const StatusDot = styled.span<{ $tone: StatusTone }>`
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--status-${({ $tone }) => $tone});
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--status-${({ $tone }) => $tone}) 22%, transparent);
+`
+
+const StatusWrap = styled.span<{ $wrap?: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  white-space: ${({ $wrap }) => ($wrap ? 'normal' : 'nowrap')};
+`
+
+/**
+ * Dot + label, optional detail: "Submitted · 2d 4h to challenge".
+ * The dot carries the role color; the text stays in the text roles.
+ */
+export const Status = ({
+  tone,
+  label,
+  detail,
+  title,
+  className,
+}: {
+  tone: StatusTone
+  label: React.ReactNode
+  detail?: React.ReactNode
+  title?: string
+  className?: string
+}) => (
+  <StatusWrap className={className} title={title}>
+    <StatusDot $tone={tone} aria-hidden />
+    <Data $weight={500}>{label}</Data>
+    {detail && (
+      <Data $muted $weight={400}>
+        · {detail}
+      </Data>
+    )}
+  </StatusWrap>
+)
+
+/** Kept for the registry panels: a status label shown as a chip. */
+export const StatusPill = ({
+  tone,
+  children,
+}: {
+  tone: StatusTone
+  children: React.ReactNode
+}) => (
+  <Chip>
+    <StatusDot $tone={tone} aria-hidden />
+    {children}
+  </Chip>
+)
+
+/** An 8px indicator used next to "live" labels. */
+export const LiveDot = styled(StatusDot).attrs({
+  $tone: 'registered' as StatusTone,
+})``
+
+/** Progress rail; fill color follows the status tone, with a soft glow. */
+export const Rail = styled.div<{ $value: number; $tone?: StatusTone }>`
+  position: relative;
+  width: 100%;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-raised);
+  overflow: hidden;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: ${({ $value }) =>
+      Math.round(Math.min(1, Math.max(0, $value)) * 100)}%;
+    border-radius: var(--radius-pill);
+    background: var(--status-${({ $tone }) => $tone ?? 'window'});
+    box-shadow: 0 0 12px
+      color-mix(
+        in srgb,
+        var(--status-${({ $tone }) => $tone ?? 'window'}) 60%,
+        transparent
+      );
+    transition: width 400ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+`
+
+/* ---------- Panels ---------- */
+
+export const PanelHeader = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+`
+
+export const PanelTitle = styled(Subheading)`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`
+
+export const PanelHint = styled(Label)``
+
+/* ---------- Tables ---------- */
+
+export const TableScroller = styled.div`
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+`
+
+export const Table = styled.table`
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+
+  thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    height: 44px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--glass-border);
+    background: transparent;
+    color: var(--color-faint);
+    font-family: var(--font-label);
+    font-size: var(--fs-label);
+    line-height: var(--lh-label);
+    font-weight: 500;
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  thead th[data-sortable='true'] {
+    cursor: pointer;
+  }
+
+  thead th[data-sortable='true']:hover {
+    color: var(--color-text);
+  }
+
+  tbody td {
+    height: 56px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--glass-border);
+    color: var(--color-text);
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+    vertical-align: middle;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  tbody tr {
+    transition: background var(--motion);
+  }
+
+  tbody tr[data-href]:hover td {
+    background: var(--color-raised);
+    cursor: pointer;
+  }
+
+  td.num,
+  th.num {
+    text-align: right;
+  }
+
+  td.num {
+    font-size: var(--fs-body);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+`
+
+/* ---------- Rows (comfortable list) ---------- */
+
+export const ListRow = styled(Link)`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  min-height: 56px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--color-border);
+  color: inherit;
   text-decoration: none;
-  font-size: ${({ $header }) => ($header ? '11px' : '13px')};
-  font-weight: ${({ $header }) => ($header ? 850 : 650)};
-  letter-spacing: ${({ $header }) => ($header ? '0.08em' : 0)};
-  text-transform: ${({ $header }) => ($header ? 'uppercase' : 'none')};
+  transition: background var(--motion);
 
   &:last-child {
     border-bottom: 0;
   }
 
-  &:not([aria-disabled='true']):hover {
-    background: rgba(255, 255, 255, 0.04);
-  }
-
-  @media (max-width: 920px) {
-    grid-template-columns: minmax(220px, 1fr) 92px 92px;
-
-    > :nth-child(4),
-    > :nth-child(5) {
-      display: none;
-    }
+  &:hover {
+    background: var(--color-raised);
   }
 `
 
-export const SkeletonBlock = styled.div<{ $height?: string }>`
+/* ---------- States ---------- */
+
+const shimmer = keyframes`
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+`
+
+export const SkeletonBlock = styled.div<{ $height?: string; $width?: string }>`
   position: relative;
   overflow: hidden;
-  min-height: ${({ $height }) => $height || '120px'};
-  border-radius: var(--curate-radius);
-  background: rgba(255, 255, 255, 0.06);
+  width: ${({ $width }) => $width || '100%'};
+  min-height: ${({ $height }) => $height || '20px'};
+  border-radius: var(--radius-sm);
+  background: var(--color-raised);
 
   &::after {
     content: '';
@@ -598,33 +1007,93 @@ export const SkeletonBlock = styled.div<{ $height?: string }>`
     background: linear-gradient(
       90deg,
       transparent,
-      rgba(255, 255, 255, 0.08),
+      var(--color-surface),
       transparent
     );
+    opacity: 0.6;
     animation: ${shimmer} 1.4s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::after {
+      animation: none;
+    }
   }
 `
 
-export const EmptyState = styled(Surface)`
-  padding: 34px 24px;
+const EmptyWrap = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 40px 24px;
   text-align: center;
-  color: var(--curate-muted);
+  color: var(--color-muted);
 `
 
-export const EmptyTitle = styled.h3`
-  margin: 12px 0 6px;
-  color: var(--curate-text);
-  font-size: 18px;
+const EmptyIcon = styled.div`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-faint);
 `
 
-export const IconBadge = ({
-  icon,
-  tone = 'live',
+export const EmptyState = ({
+  icon = 'list',
+  title,
+  children,
+  action,
 }: {
-  icon: CurateIconName
-  tone?: 'live' | 'success' | 'warning' | 'danger' | 'violet'
+  icon?: CurateIconName
+  title: React.ReactNode
+  children?: React.ReactNode
+  action?: React.ReactNode
 }) => (
-  <MetricIcon $tone={tone}>
-    <CurateIcon name={icon} size={19} />
-  </MetricIcon>
+  <EmptyWrap>
+    <EmptyIcon>
+      <CurateIcon name={icon} size={18} />
+    </EmptyIcon>
+    <Title>{title}</Title>
+    {children && <Body $muted>{children}</Body>}
+    {action && <div style={{ marginTop: 10 }}>{action}</div>}
+  </EmptyWrap>
 )
+
+/* ---------- Key/value ---------- */
+
+export const KeyValueList = styled.dl`
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 8px 16px;
+  margin: 0;
+
+  dt {
+    color: var(--color-muted);
+    font-family: var(--font-label);
+    font-size: var(--fs-label);
+    line-height: 20px;
+    font-weight: 500;
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+  }
+
+  dd {
+    margin: 0;
+    min-width: 0;
+    color: var(--color-text);
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+    overflow-wrap: anywhere;
+  }
+`
+
+/** Middle-truncated address in mono with a title holding the full value. */
+export const truncateMiddle = (value: string, head = 6, tail = 4): string =>
+  value.length > head + tail + 1
+    ? `${value.slice(0, head)}…${value.slice(-tail)}`
+    : value

@@ -12,6 +12,7 @@ import { StakeProvider } from 'contexts/stake-context'
 import { ThemeProvider, ThemeContext } from 'contexts/theme-context'
 import SmartContractWalletWarning from 'components/smart-contract-wallet-warning'
 import AppBar from 'components/layout/app-bar'
+import Stage from 'components/layout/stage'
 import AppRouter from './app-router'
 import ErrorPage from 'pages/error-page'
 import { wagmiConfig } from 'config/wagmi'
@@ -52,10 +53,51 @@ const StyledClickaway = styled.div<{ isMenuClosed: boolean }>`
     properties.isMenuClosed ? 'none' : 'auto'};
 `
 
+/*
+ * The app frame (roobinium's YMax): the whole product sits in one large
+ * rounded near-black container floating on the aurora stage. Restraint
+ * inside the frame, color outside it. Edge to edge on phones.
+ */
 const StyledLayout = styled(Layout)`
-  min-height: 100vh !important;
-  background: transparent !important;
-  overflow-x: hidden;
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
+  min-height: calc(100vh - 2 * var(--frame-gap)) !important;
+  margin: var(--frame-gap);
+  border-radius: var(--frame-radius);
+  background: color-mix(in srgb, var(--color-bg) 92%, transparent) !important;
+  box-shadow:
+    inset 0 0 0 1px var(--glass-border),
+    inset 0 1px 0 var(--glass-highlight),
+    inset 0 -1px 0 color-mix(in srgb, var(--aurora-b) 28%, transparent),
+    0 40px 120px -40px rgba(0, 0, 0, 0.8);
+  overflow: clip;
+
+  /* Light leaks where the band crosses the frame, and a floor light. */
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background:
+      radial-gradient(
+        70% 45% at 88% -6%,
+        color-mix(in srgb, var(--aurora-b) 16%, transparent),
+        transparent 70%
+      ),
+      radial-gradient(
+        45% 30% at 6% 0%,
+        color-mix(in srgb, var(--aurora-b) 8%, transparent),
+        transparent 70%
+      ),
+      linear-gradient(
+        to top,
+        color-mix(in srgb, var(--aurora-b) 10%, transparent),
+        transparent 160px
+      );
+  }
 `
 
 const ContentContainer = styled.div`
@@ -107,6 +149,7 @@ const App = () => {
                 >
                   <WalletProvider>
                     <StakeProvider>
+                      <Stage />
                       <StyledLayout>
                         <SmartContractWalletWarning />
                         <AppBar />

@@ -1,1749 +1,264 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useParams } from 'react-router-dom'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import styled from 'styled-components'
-import { getPublicClient, simulateContract } from '@wagmi/core'
-import { useAccount, useWalletClient } from 'wagmi'
-import { formatEther, isAddress, parseEther } from 'viem'
-import type { Abi } from 'viem'
-import { useAtlasProvider } from '@kleros/kleros-app'
-import classicAbi from 'assets/abis/GeneralizedTCR.json'
-import lightAbi from 'assets/abis/LightGeneralizedTCR.json'
-import permanentAbi from 'assets/abis/PermanentGTCR.json'
-import { Button, Modal, Tooltip } from 'components/ui'
-import { CurateIcon, CurateIconName } from 'components/curate/icons'
-import EnsureAuth from 'components/ensure-auth'
-import { NETWORKS_INFO } from 'config/networks'
-import { klerosAddresses } from 'config/tcr-addresses'
-import { wagmiConfig } from 'config/wagmi'
-import { useEthersProvider } from 'hooks/ethers-adapters'
-import useCourtPolicies from 'hooks/use-court-policies'
+import { useParams, useSearchParams } from 'react-router-dom'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useAccount } from 'wagmi'
+import { isAddress } from 'viem'
 import useDocumentHead from 'hooks/use-document-head'
-import { wrapWithToast, errorToast } from 'utils/wrap-with-toast'
-import { jurorsAndCourtIDFromExtraData } from 'utils/string'
-import { JSON_UPLOAD_ROLE } from 'utils/atlas-roles'
+import useNow from 'hooks/use-now'
+import useStoredLayout from 'hooks/use-stored-layout'
+import { Page, truncateMiddle } from 'components/curate/primitives'
+import { reveal } from 'components/curate/motion/reveal'
+import ErrorPage from 'pages/error-page'
 import {
-  chainName,
-  fetchAddressProfileData,
-  GovernanceParams,
-  GovernedRegistry,
-  profileUpdatedLabel,
-} from './data'
-import {
-  formatAgo,
-  formatCompact,
+  ZERO_ADDRESS,
+  fetchDashboardData,
   normalizeAddress,
-  shortAddress,
 } from 'pages/dashboard/data'
-import { DashboardActivity, RegistryKind } from 'pages/dashboard/types'
+import {
+  ACTIVITY_LIMIT,
+  SUPPORTED_CHAIN_IDS,
+  buildBadges,
+  chainName,
+  emptyStats,
+  fetchAddressProfileData,
+  fetchGovernedRegistries,
+  type AddressProfileData,
+  type AddressStats,
+  type GovernedRegistry,
+} from './data'
+import { GovernancePanel } from './governance'
+import {
+  PAGE_SIZE,
+  activeChains,
+  filterActivities,
+  inScope,
+  parseFilter,
+  parseScope,
+  type ActivityFilter,
+} from './view'
+import { ProfilePanel } from './profile'
+import { ActivitySection } from './activity'
 
-const Page = styled.main`
-  width: 100%;
-  max-width: 1480px;
-  margin: 0 auto;
-  padding: 24px var(--horizontal-padding) 56px;
-  color: var(--v2-text);
+/*
+ * Curator profile (/address/:address): who this address is on Curate. One
+ * featured panel leads with the entries it submitted, its other counts, its
+ * requests and challenges over time and its challenge record; its actions
+ * follow as rows, then the lists it governs (only when it governs one).
+ * Every number comes from the profile data and describes the chosen scope
+ * (all chains or one, ?chain=); nothing the data layer lacks (rewards, entry
+ * status) is shown. The governance scan (one governor() read per indexed
+ * list) is its own query, so the figures, chart and list never wait for it.
+ */
+
+const Governed = styled.div`
+  ${reveal}
 `
-
-const Surface = styled.section`
-  overflow: hidden;
-  border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
-  background: var(--v2-card);
-  box-shadow: var(--v2-shadow);
-`
-
-const Hero = styled(Surface)`
-  min-height: 270px;
-  padding: clamp(22px, 4vw, 38px);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  gap: 20px;
-  align-items: end;
-  background: var(--v2-card);
-  border-top: 5px solid var(--v2-purple);
-
-  @media (max-width: 980px) {
-    grid-template-columns: 1fr;
-  }
-`
-
-const Eyebrow = styled.div`
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
-  color: var(--v2-blue);
-  background: var(--v2-blue-soft);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0;
-  text-transform: uppercase;
-`
-
-const Title = styled.h1`
-  margin: 18px 0 10px;
-  color: var(--v2-text);
-  font-size: clamp(30px, 4.6vw, 48px);
-  line-height: 1.12;
-  font-weight: 600;
-  letter-spacing: 0;
-  overflow-wrap: anywhere;
-`
-
-const Subtitle = styled.p`
-  max-width: 760px;
-  margin: 0;
-  color: var(--v2-muted);
-  font-size: 16px;
-  line-height: 1.65;
-`
-
-const HeroCard = styled.div`
-  padding: 16px;
-  border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
-  background: var(--v2-soft);
-`
-
-const Grid = styled.section`
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 390px;
-  gap: 18px;
-  margin-top: 18px;
-
-  @media (max-width: 1180px) {
-    grid-template-columns: 1fr;
-  }
-`
-
-const MetricGrid = styled.section`
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 16px;
-
-  @media (max-width: 1280px) {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  @media (max-width: 720px) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-`
-
-const Metric = styled(Surface)`
-  min-height: 112px;
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-`
-
-const MetricTop = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  color: var(--curate-muted);
-`
-
-const MetricIcon = styled.div<{
-  $tone?: 'live' | 'success' | 'warning' | 'danger'
-}>`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border: 1px solid currentColor;
-  border-radius: 10px;
-  color: ${({ $tone }) =>
-    $tone === 'success'
-      ? 'var(--curate-success)'
-      : $tone === 'warning'
-        ? 'var(--curate-warning)'
-        : $tone === 'danger'
-          ? 'var(--curate-danger)'
-          : 'var(--curate-live)'};
-  background: color-mix(in srgb, currentColor 11%, transparent);
-`
-
-const MetricValue = styled.div`
-  margin-top: 12px;
-  color: var(--curate-text);
-  font-size: clamp(22px, 2.4vw, 30px);
-  font-weight: 900;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-`
-
-const MetricLabel = styled.div`
-  margin-top: 7px;
-  color: var(--curate-faint);
-  font-size: 10px;
-  font-weight: 850;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-`
-
-const PanelTop = styled.div`
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 18px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.075);
-
-  @media (max-width: 720px) {
-    flex-direction: column;
-  }
-`
-
-const PanelTitle = styled.h2`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0;
-  color: var(--curate-text);
-  font-size: 18px;
-  font-weight: 900;
-`
-
-const PanelSub = styled.div`
-  margin-top: 6px;
-  color: var(--curate-muted);
-  font-size: 13px;
-  line-height: 1.45;
-`
-
-const ActivityList = styled.div`
-  display: grid;
-  gap: 0;
-`
-
-const ActivityRow = styled(Link)`
-  display: grid;
-  grid-template-columns: 38px minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: center;
-  min-height: 72px;
-  padding: 12px 18px;
-  border-top: 1px solid rgba(255, 255, 255, 0.065);
-  color: inherit;
-  text-decoration: none;
-
-  &:first-child {
-    border-top: 0;
-  }
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.045);
-  }
-`
-
-const IconBox = styled.div<{
-  $tone?: 'live' | 'success' | 'warning' | 'danger'
-}>`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border: 1px solid currentColor;
-  border-radius: 11px;
-  color: ${({ $tone }) =>
-    $tone === 'success'
-      ? 'var(--curate-success)'
-      : $tone === 'warning'
-        ? 'var(--curate-warning)'
-        : $tone === 'danger'
-          ? 'var(--curate-danger)'
-          : 'var(--curate-live)'};
-  background: color-mix(in srgb, currentColor 10%, transparent);
-`
-
-const RowTitle = styled.div`
-  overflow: hidden;
-  color: var(--curate-text);
-  font-size: 13px;
-  font-weight: 850;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`
-
-const RowMeta = styled.div`
-  overflow: hidden;
-  margin-top: 4px;
-  color: var(--curate-muted);
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`
-
-const Chip = styled.span<{
-  $color?: string
-  $tone?: 'success' | 'warning' | 'danger' | 'live' | 'neutral'
-}>`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  width: fit-content;
-  min-height: 28px;
-  padding: 0 10px;
-  border: 1px solid currentColor;
-  border-radius: 999px;
-  color: ${({ $color, $tone }) =>
-    $color ||
-    ($tone === 'success'
-      ? 'var(--curate-success)'
-      : $tone === 'warning'
-        ? 'var(--curate-warning)'
-        : $tone === 'danger'
-          ? 'var(--curate-danger)'
-          : $tone === 'live'
-            ? 'var(--curate-live)'
-            : 'var(--curate-muted)')};
-  background: color-mix(in srgb, currentColor 11%, transparent);
-  font-size: 11px;
-  font-weight: 850;
-  white-space: nowrap;
-`
-
-const ChainChip = styled(Chip)`
-  &::before {
-    content: '';
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: currentColor;
-    box-shadow: 0 0 12px currentColor;
-  }
-`
-
-const BadgeGrid = styled.div`
-  display: grid;
-  gap: 10px;
-`
-
-const BadgeCard = styled.div<{ $earned?: boolean }>`
-  padding: 13px;
-  border: 1px solid
-    ${({ $earned }) =>
-      $earned ? 'rgba(22, 241, 149, 0.28)' : 'rgba(255, 255, 255, 0.075)'};
-  border-radius: 14px;
-  background: ${({ $earned }) =>
-    $earned ? 'rgba(22, 241, 149, 0.075)' : 'rgba(1, 4, 9, 0.5)'};
-`
-
-const ProgressTrack = styled.div`
-  overflow: hidden;
-  height: 7px;
-  margin-top: 10px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.075);
-`
-
-const ProgressBar = styled.div<{ $width: number }>`
-  width: ${({ $width }) => `${Math.max(3, Math.min(100, $width))}%`};
-  height: 100%;
-  border-radius: inherit;
-  background: var(--curate-live);
-  box-shadow: 0 0 16px var(--curate-live);
-`
-
-const GovernanceList = styled.div`
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  padding: 18px;
-
-  @media (max-width: 920px) {
-    grid-template-columns: 1fr;
-  }
-`
-
-const RegistryGovernanceCard = styled.div`
-  min-height: 220px;
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
-  background: var(--v2-card);
-  box-shadow: var(--v2-shadow);
-`
-
-const RegistryHead = styled.div`
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px;
-
-  @media (max-width: 760px) {
-    flex-direction: column;
-  }
-`
-
-const RegistryCardBody = styled.div`
-  display: grid;
-  gap: 12px;
-  padding: 0 14px 14px;
-`
-
-const RegistryMetaGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-`
-
-const RegistryMetaBox = styled.div`
-  min-width: 0;
-  padding: 10px;
-  border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
-  background: var(--v2-soft);
-`
-
-const RegistryActions = styled.div`
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: auto;
-`
-
-const ProfileTabs = styled.div`
-  display: inline-flex;
-  gap: 6px;
-  margin-top: 18px;
-  padding: 5px;
-  border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
-  background: var(--v2-card);
-
-  @media (max-width: 620px) {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    width: 100%;
-  }
-`
-
-const ProfileTabButton = styled.button<{ $active?: boolean }>`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 40px;
-  padding: 0 16px;
-  border: 1px solid
-    ${({ $active }) => ($active ? 'var(--v2-blue)' : 'transparent')};
-  border-radius: 3px;
-  color: ${({ $active }) => ($active ? 'var(--v2-text)' : 'var(--v2-muted)')};
-  background: ${({ $active }) =>
-    $active ? 'var(--v2-blue-soft)' : 'transparent'};
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-  transition:
-    border-color 160ms ease,
-    color 160ms ease,
-    background 160ms ease;
-
-  &:hover {
-    color: var(--v2-text);
-    background: var(--v2-soft);
-  }
-`
-
-const FieldGrid = styled.div`
-  display: grid;
-  gap: 10px;
-  padding: 14px;
-`
-
-const FieldRow = styled.div`
-  display: grid;
-  grid-template-columns: 210px minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
-  min-height: 46px;
-
-  @media (max-width: 780px) {
-    grid-template-columns: 1fr;
-  }
-`
-
-const FieldLabel = styled.label`
-  color: var(--curate-muted);
-  font-size: 12px;
-  font-weight: 850;
-`
-
-const Input = styled.input`
-  min-width: 0;
-  width: 100%;
-  min-height: 38px;
-  padding: 0 12px;
-  border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
-  color: var(--v2-text);
-  background: var(--v2-card);
-  font-size: 13px;
-  font-weight: 650;
-
-  &:disabled {
-    color: var(--curate-muted);
-    opacity: 0.7;
-  }
-`
-
-const SelectInput = styled.select`
-  min-width: 0;
-  width: 100%;
-  min-height: 38px;
-  padding: 0 12px;
-  border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
-  color: var(--v2-text);
-  background: var(--v2-card);
-  font-size: 13px;
-  font-weight: 650;
-
-  &:disabled {
-    color: var(--curate-muted);
-    opacity: 0.7;
-  }
-`
-
-const InlineGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-
-  @media (max-width: 780px) {
-    grid-template-columns: 1fr;
-  }
-`
-
-const LabeledControl = styled.label`
-  min-width: 0;
-  display: grid;
-  gap: 6px;
-`
-
-const ControlLabel = styled.span`
-  color: var(--curate-muted);
-  font-size: 11px;
-  font-weight: 800;
-`
-
-const HelpTrigger = styled.span`
-  width: 18px;
-  height: 18px;
-  display: inline-grid;
-  place-items: center;
-  margin-left: 6px;
-  border: 1px solid var(--v2-stroke);
-  border-radius: 50%;
-  color: var(--v2-blue);
-  background: var(--v2-soft);
-  cursor: help;
-  font-size: 11px;
-  font-weight: 900;
-`
-
-const CourtSummary = styled.div`
-  display: grid;
-  gap: 5px;
-  color: var(--curate-muted);
-  font-size: 12px;
-  line-height: 1.5;
-
-  strong {
-    color: var(--v2-text);
-  }
-`
-
-const FieldHint = styled.div`
-  grid-column: 2 / 4;
-  margin-top: -5px;
-  color: var(--curate-muted);
-  font-size: 11px;
-  line-height: 1.45;
-
-  @media (max-width: 780px) {
-    grid-column: auto;
-  }
-`
-
-const InlineActions = styled.div`
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-`
-
-const HiddenFileInput = styled.input`
-  display: none;
-`
-
-const UploadButtonLabel = styled.label<{ $disabled?: boolean }>`
-  min-height: 32px;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 0 10px;
-  border: 1px solid var(--v2-stroke);
-  border-radius: 3px;
-  color: ${({ $disabled }) =>
-    $disabled ? 'var(--v2-faint)' : 'var(--v2-text)'};
-  background: var(--v2-soft);
-  cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
-  font-size: 12px;
-  font-weight: 850;
-`
-
-const SectionTitle = styled.div`
-  margin: 10px 0 2px;
-  color: var(--curate-text);
-  font-size: 13px;
-  font-weight: 900;
-`
-
-const Empty = styled.div`
-  display: grid;
-  place-items: center;
-  min-height: 190px;
-  padding: 24px;
-  color: var(--curate-muted);
-  text-align: center;
-`
-
-const Skeleton = styled.div<{ $height?: string }>`
-  min-height: ${({ $height }) => $height || '120px'};
-  border-radius: var(--curate-radius);
-  background: rgba(255, 255, 255, 0.055);
-`
-
-type ParamKind = 'wei' | 'seconds' | 'raw' | 'address' | 'policy'
-type ParamKey = keyof GovernanceParams | 'policyURI'
-
-interface ParamConfig {
-  key: ParamKey
-  label: string
-  kind: ParamKind
-  functionName: string
-  hint?: string
-}
-
-const iconForActivity = (activity: DashboardActivity): CurateIconName => {
-  if (activity.kind === 'challenge') return 'dispute'
-  if (activity.kind === 'removal') return 'remove'
-  return 'submit'
-}
-
-const toneForActivity = (
-  activity: DashboardActivity,
-): 'live' | 'success' | 'warning' | 'danger' => {
-  if (activity.kind === 'challenge') return 'danger'
-  if (activity.kind === 'removal') return 'warning'
-  return 'live'
-}
-
-const abiForKind = (kind: RegistryKind): Abi => {
-  if (kind === 'light') return lightAbi as Abi
-  if (kind === 'permanent') return permanentAbi as Abi
-  return classicAbi as Abi
-}
-
-const kindLabel = (kind: RegistryKind) => {
-  if (kind === 'light') return 'Light'
-  if (kind === 'permanent') return 'Permanent'
-  return 'Classic'
-}
-
-const nativeSymbol = (chainId: number) =>
-  NETWORKS_INFO[chainId as keyof typeof NETWORKS_INFO]?.nativeCurrency.symbol ||
-  'ETH'
-
-const formatParamValue = (
-  value: string | undefined,
-  kind: ParamKind,
-): string => {
-  if (!value) return ''
-  if (kind === 'wei')
-    try {
-      return formatEther(BigInt(value))
-    } catch {
-      return value
-    }
-  if (kind === 'seconds') {
-    const days = Number(value) / 86400
-    return Number.isFinite(days)
-      ? new Intl.NumberFormat('en-US', {
-          maximumFractionDigits: days >= 10 ? 1 : 3,
-        }).format(days)
-      : value
-  }
-  return value
-}
-
-const parseParamValue = (value: string, kind: ParamKind) => {
-  if (kind === 'wei') return parseEther(value || '0')
-  if (kind === 'seconds')
-    return BigInt(Math.max(0, Math.round(Number(value || '0') * 86400)))
-  if (kind === 'raw') return BigInt(value || '0')
-  return value
-}
-
-const formatDate = (timestamp?: number) => {
-  if (!timestamp) return 'Unavailable'
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(timestamp * 1000)
-}
-
-const editableParams = (registry: GovernedRegistry): ParamConfig[] => {
-  const permanentTokenLabel =
-    registry.params?.tokenSymbol ||
-    (registry.token ? shortAddress(registry.token) : 'registry token')
-
-  if (registry.kind === 'permanent')
-    return [
-      {
-        key: 'submissionMinDeposit',
-        label: `Submission minimum deposit (${permanentTokenLabel})`,
-        kind: 'wei',
-        functionName: 'changeSubmissionMinDeposit',
-        hint: 'Permanent lists use their configured staking token, which may differ from the chain native currency.',
-      },
-      {
-        key: 'submissionPeriod',
-        label: 'Submission period (days)',
-        kind: 'seconds',
-        functionName: 'changeSubmissionPeriod',
-      },
-      {
-        key: 'reinclusionPeriod',
-        label: 'Reinclusion period (days)',
-        kind: 'seconds',
-        functionName: 'changeReinclusionPeriod',
-      },
-      {
-        key: 'withdrawingPeriod',
-        label: 'Withdrawal period (days)',
-        kind: 'seconds',
-        functionName: 'changeWithdrawingPeriod',
-      },
-      {
-        key: 'challengeStakeMultiplier',
-        label: 'Challenge stake multiplier',
-        kind: 'raw',
-        functionName: 'changeChallengeStakeMultiplier',
-      },
-      {
-        key: 'winnerStakeMultiplier',
-        label: 'Winner appeal multiplier',
-        kind: 'raw',
-        functionName: 'changeWinnerStakeMultiplier',
-      },
-      {
-        key: 'loserStakeMultiplier',
-        label: 'Loser appeal multiplier',
-        kind: 'raw',
-        functionName: 'changeLoserStakeMultiplier',
-      },
-      {
-        key: 'sharedStakeMultiplier',
-        label: 'Shared appeal multiplier',
-        kind: 'raw',
-        functionName: 'changeSharedStakeMultiplier',
-      },
-      {
-        key: 'governor',
-        label: 'Governor address',
-        kind: 'address',
-        functionName: 'changeGovernor',
-      },
-    ]
-
-  return [
-    ...(registry.kind === 'classic'
-      ? [
-          {
-            key: 'policyURI' as ParamKey,
-            label: 'MetaEvidence URI',
-            kind: 'policy' as ParamKind,
-            functionName: 'changeMetaEvidence',
-            hint: 'Advanced users only: this updates registration and clearing MetaEvidence to the same URI. A wrong URI may break frontend visualization.',
-          },
-        ]
-      : []),
-    {
-      key: 'submissionBaseDeposit',
-      label: `Submission deposit (${nativeSymbol(registry.chainId)})`,
-      kind: 'wei',
-      functionName: 'changeSubmissionBaseDeposit',
-    },
-    {
-      key: 'submissionChallengeBaseDeposit',
-      label: `Submission challenge deposit (${nativeSymbol(registry.chainId)})`,
-      kind: 'wei',
-      functionName: 'changeSubmissionChallengeBaseDeposit',
-    },
-    {
-      key: 'removalBaseDeposit',
-      label: `Removal deposit (${nativeSymbol(registry.chainId)})`,
-      kind: 'wei',
-      functionName: 'changeRemovalBaseDeposit',
-    },
-    {
-      key: 'removalChallengeBaseDeposit',
-      label: `Removal challenge deposit (${nativeSymbol(registry.chainId)})`,
-      kind: 'wei',
-      functionName: 'changeRemovalChallengeBaseDeposit',
-    },
-    {
-      key: 'challengePeriodDuration',
-      label: 'Challenge period (days)',
-      kind: 'seconds',
-      functionName:
-        registry.kind === 'light'
-          ? 'changeChallengePeriodDuration'
-          : 'changeTimeToChallenge',
-    },
-    {
-      key: 'winnerStakeMultiplier',
-      label: 'Winner appeal multiplier',
-      kind: 'raw',
-      functionName: 'changeWinnerStakeMultiplier',
-    },
-    {
-      key: 'loserStakeMultiplier',
-      label: 'Loser appeal multiplier',
-      kind: 'raw',
-      functionName: 'changeLoserStakeMultiplier',
-    },
-    {
-      key: 'sharedStakeMultiplier',
-      label: 'Shared appeal multiplier',
-      kind: 'raw',
-      functionName: 'changeSharedStakeMultiplier',
-    },
-    {
-      key: 'connectedTCR',
-      label: 'Connected TCR address',
-      kind: 'address',
-      functionName: 'changeConnectedTCR',
-      hint: 'Optional contract hook for connected registry flows. Leave untouched unless your list uses one.',
-    },
-    ...(registry.kind === 'light'
-      ? [
-          {
-            key: 'relayerContract' as ParamKey,
-            label: 'Relayer contract address',
-            kind: 'address' as ParamKind,
-            functionName: 'changeRelayerContract',
-            hint: 'Optional relayer for delegated Light Curate submissions.',
-          },
-        ]
-      : []),
-    {
-      key: 'governor',
-      label: 'Governor address',
-      kind: 'address',
-      functionName: 'changeGovernor',
-    },
-  ]
-}
-
-const buildArgs = (
-  registry: GovernedRegistry,
-  config: ParamConfig,
-  value: string,
-) => {
-  if (config.kind === 'policy') {
-    if (registry.kind === 'classic') return [value, value]
-    if (registry.kind === 'light')
-      return [
-        registry.params?.arbitrator,
-        registry.params?.arbitratorExtraData || '0x',
-        value,
-        value,
-      ]
-    return [registry.params?.arbitratorExtraData || '0x', value]
-  }
-  return [parseParamValue(value, config.kind)]
-}
-
-const buildArbitratorExtraData = (courtID: string, jurors: string) =>
-  `0x${Number(courtID || 0)
-    .toString(16)
-    .padStart(64, '0')}${Math.max(1, Math.ceil(Number(jurors || 1)))
-    .toString(16)
-    .padStart(64, '0')}`
-
-const ActivityPanel = ({
-  title,
-  icon,
-  activities,
-  empty,
-}: {
-  title: string
-  icon: CurateIconName
-  activities: DashboardActivity[]
-  empty: string
-}) => (
-  <Surface>
-    <PanelTop>
-      <div>
-        <PanelTitle>
-          <CurateIcon name={icon} size={18} />
-          {title}
-        </PanelTitle>
-        <PanelSub>
-          Profile activity across Mainnet, Gnosis, and Sepolia.
-        </PanelSub>
-      </div>
-    </PanelTop>
-    {activities.length > 0 ? (
-      <ActivityList>
-        {activities.slice(0, 18).map((activity) => {
-          const info =
-            NETWORKS_INFO[activity.chainId as keyof typeof NETWORKS_INFO]
-          return (
-            <ActivityRow key={activity.id} to={activity.href}>
-              <IconBox $tone={toneForActivity(activity)}>
-                <CurateIcon name={iconForActivity(activity)} size={17} />
-              </IconBox>
-              <div>
-                <RowTitle>{activity.status}</RowTitle>
-                <RowMeta>
-                  {activity.registryTitle} | {formatAgo(activity.timestamp)}
-                </RowMeta>
-              </div>
-              <ChainChip $color={info?.color}>
-                {info?.name?.replace('Ethereum', 'Eth') || activity.chainId}
-              </ChainChip>
-            </ActivityRow>
-          )
-        })}
-      </ActivityList>
-    ) : (
-      <Empty>{empty}</Empty>
-    )}
-  </Surface>
-)
-
-const ArbitrationGovernanceField = ({
-  registry,
-  editable,
-  onSaved,
-}: {
-  registry: GovernedRegistry
-  editable: boolean
-  onSaved: () => void
-}) => {
-  const queryClient = useQueryClient()
-  const { data: walletClient } = useWalletClient()
-  const chainProvider = useEthersProvider({ chainId: registry.chainId })
-  const knownKleros = klerosAddresses[registry.chainId]
-  const [arbitrator, setArbitrator] = useState(
-    registry.params?.arbitrator || knownKleros?.arbitrator || '',
-  )
-  const courtArbitrator =
-    registry.kind === 'permanent' ? knownKleros?.arbitrator : arbitrator
-  const { data: courts = [] } = useCourtPolicies(
-    knownKleros?.policy,
-    chainProvider ?? null,
-    courtArbitrator,
-  )
-  const currentMetaEvidenceURI =
-    registry.params?.metaEvidenceURI || registry.metaEvidenceURI || ''
-  const [extraData, setExtraData] = useState(
-    registry.params?.arbitratorExtraData || '0x',
-  )
-  const [courtID, setCourtID] = useState('')
-  const [jurors, setJurors] = useState('3')
-  const [registrationMetaEvidence, setRegistrationMetaEvidence] = useState('')
-  const [clearingMetaEvidence, setClearingMetaEvidence] = useState('')
-  const [metaEvidence, setMetaEvidence] = useState(currentMetaEvidenceURI)
-  const [pending, setPending] = useState(false)
-
-  useEffect(() => {
-    if (!extraData || extraData === '0x') return
-    const decoded = jurorsAndCourtIDFromExtraData(extraData)
-    setCourtID(String(decoded.courtID))
-    setJurors(String(decoded.numberOfJurors))
-  }, [extraData])
-
-  const updateCourt = (nextCourtID: string) => {
-    setCourtID(nextCourtID)
-    if (!Number.isNaN(Number(nextCourtID)))
-      setExtraData(buildArbitratorExtraData(nextCourtID, jurors))
-  }
-
-  const updateJurors = (nextJurors: string) => {
-    const normalized = Math.max(1, Math.min(33, Number(nextJurors || 1)))
-    const oddJurors = normalized % 2 === 0 ? normalized - 1 : normalized
-    setJurors(String(oddJurors))
-    if (courtID !== '')
-      setExtraData(buildArbitratorExtraData(courtID, String(oddJurors)))
-  }
-
-  const save = async () => {
-    if (registry.kind !== 'permanent' && !isAddress(arbitrator)) {
-      errorToast('Enter a valid arbitrator address.')
-      return
-    }
-    if (
-      registry.kind === 'light' &&
-      (!registrationMetaEvidence.trim() || !clearingMetaEvidence.trim())
-    ) {
-      errorToast('Light registries require both MetaEvidence URIs.')
-      return
-    }
-    if (registry.kind === 'permanent' && !metaEvidence.trim()) {
-      errorToast('Permanent registries require a MetaEvidence URI.')
-      return
-    }
-
-    const functionName =
-      registry.kind === 'classic'
-        ? 'changeArbitrator'
-        : 'changeArbitrationParams'
-    const args =
-      registry.kind === 'classic'
-        ? [arbitrator, extraData || '0x']
-        : registry.kind === 'light'
-          ? [
-              arbitrator,
-              extraData || '0x',
-              registrationMetaEvidence,
-              clearingMetaEvidence,
-            ]
-          : [extraData || '0x', metaEvidence]
-
-    setPending(true)
-    try {
-      const { request } = await simulateContract(wagmiConfig, {
-        chainId: registry.chainId,
-        address: registry.address as `0x${string}`,
-        abi: abiForKind(registry.kind),
-        functionName,
-        args,
-      } as any)
-      const publicClient = getPublicClient(wagmiConfig, {
-        chainId: registry.chainId,
-      })
-      const result = await wrapWithToast(
-        () => walletClient!.writeContract(request),
-        publicClient!,
-      )
-      if (result.status) {
-        onSaved()
-        queryClient.invalidateQueries({
-          queryKey: ['addressProfile'],
-        })
-      }
-    } finally {
-      setPending(false)
-    }
-  }
-
-  const disabled = !editable || pending || !walletClient
-  const selectedCourt = courts.find(
-    (court) => String(court.courtID) === courtID,
-  )
-  const nativeSymbol =
-    NETWORKS_INFO[registry.chainId as keyof typeof NETWORKS_INFO]
-      ?.nativeCurrency?.symbol || 'native token'
-  const feePerJuror = selectedCourt?.feeForJuror
-    ? Number(formatEther(BigInt(selectedCourt.feeForJuror))).toLocaleString(
-        undefined,
-        { maximumFractionDigits: 6 },
-      )
-    : null
-  const arbitrationHelp =
-    "Court selection rewrites arbitrator extra data automatically. Light and permanent contracts update arbitration parameters together with MetaEvidence, so those URIs are required for this transaction. MetaEvidence is intended for advanced users: an invalid URI may break this registry's frontend presentation."
-
-  return (
-    <>
-      <SectionTitle>
-        Arbitration and court
-        <Tooltip title={arbitrationHelp} placement="right">
-          <HelpTrigger aria-label="About arbitration and court settings">
-            ?
-          </HelpTrigger>
-        </Tooltip>
-      </SectionTitle>
-      <FieldRow>
-        <FieldLabel>
-          {registry.kind === 'permanent'
-            ? 'Court and MetaEvidence'
-            : 'Arbitrator and court'}
-        </FieldLabel>
-        <div style={{ display: 'grid', gap: 10 }}>
-          {registry.kind !== 'permanent' && (
-            <Input
-              value={arbitrator}
-              disabled={!editable || pending}
-              onChange={(event) => setArbitrator(event.currentTarget.value)}
-              placeholder="Arbitrator address"
-            />
-          )}
-          <InlineGrid>
-            <LabeledControl>
-              <ControlLabel>Court</ControlLabel>
-              <SelectInput
-                value={courtID}
-                disabled={!editable || pending || courts.length === 0}
-                onChange={(event) => updateCourt(event.currentTarget.value)}
-              >
-                <option value="">
-                  {courts.length > 0
-                    ? 'Select court'
-                    : 'Court list unavailable'}
-                </option>
-                {courts.map((court) => (
-                  <option key={court.value} value={court.value}>
-                    {court.label} · ID {court.courtID}
-                  </option>
-                ))}
-              </SelectInput>
-            </LabeledControl>
-            <LabeledControl>
-              <ControlLabel>Number of jurors</ControlLabel>
-              <Input
-                value={jurors}
-                disabled={!editable || pending}
-                onChange={(event) => updateJurors(event.currentTarget.value)}
-                placeholder="Number of jurors"
-                inputMode="numeric"
-                aria-label="Number of jurors"
-              />
-            </LabeledControl>
-          </InlineGrid>
-          {selectedCourt && (
-            <CourtSummary>
-              <span>
-                {selectedCourt.description ||
-                  `${selectedCourt.label} handles disputes submitted to this court.`}
-              </span>
-              <span>
-                Fee per juror:{' '}
-                <strong>
-                  {feePerJuror
-                    ? `${feePerJuror} ${nativeSymbol}`
-                    : 'Unavailable'}
-                </strong>
-              </span>
-            </CourtSummary>
-          )}
-          <Input
-            value={extraData}
-            disabled
-            readOnly
-            placeholder="Arbitrator extra data is generated automatically"
-          />
-          {registry.kind === 'light' && (
-            <InlineGrid>
-              <Input
-                value={registrationMetaEvidence}
-                disabled={!editable || pending}
-                onChange={(event) =>
-                  setRegistrationMetaEvidence(event.currentTarget.value)
-                }
-                placeholder="Registration MetaEvidence URI"
-              />
-              <Input
-                value={clearingMetaEvidence}
-                disabled={!editable || pending}
-                onChange={(event) =>
-                  setClearingMetaEvidence(event.currentTarget.value)
-                }
-                placeholder="Clearing MetaEvidence URI"
-              />
-            </InlineGrid>
-          )}
-          {registry.kind === 'permanent' && (
-            <Input
-              value={metaEvidence}
-              disabled={!editable || pending}
-              onChange={(event) => setMetaEvidence(event.currentTarget.value)}
-              placeholder="Current MetaEvidence URI"
-            />
-          )}
-        </div>
-        <Button type="primary" size="small" disabled={disabled} onClick={save}>
-          Save
-        </Button>
-      </FieldRow>
-    </>
-  )
-}
-
-const GovernanceField = ({
-  registry,
-  config,
-  editable,
-  onSaved,
-}: {
-  registry: GovernedRegistry
-  config: ParamConfig
-  editable: boolean
-  onSaved: () => void
-}) => {
-  const { data: walletClient } = useWalletClient()
-  const { uploadFile } = useAtlasProvider()
-  const [value, setValue] = useState(() =>
-    formatParamValue(
-      config.key === 'policyURI' ? '' : registry.params?.[config.key],
-      config.kind,
-    ),
-  )
-  const [pending, setPending] = useState(false)
-  const [uploading, setUploading] = useState(false)
-
-  const disabled =
-    !editable ||
-    pending ||
-    uploading ||
-    !walletClient ||
-    (config.kind === 'policy' && !value.trim())
-
-  const uploadMetaEvidence = async (file?: File) => {
-    if (!file) return
-    if (
-      file.type !== 'application/json' &&
-      !file.name.toLowerCase().endsWith('.json')
-    ) {
-      errorToast('Upload a MetaEvidence JSON file.')
-      return
-    }
-    setUploading(true)
-    try {
-      const uri = await uploadFile(file, JSON_UPLOAD_ROLE)
-      if (!uri) throw new Error('Atlas upload failed.')
-      setValue(uri)
-    } catch (err) {
-      console.error(err)
-      errorToast('MetaEvidence upload failed.')
-    } finally {
-      setUploading(false)
-    }
-  }
-
-  const save = async () => {
-    if (config.kind === 'address' && !isAddress(value)) {
-      errorToast('Enter a valid address.')
-      return
-    }
-
-    const args = buildArgs(registry, config, value)
-    if (args.some((arg) => arg === undefined || arg === '')) {
-      errorToast('Missing current arbitration parameters for this update.')
-      return
-    }
-
-    setPending(true)
-    try {
-      const { request } = await simulateContract(wagmiConfig, {
-        chainId: registry.chainId,
-        address: registry.address as `0x${string}`,
-        abi: abiForKind(registry.kind),
-        functionName: config.functionName,
-        args,
-      } as any)
-      const publicClient = getPublicClient(wagmiConfig, {
-        chainId: registry.chainId,
-      })
-      const result = await wrapWithToast(
-        () => walletClient!.writeContract(request),
-        publicClient!,
-      )
-      if (result.status) onSaved()
-    } finally {
-      setPending(false)
-    }
-  }
-
-  const placeholder =
-    config.kind === 'policy'
-      ? '/ipfs/... or https://...'
-      : config.kind === 'seconds'
-        ? 'days'
-        : undefined
-
-  return (
-    <>
-      <FieldRow>
-        <FieldLabel>{config.label}</FieldLabel>
-        <div style={{ display: 'grid', gap: 8 }}>
-          <Input
-            value={value}
-            placeholder={placeholder}
-            disabled={!editable || pending || uploading}
-            onChange={(event) => setValue(event.currentTarget.value)}
-          />
-          {config.kind === 'policy' && (
-            <InlineActions>
-              <EnsureAuth>
-                <UploadButtonLabel
-                  $disabled={!editable || pending || uploading}
-                >
-                  <CurateIcon name="submit" size={14} />
-                  {uploading ? 'Uploading...' : 'Upload MetaEvidence JSON'}
-                  <HiddenFileInput
-                    type="file"
-                    accept="application/json,.json"
-                    disabled={!editable || pending || uploading}
-                    onChange={(event) =>
-                      uploadMetaEvidence(event.currentTarget.files?.[0])
-                    }
-                  />
-                </UploadButtonLabel>
-              </EnsureAuth>
-            </InlineActions>
-          )}
-        </div>
-        <Button type="primary" size="small" disabled={disabled} onClick={save}>
-          Save
-        </Button>
-        {config.hint && <FieldHint>{config.hint}</FieldHint>}
-      </FieldRow>
-    </>
-  )
-}
-
-const GovernanceUpdateModal = ({
-  registry,
-  editable,
-  profileAddress,
-  onClose,
-}: {
-  registry: GovernedRegistry | null
-  editable: boolean
-  profileAddress: string
-  onClose: () => void
-}) => {
-  const queryClient = useQueryClient()
-  if (!registry) return null
-
-  return (
-    <Modal
-      visible
-      title={`Update ${registry.title}`}
-      width="760px"
-      footer={null}
-      onCancel={onClose}
-      destroyOnClose
-    >
-      <PanelSub style={{ marginTop: 0, marginBottom: 16 }}>
-        Changes are sent one parameter at a time and simulated before the wallet
-        transaction is requested.
-      </PanelSub>
-      <FieldGrid style={{ padding: 0 }}>
-        <ArbitrationGovernanceField
-          registry={registry}
-          editable={editable}
-          onSaved={() =>
-            queryClient.invalidateQueries({
-              queryKey: ['addressProfile', profileAddress],
-            })
-          }
-        />
-        <SectionTitle>Registry parameters</SectionTitle>
-        {editableParams(registry).map((config) => (
-          <GovernanceField
-            key={`${registry.id}-${config.key}`}
-            registry={registry}
-            config={config}
-            editable={editable}
-            onSaved={() =>
-              queryClient.invalidateQueries({
-                queryKey: ['addressProfile', profileAddress],
-              })
-            }
-          />
-        ))}
-      </FieldGrid>
-    </Modal>
-  )
-}
-
-const CourtDisplay = ({ registry }: { registry: GovernedRegistry }) => {
-  const extraData =
-    registry.params?.arbitratorExtraData || registry.arbitratorExtraData
-  const knownKleros = klerosAddresses[registry.chainId]
-  const chainProvider = useEthersProvider({ chainId: registry.chainId })
-  const { data: courts = [] } = useCourtPolicies(
-    knownKleros?.policy,
-    chainProvider ?? null,
-  )
-
-  if (!extraData || extraData === '0x') return <>Unavailable</>
-
-  let decoded: ReturnType<typeof jurorsAndCourtIDFromExtraData>
-  try {
-    decoded = jurorsAndCourtIDFromExtraData(extraData)
-  } catch {
-    return <>Court data unavailable</>
-  }
-  const court = courts.find(
-    (item) => String(item.courtID) === String(decoded.courtID),
-  )
-
-  return (
-    <>
-      {court?.label || 'Court'}
-      {` · ID ${decoded.courtID}`}
-      {decoded.numberOfJurors ? ` · ${decoded.numberOfJurors} jurors` : ''}
-    </>
-  )
-}
-
-const GovernancePanel = ({
-  registries,
-  profileAddress,
-}: {
-  registries: GovernedRegistry[]
-  profileAddress: string
-}) => {
-  const { address: connectedAddress } = useAccount()
-  const [selectedRegistry, setSelectedRegistry] =
-    useState<GovernedRegistry | null>(null)
-  const connected = normalizeAddress(connectedAddress)
-  const isOwner = connected === profileAddress
-  const selectedEditable =
-    isOwner && normalizeAddress(selectedRegistry?.governor) === connected
-
-  return (
-    <Surface>
-      <PanelTop>
-        <div>
-          <PanelTitle>
-            <CurateIcon name="policy" size={18} />
-            Governed lists
-          </PanelTitle>
-          <PanelSub>
-            Public governance view. Edit controls unlock only for the connected
-            governor wallet.
-          </PanelSub>
-        </div>
-        <Chip $tone={isOwner ? 'success' : 'neutral'}>
-          {isOwner ? 'Owner view' : 'Public profile'}
-        </Chip>
-      </PanelTop>
-      {registries.length > 0 ? (
-        <GovernanceList>
-          {registries.map((registry) => {
-            const chainInfo =
-              NETWORKS_INFO[registry.chainId as keyof typeof NETWORKS_INFO]
-            const editable =
-              isOwner && normalizeAddress(registry.governor) === connected
-            return (
-              <RegistryGovernanceCard key={registry.id}>
-                <RegistryHead>
-                  <div>
-                    <RowTitle>{registry.title}</RowTitle>
-                    <RowMeta>
-                      {shortAddress(registry.address)} |{' '}
-                      {kindLabel(registry.kind)}
-                    </RowMeta>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    <ChainChip $color={chainInfo?.color}>
-                      {chainInfo?.name || registry.chainId}
-                    </ChainChip>
-                    <Chip $tone={editable ? 'success' : 'neutral'}>
-                      {editable ? 'Editable' : 'Governed list'}
-                    </Chip>
-                  </div>
-                </RegistryHead>
-                <RegistryCardBody>
-                  <RegistryMetaGrid>
-                    <RegistryMetaBox>
-                      <MetricLabel>Created</MetricLabel>
-                      <MetricValue style={{ fontSize: 15 }}>
-                        {formatDate(registry.createdAt)}
-                      </MetricValue>
-                    </RegistryMetaBox>
-                    <RegistryMetaBox>
-                      <MetricLabel>Court</MetricLabel>
-                      <MetricValue style={{ fontSize: 15 }}>
-                        <CourtDisplay registry={registry} />
-                      </MetricValue>
-                    </RegistryMetaBox>
-                    <RegistryMetaBox>
-                      <MetricLabel>Items</MetricLabel>
-                      <MetricValue style={{ fontSize: 15 }}>
-                        {formatCompact(registry.itemCount)}
-                      </MetricValue>
-                    </RegistryMetaBox>
-                    <RegistryMetaBox>
-                      <MetricLabel>Type</MetricLabel>
-                      <MetricValue style={{ fontSize: 15 }}>
-                        {kindLabel(registry.kind)}
-                      </MetricValue>
-                    </RegistryMetaBox>
-                  </RegistryMetaGrid>
-                  <RegistryActions>
-                    <Button
-                      type="primary"
-                      size="small"
-                      disabled={!editable}
-                      onClick={() => setSelectedRegistry(registry)}
-                    >
-                      {editable ? 'Update list' : 'Connect governor'}
-                    </Button>
-                    <Button
-                      href={`/tcr/${registry.chainId}/${registry.address}`}
-                      size="small"
-                    >
-                      Open list
-                    </Button>
-                  </RegistryActions>
-                </RegistryCardBody>
-              </RegistryGovernanceCard>
-            )
-          })}
-        </GovernanceList>
-      ) : (
-        <Empty>
-          No governed indexed lists found for this address. Newly indexed lists
-          appear here after the profile scan can read their governor.
-        </Empty>
-      )}
-      <GovernanceUpdateModal
-        registry={selectedRegistry}
-        editable={selectedEditable}
-        profileAddress={profileAddress}
-        onClose={() => setSelectedRegistry(null)}
-      />
-    </Surface>
-  )
-}
-
-type ProfileTab = 'curator' | 'governor'
 
 const AddressPage = () => {
   const params = useParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const address = normalizeAddress(params.address)
   const validAddress = isAddress(address)
-  const [activeTab, setActiveTab] = useState<ProfileTab>('curator')
+  const isZero = address === ZERO_ADDRESS
+  const filter = parseFilter(searchParams.get('show'))
+  const scope = parseScope(searchParams.get('chain'))
+  const [page, setPage] = useState(1)
+  const [layout, setLayout] = useStoredLayout('address', 'rows')
+  const now = useNow(30_000)
+  const { address: connectedAddress, isConnected } = useAccount()
+  const isYou =
+    validAddress &&
+    isConnected &&
+    normalizeAddress(connectedAddress) === address
+
+  // An invalid address renders the error page, which names itself.
   useDocumentHead(
     validAddress
-      ? `${shortAddress(address)} | Curate profile`
-      : 'Curate profile | Kleros Curate',
+      ? `Curator ${truncateMiddle(address)} · Kleros Curate`
+      : undefined,
     validAddress
-      ? `Curator and governor profile for ${address} across Kleros Curate registries, submissions, challenges, disputes, and governed lists.`
-      : 'Explore Kleros Curate address profiles, curator activity, disputes, and governed registries.',
+      ? `Submissions, removals, challenges and governed lists of ${address} across Kleros Curate registries.`
+      : undefined,
   )
 
-  const profileQuery = useQuery({
+  // The registry index comes from the dashboard's own query, so the profile,
+  // the governance scan and the dashboard and browse pages share one load
+  // and its cache.
+  const queryClient = useQueryClient()
+  const readIndex = useCallback(
+    () =>
+      queryClient
+        .fetchQuery({
+          queryKey: ['curateDashboard'],
+          queryFn: fetchDashboardData,
+          staleTime: 60_000,
+        })
+        .then((dashboard) => dashboard.registries),
+    [queryClient],
+  )
+
+  const query = useQuery({
     queryKey: ['addressProfile', address],
-    queryFn: () => fetchAddressProfileData(address),
+    queryFn: () => fetchAddressProfileData(address, readIndex),
     enabled: validAddress,
     staleTime: 60_000,
     refetchInterval: 120_000,
   })
+  const data: AddressProfileData | undefined = query.data
+  // isPending is false once the query errors, so the error state can render.
+  const loading = validAddress && query.isPending
 
-  const data = profileQuery.data
+  // Under the profile's key, so a governor update that invalidates
+  // ['addressProfile'] or ['addressProfile', address] refreshes it too.
+  const governedQuery = useQuery({
+    queryKey: ['addressProfile', address, 'governed'],
+    queryFn: () => fetchGovernedRegistries(address, readIndex),
+    enabled: validAddress,
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+  })
+  const governedAll: GovernedRegistry[] | undefined = governedQuery.data
+  const governedPending = validAddress && governedQuery.isPending
 
-  const chainRows = useMemo(
+  const setParam = (key: string, value: string, fallback: string) => {
+    const next = new URLSearchParams(searchParams)
+    if (value === fallback) next.delete(key)
+    else next.set(key, value)
+    setSearchParams(next, { replace: true })
+  }
+  const setFilter = (value: ActivityFilter) => setParam('show', value, 'all')
+  const setScope = (value: string) => setParam('chain', value, 'all')
+
+  useEffect(() => {
+    setPage(1)
+  }, [filter, scope, address])
+
+  // The profile's per-chain figures with the governed lists added once the
+  // scan settles, so a chain the address only governs on gets its chip.
+  const breakdown = useMemo(() => {
+    if (!data) return undefined
+    const merged: Record<number, AddressStats> = {}
+    for (const [chainId, chainStats] of Object.entries(data.chainBreakdown))
+      merged[Number(chainId)] = { ...chainStats }
+    for (const registry of governedAll ?? []) {
+      if (!merged[registry.chainId]) merged[registry.chainId] = emptyStats()
+      merged[registry.chainId].governedLists += 1
+    }
+    return merged
+  }, [data, governedAll])
+  const chains = useMemo(() => activeChains(breakdown), [breakdown])
+  const governed = useMemo(
     () =>
-      Object.entries(data?.chainBreakdown ?? {})
-        .map(([chainId, stats]) => ({
-          chainId: Number(chainId),
-          stats,
-        }))
-        .filter(({ stats }) => stats.activity > 0 || stats.governedLists > 0),
-    [data],
+      (governedAll ?? []).filter((registry) =>
+        inScope(scope, registry.chainId),
+      ),
+    [governedAll, scope],
   )
+  const activities = useMemo(
+    () =>
+      (data?.activities ?? []).filter((activity) =>
+        inScope(scope, activity.chainId),
+      ),
+    [data, scope],
+  )
+  const shown = useMemo(
+    () => filterActivities(activities, filter),
+    [activities, filter],
+  )
+  const pageCount = Math.max(1, Math.ceil(shown.length / PAGE_SIZE))
+  const currentPage = Math.min(page, pageCount)
+  const visible = shown.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE,
+  )
+
+  const stats: AddressStats | undefined = data
+    ? scope === 'all'
+      ? { ...data.stats, governedLists: governedAll?.length ?? 0 }
+      : (breakdown?.[scope] ?? emptyStats())
+    : undefined
+  const badges = data
+    ? scope === 'all'
+      ? data.badges
+      : buildBadges(stats ?? emptyStats())
+    : undefined
+  const listed = data?.activities.length ?? 0
+  const complete = listed < ACTIVITY_LIMIT
+  const capped = (data?.cappedChains ?? []).filter((chainId) =>
+    inScope(scope, chainId),
+  )
+  // A quiet scope says so once, in the profile panel; no empty list below.
+  const quiet = !loading && !query.isError && activities.length === 0
+  const chainList =
+    scope === 'all'
+      ? SUPPORTED_CHAIN_IDS.map(chainName).join(', ')
+      : chainName(scope)
 
   if (!validAddress)
     return (
-      <Page>
-        <Empty>Invalid address.</Empty>
-      </Page>
+      <ErrorPage
+        code="400"
+        title="Not an address"
+        message="A profile is /address/ followed by a 0x address of 40 hex characters."
+      />
     )
 
   return (
     <Page>
-      <Hero>
-        <div>
-          <Eyebrow>
-            <CurateIcon name="user" size={15} />
-            Curator profile
-          </Eyebrow>
-          <Title>{shortAddress(address)}</Title>
-          <Subtitle>
-            Submissions, challenges, disputes, badges, and governed registry
-            settings for {address}.
-          </Subtitle>
-        </div>
-        <HeroCard>
-          <PanelTitle>
-            <CurateIcon name="activity" size={18} />
-            Verification footprint
-          </PanelTitle>
-          <PanelSub>{profileUpdatedLabel(data?.generatedAt)}</PanelSub>
-          <div style={{ display: 'grid', gap: 10, marginTop: 16 }}>
-            {chainRows.length > 0 ? (
-              chainRows.map(({ chainId, stats }) => {
-                const info =
-                  NETWORKS_INFO[chainId as keyof typeof NETWORKS_INFO]
-                return (
-                  <div
-                    key={chainId}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: 10,
-                    }}
-                  >
-                    <ChainChip $color={info?.color}>
-                      {chainName(chainId)}
-                    </ChainChip>
-                    <RowMeta>
-                      {stats.activity} actions | {stats.governedLists} lists
-                    </RowMeta>
-                  </div>
-                )
-              })
-            ) : (
-              <RowMeta>Activity will appear once indexed.</RowMeta>
-            )}
-          </div>
-        </HeroCard>
-      </Hero>
+      <ProfilePanel
+        address={address}
+        isYou={isYou}
+        isZero={isZero}
+        loading={loading}
+        error={query.isError}
+        onRetry={() => query.refetch()}
+        generatedAt={data?.generatedAt}
+        scope={scope}
+        onScope={setScope}
+        chains={chains}
+        stats={stats}
+        governedCount={governedPending ? undefined : governed.length}
+        governedError={governedQuery.isError && !governedAll}
+        activities={activities}
+        complete={complete}
+        listed={listed}
+        capped={capped}
+        now={now}
+      />
 
-      {profileQuery.isLoading || !data ? (
-        <MetricGrid>
-          {Array.from({ length: 7 }).map((_, index) => (
-            <Skeleton key={index} $height="112px" />
-          ))}
-        </MetricGrid>
-      ) : (
-        <MetricGrid>
-          {[
-            ['submit', 'Submissions', data.stats.submissions, 'live'],
-            ['challenge', 'Challenges', data.stats.challenges, 'danger'],
-            ['remove', 'Removals', data.stats.removals, 'warning'],
-            ['court', 'Disputes', data.stats.disputes, 'danger'],
-            [
-              'verified',
-              'Won challenges',
-              data.stats.successfulChallenges,
-              'success',
-            ],
-            ['registry', 'Governed lists', data.stats.governedLists, 'live'],
-            ['activity', 'Total actions', data.stats.activity, 'live'],
-          ].map(([icon, label, value, tone]) => (
-            <Metric key={String(label)}>
-              <MetricTop>
-                <MetricIcon $tone={tone as any}>
-                  <CurateIcon name={icon as CurateIconName} size={17} />
-                </MetricIcon>
-              </MetricTop>
-              <div>
-                <MetricValue>{formatCompact(Number(value))}</MetricValue>
-                <MetricLabel>{label}</MetricLabel>
-              </div>
-            </Metric>
-          ))}
-        </MetricGrid>
+      {!query.isError && !quiet && (
+        <ActivitySection
+          address={address}
+          loading={loading}
+          activities={activities}
+          shown={shown}
+          visible={visible}
+          filter={filter}
+          onFilter={setFilter}
+          page={currentPage}
+          onPage={setPage}
+          layout={layout}
+          onLayout={setLayout}
+          badges={badges}
+          badgeScope={scope === 'all' ? 'All chains' : chainName(scope)}
+          truncated={!complete}
+          chainList={chainList}
+          now={now}
+        />
       )}
 
-      <ProfileTabs role="tablist" aria-label="Address profile sections">
-        <ProfileTabButton
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'curator'}
-          $active={activeTab === 'curator'}
-          onClick={() => setActiveTab('curator')}
-        >
-          <CurateIcon name="activity" size={16} />
-          Curator
-        </ProfileTabButton>
-        <ProfileTabButton
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'governor'}
-          $active={activeTab === 'governor'}
-          onClick={() => setActiveTab('governor')}
-        >
-          <CurateIcon name="policy" size={16} />
-          Governor
-        </ProfileTabButton>
-      </ProfileTabs>
-
-      {activeTab === 'curator' ? (
-        <>
-          <Grid>
-            <ActivityPanel
-              title="Profile activity"
-              icon="activity"
-              activities={data?.activities ?? []}
-              empty="No submissions, removals, or challenges were found for this address."
-            />
-            <Surface>
-              <PanelTop>
-                <div>
-                  <PanelTitle>
-                    <CurateIcon name="spark" size={18} />
-                    Badges
-                  </PanelTitle>
-                  <PanelSub>
-                    Badges are calculated across all supported chains.
-                  </PanelSub>
-                </div>
-              </PanelTop>
-              <div style={{ padding: 18 }}>
-                {data ? (
-                  <BadgeGrid>
-                    {data.badges.map((badge) => (
-                      <BadgeCard key={badge.id} $earned={badge.earned}>
-                        <RowTitle>{badge.label}</RowTitle>
-                        <RowMeta>
-                          {badge.description} | {badge.progress}/{badge.goal}
-                        </RowMeta>
-                        <ProgressTrack>
-                          <ProgressBar
-                            $width={(badge.progress / badge.goal) * 100}
-                          />
-                        </ProgressTrack>
-                      </BadgeCard>
-                    ))}
-                  </BadgeGrid>
-                ) : (
-                  <Skeleton $height="210px" />
-                )}
-              </div>
-            </Surface>
-          </Grid>
-          <div style={{ marginTop: 18 }}>
-            <ActivityPanel
-              title="Dispute history"
-              icon="dispute"
-              activities={data?.disputes ?? []}
-              empty="No previous disputes were found for this address."
-            />
-          </div>
-        </>
-      ) : (
-        <div style={{ marginTop: 18 }}>
+      {/* Only an address that governs a list gets the section: most govern
+          none, and the hero's figure already says so. */}
+      {!query.isError && !loading && governed.length > 0 && (
+        <Governed style={{ ['--i' as string]: 4 }}>
           <GovernancePanel
-            registries={data?.governedRegistries ?? []}
+            registries={governed}
             profileAddress={address}
+            loading={governedPending}
+            isZero={isZero}
           />
-        </div>
+        </Governed>
       )}
     </Page>
   )

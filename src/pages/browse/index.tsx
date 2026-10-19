@@ -1,1424 +1,2047 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import styled, { css, keyframes } from 'styled-components'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Link, useSearchParams } from 'react-router-dom'
-import styled from 'styled-components'
-import { Dropdown, Pagination, Select, Tooltip } from 'components/ui'
-import { CurateIcon } from 'components/curate/icons'
-import ChainLogo from 'components/chain-logo'
-import StakeTag from 'assets/images/logo-stake-tag.svg'
-import { NETWORKS, NETWORKS_INFO } from 'config/networks'
-import { VERIFIED_LIST_OF_LISTS_ADDRESSES } from 'config/list-of-lists'
 import useDocumentHead from 'hooks/use-document-head'
-import { parseIpfs } from 'utils/ipfs-parse'
+import useNow from 'hooks/use-now'
+import useStoredLayout, {
+  LAYOUT_OPTIONS,
+  type ListLayout,
+} from 'hooks/use-stored-layout'
+import { formatAbsolute, formatAgo } from 'utils/time'
+import { parseRichAddress } from 'utils/rich-address'
+import ChainLogo from 'components/chain-logo'
+import { CurateIcon } from 'components/curate/icons'
 import {
-  fetchDashboardData,
-  formatAgo,
-  formatCompact,
-} from 'pages/dashboard/data'
+  Button,
+  ChainChip,
+  Chip,
+  EmptyState,
+  Label,
+  Page,
+  SearchField,
+  SegmentedControl,
+  SkeletonBlock,
+  Small,
+  StatusDot,
+  Surface,
+  Table,
+  TableScroller,
+  truncateMiddle,
+  type StatusTone,
+} from 'components/curate/primitives'
+import { AnimatedNumber } from 'components/curate/motion/animated-number'
+import { Odometer } from 'components/curate/motion/odometer'
+import { RingGauge } from 'components/curate/motion/ring-gauge'
+import { reveal } from 'components/curate/motion/reveal'
+import { Pagination } from 'components/ui'
+import { fetchDashboardData } from 'pages/dashboard/data'
 import {
-  DashboardActivity,
-  DashboardRegistry,
-  RegistryKind,
-} from 'pages/dashboard/types'
+  applyCreationTimes,
+  fetchRegistryCreationTimes,
+} from 'utils/registry-creation'
+import type { DashboardRegistry } from 'pages/dashboard/types'
+import {
+  KIND_OPTIONS,
+  PAGE_SIZE,
+  SORT_OPTIONS,
+  SUPPORTED_CHAIN_IDS,
+  VERIFICATION_CHAIN_IDS,
+  activityTone,
+  chainName,
+  entryCount,
+  filterRegistries,
+  hasAddressTitle,
+  kindLabel,
+  mediaUrl,
+  parseChains,
+  parseKinds,
+  parsePage,
+  parseSort,
+  parseTrust,
+  pendingLabel,
+  registryBlurb,
+  registryHref,
+  scopeText,
+  shareCaption,
+  shownCreation,
+  sortRegistries,
+  summarize,
+  toggleKind,
+  verificationHref,
+  type TrustMode,
+} from './view'
 
-type ViewMode = 'cards' | 'list'
-type RegistryMode = 'verified' | 'unverified'
-type SortMode =
-  | 'recent-submission'
-  | 'recent-creation'
-  | 'activity'
-  | 'items'
-  | 'disputes'
-  | 'name'
+/*
+ * Browse (/browse): every registry the indexers know, across chains. A
+ * compact title, one panel of figures for the chosen chain scope, then the
+ * explorer: one toolbar row (search, trust, type, sort, layout), the
+ * registries as rows, cards or a table, and pagination. The rail holds the
+ * way to get a registry verified and the latest requests. The chain is
+ * chosen in the app bar through ?chain. Every figure is read from the data.
+ */
 
-const PAGE_SIZE = 15
-const CHAINS: number[] = [NETWORKS.ethereum, NETWORKS.gnosis, NETWORKS.sepolia]
+const integer = new Intl.NumberFormat('en-US')
+const formatInt = (value: number) => integer.format(Math.round(value))
 
-const Page = styled.main`
-  width: 100%;
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 32px var(--horizontal-padding) 64px;
-  color: var(--v2-text);
+const dateParts = new Intl.DateTimeFormat('en-US', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'UTC',
+})
+
+/**
+ * "7 Sep 2026" (UTC), day first with the three-letter month. Not
+ * utils/time formatDate: its en-GB format writes September as "Sept", which
+ * breaks the three-letter rhythm of the Created column.
+ */
+const formatDay = (timestamp: number): string => {
+  const parts = Object.fromEntries(
+    dateParts
+      .formatToParts(new Date(timestamp * 1000))
+      .map((part) => [part.type, part.value]),
+  )
+  return `${parts.day} ${parts.month} ${parts.year}`
+}
+
+const pulse = keyframes`
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--status-registered) 55%, transparent); }
+  70% { box-shadow: 0 0 0 8px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
 `
 
-const Hero = styled.section`
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(340px, 440px);
-  gap: 18px;
-  align-items: stretch;
-  padding-bottom: 20px;
-  border-bottom: 1px solid var(--v2-stroke);
-
-  @media (max-width: 960px) {
-    grid-template-columns: 1fr;
-  }
+const displayFigure = css`
+  color: var(--color-text);
+  font-family: var(--font-figure);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
 `
 
-const HeroCopy = styled.div`
-  min-height: 270px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: clamp(24px, 4vw, 44px);
-  border-top: 5px solid var(--v2-blue);
-  background: var(--v2-card);
-  box-shadow: var(--v2-shadow);
-`
-
-const Eyebrow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--v2-blue);
-  font-size: 11px;
-  font-weight: 850;
-  text-transform: uppercase;
-`
-
-const Title = styled.h1`
-  margin: 16px 0 12px;
-  color: var(--v2-text);
-  font-size: clamp(34px, 5vw, 52px);
-  font-weight: 620;
-  line-height: 1.05;
-`
-
-const Lead = styled.p`
-  max-width: 720px;
-  margin: 0;
-  color: var(--v2-muted);
-  font-size: 16px;
-  line-height: 1.62;
-`
-
-const HeroStats = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 24px;
-  margin-top: 24px;
-
-  span {
-    color: var(--v2-muted);
-    font-size: 12px;
-  }
-
-  strong {
-    margin-right: 6px;
-    color: var(--v2-text);
-    font-size: 16px;
-  }
-`
-
-const ActivityPanel = styled.aside`
-  min-height: 270px;
-  padding: 18px;
-  border: 1px solid var(--v2-stroke);
-  background: var(--v2-card);
-  box-shadow: var(--v2-shadow);
-`
-
-const PanelHeading = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding-bottom: 13px;
-  border-bottom: 1px solid var(--v2-stroke);
-
-  h2 {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 0;
-    color: var(--v2-text);
-    font-size: 15px;
-    font-weight: 700;
-  }
-
-  small {
-    color: var(--v2-success);
-    font-size: 10px;
-    font-weight: 850;
-    text-transform: uppercase;
-  }
-`
-
-const ActivityList = styled.div`
-  display: grid;
-`
-
-const ActivityRow = styled(Link)`
-  min-width: 0;
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
-  min-height: 43px;
-  border-bottom: 1px solid var(--v2-stroke);
-  color: inherit;
-  text-decoration: none;
-
-  &:hover strong {
-    color: var(--v2-blue);
-  }
-`
-
-const ActivityIcon = styled.span`
-  width: 26px;
-  height: 26px;
-  display: inline-grid;
-  place-items: center;
-  border: 1px solid var(--v2-stroke);
-  color: var(--v2-blue);
-  background: var(--v2-soft);
-`
-
-const ActivityCopy = styled.div`
-  min-width: 0;
-
-  strong,
-  small {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  strong {
-    color: var(--v2-text);
-    font-size: 12px;
-    font-weight: 700;
-  }
-
-  small {
-    margin-top: 2px;
-    color: var(--v2-faint);
-    font-size: 10px;
-  }
-`
-
-const ChainName = styled.span<{ $color?: string }>`
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: ${({ $color }) => $color || 'var(--v2-muted)'};
-  font-size: 11px;
-  font-weight: 800;
-`
-
-const Toolbar = styled.section`
-  display: grid;
-  grid-template-columns: minmax(220px, 1fr) 166px 174px 218px auto;
-  gap: 10px;
-  align-items: center;
-  margin: 18px 0 26px;
-  padding: 12px;
-  border: 1px solid var(--v2-stroke);
-  background: var(--v2-card);
-  box-shadow: var(--v2-shadow);
-
-  @media (max-width: 1040px) {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  @media (max-width: 560px) {
-    grid-template-columns: 1fr;
-  }
-`
-
-const Search = styled.label`
-  min-width: 0;
-  min-height: 42px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 12px;
-  border: 1px solid var(--v2-stroke);
-  color: var(--v2-muted);
-  background: var(--v2-bg);
-
-  &:focus-within {
-    border-color: var(--v2-blue);
-  }
-
-  input {
-    width: 100%;
-    min-width: 0;
-    border: 0 !important;
-    outline: 0;
-    color: var(--v2-text);
-    background: transparent;
-    font-size: 13px;
-  }
-`
-
-const FilterDropdown = styled.div`
-  min-width: 0;
-
-  .ui-dropdown {
-    width: 100%;
-  }
-`
-
-const FilterTrigger = styled.button`
-  width: 100%;
-  min-height: 42px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin: 0;
-  padding: 0 12px;
-  border: 1px solid var(--v2-stroke);
-  color: var(--v2-text);
-  background: var(--v2-bg);
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 700;
-
-  &:hover,
-  &:focus-visible {
-    border-color: var(--v2-blue);
-    outline: 0;
-  }
-
-  span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-`
-
-const FilterMenu = styled.fieldset`
-  width: 220px;
-  display: grid;
-  gap: 2px;
-  margin: 0;
-  padding: 7px;
-  border: 0;
-`
-
-const FilterLegend = styled.legend`
-  width: calc(100% - 12px);
-  margin: 0 6px 5px;
-  padding: 8px 4px 9px;
-  border-bottom: 1px solid var(--v2-stroke);
-  color: var(--v2-faint);
-  font-size: 10px;
-  font-weight: 850;
-  text-transform: uppercase;
-`
-
-const CheckOption = styled.label`
-  min-height: 36px;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 0 9px;
-  color: var(--v2-muted);
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
-  cursor: pointer;
-
-  &:hover {
-    color: var(--v2-text);
-    background: var(--v2-soft);
-  }
-
-  input {
-    width: 14px;
-    height: 14px;
-    margin: 0;
-    accent-color: var(--v2-blue);
-  }
-
-  &:has(input:checked) {
-    color: var(--v2-text);
-    background: var(--v2-blue-soft);
-  }
-`
-
-const SortSelect = styled(Select)`
-  width: 100%;
-
-  > div {
-    min-height: 42px;
-    background: var(--v2-bg);
-    font-size: 12px;
-    font-weight: 700;
-  }
-`
-
-const ViewToggle = styled.div`
-  min-height: 42px;
-  display: inline-flex;
-  justify-self: end;
-  padding: 3px;
-  border: 1px solid var(--v2-stroke);
-  background: var(--v2-bg);
-
-  @media (max-width: 560px) {
-    justify-self: stretch;
-  }
-`
-
-const ViewButton = styled.button<{ $active?: boolean }>`
-  width: 36px;
-  min-height: 34px;
-  display: inline-grid;
-  place-items: center;
-  border: 0;
-  color: ${({ $active }) => ($active ? 'var(--v2-text)' : 'var(--v2-muted)')};
-  background: ${({ $active }) =>
-    $active ? 'var(--v2-blue-soft)' : 'transparent'};
-  cursor: pointer;
-
-  @media (max-width: 560px) {
-    width: 50%;
-  }
-`
-
-const Section = styled.section`
-  margin-top: 26px;
-`
-
-const SectionHeading = styled.div`
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 18px;
-  margin-bottom: 16px;
-
-  h2 {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 0;
-    color: var(--v2-text);
-    font-size: 24px;
-    font-weight: 650;
-  }
-
-  p {
-    margin: 6px 0 0;
-    color: var(--v2-muted);
-    font-size: 13px;
-  }
-
-  strong {
-    color: var(--v2-blue);
-    font-size: 13px;
-  }
-
-  @media (max-width: 680px) {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-`
-
-const SectionTitleLine = styled.div`
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 9px 14px;
-`
-
-const ModeSwitch = styled.button`
-  padding: 0;
-  border: 0;
-  color: var(--v2-warning);
-  background: transparent;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 750;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-`
-
-const SectionActions = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 10px 16px;
-
-  @media (max-width: 680px) {
-    width: 100%;
-    justify-content: space-between;
-  }
-`
-
-const SubmitRegistryLink = styled(Link)`
-  min-height: 38px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 0 14px;
-  border: 1px solid var(--v2-blue);
-  color: var(--v2-bg);
-  background: var(--v2-blue);
-  font-size: 12px;
-  font-weight: 800;
-  text-decoration: none;
-
-  &:hover {
-    color: var(--v2-bg);
-    background: var(--v2-blue-hover);
-  }
-`
-
-const SubmitRegistryButton = styled.button`
-  min-height: 38px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 0 14px;
-  border: 1px solid var(--v2-blue);
-  color: var(--v2-bg);
-  background: var(--v2-blue);
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 800;
-
-  &:hover {
-    background: var(--v2-blue-hover);
-  }
-`
-
-const SubmitMenu = styled.div`
-  width: 230px;
-  display: grid;
-  gap: 2px;
-  padding: 7px;
-`
-
-const SubmitMenuLink = styled(Link)`
-  min-height: 38px;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 0 10px;
-  color: var(--v2-text);
-  font-size: 12px;
-  font-weight: 700;
-  text-decoration: none;
-
-  &:hover {
-    color: var(--v2-text);
-    background: var(--v2-soft);
-  }
-`
-
-const RegistryCollection = styled.div<{ $view: ViewMode }>`
-  display: grid;
-  grid-template-columns: ${({ $view }) =>
-    $view === 'cards' ? 'repeat(auto-fill, minmax(280px, 1fr))' : '1fr'};
-  gap: ${({ $view }) => ($view === 'cards' ? '16px' : '8px')};
-`
-
-const Card = styled(Link)`
-  position: relative;
-  min-width: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  min-height: 278px;
-  border: 1px solid var(--v2-stroke);
-  border-top: 4px solid var(--v2-blue);
-  color: inherit;
-  background: var(--v2-card);
-  box-shadow: var(--v2-shadow);
-  text-decoration: none;
-  transition:
-    transform 150ms ease,
-    border-color 150ms ease;
-
-  &:hover {
-    transform: translateY(-2px);
-    border-color: var(--v2-blue);
-  }
-`
-
-const StakeLogo = styled(StakeTag)`
-  width: 76px;
-  height: 14px;
-  flex: 0 0 auto;
-`
-
-const CardIdentity = styled.div`
-  min-height: 108px;
-  display: grid;
-  grid-template-columns: 60px minmax(0, 1fr);
-  gap: 14px;
-  align-items: center;
-  padding: 18px;
-  border-bottom: 1px solid var(--v2-stroke);
-`
-
-const Logo = styled.div<{ $image?: string | null; $color?: string }>`
-  width: 60px;
-  height: 60px;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  border: 1px solid var(--v2-stroke);
-  color: ${({ $color }) => $color || 'var(--v2-blue)'};
-  background: var(--v2-soft);
-`
-
-const LogoImage = styled.img`
-  width: 100%;
-  height: 100%;
+const ellipsis = css`
   display: block;
-  object-fit: contain;
-`
-
-const RegistryTitle = styled.h3`
   overflow: hidden;
-  margin: 0;
-  color: var(--v2-text);
-  font-size: 16px;
-  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 `
 
-const RegistryMeta = styled.div`
+/* ---------- Header ---------- */
+
+const Header = styled.header`
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px 32px;
+
+  > * {
+    ${reveal}
+  }
+`
+
+const Title = styled.h1`
+  margin: 0;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: clamp(36px, 1.6vw + 24px, 48px);
+  line-height: 1;
+  font-weight: 500;
+  letter-spacing: -0.035em;
+`
+
+const Lede = styled.p`
+  margin: 12px 0 0;
+  color: var(--color-muted);
+  font-size: var(--fs-subheading);
+  line-height: 24px;
+`
+
+const LivePill = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 14px 0 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-raised);
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  font-weight: 500;
+  white-space: nowrap;
+
+  /* The hover tone: --color-primary sits just under 4.5:1 on this raised
+     fill in dark; the hover tone clears it in every theme. */
+  b {
+    color: var(--color-primary-hover);
+    font-weight: 500;
+  }
+`
+
+/** The pulsing dot: only while the data is present and the last fetch worked. */
+const Pulse = styled.i`
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  background: var(--status-registered);
+  animation: ${pulse} 2.4s infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+`
+
+/* ---------- Figures ---------- */
+
+/*
+ * One panel: the verified share as a ring (the same gauge the home page draws
+ * for it), the verified count as the hero figure, then a strip of the other
+ * counts. Every figure appears once.
+ */
+const FiguresPanel = styled(Surface)`
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 24px 36px;
+  margin-top: 28px;
+  padding: 22px 28px;
+  ${reveal}
+
+  @media (max-width: 1100px) {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  @media (max-width: 720px) {
+    gap: 18px 16px;
+    padding: 18px 16px;
+  }
+`
+
+const GaugeSlot = styled.div`
+  display: flex;
+  width: 148px;
+
+  @media (max-width: 720px) {
+    width: 118px;
+  }
+`
+
+const HeroFigure = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+`
+
+const Big = styled.span`
+  ${displayFigure}
+  font-size: clamp(48px, 2.4vw + 28px, 68px);
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+`
+
+const Caption = styled.span`
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+`
+
+/** The other counts as a strip, split by hairlines; it takes the free width. */
+const InlineStats = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+
+  @media (max-width: 1100px) {
+    grid-column: 1 / -1;
+    padding-top: 18px;
+    border-top: 1px solid var(--glass-border);
+  }
+`
+
+/* Label on top, figure at the bottom: the figures share a baseline even when
+   a label wraps at phone width. */
+const InlineStat = styled.div`
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  min-height: 64px;
+  padding: 0 24px;
+  border-left: 1px solid var(--glass-border);
+
+  b {
+    ${displayFigure}
+    font-size: 28px;
+    line-height: 30px;
+  }
+
+  @media (max-width: 1100px) {
+    min-height: 0;
+
+    &:first-child {
+      padding-left: 0;
+      border-left: 0;
+    }
+  }
+
+  @media (max-width: 720px) {
+    padding: 0 12px;
+
+    b {
+      font-size: 20px;
+      line-height: 24px;
+    }
+  }
+`
+
+/* ---------- Layout ---------- */
+
+const Split = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 24px;
+  align-items: start;
+  margin-top: 40px;
+
+  @media (max-width: 1240px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+`
+
+const Explorer = styled.section`
+  min-width: 0;
+  ${reveal}
+`
+
+/* ---------- Toolbar ---------- */
+
+const Toolbar = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+
+  /* The search takes its own line when the column is too narrow for one row. */
+  @media (min-width: 1241px) and (max-width: 1400px), (max-width: 900px) {
+    > label:first-child {
+      flex-basis: 100%;
+    }
+  }
+
+  /* On a phone the layout switch rides next to the trust control. */
+  @media (max-width: 600px) {
+    > [role='radiogroup'][aria-label='Layout'] {
+      order: 1;
+    }
+
+    > [role='group'],
+    > label:last-of-type {
+      order: 2;
+    }
+  }
+`
+
+const Search = styled(SearchField)`
+  flex: 1 1 170px;
+  height: 38px;
+  padding: 0 6px 0 14px;
+  border-radius: var(--radius);
+
+  input {
+    width: 0;
+    font-size: var(--fs-small);
+  }
+
+  /* The field itself shows focus (primary border and ring). */
+  input:focus-visible {
+    outline: none;
+  }
+`
+
+const ClearButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-faint);
+  cursor: pointer;
+  transition:
+    background var(--motion),
+    color var(--motion);
+
+  &:hover {
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+`
+
+const Track = styled.div`
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 38px;
+  padding: 3px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: var(--color-raised);
+`
+
+const Toggle = styled.button<{ $on?: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: ${({ $on }) =>
+    $on ? 'var(--color-primary-soft)' : 'transparent'};
+  box-shadow: ${({ $on }) =>
+    $on
+      ? 'inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 30%, transparent)'
+      : 'none'};
+  color: ${({ $on }) => ($on ? 'var(--color-text)' : 'var(--color-muted)')};
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--motion),
+    box-shadow var(--motion),
+    color var(--motion);
+
+  &:hover {
+    color: var(--color-text);
+  }
+`
+
+const SortField = styled.label`
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: var(--color-raised);
+  color: var(--color-faint);
+  transition: border-color var(--motion);
+
+  &:hover {
+    border-color: var(--color-border-strong);
+  }
+
+  &:focus-within {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 4px var(--color-primary-soft);
+  }
+
+  select:focus-visible {
+    outline: none;
+  }
+
+  select {
+    appearance: none;
+    height: 100%;
+    padding-right: 18px;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--color-text);
+    font-size: var(--fs-small);
+    line-height: var(--lh-small);
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  select option {
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  > svg:last-child {
+    position: absolute;
+    right: 10px;
+    pointer-events: none;
+  }
+`
+
+const LayoutTrack = styled(Track)`
+  margin-left: auto;
+
+  @media (max-width: 520px) {
+    margin-left: 0;
+  }
+`
+
+const LayoutPill = styled.span`
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  z-index: -1;
+  width: 34px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-soft);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--color-primary) 30%, transparent);
+  transition: transform var(--dur-control) var(--ease-spring);
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+`
+
+const LayoutButton = styled.button<{ $on?: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: ${({ $on }) => ($on ? 'var(--color-text)' : 'var(--color-faint)')};
+  cursor: pointer;
+  transition: color var(--motion);
+
+  &:hover {
+    color: var(--color-text);
+  }
+`
+
+const Notice = styled.p`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+
+  svg {
+    flex: 0 0 auto;
+    color: var(--status-contested);
+  }
+`
+
+/* ---------- Registry identity ---------- */
+
+const Logo = styled.span<{ $size: number }>`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: ${({ $size }) => $size}px;
+  height: ${({ $size }) => $size}px;
+  border: 1px solid var(--glass-border);
+  border-radius: ${({ $size }) =>
+    $size >= 40 ? 'var(--radius)' : 'var(--radius-sm)'};
+  background: var(--color-raised);
+  color: var(--color-faint);
+  overflow: hidden;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+`
+
+const Name = styled.span`
+  ${ellipsis}
+  color: var(--color-text);
+  font-size: var(--fs-body-lg);
+  line-height: 20px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  transition: color var(--motion);
+`
+
+const Meta = styled.span`
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px 12px;
-  margin-top: 8px;
-  color: var(--v2-muted);
-  font-size: 11px;
-
-  ${StakeLogo} {
-    width: 68px;
-    height: 13px;
-  }
-`
-
-const CardBody = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 16px 18px 18px;
-`
-
-const Description = styled.p`
-  display: -webkit-box;
-  overflow: hidden;
-  min-height: 42px;
-  margin: 0;
-  color: var(--v2-muted);
-  font-size: 12px;
-  line-height: 1.55;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-`
-
-const Stats = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: auto;
-  padding-top: 16px;
-
-  span {
-    color: var(--v2-faint);
-    font-size: 9px;
-    font-weight: 800;
-    text-transform: uppercase;
-  }
-
-  strong {
-    display: block;
-    margin-bottom: 4px;
-    color: var(--v2-text);
-    font-size: 14px;
-  }
-`
-
-const Row = styled(Link)`
+  gap: 6px;
   min-width: 0;
-  display: grid;
-  grid-template-columns:
-    48px minmax(240px, 1fr) 68px minmax(104px, 126px)
-    minmax(80px, 100px) minmax(80px, 100px) minmax(80px, 100px) auto;
-  column-gap: clamp(14px, 2vw, 28px);
-  align-items: center;
-  min-height: 76px;
-  padding: 12px 16px;
-  border: 1px solid var(--v2-stroke);
-  color: inherit;
-  background: var(--v2-card);
-  text-decoration: none;
+  margin-top: 6px;
+`
 
-  &:hover {
-    border-color: var(--v2-blue);
-    background: var(--v2-soft);
+/** Why a search matched: the description, else the address. */
+const Blurb = styled.span`
+  ${ellipsis}
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-left: 4px;
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+`
+
+const Created = styled.span`
+  color: var(--color-faint);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+`
+
+/**
+ * Rows: the chips, then the description (or the address) on the same line.
+ * At phone width the chips alone fill the line, so the description leaves
+ * (cards still show it) and a long chip line wraps instead of overflowing.
+ */
+const RowMeta = styled(Meta)`
+  flex-wrap: nowrap;
+
+  > :not(${Blurb}) {
+    flex: 0 0 auto;
   }
 
-  ${Logo} {
-    width: 48px;
-    height: 48px;
-  }
+  @media (max-width: 760px) {
+    flex-wrap: wrap;
 
-  @media (max-width: 900px) {
-    grid-template-columns: 48px minmax(0, 1fr) auto;
-
-    > [data-secondary] {
+    ${Blurb} {
       display: none;
     }
   }
 `
 
-const RowIdentity = styled.div`
+/* ---------- Rows ---------- */
+
+const List = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`
+
+const RowLink = styled(Link)`
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 112px 112px 92px 16px;
+  grid-template-areas: 'logo id entries open court go';
+  align-items: center;
+  column-gap: 16px;
+  min-height: 78px;
+  padding: 14px 18px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  color: inherit;
+  text-decoration: none;
+  /* The lift uses translate, not transform: the entrance animation keeps its
+     final transform applied (fill-mode both), which would cancel it. */
+  transition:
+    border-color var(--motion),
+    background var(--motion),
+    translate var(--motion);
+  ${reveal}
+
+  &:hover {
+    border-color: var(--color-border-strong);
+    background: var(--color-raised);
+    translate: 0 -1px;
+  }
+
+  &:hover ${Name} {
+    color: var(--color-primary);
+  }
+
+  &:hover [data-go] {
+    color: var(--color-primary);
+    transform: translateX(2px);
+  }
+
+  @media (max-width: 760px) {
+    grid-template-columns: 40px minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      'logo id id id'
+      'entries entries open court';
+    row-gap: 14px;
+    column-gap: 12px;
+    padding: 14px;
+  }
+`
+
+const RowId = styled.span`
+  grid-area: id;
   min-width: 0;
 `
 
-const RowAddress = styled.div`
-  overflow: hidden;
-  margin-top: 5px;
-  color: var(--v2-faint);
-  font-size: 10px;
-  text-overflow: ellipsis;
+const RowStat = styled.span<{ $area: string }>`
+  grid-area: ${({ $area }) => $area};
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  min-width: 0;
+  text-align: right;
+
+  @media (max-width: 760px) {
+    align-items: flex-start;
+    text-align: left;
+  }
+`
+
+const StatValue = styled.span<{ $large?: boolean; $zero?: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  ${displayFigure}
+  font-size: ${({ $large }) => ($large ? '24px' : '18px')};
+  line-height: ${({ $large }) => ($large ? '26px' : '22px')};
+  /* Zeros recede so the lists with something going on stand out. */
+  color: ${({ $zero }) => ($zero ? 'var(--color-faint)' : 'var(--color-text)')};
+`
+
+const StatLabel = styled.span`
+  color: var(--color-faint);
+  font-size: 12px;
+  line-height: 16px;
   white-space: nowrap;
 `
 
-const RowStakeSlot = styled.div`
-  width: 68px;
-  min-width: 68px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
+const Go = styled.span`
+  grid-area: go;
+  display: inline-flex;
+  color: var(--color-faint);
+  transition:
+    color var(--motion),
+    transform var(--motion);
 
-  ${StakeLogo} {
-    width: 62px;
-    height: 12px;
+  @media (max-width: 760px) {
+    display: none;
   }
 `
 
-const RowChain = styled.div`
+/* ---------- Cards ---------- */
+
+const CardGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+`
+
+const CardLink = styled(Link)`
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 220px;
+  padding: 18px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  color: inherit;
+  text-decoration: none;
+  transition:
+    border-color var(--motion),
+    background var(--motion),
+    translate var(--motion);
+  ${reveal}
+
+  &:hover {
+    border-color: var(--color-border-strong);
+    background: var(--color-raised);
+    translate: 0 -2px;
+  }
+
+  &:hover ${Name} {
+    color: var(--color-primary);
+  }
+`
+
+const CardTop = styled.span`
+  display: flex;
+  align-items: center;
+  gap: 12px;
   min-width: 0;
-  display: flex;
-  align-items: center;
 `
 
-const RowCount = styled.div`
-  color: var(--v2-text);
-  font-size: 12px;
-  font-weight: 750;
-  font-variant-numeric: tabular-nums;
-  text-align: left;
+const CardDescription = styled.span`
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
 
-  small {
-    display: block;
-    margin-top: 3px;
-    color: var(--v2-faint);
-    font-size: 9px;
-    text-transform: uppercase;
+  code {
+    font-family: var(--font-mono);
+    font-size: 12px;
   }
 `
 
-const OpenLabel = styled.span`
+const CardStats = styled.span`
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--glass-border);
+
+  > span {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+`
+
+/** "71 Open requests" over "0 In court", right-aligned. */
+const CardSide = styled.span`
+  align-items: flex-end;
+
+  > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--color-faint);
+    font-size: 12px;
+    line-height: 18px;
+    white-space: nowrap;
+  }
+
+  b {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    ${displayFigure}
+    font-size: var(--fs-body);
+  }
+
+  b[data-zero='true'] {
+    color: var(--color-faint);
+  }
+`
+
+/* ---------- Table ---------- */
+
+const TableName = styled(Link)`
+  ${ellipsis}
+  color: var(--color-text);
+  font-weight: 500;
+  text-decoration: none;
+
+  &:hover {
+    color: var(--color-primary);
+  }
+`
+
+/** The registry column takes the free width and lets its text ellipsize. */
+const RegistryCell = styled.td`
+  width: 100%;
+  max-width: 0;
+`
+
+const IdentityCell = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+`
+
+const SubLine = styled.span`
+  ${ellipsis}
+  min-width: 0;
+  color: var(--color-faint);
+  font-size: 12px;
+  line-height: 16px;
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+`
+
+const CourtCell = styled.span`
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  color: var(--v2-blue);
-  font-size: 12px;
-  font-weight: 800;
+  justify-content: flex-end;
+  gap: 8px;
 `
 
-const Center = styled.div`
+/* ---------- Footer ---------- */
+
+const Footer = styled.div`
   display: flex;
-  justify-content: center;
-  margin-top: 20px;
-`
-
-const RegistryPagination = styled(Pagination)`
+  align-items: center;
+  justify-content: space-between;
   flex-wrap: wrap;
-  justify-content: center;
+  gap: 12px;
+  margin-top: 18px;
 `
 
-const Warning = styled.div`
+/* ---------- Rail ---------- */
+
+const Rail = styled.aside`
   display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  margin-bottom: 16px;
-  padding: 12px 14px;
-  border: 1px solid var(--v2-warning);
-  color: var(--v2-warning);
-  background: var(--v2-warning-soft);
-  font-size: 12px;
-  line-height: 1.5;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+
+  /* Under the list, the two panels sit side by side until phone width. */
+  @media (min-width: 761px) and (max-width: 1240px) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  > * {
+    ${reveal}
+  }
 `
 
-const Empty = styled.div`
-  min-height: 150px;
+const RailTitle = styled.h2`
+  margin: 0;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 24px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+`
+
+const RailHead = styled.div`
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+`
+
+const VerifyLinks = styled.div`
+  display: flex;
+  flex-direction: column;
+  margin-top: 14px;
+  border-top: 1px solid var(--glass-border);
+`
+
+const VerifyLink = styled(Link)`
   display: grid;
-  place-items: center;
-  border: 1px solid var(--v2-stroke);
-  color: var(--v2-muted);
-  background: var(--v2-card);
-  text-align: center;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  height: 46px;
+  border-bottom: 1px solid var(--glass-border);
+  color: var(--color-text);
+  font-size: var(--fs-body);
+  font-weight: 500;
+  text-decoration: none;
+
+  &:last-child {
+    border-bottom: 0;
+  }
+
+  span:last-child {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--color-primary);
+    font-size: var(--fs-small);
+    transition: transform var(--motion);
+  }
+
+  &:hover span:last-child {
+    transform: translateX(2px);
+  }
 `
 
-const Skeleton = styled.div`
-  min-height: 270px;
-  border: 1px solid var(--v2-stroke);
-  background: var(--v2-soft);
+const Feed = styled.ol`
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
 `
 
-const chainInfo = (chainId: number) =>
-  NETWORKS_INFO[chainId as keyof typeof NETWORKS_INFO]
+const FeedItem = styled.li`
+  position: relative;
 
-const ChainLabel = ({
-  chainId,
-  short = false,
-}: {
-  chainId: number
-  short?: boolean
-}) => {
-  const info = chainInfo(chainId)
-  const name = info?.name || String(chainId)
+  /* A hairline strings each dot to the next one. */
+  &:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    top: 26px;
+    bottom: -8px;
+    left: 3.5px;
+    width: 1px;
+    background: var(--glass-border);
+  }
 
+  a {
+    display: grid;
+    grid-template-columns: 8px minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 14px;
+    padding: 12px 0;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  a > span:first-child {
+    margin-top: 5px;
+  }
+
+  a:hover strong {
+    color: var(--color-primary);
+  }
+
+  strong {
+    ${ellipsis}
+    color: var(--color-text);
+    font-size: var(--fs-small);
+    line-height: var(--lh-small);
+    font-weight: 500;
+    transition: color var(--motion);
+  }
+
+  em {
+    ${ellipsis}
+    margin-top: 2px;
+    color: var(--color-muted);
+    font-size: 12px;
+    font-style: normal;
+    line-height: 16px;
+  }
+
+  em code {
+    font-family: var(--font-mono);
+  }
+
+  time {
+    flex: 0 0 auto;
+    color: var(--color-faint);
+    font-size: 12px;
+    line-height: 18px;
+    white-space: nowrap;
+  }
+
+  small {
+    ${ellipsis}
+    margin-top: 2px;
+    color: var(--color-faint);
+    font-size: 12px;
+    line-height: 16px;
+  }
+`
+
+/** A bare address or transaction hash, set in mono and shortened. */
+const HEX_ID = /^0x(?:[0-9a-f]{40}|[0-9a-f]{64})$/i
+
+/**
+ * The item's first field; CAIP-10 values read as "0x94bA…8a2f · Robinhood
+ * Chain", bare addresses as "0x4790…a1B2".
+ */
+const Identifier = ({ label, value }: { label: string; value: string }) => {
+  const rich = parseRichAddress(value)
   return (
-    <ChainName $color={info?.color}>
-      <ChainLogo chainId={chainId} size={17} />
-      {short ? name.replace('Ethereum', 'Eth') : name}
-    </ChainName>
+    <em title={`${label}: ${value}`}>
+      {rich ? (
+        <>
+          <code>{truncateMiddle(rich.address)}</code> · {rich.reference.name}
+        </>
+      ) : HEX_ID.test(value.trim()) ? (
+        <code>{truncateMiddle(value.trim())}</code>
+      ) : (
+        value
+      )}
+    </em>
   )
 }
 
-const kindLabel = (kind: RegistryKind) => {
-  if (kind === 'permanent') return 'Stake'
-  if (kind === 'light') return 'Traditional'
-  return 'Classic'
-}
+const FeedHead = styled.span`
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+`
 
-const registryHref = (registry: DashboardRegistry) =>
-  `/tcr/${registry.chainId}/${registry.address}`
+/** Read by screen readers, not shown. */
+const VisuallyHidden = styled.span`
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+`
 
-const registrySubmissionHref = (chainId: number) =>
-  `/tcr/${chainId}/${
-    VERIFIED_LIST_OF_LISTS_ADDRESSES[
-      chainId as keyof typeof VERIFIED_LIST_OF_LISTS_ADDRESSES
-    ]
-  }/submit`
+/* ---------- Pieces ---------- */
 
-const mediaUrl = (uri?: string) => {
-  if (!uri) return null
-  return /^https?:\/\//i.test(uri) ? uri : parseIpfs(uri)
-}
-
-const shortAddress = (address?: string) =>
-  address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Unknown'
-
-const activityIcon = (activity: DashboardActivity) => {
-  if (activity.kind === 'challenge') return 'dispute'
-  if (activity.kind === 'removal') return 'remove'
-  if (activity.kind === 'resolution') return 'court'
-  return 'submit'
-}
-
-const updateParams = (
-  params: URLSearchParams,
-  updates: Record<string, string | null>,
-) => {
-  const next = new URLSearchParams(params)
-  Object.entries(updates).forEach(([key, value]) => {
-    if (!value) next.delete(key)
-    else next.set(key, value)
-  })
-  return next
-}
-
+/** Registry logo from its metadata, falling back to the registry icon. */
 const RegistryLogo = ({
   registry,
-  size = 24,
+  size = 44,
 }: {
   registry: DashboardRegistry
   size?: number
 }) => {
   const [failed, setFailed] = useState(false)
-  const info = chainInfo(registry.chainId)
   const image = mediaUrl(registry.logoURI)
-
   return (
-    <Logo $color={info?.color}>
+    <Logo $size={size} aria-hidden style={{ gridArea: 'logo' }}>
       {image && !failed ? (
-        <LogoImage
-          src={image}
-          alt={`${registry.title} logo`}
-          onError={() => setFailed(true)}
-        />
+        <img src={image} alt="" onError={() => setFailed(true)} />
       ) : (
-        <CurateIcon name="registry" size={size} />
+        <CurateIcon name="registry" size={Math.round(size * 0.42)} />
       )}
     </Logo>
   )
 }
 
-const RegistryCard = ({ registry }: { registry: DashboardRegistry }) => (
-  <Card to={registryHref(registry)}>
-    <CardIdentity>
-      <RegistryLogo registry={registry} />
-      <div>
-        <RegistryTitle>{registry.title}</RegistryTitle>
-        <RegistryMeta>
-          <ChainLabel chainId={registry.chainId} />
-          {registry.kind === 'permanent' && (
-            <StakeLogo aria-label="Stake Curate" />
-          )}
-        </RegistryMeta>
-      </div>
-    </CardIdentity>
-    <CardBody>
-      <Description>
-        {registry.description ||
-          `Registry at ${shortAddress(registry.address)}.`}
-      </Description>
-      <Stats>
-        <div>
-          <strong>{formatCompact(registry.itemCount)}</strong>
-          <span>Items</span>
-        </div>
-        <div>
-          <strong>{formatCompact(registry.pendingCount)}</strong>
-          <span>Pending</span>
-        </div>
-        <div>
-          <strong>{formatCompact(registry.disputeCount)}</strong>
-          <span>Disputes</span>
-        </div>
-      </Stats>
-    </CardBody>
-  </Card>
-)
+const STAKE_PENDING_TITLE =
+  'Stake lists report the entries currently listed, not open requests'
 
-const RegistryRow = ({ registry }: { registry: DashboardRegistry }) => (
-  <Row to={registryHref(registry)}>
-    <RegistryLogo registry={registry} size={20} />
-    <RowIdentity>
-      <RegistryTitle>{registry.title}</RegistryTitle>
-      <RowAddress>{shortAddress(registry.address)}</RowAddress>
-    </RowIdentity>
-    <RowStakeSlot data-secondary>
-      {registry.kind === 'permanent' && <StakeLogo aria-label="Stake Curate" />}
-    </RowStakeSlot>
-    <RowChain data-secondary>
-      <ChainLabel chainId={registry.chainId} />
-    </RowChain>
-    <RowCount data-secondary>
-      {formatCompact(registry.itemCount)}
-      <small>Items</small>
-    </RowCount>
-    <RowCount data-secondary>
-      {formatCompact(registry.pendingCount)}
-      <small>Pending</small>
-    </RowCount>
-    <RowCount data-secondary>
-      {formatCompact(registry.disputeCount)}
-      <small>Disputes</small>
-    </RowCount>
-    <OpenLabel>
-      Open
-      <CurateIcon name="external" size={14} />
-    </OpenLabel>
-  </Row>
-)
+/** Open requests, or for Stake lists the entries currently listed. */
+const pendingTitle = (registry: DashboardRegistry) =>
+  registry.kind === 'permanent' ? STAKE_PENDING_TITLE : undefined
 
-const RegistryResults = ({
-  registries,
-  view,
-}: {
-  registries: DashboardRegistry[]
-  view: ViewMode
-}) =>
-  registries.length > 0 ? (
-    <RegistryCollection $view={view}>
-      {registries.map((registry) =>
-        view === 'cards' ? (
-          <RegistryCard key={registry.id} registry={registry} />
-        ) : (
-          <RegistryRow key={registry.id} registry={registry} />
-        ),
-      )}
-    </RegistryCollection>
+/** The table's Open requests cell: Stake lists have none, so a dash. */
+const OpenRequestsCell = ({ registry }: { registry: DashboardRegistry }) =>
+  registry.kind === 'permanent' ? (
+    <Small $faint title="Stake lists have no requests">
+      <span aria-hidden>—</span>
+      <VisuallyHidden>None, Stake lists have no requests</VisuallyHidden>
+    </Small>
   ) : (
-    <Empty>No registries match these filters.</Empty>
+    <>{formatInt(registry.pendingCount)}</>
   )
+
+const trustName = (mode: TrustMode): string =>
+  mode === 'verified' ? 'Verified' : 'Discovery'
+
+/**
+ * Below this width the table cannot fit its columns (the shared Table is at
+ * least 640px wide), so rows stand in for it without changing the stored
+ * choice, and the switch stops offering it.
+ */
+const NARROW_QUERY = '(max-width: 720px)'
+
+/** True while the viewport is too narrow for the table; follows resizes. */
+const useNarrow = (): boolean => {
+  const [narrow, setNarrow] = useState(
+    () =>
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia(NARROW_QUERY).matches,
+  )
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return undefined
+    const media = window.matchMedia(NARROW_QUERY)
+    const onChange = () => setNarrow(media.matches)
+    onChange()
+    media.addEventListener('change', onChange)
+    return () => media.removeEventListener('change', onChange)
+  }, [])
+  return narrow
+}
+
+/** "In court" with an amber haloed dot when something is in court. */
+const CourtValue = ({ count }: { count: number }) => (
+  <>
+    {count > 0 && <StatusDot $tone="contested" aria-hidden />}
+    {formatInt(count)}
+  </>
+)
+
+const CreatedOn = ({ timestamp }: { timestamp: number }) => (
+  <Created title={formatAbsolute(timestamp)}>
+    Created {formatDay(timestamp)}
+  </Created>
+)
+
+const SortIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden>
+    <g
+      stroke="currentColor"
+      strokeWidth="1.85"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M7 4v16" />
+      <path d="m3.5 16.5 3.5 3.5 3.5-3.5" />
+      <path d="M17 20V4" />
+      <path d="m13.5 7.5 3.5-3.5 3.5 3.5" />
+    </g>
+  </svg>
+)
+
+const ArrowIcon = ({ size = 16 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
+    <g
+      stroke="currentColor"
+      strokeWidth="1.85"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M5 12h14" />
+      <path d="m13 6 6 6-6 6" />
+    </g>
+  </svg>
+)
+
+/**
+ * Table, cards or rows as icon buttons with a sliding pill; `options` leaves
+ * the table out where it cannot fit.
+ */
+const LayoutSwitch = ({
+  value,
+  options,
+  onChange,
+}: {
+  value: ListLayout
+  options: typeof LAYOUT_OPTIONS
+  onChange: (layout: ListLayout) => void
+}) => {
+  const buttons = useRef<Array<HTMLButtonElement | null>>([])
+  const index = Math.max(
+    0,
+    options.findIndex((option) => option.value === value),
+  )
+  // Radio group keyboard model: one tab stop, arrows move and select.
+  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const last = options.length - 1
+    const next =
+      event.key === 'ArrowRight' || event.key === 'ArrowDown'
+        ? index === last
+          ? 0
+          : index + 1
+        : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+          ? index === 0
+            ? last
+            : index - 1
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? last
+              : -1
+    if (next < 0) return
+    event.preventDefault()
+    onChange(options[next].value)
+    buttons.current[next]?.focus()
+  }
+  return (
+    <LayoutTrack role="radiogroup" aria-label="Layout" onKeyDown={onKeyDown}>
+      <LayoutPill
+        aria-hidden
+        style={{ transform: `translateX(${index * 36}px)` }}
+      />
+      {options.map((option, position) => {
+        const checked = option.value === value
+        return (
+          <LayoutButton
+            key={option.value}
+            ref={(node) => {
+              buttons.current[position] = node
+            }}
+            type="button"
+            role="radio"
+            aria-checked={checked}
+            aria-label={option.label}
+            title={option.label}
+            tabIndex={checked ? 0 : -1}
+            $on={checked}
+            onClick={() => onChange(option.value)}
+          >
+            <CurateIcon name={option.icon} size={16} />
+          </LayoutButton>
+        )
+      })}
+    </LayoutTrack>
+  )
+}
+
+type Freshness = 'live' | 'stale' | 'connecting' | 'down'
+
+const FRESHNESS_TONE: Record<Exclude<Freshness, 'live'>, StatusTone> = {
+  stale: 'contested',
+  connecting: 'neutral',
+  down: 'off',
+}
+
+/**
+ * The data's state, said plainly: a pulsing "Live" only while the figures are
+ * loaded and the last fetch worked; a still dot otherwise.
+ */
+const FreshnessPill = ({
+  state,
+  updatedAt,
+  now,
+  index,
+}: {
+  state: Freshness
+  updatedAt?: number
+  now: number
+  index: number
+}) => {
+  const ago = updatedAt ? `Updated ${formatAgo(updatedAt, now)}` : ''
+  return (
+    <LivePill style={{ ['--i' as string]: index }}>
+      {state === 'live' ? (
+        <Pulse aria-hidden />
+      ) : (
+        <StatusDot $tone={FRESHNESS_TONE[state]} aria-hidden />
+      )}
+      {state === 'live' && <b>Live</b>}
+      {state === 'live'
+        ? ago
+        : state === 'stale'
+          ? `${ago} · last refresh failed`
+          : state === 'connecting'
+            ? 'Connecting to the indexers'
+            : 'Indexers not answering'}
+    </LivePill>
+  )
+}
+
+/* ---------- Page ---------- */
 
 const BrowsePage = () => {
-  const [params, setParams] = useSearchParams()
-  const [chainMenuOpen, setChainMenuOpen] = useState(false)
-  const [kindMenuOpen, setKindMenuOpen] = useState(false)
-  const [submitMenuOpen, setSubmitMenuOpen] = useState(false)
-  const search = params.get('q') || ''
-  const chainParam = params.get('chain') || ''
-  const kindParam = params.get('kind') || ''
-  const selectedChains = useMemo(
-    () =>
-      chainParam
-        .split(',')
-        .map(Number)
-        .filter((chainId) => CHAINS.includes(chainId)),
-    [chainParam],
-  )
-  const selectedKinds = useMemo(
-    () =>
-      kindParam
-        .split(',')
-        .filter((kind): kind is RegistryKind =>
-          ['classic', 'light', 'permanent'].includes(kind),
-        ),
-    [kindParam],
-  )
-  const view: ViewMode = params.get('view') === 'list' ? 'list' : 'cards'
-  const mode: RegistryMode =
-    params.get('trust') === 'unverified' ? 'unverified' : 'verified'
-  const sortParam = params.get('sort') || ''
-  const sort: SortMode = [
-    'recent-submission',
-    'recent-creation',
-    'activity',
-    'items',
-    'disputes',
-    'name',
-  ].includes(sortParam)
-    ? (sortParam as SortMode)
-    : 'recent-submission'
-  const requestedPage = Math.max(1, Number(params.get('page')) || 1)
-
   useDocumentHead(
     'Browse registries | Kleros Curate',
-    'Browse Kleros Verified and unverified Curate registries across Ethereum, Gnosis, and Sepolia.',
+    'Browse Kleros Verified and discovery Curate registries across Ethereum, Gnosis and Sepolia.',
   )
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const chainParam = searchParams.get('chain')
+  const chains = useMemo(() => parseChains(chainParam), [chainParam])
+  const trust = parseTrust(searchParams.get('trust'))
+  const kindParam = searchParams.get('kind')
+  const kinds = useMemo(() => parseKinds(kindParam), [kindParam])
+  const sort = parseSort(searchParams.get('sort'))
+  const search = searchParams.get('q') || ''
+  const requestedPage = parsePage(searchParams.get('page'))
+  const [layout, setLayout] = useStoredLayout('browse', 'rows')
+  // A phone shows rows for a stored table choice and keeps the choice.
+  const narrow = useNarrow()
+  const shown = narrow && layout === 'table' ? 'rows' : layout
+  const layoutOptions = useMemo(
+    () =>
+      narrow
+        ? LAYOUT_OPTIONS.filter((option) => option.value !== 'table')
+        : LAYOUT_OPTIONS,
+    [narrow],
+  )
+  const now = useNow(30_000)
 
-  const dashboardQuery = useQuery({
+  const query = useQuery({
     queryKey: ['curateDashboard'],
     queryFn: fetchDashboardData,
     staleTime: 60_000,
     refetchInterval: 60_000,
   })
+  const data = query.data
 
+  // Real creation blocks (factory NewGTCR events), cached once read. Until
+  // they arrive the dashboard data already carries whatever was cached.
+  const creation = useQuery({
+    queryKey: ['registryCreationTimes'],
+    queryFn: () => fetchRegistryCreationTimes(SUPPORTED_CHAIN_IDS),
+    staleTime: 10 * 60_000,
+  })
+
+  const setParam = (updates: Record<string, string | null>) => {
+    const next = new URLSearchParams(searchParams)
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value) next.set(key, value)
+      else next.delete(key)
+    })
+    setSearchParams(next, { replace: true })
+  }
+
+  // Any filter change returns to the first page, including changes made
+  // elsewhere (the app bar's chain chip, back and forward navigation).
+  const filterKey = `${chainParam ?? ''}|${trust}|${kindParam ?? ''}|${sort}|${search}`
+  const lastFilterKey = useRef(filterKey)
   useEffect(() => {
-    if (requestedPage !== 1)
-      setParams(updateParams(params, { page: null }), { replace: true })
-    // Filter changes should always return to the first result page.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chainParam, kindParam, search, mode, sort])
+    if (lastFilterKey.current === filterKey) return
+    lastFilterKey.current = filterKey
+    if (!searchParams.get('page')) return
+    const next = new URLSearchParams(searchParams)
+    next.delete('page')
+    setSearchParams(next, { replace: true })
+  }, [filterKey, searchParams, setSearchParams])
 
-  const filtered = useMemo(() => {
-    const normalized = search.trim().toLowerCase()
-    return (dashboardQuery.data?.registries ?? [])
-      .filter(
-        (registry) =>
-          selectedChains.length === 0 ||
-          selectedChains.includes(registry.chainId),
-      )
-      .filter(
-        (registry) =>
-          selectedKinds.length === 0 || selectedKinds.includes(registry.kind),
-      )
-      .filter(
-        (registry) =>
-          !normalized ||
-          [
-            registry.title,
-            registry.description,
-            registry.address,
-            kindLabel(registry.kind),
-            chainInfo(registry.chainId)?.name,
-          ].some((value) =>
-            String(value || '')
-              .toLowerCase()
-              .includes(normalized),
-          ),
-      )
-      .sort((a, b) => {
-        if (sort === 'activity')
-          return (
-            b.activeCount - a.activeCount ||
-            (b.lastActivityAt || 0) - (a.lastActivityAt || 0)
-          )
-        if (sort === 'items') return b.itemCount - a.itemCount
-        if (sort === 'disputes')
-          return (
-            b.disputeCount - a.disputeCount || b.activeCount - a.activeCount
-          )
-        if (sort === 'name') return a.title.localeCompare(b.title)
-        if (sort === 'recent-creation')
-          return (
-            (b.createdAt || 0) - (a.createdAt || 0) ||
-            (b.lastActivityAt || 0) - (a.lastActivityAt || 0) ||
-            b.itemCount - a.itemCount
-          )
-        return (
-          (b.lastActivityAt || 0) - (a.lastActivityAt || 0) ||
-          b.activeCount - a.activeCount ||
-          b.itemCount - a.itemCount
-        )
-      })
-  }, [dashboardQuery.data, search, selectedChains, selectedKinds, sort])
+  // Old links carried the layout in the URL (?view=list or ?view=cards). The
+  // layout is now remembered per device, so adopt it once and drop the param.
+  useEffect(() => {
+    const view = searchParams.get('view')
+    if (view === null) return
+    if (view === 'list') setLayout('rows')
+    else if (view === 'cards') setLayout('cards')
+    const next = new URLSearchParams(searchParams)
+    next.delete('view')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setLayout, setSearchParams])
 
-  const verified = filtered.filter(
-    (registry) => registry.trustStatus === 'verified',
+  const registries = useMemo(
+    () =>
+      data
+        ? sortRegistries(
+            filterRegistries(
+              creation.data
+                ? applyCreationTimes(data.registries, creation.data)
+                : data.registries,
+              { chains, trust, kinds, search },
+            ),
+            sort,
+          )
+        : [],
+    [data, creation.data, chains, trust, kinds, search, sort],
   )
-  const unverified = filtered.filter(
-    (registry) => registry.trustStatus !== 'verified',
+  // With nothing on this trust tab, how many match on the other one: a search
+  // for a Discovery list from the Verified tab should say where it is.
+  const otherTrust: TrustMode = trust === 'verified' ? 'unverified' : 'verified'
+  const otherMatches = useMemo(
+    () =>
+      data && registries.length === 0
+        ? filterRegistries(data.registries, {
+            chains,
+            trust: otherTrust,
+            kinds,
+            search,
+          }).length
+        : 0,
+    [data, registries.length, chains, otherTrust, kinds, search],
   )
-  const activities = (dashboardQuery.data?.activities ?? [])
-    .filter(
-      (activity) =>
-        selectedChains.length === 0 ||
-        selectedChains.includes(activity.chainId),
-    )
-    .slice(0, 5)
-
-  const activeRegistries = mode === 'verified' ? verified : unverified
-  const totalPages = Math.max(1, Math.ceil(activeRegistries.length / PAGE_SIZE))
-  const currentPage = Math.min(requestedPage, totalPages)
-  const pageRegistries = activeRegistries.slice(
+  const pageCount = Math.max(1, Math.ceil(registries.length / PAGE_SIZE))
+  const currentPage = Math.min(requestedPage, pageCount)
+  const visible = registries.slice(
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE,
   )
 
-  const setFilter = (updates: Record<string, string | null>) =>
-    setParams(updateParams(params, updates), { replace: true })
+  const figures = useMemo(
+    () => summarize(data?.registries ?? [], chains),
+    [data, chains],
+  )
 
-  const toggleChain = (chainId: number) => {
-    const next = selectedChains.includes(chainId)
-      ? selectedChains.filter((value) => value !== chainId)
-      : [...selectedChains, chainId]
-    setFilter({ chain: next.length > 0 ? next.join(',') : null, page: null })
-  }
+  const latest = useMemo(
+    () =>
+      (data?.activities ?? [])
+        .filter(
+          (activity) =>
+            chains.length === 0 || chains.includes(activity.chainId),
+        )
+        .slice(0, 5),
+    [data, chains],
+  )
 
-  const toggleKind = (registryKind: RegistryKind) => {
-    const next = selectedKinds.includes(registryKind)
-      ? selectedKinds.filter((value) => value !== registryKind)
-      : [...selectedKinds, registryKind]
-    setFilter({ kind: next.length > 0 ? next.join(',') : null, page: null })
-  }
+  const verificationChains =
+    chains.length === 1 && VERIFICATION_CHAIN_IDS.includes(chains[0])
+      ? chains
+      : VERIFICATION_CHAIN_IDS
+  const scope = scopeText(chains)
+  const showCreated = sort === 'recent-creation'
 
-  const chainSummary =
-    selectedChains.length === 0
-      ? 'All chains'
-      : selectedChains.length === 1
-        ? chainInfo(selectedChains[0])?.name || String(selectedChains[0])
-        : `${selectedChains.length} chains`
+  const loading = query.isLoading || (!data && !query.isError)
+  // fetchDashboardData swallows indexer errors and answers with empty lists,
+  // so an answer without a single registry means the indexers did not answer
+  // (every supported chain has registries, its list of lists at least).
+  const unanswered = !!data && data.registries.length === 0
+  const failed = (query.isError && !data) || unanswered
+  const freshness: Freshness =
+    data && !unanswered
+      ? query.isError
+        ? 'stale'
+        : 'live'
+      : failed
+        ? 'down'
+        : 'connecting'
+  const registryTotal = figures.verified + figures.discovery
 
-  const typeSummary =
-    selectedKinds.length === 0
-      ? 'All registry types'
-      : selectedKinds.length === 1
-        ? kindLabel(selectedKinds[0])
-        : `${selectedKinds.length} registry types`
-
-  if (dashboardQuery.isLoading || !dashboardQuery.data)
-    return (
-      <Page>
-        <Hero>
-          <Skeleton />
-          <Skeleton />
-        </Hero>
-      </Page>
-    )
+  const clearFilters = () =>
+    setParam({ q: null, trust: null, kind: null, chain: null, page: null })
 
   return (
     <Page>
-      <Hero>
-        <HeroCopy>
-          <Eyebrow>
-            <CurateIcon name="registry" size={17} />
-            All-chain registry discovery
-          </Eyebrow>
-          <Title>Browse registries</Title>
-          <Lead>
-            Find lists across Ethereum, Gnosis, and Sepolia. Start with Kleros
-            Verified registries, then switch to unverified registries when you
-            need a wider view.
-          </Lead>
-          <HeroStats>
-            <span>
-              <strong>{dashboardQuery.data.metrics.verifiedRegistries}</strong>
-              Kleros Verified
-            </span>
-            <span>
-              <strong>
-                {dashboardQuery.data.metrics.registries -
-                  dashboardQuery.data.metrics.verifiedRegistries}
-              </strong>
-              Unverified
-            </span>
-            <span>
-              <strong>3</strong>
-              Chains
-            </span>
-          </HeroStats>
-        </HeroCopy>
-        <ActivityPanel>
-          <PanelHeading>
-            <h2>
-              <CurateIcon name="activity" size={17} />
-              Recent activity
-            </h2>
-            <small>Live</small>
-          </PanelHeading>
-          <ActivityList>
-            {activities.map((activity) => (
-              <ActivityRow key={activity.id} to={activity.href}>
-                <ActivityIcon>
-                  <CurateIcon name={activityIcon(activity)} size={14} />
-                </ActivityIcon>
-                <ActivityCopy>
-                  <strong>{activity.status}</strong>
-                  <small>
-                    {activity.registryTitle} · {formatAgo(activity.timestamp)}
-                  </small>
-                </ActivityCopy>
-                <ChainLabel chainId={activity.chainId} short />
-              </ActivityRow>
-            ))}
-          </ActivityList>
-        </ActivityPanel>
-      </Hero>
+      <Header>
+        <div style={{ ['--i' as string]: 0 }}>
+          <Title>Registries</Title>
+          <Lede>Every Curate list on {scope}.</Lede>
+        </div>
+        <FreshnessPill
+          state={freshness}
+          updatedAt={data ? Math.floor(data.generatedAt / 1000) : undefined}
+          now={now}
+          index={1}
+        />
+      </Header>
 
-      <Toolbar aria-label="Registry filters">
-        <Search>
-          <CurateIcon name="search" size={17} />
-          <input
-            aria-label="Search registries"
-            placeholder="Search name, address, chain, or type"
-            value={search}
-            onChange={(event) =>
-              setFilter({ q: event.currentTarget.value || null })
-            }
-          />
-        </Search>
-        <FilterDropdown>
-          <Dropdown
-            trigger={['click']}
-            placement="bottomLeft"
-            visible={chainMenuOpen}
-            onVisibleChange={setChainMenuOpen}
-            overlay={
-              <FilterMenu
-                aria-label="Chains"
-                onClick={(event) => event.stopPropagation()}
-              >
-                <FilterLegend>Chains</FilterLegend>
-                <CheckOption>
-                  <input
-                    type="checkbox"
-                    checked={selectedChains.length === 0}
-                    onChange={() => setFilter({ chain: null, page: null })}
-                  />
-                  All chains
-                </CheckOption>
-                {CHAINS.map((chainId) => (
-                  <CheckOption key={chainId}>
-                    <input
-                      type="checkbox"
-                      checked={selectedChains.includes(chainId)}
-                      onChange={() => toggleChain(chainId)}
+      <FiguresPanel
+        as="section"
+        $featured
+        $padding="none"
+        aria-labelledby="browse-figures-title"
+        style={{ ['--i' as string]: 2 }}
+      >
+        <VisuallyHidden as="h2" id="browse-figures-title">
+          Registry figures for {scope}
+        </VisuallyHidden>
+        {failed ? (
+          <Small $muted style={{ gridColumn: '1 / -1' }}>
+            No figures until the indexers answer.
+          </Small>
+        ) : (
+          <>
+            <GaugeSlot>
+              {loading ? (
+                <SkeletonBlock
+                  $width="100%"
+                  $height="auto"
+                  style={{ aspectRatio: '1', borderRadius: '50%' }}
+                />
+              ) : (
+                <RingGauge
+                  key={chainParam ?? 'all'}
+                  size={148}
+                  ratio={registryTotal ? figures.verified / registryTotal : 0}
+                  from="var(--status-registered)"
+                  to="var(--aurora-b)"
+                  label={`Verified share: ${formatInt(figures.verified)} of ${formatInt(registryTotal)} registries on ${scope} are on the Kleros Verified list of lists`}
+                  caption="verified"
+                />
+              )}
+            </GaugeSlot>
+            <HeroFigure>
+              <Label $tone="faint">Verified registries</Label>
+              <Big>{loading ? '—' : <Odometer value={figures.verified} />}</Big>
+              <Caption>
+                {loading ? '—' : shareCaption(registryTotal, chains)}
+              </Caption>
+            </HeroFigure>
+            <InlineStats>
+              {[
+                { label: 'Discovery', value: figures.discovery },
+                { label: 'Entries', value: figures.entries },
+                { label: 'Open requests', value: figures.openRequests },
+              ].map((figure) => (
+                <InlineStat key={figure.label}>
+                  <Label $tone="faint">{figure.label}</Label>
+                  <b>
+                    <AnimatedNumber
+                      value={loading ? undefined : figure.value}
                     />
-                    <ChainLogo chainId={chainId} size={16} />
-                    {chainInfo(chainId)?.name || chainId}
-                  </CheckOption>
-                ))}
-              </FilterMenu>
-            }
-          >
-            <FilterTrigger type="button" aria-label="Filter by chain">
-              <span>{chainSummary}</span>
-              <CurateIcon name="chevron-down" size={14} />
-            </FilterTrigger>
-          </Dropdown>
-        </FilterDropdown>
-        <FilterDropdown>
-          <Dropdown
-            trigger={['click']}
-            placement="bottomLeft"
-            visible={kindMenuOpen}
-            onVisibleChange={setKindMenuOpen}
-            overlay={
-              <FilterMenu
-                aria-label="Registry types"
-                onClick={(event) => event.stopPropagation()}
-              >
-                <FilterLegend>Registry types</FilterLegend>
-                <CheckOption>
-                  <input
-                    type="checkbox"
-                    checked={selectedKinds.length === 0}
-                    onChange={() => setFilter({ kind: null, page: null })}
-                  />
-                  All registry types
-                </CheckOption>
-                {(
-                  [
-                    ['classic', 'Classic'],
-                    ['light', 'Traditional'],
-                    ['permanent', 'Stake'],
-                  ] as [RegistryKind, string][]
-                ).map(([registryKind, label]) => (
-                  <CheckOption key={registryKind}>
-                    <input
-                      type="checkbox"
-                      checked={selectedKinds.includes(registryKind)}
-                      onChange={() => toggleKind(registryKind)}
-                    />
-                    {label}
-                  </CheckOption>
-                ))}
-              </FilterMenu>
-            }
-          >
-            <FilterTrigger type="button" aria-label="Filter by registry type">
-              <span>{typeSummary}</span>
-              <CurateIcon name="chevron-down" size={14} />
-            </FilterTrigger>
-          </Dropdown>
-        </FilterDropdown>
-        <SortSelect
-          value={sort}
-          onChange={(value) =>
-            setFilter({
-              sort: value === 'recent-submission' ? null : String(value),
-              page: null,
-            })
-          }
+                  </b>
+                </InlineStat>
+              ))}
+            </InlineStats>
+          </>
+        )}
+      </FiguresPanel>
+
+      <Split>
+        <Explorer
+          aria-labelledby="browse-explorer-title"
+          style={{ ['--i' as string]: 3 }}
         >
-          <Select.Option value="recent-submission">
-            Most recent (submission)
-          </Select.Option>
-          <Select.Option value="recent-creation">
-            Most recent (list creation)
-          </Select.Option>
-          <Select.Option value="activity">Most active</Select.Option>
-          <Select.Option value="items">Most items</Select.Option>
-          <Select.Option value="disputes">Most disputes</Select.Option>
-          <Select.Option value="name">Name A-Z</Select.Option>
-        </SortSelect>
-        <ViewToggle aria-label="Registry view">
-          <ViewButton
-            type="button"
-            $active={view === 'cards'}
-            aria-label="Card view"
-            onClick={() => setFilter({ view: null })}
-          >
-            <CurateIcon name="grid" size={16} />
-          </ViewButton>
-          <ViewButton
-            type="button"
-            $active={view === 'list'}
-            aria-label="List view"
-            onClick={() => setFilter({ view: 'list' })}
-          >
-            <CurateIcon name="list" size={16} />
-          </ViewButton>
-        </ViewToggle>
-      </Toolbar>
-
-      <Section>
-        <SectionHeading>
-          <div>
-            <SectionTitleLine>
-              <h2>
-                {mode === 'verified'
-                  ? 'Kleros Verified'
-                  : 'Unverified registries'}
-              </h2>
-              <ModeSwitch
-                type="button"
-                onClick={() =>
-                  setFilter({
-                    trust: mode === 'verified' ? 'unverified' : null,
+          <VisuallyHidden as="h2" id="browse-explorer-title">
+            Registry list
+          </VisuallyHidden>
+          <Toolbar>
+            <Search>
+              <CurateIcon name="search" size={16} />
+              <input
+                aria-label="Search registries"
+                placeholder="Search name, address or chain"
+                value={search}
+                onChange={(event) =>
+                  setParam({
+                    q: event.currentTarget.value || null,
+                    page: null,
+                  })
+                }
+              />
+              {search && (
+                <ClearButton
+                  type="button"
+                  aria-label="Clear search"
+                  onClick={() => setParam({ q: null, page: null })}
+                >
+                  <CurateIcon name="close" size={14} />
+                </ClearButton>
+              )}
+            </Search>
+            <SegmentedControl<TrustMode>
+              ariaLabel="Trust"
+              value={trust}
+              onChange={(value) =>
+                setParam({
+                  trust: value === 'verified' ? null : value,
+                  page: null,
+                })
+              }
+              options={[
+                { value: 'verified', label: 'Verified' },
+                { value: 'unverified', label: 'Discovery' },
+              ]}
+            />
+            <Track role="group" aria-label="Registry type">
+              {KIND_OPTIONS.map((option) => {
+                const selected = kinds.includes(option.value)
+                return (
+                  <Toggle
+                    key={option.value}
+                    type="button"
+                    aria-pressed={selected}
+                    $on={selected}
+                    onClick={() =>
+                      setParam({
+                        kind: toggleKind(kinds, option.value).join(',') || null,
+                        page: null,
+                      })
+                    }
+                  >
+                    {option.label}
+                  </Toggle>
+                )
+              })}
+            </Track>
+            <SortField>
+              <SortIcon />
+              <select
+                aria-label="Sort registries"
+                value={sort}
+                onChange={(event) =>
+                  setParam({
+                    sort:
+                      event.currentTarget.value === 'recent-submission'
+                        ? null
+                        : event.currentTarget.value,
                     page: null,
                   })
                 }
               >
-                {mode === 'verified'
-                  ? 'Switch to unverified'
-                  : 'Switch to Kleros Verified'}
-              </ModeSwitch>
-            </SectionTitleLine>
-            <p>
-              {mode === 'verified'
-                ? 'Verified through a recognized Kleros list of lists.'
-                : 'Not present in a recognized Kleros list of lists.'}
-            </p>
-          </div>
-          <SectionActions>
-            <strong>{activeRegistries.length} registries</strong>
-            {mode === 'verified' &&
-              (selectedChains.length === 1 ? (
-                <Tooltip title="Submit your registry for verification. Once accepted into this network's list of lists, it will appear here with highlighted placement.">
-                  <SubmitRegistryLink
-                    to={registrySubmissionHref(selectedChains[0])}
+                {SORT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <CurateIcon name="chevron-down" size={14} />
+            </SortField>
+            <LayoutSwitch
+              value={shown}
+              options={layoutOptions}
+              onChange={setLayout}
+            />
+          </Toolbar>
+
+          {trust === 'unverified' && (
+            <Notice>
+              <CurateIcon name="shield" size={16} />
+              Discovery registries are not on the Kleros Verified list of lists.
+              Read a list&apos;s policy before you act on it.
+            </Notice>
+          )}
+
+          {loading ? (
+            <List aria-busy="true">
+              {Array.from({ length: 6 }).map((_, index) => (
+                <SkeletonBlock
+                  key={index}
+                  $height="78px"
+                  style={{ borderRadius: 'var(--radius)' }}
+                />
+              ))}
+            </List>
+          ) : failed ? (
+            <Surface $padding="none">
+              <EmptyState
+                icon="registry"
+                title="Registries could not be loaded"
+                action={
+                  <Button
+                    type="button"
+                    $variant="secondary"
+                    $size="sm"
+                    onClick={() => query.refetch()}
                   >
-                    <CurateIcon name="submit" size={15} />
-                    Submit a registry
-                  </SubmitRegistryLink>
-                </Tooltip>
-              ) : (
-                <Tooltip title="Choose a network and submit your registry for verification. Once accepted, it will appear here with highlighted placement.">
-                  <Dropdown
-                    trigger={['click']}
-                    placement="bottomRight"
-                    visible={submitMenuOpen}
-                    onVisibleChange={setSubmitMenuOpen}
-                    overlay={
-                      <SubmitMenu onClick={(event) => event.stopPropagation()}>
-                        {CHAINS.map((chainId) => (
-                          <SubmitMenuLink
-                            key={chainId}
-                            to={registrySubmissionHref(chainId)}
-                            onClick={() => setSubmitMenuOpen(false)}
-                          >
-                            <ChainLabel chainId={chainId} />
-                          </SubmitMenuLink>
-                        ))}
-                      </SubmitMenu>
+                    Try again
+                  </Button>
+                }
+              >
+                The indexers did not answer. Check your connection and try
+                again.
+              </EmptyState>
+            </Surface>
+          ) : registries.length === 0 && otherMatches > 0 ? (
+            <Surface $padding="none">
+              <EmptyState
+                icon="filter"
+                title={`None in ${trustName(trust)}`}
+                action={
+                  <Button
+                    type="button"
+                    $size="sm"
+                    onClick={() =>
+                      setParam({
+                        trust: otherTrust === 'verified' ? null : otherTrust,
+                        page: null,
+                      })
                     }
                   >
-                    <SubmitRegistryButton type="button">
-                      <CurateIcon name="submit" size={15} />
-                      Submit a registry
-                      <CurateIcon name="chevron-down" size={13} />
-                    </SubmitRegistryButton>
-                  </Dropdown>
-                </Tooltip>
-              ))}
-          </SectionActions>
-        </SectionHeading>
-        {mode === 'unverified' && (
-          <Warning>
-            <CurateIcon name="dispute" size={17} />
-            These registries are unverified. Review their policy and governance
-            before interacting.
-          </Warning>
-        )}
-        <RegistryResults registries={pageRegistries} view={view} />
-        {activeRegistries.length > PAGE_SIZE && (
-          <Center>
-            <RegistryPagination
-              current={currentPage}
-              pageSize={PAGE_SIZE}
-              total={activeRegistries.length}
-              onChange={(page) =>
-                setFilter({ page: page === 1 ? null : String(page) })
-              }
-            />
-          </Center>
-        )}
-      </Section>
+                    Show {formatInt(otherMatches)} in {trustName(otherTrust)}
+                  </Button>
+                }
+              />
+            </Surface>
+          ) : registries.length === 0 ? (
+            <Surface $padding="none">
+              <EmptyState
+                icon="filter"
+                title="No registries match"
+                action={
+                  <Button
+                    type="button"
+                    $variant="secondary"
+                    $size="sm"
+                    onClick={clearFilters}
+                  >
+                    Clear filters
+                  </Button>
+                }
+              >
+                Change the search, chain, type or trust filter.
+              </EmptyState>
+            </Surface>
+          ) : shown === 'table' ? (
+            <TableScroller>
+              <Table>
+                <thead>
+                  <tr>
+                    <th>Registry</th>
+                    {showCreated ? <th>Created</th> : <th>Chain</th>}
+                    <th className="num">Entries</th>
+                    <th className="num">Open requests</th>
+                    <th className="num">In court</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visible.map((registry) => {
+                    const created = shownCreation(registry, sort)
+                    return (
+                      <tr
+                        key={registry.id}
+                        data-href={registryHref(registry)}
+                        onClick={() => navigate(registryHref(registry))}
+                      >
+                        <RegistryCell>
+                          <IdentityCell>
+                            <RegistryLogo registry={registry} size={34} />
+                            <div style={{ minWidth: 0 }}>
+                              <TableName
+                                to={registryHref(registry)}
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                {registry.title}
+                              </TableName>
+                              <SubLine>
+                                {kindLabel(registry.kind)}
+                                {/* With the Created column the chain rides here. */}
+                                {showCreated &&
+                                  ` · ${chainName(registry.chainId)}`}
+                                {' · '}
+                                <code>{truncateMiddle(registry.address)}</code>
+                              </SubLine>
+                            </div>
+                          </IdentityCell>
+                        </RegistryCell>
+                        {showCreated ? (
+                          <td>
+                            {created ? (
+                              <Small
+                                $muted
+                                title={formatAbsolute(created)}
+                                style={{ whiteSpace: 'nowrap' }}
+                              >
+                                {formatDay(created)}
+                              </Small>
+                            ) : (
+                              <Small $faint>—</Small>
+                            )}
+                          </td>
+                        ) : (
+                          <td>
+                            <ChainChip chainId={registry.chainId} size="sm" />
+                          </td>
+                        )}
+                        <td className="num">
+                          {formatInt(entryCount(registry))}
+                        </td>
+                        <td className="num">
+                          <OpenRequestsCell registry={registry} />
+                        </td>
+                        <td className="num">
+                          <CourtCell>
+                            <CourtValue count={registry.disputeCount} />
+                          </CourtCell>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </Table>
+            </TableScroller>
+          ) : shown === 'cards' ? (
+            <CardGrid>
+              {visible.map((registry, index) => {
+                const created = shownCreation(registry, sort)
+                const blurb = registryBlurb(registry)
+                return (
+                  <CardLink
+                    key={registry.id}
+                    to={registryHref(registry)}
+                    style={{ ['--i' as string]: Math.min(index, 12) }}
+                  >
+                    <CardTop>
+                      <RegistryLogo registry={registry} size={40} />
+                      <span style={{ minWidth: 0 }}>
+                        <Name>{registry.title}</Name>
+                        <SubLine>
+                          {kindLabel(registry.kind)}
+                          {created && (
+                            <>
+                              {' · '}
+                              <CreatedOn timestamp={created} />
+                            </>
+                          )}
+                        </SubLine>
+                      </span>
+                    </CardTop>
+                    {blurb ? (
+                      <CardDescription>{blurb}</CardDescription>
+                    ) : (
+                      !hasAddressTitle(registry) && (
+                        <CardDescription>
+                          {kindLabel(registry.kind)} registry at{' '}
+                          <code>{truncateMiddle(registry.address)}</code>
+                        </CardDescription>
+                      )
+                    )}
+                    <Meta style={{ marginTop: 0 }}>
+                      <ChainChip chainId={registry.chainId} size="sm" />
+                    </Meta>
+                    <CardStats>
+                      <span>
+                        <StatValue $large $zero={entryCount(registry) === 0}>
+                          {formatInt(entryCount(registry))}
+                        </StatValue>
+                        <StatLabel>Entries</StatLabel>
+                      </span>
+                      <CardSide>
+                        <span title={pendingTitle(registry)}>
+                          <b data-zero={registry.pendingCount === 0}>
+                            {formatInt(registry.pendingCount)}
+                          </b>
+                          {pendingLabel(registry.kind)}
+                        </span>
+                        <span>
+                          <b data-zero={registry.disputeCount === 0}>
+                            <CourtValue count={registry.disputeCount} />
+                          </b>
+                          In court
+                        </span>
+                      </CardSide>
+                    </CardStats>
+                  </CardLink>
+                )
+              })}
+            </CardGrid>
+          ) : (
+            <List>
+              {visible.map((registry, index) => {
+                const created = shownCreation(registry, sort)
+                const blurb = registryBlurb(registry)
+                return (
+                  <RowLink
+                    key={registry.id}
+                    to={registryHref(registry)}
+                    title={`${registry.title} · ${registry.address}`}
+                    style={{ ['--i' as string]: Math.min(index, 12) }}
+                  >
+                    <RegistryLogo registry={registry} />
+                    <RowId>
+                      <Name>{registry.title}</Name>
+                      <RowMeta>
+                        <Chip>{kindLabel(registry.kind)}</Chip>
+                        <ChainChip chainId={registry.chainId} size="sm" />
+                        {created && <CreatedOn timestamp={created} />}
+                        {/* No blurb when the title already is the address. */}
+                        {blurb ? (
+                          <Blurb>{blurb}</Blurb>
+                        ) : (
+                          !hasAddressTitle(registry) && (
+                            <Blurb>
+                              <code>{truncateMiddle(registry.address)}</code>
+                            </Blurb>
+                          )
+                        )}
+                      </RowMeta>
+                    </RowId>
+                    <RowStat $area="entries">
+                      <StatValue $large $zero={entryCount(registry) === 0}>
+                        {formatInt(entryCount(registry))}
+                      </StatValue>
+                      <StatLabel>Entries</StatLabel>
+                    </RowStat>
+                    <RowStat $area="open" title={pendingTitle(registry)}>
+                      <StatValue $zero={registry.pendingCount === 0}>
+                        {formatInt(registry.pendingCount)}
+                      </StatValue>
+                      <StatLabel>{pendingLabel(registry.kind)}</StatLabel>
+                    </RowStat>
+                    <RowStat $area="court">
+                      <StatValue $zero={registry.disputeCount === 0}>
+                        <CourtValue count={registry.disputeCount} />
+                      </StatValue>
+                      <StatLabel>In court</StatLabel>
+                    </RowStat>
+                    <Go data-go aria-hidden>
+                      <ArrowIcon />
+                    </Go>
+                  </RowLink>
+                )
+              })}
+            </List>
+          )}
+
+          {!loading && !failed && registries.length > 0 && (
+            <Footer>
+              <Small $muted>
+                {formatInt((currentPage - 1) * PAGE_SIZE + 1)}–
+                {formatInt(
+                  Math.min(currentPage * PAGE_SIZE, registries.length),
+                )}{' '}
+                of {formatInt(registries.length)}{' '}
+                {trust === 'verified' ? 'verified' : 'discovery'} registries
+              </Small>
+              {registries.length > PAGE_SIZE && (
+                <Pagination
+                  current={currentPage}
+                  pageSize={PAGE_SIZE}
+                  total={registries.length}
+                  onChange={(page: number) =>
+                    setParam({ page: page === 1 ? null : String(page) })
+                  }
+                />
+              )}
+            </Footer>
+          )}
+        </Explorer>
+
+        <Rail aria-label="Verification and activity">
+          <Surface
+            as="section"
+            $padding="standard"
+            aria-labelledby="browse-verify-title"
+            style={{ ['--i' as string]: 4 }}
+          >
+            <RailTitle id="browse-verify-title">
+              Get a registry verified
+            </RailTitle>
+            <Small $muted as="p" style={{ margin: '6px 0 0' }}>
+              Submit it to the Kleros Verified list of lists for its chain.
+            </Small>
+            <VerifyLinks>
+              {verificationChains.map((chainId) => {
+                const href = verificationHref(chainId)
+                return href ? (
+                  <VerifyLink
+                    key={chainId}
+                    to={href}
+                    aria-label={`Submit a registry on ${chainName(chainId)}`}
+                  >
+                    <ChainLogo chainId={chainId} size={20} />
+                    <span>{chainName(chainId)}</span>
+                    <span>
+                      Submit <ArrowIcon size={14} />
+                    </span>
+                  </VerifyLink>
+                ) : null
+              })}
+            </VerifyLinks>
+          </Surface>
+
+          <Surface
+            as="section"
+            $padding="standard"
+            aria-labelledby="browse-activity-title"
+            style={{ ['--i' as string]: 5 }}
+          >
+            <RailHead>
+              <RailTitle id="browse-activity-title">Recent activity</RailTitle>
+              <Label $tone="faint">Latest 5</Label>
+            </RailHead>
+            {loading ? (
+              <SkeletonBlock $height="220px" style={{ marginTop: 10 }} />
+            ) : failed ? (
+              <Small $muted>No activity until the indexers answer.</Small>
+            ) : latest.length === 0 ? (
+              <Small $muted>No recent requests in this scope.</Small>
+            ) : (
+              <Feed>
+                {latest.map((activity) => (
+                  <FeedItem key={activity.id}>
+                    <Link to={activity.href}>
+                      <StatusDot $tone={activityTone(activity)} aria-hidden />
+                      <span style={{ minWidth: 0 }}>
+                        <FeedHead>
+                          <strong>{activity.status}</strong>
+                          <time
+                            dateTime={new Date(
+                              activity.timestamp * 1000,
+                            ).toISOString()}
+                            title={formatAbsolute(activity.timestamp)}
+                          >
+                            {formatAgo(activity.timestamp, now)}
+                          </time>
+                        </FeedHead>
+                        {activity.previewProps?.[0]?.value && (
+                          <Identifier
+                            label={activity.previewProps[0].label}
+                            value={activity.previewProps[0].value}
+                          />
+                        )}
+                        <small>{activity.registryTitle}</small>
+                      </span>
+                      <span title={chainName(activity.chainId)}>
+                        <ChainLogo chainId={activity.chainId} size={18} />
+                        <VisuallyHidden>
+                          {chainName(activity.chainId)}
+                        </VisuallyHidden>
+                      </span>
+                    </Link>
+                  </FeedItem>
+                ))}
+              </Feed>
+            )}
+          </Surface>
+        </Rail>
+      </Split>
     </Page>
   )
 }

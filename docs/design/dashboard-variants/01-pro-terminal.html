@@ -1,0 +1,1094 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Curate Terminal</title>
+<meta name="description" content="CurateVision home dashboard, variant 01: a dense curator terminal that answers what can be challenged now and how old every open request and dispute is.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='2' y='2' width='20' height='20' rx='6' fill='%2305070c' stroke='%234d7cff'/%3E%3Cpath d='M7.5 9h9M7.5 12.5h5.5M7.5 16h7' stroke='%23fff' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400..600&family=Urbanist:wght@400..700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#02040a;
+  --frame:#05070c;
+  --panel:#090c14;
+  --panel2:#0d111b;
+  --raise:#121827;
+  --line:rgba(150,170,210,.075);
+  --line2:rgba(150,170,210,.14);
+  --text:#e9edf6;
+  --mute:#959db0;
+  --dim:#7a8399;          /* 5:1 on panels: real content */
+  --silver:#cfd7e8;
+  --silverT:rgba(170,185,215,.1);
+  --blue:#4d7cff;         /* action + selection only */
+  --blue2:#8fb0ff;
+  --blueT:rgba(77,124,255,.14);
+  --amber:#f0a23b;        /* challenge + dispute only */
+  --amber2:#f7c27a;
+  --amberT:rgba(240,162,59,.13);
+  --sans:'Geist',ui-sans-serif,system-ui,-apple-system,sans-serif;
+  --mono:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --disp:'Urbanist','Geist',sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none !important}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font:400 13px/1.4 var(--sans);-webkit-font-smoothing:antialiased;overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button[disabled]{cursor:not-allowed}
+a{color:inherit;text-decoration:none}
+.num,.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+::selection{background:rgba(77,124,255,.35)}
+:focus-visible{outline:1.5px solid var(--blue);outline-offset:1px;border-radius:4px}
+
+/* Stage: the aurora lives outside the frame */
+.stage{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;background:#02040a}
+.stage i{position:absolute;border-radius:50%;filter:blur(64px)}
+.stage .a1{width:66vw;height:78vh;left:-18vw;top:-34vh;background:radial-gradient(closest-side,#3a6dff,rgba(58,109,255,0))}
+.stage .a2{width:62vw;height:78vh;right:-20vw;bottom:-38vh;background:radial-gradient(closest-side,#1fb6f2,rgba(31,182,242,0));opacity:.9}
+.stage .a3{width:48vw;height:56vh;right:-10vw;top:-30vh;background:radial-gradient(closest-side,#6b5cff,rgba(107,92,255,0));opacity:.75}
+.stage .a4{width:44vw;height:58vh;left:-14vw;bottom:-30vh;background:radial-gradient(closest-side,#2456ec,rgba(36,86,236,0));opacity:.8}
+.stage .band{position:absolute;left:-25%;right:-25%;top:38%;height:30%;border-radius:50%;transform:rotate(-22deg);background:linear-gradient(90deg,rgba(60,120,255,0),rgba(60,120,255,.55) 28%,rgba(40,190,245,.45) 72%,rgba(40,190,245,0));filter:blur(80px)}
+
+/* Frame (near-black app on a vivid aurora) */
+.frame{position:fixed;z-index:1;top:28px;bottom:28px;left:max(30px,calc((100vw - 1400px) / 2));right:max(30px,calc((100vw - 1400px) / 2));
+  display:grid;gap:6px;padding:6px;border-radius:22px;background:var(--frame);
+  border:1px solid rgba(140,165,255,.16);
+  box-shadow:0 0 0 1px rgba(0,0,0,.55),0 0 140px rgba(40,100,255,.3),0 40px 100px rgba(0,0,0,.55);
+  grid-template-columns:280px minmax(0,1fr) 296px 300px;
+  grid-template-rows:44px auto minmax(0,1fr) 232px 24px;
+  grid-template-areas:"top top top top" "tick tick tick tick" "reg tape disp side" "reg bot bot side" "status status status status";}
+.frame::before{content:"";position:absolute;left:16%;right:16%;top:-1px;height:1px;background:linear-gradient(90deg,transparent,rgba(130,170,255,.8),rgba(90,210,255,.6),transparent);pointer-events:none}
+
+.pane{background:var(--panel);border:1px solid var(--line);border-radius:11px;display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden;position:relative;animation:rise .6s cubic-bezier(.2,.8,.2,1) both}
+.tick{animation-delay:.04s}.reg{animation-delay:.08s}.tp{animation-delay:.12s}.dp{animation-delay:.16s}.side{animation-delay:.2s}.bot{animation-delay:.24s}
+@keyframes rise{from{transform:translateY(8px)}}
+.ph{height:38px;flex:none;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid var(--line)}
+.ph h2{font:500 12.5px/1 var(--sans);letter-spacing:.005em;white-space:nowrap}
+.ph h2 .ct{color:var(--dim);font:400 11px var(--mono);margin-left:5px}
+.ph .sp{flex:1}
+.cap{font:400 11px/1.4 var(--sans);color:var(--dim)}
+.ph .cap{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+kbd{display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:17px;padding:0 4px;font:500 10px/1 var(--mono);color:var(--mute);background:rgba(255,255,255,.035);border:1px solid var(--line2);border-bottom-width:2px;border-radius:4px}
+.ib{width:26px;height:26px;display:grid;place-items:center;border-radius:7px;color:var(--mute);transition:background .15s,color .15s;flex:none}
+.ib:hover{background:var(--raise);color:var(--text)}
+.ib svg{width:14px;height:14px}
+.ib[aria-expanded="true"]{background:var(--raise);color:var(--text)}
+.ph .inf{width:22px;height:22px;margin-left:-6px;color:var(--dim)}
+.ph .inf svg{width:13px;height:13px}
+.mk{display:block;flex:none}
+.am{display:block;flex:none;border-radius:4px;overflow:hidden}
+.scope{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;border:1px solid var(--line2);font:500 10.5px/1 var(--sans);color:var(--mute);white-space:nowrap;cursor:default;flex:none}
+.scope.em{color:var(--text);border-color:rgba(207,215,232,.35);background:rgba(207,215,232,.06)}
+
+/* Footnote: one formula line and its window; the longer wording sits behind the (i) in the pane header */
+.fn{flex:none;padding:7px 12px 8px;border-top:1px solid var(--line);font:400 10.5px/1.45 var(--sans);color:var(--dim)}
+.fn b{font-weight:500;color:var(--mute)}
+
+/* Top bar */
+.top{grid-area:top;display:flex;align-items:center;gap:18px;padding:0 6px 0 8px}
+.brand{display:flex;align-items:center;gap:8px;font:600 16px/1 var(--disp);letter-spacing:.01em}
+.brand svg{width:22px;height:22px}
+.nav{display:flex;gap:2px}
+.nav a{font:500 12.5px/1 var(--sans);color:var(--mute);padding:7px 10px;border-radius:8px;transition:color .15s,background .15s}
+.nav a:hover{color:var(--text)}
+.nav a[aria-current="page"]{color:var(--text);background:var(--raise)}
+.top .sp{flex:1}
+.chip{display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--line2);color:var(--mute);font:500 11.5px/1 var(--sans);white-space:nowrap}
+.sdot{width:6px;height:6px;border-radius:50%;background:var(--silver);opacity:.8;flex:none}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:30px;padding:0 14px;border-radius:8px;font:600 12.5px/1 var(--sans);white-space:nowrap;transition:filter .15s,transform .1s,opacity .15s}
+.btn:active{transform:translateY(1px)}
+.btn-blue{background:linear-gradient(180deg,#6a92ff,#3e6df5);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 6px 18px -6px rgba(77,124,255,.8)}
+.btn-blue:hover{filter:brightness(1.08)}
+.btn-blue kbd{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.25);color:#fff}
+.btn-blue[disabled]{opacity:.38;filter:saturate(.5);box-shadow:none}
+.btn-ghost{border:1px solid var(--line2);color:var(--text);background:var(--panel2)}
+.btn-ghost:hover{background:var(--raise)}
+.btn-sm{height:28px;padding:0 11px;font-size:12px}
+
+/* Ticker strip: one count, four derived figures, one formula line under them */
+.tick{grid-area:tick;flex-direction:row;align-items:center;flex-wrap:wrap}
+.tick>.mkt,.tick>.hero,.tick>.stat{height:56px}
+.mkt{display:flex;align-items:center;gap:10px;padding:0 16px 0 12px;height:100%;flex:none}
+.mkt .mk-t{display:flex;flex-direction:column;gap:4px}
+.mkt b{font:600 13px/1 var(--sans)}
+.mkt .mk-t span{font:400 11px/1 var(--sans);color:var(--mute)}
+.selchip{display:inline-flex;align-items:center;gap:6px;height:24px;max-width:200px;padding:0 6px 0 9px;border-radius:7px;background:var(--blueT);border:1px solid rgba(77,124,255,.35);color:var(--blue2);font:500 11px/1 var(--sans);white-space:nowrap}
+.selchip span{overflow:hidden;text-overflow:ellipsis;color:var(--text)}
+.selchip i{font-style:normal;color:var(--mute);font-size:13px;line-height:1;padding:0 2px}
+.selchip:hover i{color:var(--text)}
+.hero{display:flex;align-items:center;gap:8px;padding:0 18px;border-left:1px solid var(--line);height:100%;flex:none;cursor:default}
+.hero .v{font:600 24px/1 var(--disp);letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.hero .k{display:flex;flex-direction:column;gap:5px;font:400 11.5px/1.1 var(--sans);color:var(--mute);white-space:nowrap}
+.hero .k small{font:400 10.5px/1 var(--mono);color:var(--dim)}
+.hero .k small em{font-style:normal;color:var(--amber2)}
+.stat{display:flex;flex-direction:column;justify-content:center;gap:6px;padding:0 16px;height:100%;flex:none;border-left:1px solid var(--line);cursor:default}
+.stat .k{font:400 11px/1 var(--sans);color:var(--dim);white-space:nowrap}
+.stat .v{font:500 14px/1 var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap;display:flex;align-items:baseline;gap:6px}
+.stat .v small{font:400 11px var(--sans);color:var(--mute)}
+.stat .v.a{color:var(--amber2)}
+.tick .sp{flex:1;min-width:8px}
+.tfn{order:9;flex:1 1 100%;min-width:0;font:400 10.5px/1.45 var(--sans);color:var(--dim);padding:6px 12px 7px;border-top:1px solid var(--line)}
+.tfn b{font-weight:500;color:var(--mute)}
+.tick .info{margin-right:8px}
+.cdot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--amber);box-shadow:0 0 6px var(--amber);flex:none}
+.stamp{display:none}
+
+/* Backlog by registry */
+.reg{grid-area:reg}
+.search{display:flex;align-items:center;gap:8px;margin:8px 10px 6px;height:30px;padding:0 8px 0 10px;border-radius:8px;background:var(--panel2);border:1px solid var(--line);transition:border-color .15s;flex:none}
+.search:focus-within{border-color:rgba(77,124,255,.55);box-shadow:0 0 0 3px rgba(77,124,255,.12)}
+.search svg{width:13px;height:13px;color:var(--dim);flex:none}
+.search input{flex:1;min-width:0;background:none;border:0;outline:0;color:var(--text);font:400 12px var(--sans)}
+.search input::placeholder{color:var(--dim)}
+.colh{display:grid;align-items:center;padding:0 12px;height:24px;font:500 11px/1 var(--sans);color:var(--dim);flex:none}
+.reg .colh,.rrow{grid-template-columns:20px minmax(0,1fr) 28px 48px;column-gap:8px}
+.reg .colh span:first-child{grid-column:1/3}
+.r{text-align:right}
+.list{flex:1;min-height:0;overflow:auto;scrollbar-width:thin;scrollbar-color:#1c2232 transparent}
+.fade{-webkit-mask-image:linear-gradient(#000 calc(100% - 30px),transparent);mask-image:linear-gradient(#000 calc(100% - 30px),transparent)}
+.rrow{display:grid;align-items:center;width:100%;height:36px;padding:0 12px;text-align:left;position:relative;transition:background .12s}
+.rrow:hover{background:rgba(255,255,255,.028)}
+.rrow .bg{position:absolute;right:0;top:4px;bottom:4px;border-radius:4px 0 0 4px;background:linear-gradient(90deg,rgba(207,215,232,.02),rgba(207,215,232,.15));pointer-events:none;transition:filter .15s}
+.rrow:hover .bg{filter:brightness(1.4)}
+.rrow>*:not(.bg){position:relative;z-index:1}
+.rrow.all .bg{background:linear-gradient(90deg,rgba(77,124,255,.02),rgba(77,124,255,.2))}
+.rrow.on{background:linear-gradient(90deg,rgba(77,124,255,.15),rgba(77,124,255,.03))}
+.rrow.on::before{content:"";position:absolute;left:0;top:7px;bottom:7px;width:2px;border-radius:2px;background:var(--blue);box-shadow:0 0 8px var(--blue);z-index:2}
+.rn{display:flex;flex-direction:column;gap:3px;min-width:0}
+.rt{display:flex;align-items:center;gap:5px;font:500 12px/1.15 var(--sans);white-space:nowrap;overflow:hidden}
+.rt span{overflow:hidden;text-overflow:ellipsis}
+.rt svg{width:11px;height:11px;flex:none;color:var(--silver)}
+.rs{display:flex;align-items:center;gap:5px;font:400 10.5px/1.1 var(--sans);color:var(--dim);white-space:nowrap;overflow:hidden}
+.rs .mono{font-size:10.5px}
+.rrow .num{font-size:12px;display:flex;align-items:center;justify-content:flex-end;gap:5px}
+.rrow .bk{font:500 12px var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+.rrow .z{color:var(--dim);font-weight:400}
+.more{display:none}
+
+/* Tape: open requests, strictly by time */
+.tp{grid-area:tape}
+.tcolh,.trow{grid-template-columns:40px minmax(0,1fr) 30px 44px 40px;column-gap:8px}
+.tp .colh{height:22px}
+#tape{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;scrollbar-width:thin;scrollbar-color:#1c2232 transparent}
+.trow{display:grid;align-items:center;flex:1 0 31px;max-height:46px;width:100%;padding:0 12px;text-align:left;position:relative;border-top:1px solid var(--line);transition:background .12s}
+.trow:first-child{border-top:0}
+.trow:hover{background:rgba(255,255,255,.028)}
+.trow.sel{background:rgba(77,124,255,.11)}
+.trow.sel::before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:2px;border-radius:2px;background:var(--blue);box-shadow:0 0 8px var(--blue)}
+.trow .t{font:500 11.5px/1 var(--mono);color:var(--text)}
+.trow .it{display:flex;flex-direction:column;gap:3px;min-width:0}
+.trow .cid{height:14px;font-size:9.5px;padding:0 4px;border-radius:4px}
+.trow .l1{display:flex;align-items:center;gap:6px;font:500 11.5px/1.1 var(--mono);white-space:nowrap;min-width:0}
+.trow .l2{display:flex;align-items:center;gap:6px;font:400 10.5px/1.1 var(--sans);color:var(--dim);white-space:nowrap;overflow:hidden;min-width:0}
+.trow .l2 span:last-child{overflow:hidden;text-overflow:ellipsis}
+.trow .ru{text-align:right;font:500 11.5px/1 var(--mono);color:var(--silver)}
+.trow .ah{text-align:right;font:500 11.5px/1 var(--mono)}
+.trow .ad{text-align:right;font:400 11px/1 var(--mono);color:var(--mute)}
+.trow.in{animation:slidein .45s cubic-bezier(.2,.8,.2,1) both}
+@keyframes slidein{from{opacity:0;transform:translateY(-6px)}}
+.cid{display:inline-flex;align-items:center;height:16px;font:500 10px/1 var(--sans);color:var(--silver);padding:0 5px;border-radius:5px;background:rgba(255,255,255,.05);border:1px solid var(--line2);white-space:nowrap;flex:none}
+.empty{padding:26px 16px;text-align:center;color:var(--mute);font-size:12px;line-height:1.55}
+.empty b{color:var(--text);font-weight:500}
+
+/* Open disputes, oldest first */
+.dp{grid-area:disp}
+.dcolh,.drow{grid-template-columns:minmax(0,1fr) 46px 38px;column-gap:8px}
+#dlist{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;scrollbar-width:thin;scrollbar-color:#1c2232 transparent}
+.drow{flex:1 0 38px;max-height:56px;display:grid;align-items:center;padding:0 12px;position:relative;width:100%;text-align:left;font-size:12px;transition:background .12s}
+.drow:hover{background:rgba(255,255,255,.025)}
+.drow .bg{position:absolute;right:0;top:4px;bottom:4px;border-radius:4px 0 0 4px;background:linear-gradient(90deg,rgba(240,162,59,.04),rgba(240,162,59,.26));transition:filter .15s;pointer-events:none}
+.drow:hover .bg{filter:brightness(1.4)}
+.drow>*:not(.bg){position:relative;z-index:1}
+.drow .nm{display:flex;flex-direction:column;gap:4px;min-width:0}
+.drow .nm .l1{display:flex;align-items:center;gap:7px;min-width:0}
+.drow .nm b{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.drow .nm small{font:400 10.5px var(--sans);color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.drow .n{font:500 12px var(--mono);text-align:right;color:var(--amber2)}
+.drow .p{font:400 11px var(--mono);color:var(--mute);text-align:right}
+
+/* Side: selected request */
+.side{grid-area:side}
+.side::after{content:"";position:absolute;left:10%;right:10%;top:0;height:1px;background:linear-gradient(90deg,transparent,rgba(120,160,255,.9),rgba(80,200,255,.6),transparent);pointer-events:none}
+.sbody{flex:1;min-height:0;overflow:auto;padding:12px 14px;display:flex;flex-direction:column;gap:12px;scrollbar-width:thin;scrollbar-color:#1c2232 transparent}
+.sbody .fn{padding:9px 0 0;margin-top:auto}
+.pager{display:flex;align-items:center;gap:4px;font:500 11px/1 var(--mono);color:var(--mute)}
+.pill{display:inline-flex;align-items:center;gap:6px;height:21px;padding:0 8px;border-radius:6px;font:500 11px/1 var(--sans);white-space:nowrap;flex:none}
+.pill.n{background:var(--silverT);color:#c7cfdf}
+.pill.a{background:var(--amberT);color:var(--amber2);font-family:var(--mono);font-size:10.5px}
+.pill .pd{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.8}
+.req-h{display:flex;flex-direction:column;gap:8px}
+.rh1{display:flex;align-items:center;gap:8px}
+.rg{display:flex;align-items:flex-start;gap:9px;font:600 15px/1.25 var(--disp);letter-spacing:.005em}
+.rg .mk{margin-top:-1px}
+.rmeta{font:400 11px/1.3 var(--sans);color:var(--dim)}
+.itembox{display:flex;flex-direction:column;gap:7px;padding:10px 11px;border-radius:10px;background:var(--panel2);border:1px solid var(--line)}
+.ib-h{display:flex;align-items:center;gap:7px;font:500 11px/1 var(--sans);color:var(--mute)}
+.ib-h .sp{flex:1}
+.idline{display:flex;align-items:flex-start;gap:6px}
+.idline code{flex:1;min-width:0;font:400 11px/1.45 var(--mono);color:var(--text);overflow-wrap:anywhere}
+.idline .ib{margin:-4px -4px 0 0}
+.openbox{display:flex;flex-direction:column;gap:6px;padding:11px 12px 11px;border-radius:12px;background:radial-gradient(120% 80% at 0% 0%,rgba(77,124,255,.07),transparent 60%),var(--panel2);border:1px solid var(--line)}
+.big{display:flex;align-items:baseline;gap:8px}
+.big .v{font:600 34px/1 var(--disp);letter-spacing:-.015em;font-variant-numeric:tabular-nums}
+.big .u{font:500 13px/1 var(--sans);color:var(--mute)}
+.since{font:400 11.5px/1.35 var(--sans);color:var(--mute)}
+.since b{font:500 11.5px var(--mono);color:var(--text)}
+.strip-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:6px}
+.strip-h b{font:500 11.5px/1.3 var(--sans)}
+.strip{width:100%;min-height:40px}
+.strip svg{display:block;overflow:visible}
+.strip .sx{stroke:rgba(150,170,210,.26)}
+.strip .stk{stroke:rgba(150,170,210,.3)}
+.strip .sl{font:400 9.5px var(--mono);fill:var(--dim)}
+.strip .sl.sn{fill:var(--mute)}
+.strip .sl.sc{fill:var(--text);font-weight:500}
+.strip .ssn{stroke:rgba(207,215,232,.45);stroke-dasharray:2 3}
+.strip .sdrop{stroke:var(--blue);stroke-width:1.2;opacity:.8}
+.strip .sbar{stroke:var(--blue);stroke-width:3;stroke-linecap:round;filter:drop-shadow(0 0 4px rgba(77,124,255,.9))}
+.strip .sd{cursor:pointer}
+.strip .sd .dt{fill:#b9c3d7;opacity:.82;transition:opacity .12s}
+.strip .sd:hover .dt{opacity:1}
+.strip .sd.on .dt{fill:#fff;opacity:1;stroke:var(--blue);stroke-width:2;filter:drop-shadow(0 0 5px rgba(77,124,255,.9))}
+.strip .hitc{fill:transparent}
+.leg2{display:flex;flex-wrap:wrap;gap:4px 12px;font:400 10.5px/1.3 var(--sans);color:var(--dim)}
+.leg2 span{display:flex;align-items:center;gap:5px}
+.leg2 i{display:inline-block;flex:none}
+.leg2 .ld{width:7px;height:7px;border-radius:50%;background:#b9c3d7}
+.leg2 .lb{width:14px;height:3px;border-radius:2px;background:var(--blue);box-shadow:0 0 5px var(--blue)}
+.leg2 .ls{width:0;height:10px;border-left:1px dashed rgba(207,215,232,.6)}
+.facts{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;font-size:12px;align-items:center}
+.facts dt{color:var(--mute)}
+.facts dd{display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:4px 7px;text-align:right;font-family:var(--mono);font-size:11.5px;font-variant-numeric:tabular-nums;min-width:0}
+.share{display:flex;flex-direction:column;gap:7px}
+.share .row{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:11.5px;color:var(--mute)}
+.share .row b{color:var(--text);font:500 12px var(--mono)}
+.share .row small{font:400 11px var(--mono);color:var(--dim)}
+.meter{height:5px;border-radius:4px;background:rgba(150,170,210,.12);overflow:hidden}
+.meter i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,rgba(207,215,232,.55),var(--silver))}
+.hr{height:1px;background:var(--line);flex:none}
+.note{font:400 12px/1.5 var(--sans);color:var(--mute)}
+.mlist{display:flex;flex-direction:column}
+.mlist .ml-h{font:500 11px/1 var(--sans);color:var(--dim);margin-bottom:6px}
+.mrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:9px;min-height:30px;padding:0 2px;border-top:1px solid var(--line);font-size:12px;text-align:left;width:100%}
+button.mrow:hover{background:rgba(255,255,255,.025)}
+.mrow .x{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font:400 11.5px var(--mono)}
+.mrow .y{font:400 11px var(--mono);color:var(--mute);white-space:nowrap}
+.sfoot{flex:none;padding:12px 14px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px;background:linear-gradient(180deg,rgba(77,124,255,.04),transparent)}
+.btn-xl{height:40px;width:100%;font-size:13.5px;border-radius:10px}
+.fine{font:400 11px/1.45 var(--sans);color:var(--dim)}
+
+/* Challenge pressure */
+.bot{grid-area:bot}
+.pbody{flex:1;min-height:0;display:flex;gap:18px;padding:12px 14px 6px}
+.pfig{flex:none;width:208px;display:flex;flex-direction:column;gap:7px}
+.pfig .v{font:600 40px/1 var(--disp);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.pfig .q{font:500 12.5px/1.3 var(--mono);color:var(--text);white-space:nowrap}
+.pfig .q span{font:400 11.5px var(--sans);color:var(--mute)}
+.pfig .w{font:400 11px/1.35 var(--sans);color:var(--mute)}
+.pleg{display:flex;flex-wrap:wrap;gap:5px 14px;margin-top:auto;font:400 10.5px/1.3 var(--sans);color:var(--dim)}
+.pleg span{display:flex;align-items:center;gap:6px}
+.pleg i{display:inline-block;width:7px;height:7px;border-radius:1.5px;flex:none}
+#waffle{flex:1;min-width:0;min-height:0;position:relative}
+#waffle svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.wf .r{fill:rgba(207,215,232,.30)}
+.wf .c{fill:var(--amber)}
+.wf.hov .r{fill:rgba(207,215,232,.16)}
+.wf.hov .c{opacity:.5}
+.wf .on{fill:rgba(207,215,232,.75)}
+.wf .c.on{fill:var(--amber2);opacity:1}
+.axis{font:400 10px var(--mono);fill:var(--dim)}
+.wf rect{transition:fill .12s,opacity .12s}
+.wgrow rect{animation:wf .5s cubic-bezier(.2,.8,.2,1) both}
+@keyframes wf{from{opacity:0}}
+
+/* Status bar */
+.status{grid-area:status;display:flex;align-items:center;gap:14px;padding:0 8px;font:400 11px/1 var(--mono);color:var(--dim);white-space:nowrap;overflow:hidden}
+.status .sp{flex:1}
+.status .live{display:flex;align-items:center;gap:7px;color:var(--mute)}
+.keys{display:flex;align-items:center;gap:10px}
+.keys span{display:flex;align-items:center;gap:4px}
+
+/* Tooltip, popover, sheet, toast */
+#tip{position:fixed;z-index:70;pointer-events:none;max-width:260px;background:rgba(12,16,27,.97);border:1px solid var(--line2);border-radius:8px;padding:8px 10px;font:400 11.5px/1.45 var(--sans);color:var(--text);box-shadow:0 12px 30px rgba(0,0,0,.55);opacity:0;transform:translateY(3px);transition:opacity .12s,transform .12s}
+#tip.show{opacity:1;transform:none}
+#tip .tm{color:var(--mute)}
+.pop{position:fixed;z-index:55;width:340px;max-width:calc(100vw - 24px);background:#0a0e17;border:1px solid var(--line2);border-radius:12px;padding:14px;box-shadow:0 20px 50px rgba(0,0,0,.6),0 0 40px rgba(40,90,255,.12);opacity:0;transform:translateY(-4px);pointer-events:none;transition:opacity .15s,transform .15s}
+.pop.open{opacity:1;transform:none;pointer-events:auto}
+.pop h4{font:600 13px/1.2 var(--sans);margin-bottom:10px}
+.pop dl{display:grid;grid-template-columns:1fr;gap:9px}
+.pop dt{font:500 11.5px/1.2 var(--sans);color:var(--text)}
+.pop dd{font:400 11.5px/1.45 var(--sans);color:var(--mute);margin-top:2px}
+.pop dd b{font-weight:500;color:var(--text)}
+.pop .fine{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.scrim{position:fixed;inset:0;z-index:40;background:rgba(2,4,10,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);opacity:0;pointer-events:none;transition:opacity .2s}
+.scrim.open{opacity:1;pointer-events:auto}
+.sheet{position:fixed;z-index:41;top:12px;right:12px;bottom:12px;width:420px;max-width:calc(100vw - 24px);background:#080b13;border:1px solid var(--line2);border-radius:16px;box-shadow:0 30px 80px rgba(0,0,0,.7),0 0 60px rgba(40,90,255,.12);display:flex;flex-direction:column;transform:translateX(calc(100% + 24px));transition:transform .32s cubic-bezier(.2,.8,.2,1)}
+.sheet.open{transform:none}
+.sheet .sh{display:flex;align-items:center;gap:10px;padding:16px 16px 12px;border-bottom:1px solid var(--line)}
+.sheet .sh h3{font:600 17px/1.2 var(--disp);flex:1;display:flex;align-items:center;gap:9px;min-width:0}
+.sheet .sb{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:16px}
+.sheet .sf{padding:14px 16px 16px;border-top:1px solid var(--line);display:flex;gap:8px}
+.sheet .sf .btn{flex:1;height:40px}
+.sub{display:flex;align-items:center;gap:8px;font:400 12px/1.3 var(--sans);color:var(--mute)}
+.sub b{color:var(--text);font-weight:500}
+.sec{display:flex;flex-direction:column;gap:8px}
+.sec-h{font:500 11.5px/1 var(--sans);color:var(--dim)}
+.acct{display:flex;align-items:center;gap:9px;font:500 12.5px var(--mono)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:9px 14px;font-size:12.5px}
+.kv dt{color:var(--mute)}
+.kv dd{text-align:right;font-family:var(--mono);font-size:12px;overflow-wrap:anywhere}
+.kv dd.t{font-family:var(--sans);font-size:12.5px}
+.box{display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:12px;background:var(--panel2);border:1px solid var(--line)}
+.box b{font:500 12px var(--sans)}
+.form{display:flex;flex-direction:column;gap:8px}
+.form label{font:500 11px/1 var(--sans);color:var(--mute)}
+textarea{width:100%;resize:none;height:110px;padding:8px 10px;border-radius:8px;background:var(--panel2);border:1px solid var(--line);color:var(--text);font:400 12px/1.45 var(--sans);outline:0;transition:border-color .15s}
+textarea:focus{border-color:rgba(77,124,255,.55);box-shadow:0 0 0 3px rgba(77,124,255,.12)}
+textarea::placeholder{color:var(--dim)}
+.keylist{display:grid;grid-template-columns:auto 1fr;gap:10px 14px;align-items:center;font-size:12.5px;color:var(--mute)}
+.keylist div{display:flex;gap:4px}
+.toast{position:fixed;z-index:60;left:50%;bottom:24px;transform:translate(-50%,20px);opacity:0;background:#10151f;border:1px solid var(--line2);border-radius:10px;padding:9px 14px;font:500 12px/1 var(--sans);box-shadow:0 12px 30px rgba(0,0,0,.5);transition:opacity .2s,transform .2s;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.mbar{display:none}
+
+/* Narrower desktops and short screens: the page scrolls */
+@media (max-width:1359px),(max-height:719px){
+  html,body{height:auto}
+  body{overflow:auto}
+  .frame{position:relative;inset:auto;margin:26px auto;width:calc(100% - 52px);max-width:1400px;
+    grid-template-columns:260px minmax(0,1fr) 300px;
+    grid-template-rows:44px auto 440px 420px 250px 24px;
+    grid-template-areas:"top top top" "tick tick tick" "reg tape side" "reg disp side" "bot bot bot" "status status status"}
+}
+@media (max-width:1100px){ .nav{display:none} }
+
+/* Phone and small tablet */
+@media (max-width:900px){
+  .frame{margin:10px 10px calc(88px + env(safe-area-inset-bottom));width:auto;padding:5px;border-radius:18px;gap:6px;
+    grid-template-columns:minmax(0,1fr);grid-template-rows:none;grid-auto-rows:auto;
+    grid-template-areas:"top" "tick" "stamp" "tape" "side" "disp" "reg" "bot" "status"}
+  .top{height:44px;gap:10px;padding:0 4px 0 6px}
+  .top .chip,.top #helpBtn{display:none}
+  .stamp{grid-area:stamp;display:flex;align-items:center;justify-content:center;gap:7px;padding:2px 0 4px;font:400 11px/1.2 var(--mono);color:var(--mute)}
+  .tick{display:grid;grid-template-columns:1fr 1fr;height:auto}
+  .tick .mkt{grid-column:1/-1;height:auto;min-height:44px;flex-wrap:wrap;row-gap:6px;padding:9px 44px 9px 12px;border-bottom:1px solid var(--line)}
+  .tick .hero{grid-column:1/-1;border-left:0;height:58px;padding:0 14px;border-bottom:1px solid var(--line)}
+  .tick .hero .v{font-size:28px}
+  .tick .stat{height:60px;border-left:0;padding:0 14px}
+  .tick .stat:nth-child(3),.tick .stat:nth-child(5){border-right:1px solid var(--line)}
+  .tick .stat:nth-child(5),.tick .stat:nth-child(6){border-top:1px solid var(--line)}
+  .tick .sp{display:none}
+  .tick .tfn{grid-column:1/-1;border-top:1px solid var(--line);padding:8px 14px 10px;font-size:10.5px}
+  .tick .info{position:absolute;top:9px;right:8px;margin:0}
+  .tp,.dp,.side,.reg,.bot{height:auto}
+  #tape,#dlist,.sbody,.list{overflow:visible;flex:none}
+  .trow{flex:none;height:44px;max-height:none}
+  .tcolh,.trow{grid-template-columns:38px minmax(0,1fr) 22px 40px 36px;column-gap:6px;padding:0 10px}
+  .drow{flex:none;height:48px;max-height:none}
+  .sfoot{display:none}
+  .reg:not(.all) .list>.rrow:nth-child(n+8){display:none}
+  .reg .more{display:flex;justify-content:center;padding:6px 12px 8px}
+  .reg .more .btn{width:100%}
+  .pbody{flex-direction:column;gap:12px}
+  .pfig{width:auto}
+  .pleg{flex-direction:row;flex-wrap:wrap;gap:6px 14px;margin-top:2px}
+  #waffle{flex:none;height:210px}
+  .ph .cap{display:none}
+  .status{height:auto;flex-wrap:wrap;row-gap:6px;padding:6px 6px 4px;white-space:normal;line-height:1.4}
+  .keys,kbd{display:none}
+  .desk-only{display:none !important}
+  .mbar{display:flex;position:fixed;z-index:30;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));align-items:center;gap:10px;padding:8px 8px 8px 12px;border-radius:14px;background:rgba(8,11,19,.93);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid var(--line2);box-shadow:0 14px 40px rgba(0,0,0,.6)}
+  .mbar .mi{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+  .mbar .mi b{font:500 12px/1.1 var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mbar .mi span{font:400 11px/1.1 var(--sans);color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mbar .btn{height:40px;padding:0 18px;font-size:13.5px}
+  .sheet{top:auto;left:0;right:0;bottom:0;width:auto;max-width:none;max-height:88vh;border-radius:18px 18px 0 0;transform:translateY(105%)}
+  .sheet.open{transform:none}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none !important;transition:none !important}
+}
+</style>
+</head>
+<body>
+<div class="stage" aria-hidden="true"><i class="a1"></i><i class="a2"></i><i class="a3"></i><i class="a4"></i><span class="band"></span></div>
+
+<div class="frame" id="app">
+  <header class="top">
+    <a class="brand" href="#" aria-label="Curate home">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2.5" y="2.5" width="19" height="19" rx="6.5" stroke="rgba(160,185,255,.45)"/><path d="M7.5 9h9M7.5 12.5h5.5M7.5 16h7" stroke="#e9edf6" stroke-width="1.6" stroke-linecap="round"/><circle cx="16.6" cy="12.5" r="1.6" fill="#4d7cff"/></svg>
+      Curate
+    </a>
+    <nav class="nav" aria-label="Primary">
+      <a href="#" aria-current="page">Terminal</a>
+      <a href="#">Registries</a>
+      <a href="#">Disputes</a>
+      <a href="#">Curators</a>
+      <a href="#">Launch a list</a>
+    </nav>
+    <div class="sp"></div>
+    <span class="chip" id="topSnap"><span class="sdot"></span><span></span></span>
+    <span class="chip" data-tip="Data scope of this view: Ethereum and Gnosis mainnets.">Ethereum + Gnosis</span>
+    <button class="ib" id="helpBtn" aria-label="Keyboard shortcuts" data-tip="Keyboard shortcuts  ?"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="4" width="13" height="8.5" rx="2"/><path d="M4 7h.01M6.5 7h.01M9 7h.01M11.5 7h.01M5 10h6" stroke-linecap="round"/></svg></button>
+    <button class="btn btn-blue" id="connectBtn">Connect</button>
+  </header>
+
+  <section class="pane tick" id="tick" aria-label="Key figures"></section>
+  <div class="stamp" id="mStamp"></div>
+
+  <section class="pane reg" id="regPane" aria-labelledby="regH">
+    <div class="ph">
+      <h2 id="regH">Backlog<span class="ct">open ÷ entries</span></h2>
+      <button class="ib inf" data-info="reg" aria-label="How backlog is computed" aria-expanded="false" aria-controls="pop"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.3v3.9M8 4.9v.1"/></svg></button>
+      <div class="sp"></div>
+      <span class="scope" data-tip="Rows are sorted by open requests, high to low.">Open ↓</span>
+    </div>
+    <label class="search">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.8"/><path d="m10.6 10.6 3.4 3.4" stroke-linecap="round"/></svg>
+      <input id="q" type="search" placeholder="Filter registries" autocomplete="off" aria-label="Filter registries">
+      <kbd>/</kbd>
+    </label>
+    <div class="colh"><span>Registry</span><span class="r">Open</span><span class="r">Backlog</span></div>
+    <div class="list" id="regList"></div>
+    <div class="more"><button class="btn btn-ghost btn-sm" id="moreBtn">Show all</button></div>
+    <p class="fn" id="regFn"></p>
+  </section>
+
+  <section class="pane tp" aria-labelledby="tapeH">
+    <div class="ph">
+      <h2 id="tapeH">Tape<span class="ct" id="tapeCt"></span></h2>
+      <button class="ib inf" data-info="tape" aria-label="How the tape is built" aria-expanded="false" aria-controls="pop"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.3v3.9M8 4.9v.1"/></svg></button>
+      <span class="scope">Newest first</span>
+      <div class="sp"></div>
+      <button class="ib" id="replay" aria-label="Replay arrivals" data-tip="Replay the listed open requests in the order they arrived"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8a5.5 5.5 0 1 0 1.7-4"/><path d="M2.5 2.5v3h3"/></svg></button>
+    </div>
+    <div class="colh tcolh"><span>UTC</span><span>Item · registry</span><span class="r" data-tip="Running count per registry: how many requests from the same registry the tape has shown so far, reading down from the newest.">Run</span><span class="r">Age h</span><span class="r">Age d</span></div>
+    <div id="tape" role="listbox" aria-label="Open requests, newest first"></div>
+    <p class="fn" id="tapeFn"></p>
+  </section>
+
+  <section class="pane dp" aria-labelledby="dispH">
+    <div class="ph">
+      <h2 id="dispH">Open disputes<span class="ct" id="dispCt"></span></h2>
+      <button class="ib inf" data-info="disp" aria-label="How dispute age is computed" aria-expanded="false" aria-controls="pop"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.3v3.9M8 4.9v.1"/></svg></button>
+      <div class="sp"></div>
+      <span class="scope">Oldest first</span>
+    </div>
+    <div class="colh dcolh"><span>Dispute · registry</span><span class="r">Age h</span><span class="r">Age d</span></div>
+    <div id="dlist"></div>
+    <p class="fn" id="dispFn"></p>
+  </section>
+
+  <aside class="pane side" aria-labelledby="sideH">
+    <div class="ph">
+      <h2 id="sideH">Request</h2>
+      <button class="ib inf" data-info="side" aria-label="How the request figures are computed" aria-expanded="false" aria-controls="pop"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.3v3.9M8 4.9v.1"/></svg></button>
+      <div class="sp"></div>
+      <div class="pager"><button class="ib" id="prevBtn" aria-label="Newer request (K)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="m4 10 4-4 4 4"/></svg></button><span id="pagerTxt"></span><button class="ib" id="nextBtn" aria-label="Older request (J)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="m4 6 4 4 4-4"/></svg></button></div>
+    </div>
+    <div class="sbody" id="sbody"></div>
+    <div class="sfoot">
+      <button class="btn btn-blue btn-xl" data-act="challenge">Challenge <kbd>C</kbd></button>
+    </div>
+  </aside>
+
+  <section class="pane bot" aria-labelledby="pressH">
+    <div class="ph">
+      <h2 id="pressH">Challenge pressure<span class="ct">· 30 days</span></h2>
+      <button class="ib inf" data-info="bot" aria-label="How challenge pressure is computed" aria-expanded="false" aria-controls="pop"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.3v3.9M8 4.9v.1"/></svg></button>
+      <span class="scope" id="pressScope" data-tip="Daily totals for every registry in scope. The snapshot has no per-registry series, so selecting a registry does not filter this pane.">All registries</span>
+      <div class="sp"></div>
+      <span class="cap">One square per request · amber squares count challenges</span>
+    </div>
+    <div class="pbody">
+      <div class="pfig" id="pfig"></div>
+      <div id="waffle"></div>
+    </div>
+    <p class="fn" id="pressFn"></p>
+  </section>
+
+  <footer class="status">
+    <span class="live"><span class="sdot"></span>Snapshot data</span>
+    <span id="snapTxt"></span>
+    <span>Ethereum + Gnosis</span>
+    <span class="sp"></span>
+    <span class="keys">
+      <span><kbd>J</kbd><kbd>K</kbd> move</span>
+      <span><kbd>/</kbd> filter</span>
+      <span><kbd>C</kbd> challenge</span>
+      <span><kbd>?</kbd> keys</span>
+    </span>
+  </footer>
+</div>
+
+<div class="mbar" id="mbar"><div class="mi"><b id="mbI"></b><span id="mbS"></span></div><button class="btn btn-blue" data-act="challenge">Challenge</button></div>
+<div id="tip" role="tooltip"></div>
+<div class="pop" id="pop" role="dialog" aria-label="How these figures are computed"></div>
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetT"></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script src="./snapshot.js"></script>
+<script>
+(function(){
+  "use strict";
+  var S = window.CURATE_SNAPSHOT;
+  if (!S) { document.body.insertAdjacentHTML('beforeend','<p style="position:fixed;top:40%;width:100%;text-align:center;color:#889">Snapshot data not found.</p>'); return; }
+  var RM = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // "now" for every age on this page is the snapshot time, never the viewer's clock.
+  var SNAP = Math.floor(Date.parse(S.snapshotAt) / 1000);
+  var MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var WD = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  function $(s, r){ return (r || document).querySelector(s); }
+  function $$(s, r){ return Array.prototype.slice.call((r || document).querySelectorAll(s)); }
+  function nf(n){ return Number(n).toLocaleString('en-US'); }
+  function pad(n){ return String(n).padStart(2, '0'); }
+  function D(ts){ return new Date(ts * 1000); }
+  function dayLabel(ts){ var d = D(ts); return d.getUTCDate() + ' ' + MON[d.getUTCMonth()]; }
+  function dateLong(ts){ var d = D(ts); return d.getUTCDate() + ' ' + MON[d.getUTCMonth()] + ' ' + d.getUTCFullYear(); }
+  function dayFull(ts){ var d = D(ts); return WD[d.getUTCDay()] + ' ' + dateLong(ts); }
+  function hm(ts){ var d = D(ts); return pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); }
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function monYear(iso){ var p = iso.split('-'); return MON[+p[1] - 1] + ' ' + p[0]; }
+  // Percent with two decimals: backlog and challenge pressure are both small ratios.
+  function bp(x){ return (x * 100).toFixed(2) + '%'; }
+  // Age = snapshot time - event time, shown in hours (1 dp) and days (2 dp).
+  function ageS(at){ return Math.max(0, SNAP - at); }
+  function ageH(at){ return (ageS(at) / 3600).toFixed(1); }
+  function ageD(at){ return (ageS(at) / 86400).toFixed(2); }
+  function ageHD(at){ return ageH(at) + ' h · ' + ageD(at) + ' d'; }
+  var CHAINS = { '1': 'Ethereum', '10': 'OP', '56': 'BNB', '100': 'Gnosis', '137': 'Polygon', '999': 'HyperEVM', '8453': 'Base', '42161': 'Arbitrum', '42220': 'Celo', '43114': 'Avalanche' };
+  function chainName(c){ return CHAINS[c] || ('Chain ' + c); }
+  function parseId(id){ if (!id) return null; var p = id.split(':'); var a = p[2] || id; return { chain: p[1] || '', addr: a, short: a.slice(0, 6) + '…' + a.slice(-4) }; }
+
+  var SNAPTIME = dateLong(SNAP) + ', ' + hm(SNAP) + ' UTC';
+  var SNAPLABEL = 'Snapshot · ' + SNAPTIME;
+  var F = S.figures, series = S.series30d, REGS = S.topRegistries;
+
+  // ---------- Derived figures (all computed here from the snapshot) ----------
+  // 1. Backlog per registry = open / entries.
+  var BACK = REGS.map(function(r, i){ return { r: r, i: i, b: r.entries ? r.open / r.entries : 0 }; });
+  var BTOP = BACK.reduce(function(a, o){ return o.b > a.b ? o : a; }, BACK[0]);
+  var BMAX = BTOP.b || 1;
+  var BALL = F.entries ? F.requestsOpen / F.entries : 0;
+  // Open = not yet resolved, and that includes requests in court (per registry, open and inCourt sum to the figures).
+  // Open to challenge = open - in court: a request in court has already been challenged.
+  var TOCH = Math.max(0, F.requestsOpen - F.inCourt);
+  function toCh(r){ return Math.max(0, r.open - r.inCourt); }
+  function openSplit(open, court){ return nf(open) + ' open (' + nf(court) + ' in court)'; }
+  // 2. Ages of every open request the snapshot lists and every open dispute.
+  var TAPE = S.openToChallenge.slice().sort(function(a, b){ return b.at - a.at; });   // 3. strictly newest first
+  var RUN = [], TOT = {};
+  TAPE.forEach(function(x, k){ TOT[x.registry] = (TOT[x.registry] || 0) + 1; RUN[k] = TOT[x.registry]; });
+  var COURT = S.inCourt.slice().sort(function(a, b){ return a.at - b.at; });          // oldest first
+  var OLDREQ = TAPE.reduce(function(a, x){ return x.at < a.at ? x : a; }, TAPE[0]);
+  var OLDDSP = COURT[0];
+  var MAXDSP = COURT.length ? ageS(COURT[0].at) : 1;
+  // 4. Challenge pressure 30d = sum(challenges) / sum(requests).
+  var REQ30 = series.reduce(function(a, x){ return a + x.requests; }, 0);
+  var CH30 = series.reduce(function(a, x){ return a + x.challenges; }, 0);
+  var PRESS = REQ30 ? CH30 / REQ30 : 0;
+  var CAPPED = 0;   // challenges on days with fewer requests than challenges cannot get a square
+  series.forEach(function(d){ if (d.challenges > d.requests) CAPPED += d.challenges - d.requests; });
+  var LASTDAY = series[series.length - 1].day;
+  var LASTPARTIAL = SNAP - LASTDAY < 86400;
+  var WIN = dayLabel(series[0].day) + ' – ' + dateLong(LASTDAY);
+  var WINFULL = WIN + ' (' + series.length + ' UTC days' + (LASTPARTIAL ? '; ' + dayLabel(LASTDAY) + ' runs to ' + hm(SNAP) : '') + ')';
+
+  // ---------- Generated identity marks ----------
+  function hash(s){ var h = 2166136261 >>> 0; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h; }
+  var HUES = [218, 228, 204, 240, 194, 252];
+  function regMark(r, sz){
+    sz = sz || 20;
+    var h = hash(r.title + '|' + (r.created || '')), hue = HUES[h % HUES.length], shp = (h >>> 5) % 6;
+    var bg = 'hsl(' + hue + ',36%,16%)', st = 'hsl(' + hue + ',42%,30%)', fg = 'hsl(' + hue + ',78%,76%)', g;
+    if (shp === 0) g = '<circle cx="10" cy="10" r="4.2" fill="' + fg + '"/>';
+    else if (shp === 1) g = '<path d="M5.5 13.5h9M5.5 10h9M5.5 6.5h5" stroke="' + fg + '" stroke-width="1.8" stroke-linecap="round"/>';
+    else if (shp === 2) g = '<path d="M10 4.8 15.2 10 10 15.2 4.8 10z" fill="' + fg + '"/>';
+    else if (shp === 3) g = '<path d="M5 14.6a5 5 0 0 1 10 0z" fill="' + fg + '"/><circle cx="10" cy="6.4" r="1.8" fill="' + fg + '"/>';
+    else if (shp === 4) g = '<circle cx="10" cy="10" r="4.4" fill="none" stroke="' + fg + '" stroke-width="1.8"/><circle cx="10" cy="10" r="1.4" fill="' + fg + '"/>';
+    else g = '<path d="M5.4 14.6V5.4h9.2z" fill="' + fg + '"/>';
+    return '<svg class="mk" width="' + sz + '" height="' + sz + '" viewBox="0 0 20 20" aria-hidden="true"><rect x=".5" y=".5" width="19" height="19" rx="5.5" fill="' + bg + '" stroke="' + st + '"/>' + g + '</svg>';
+  }
+  function addrMark(a, sz){
+    sz = sz || 16;
+    var h = hash(a), hue = 190 + (h % 72), bits = hash(a + '#');
+    var fg = 'hsl(' + hue + ',50%,66%)', bg = 'hsl(' + hue + ',26%,17%)';
+    var s = '<svg class="am" width="' + sz + '" height="' + sz + '" viewBox="0 0 5 5" shape-rendering="crispEdges" aria-hidden="true"><rect width="5" height="5" fill="' + bg + '"/>';
+    for (var y = 0; y < 5; y++) for (var x = 0; x < 3; x++) if ((bits >>> (y * 3 + x)) & 1) {
+      s += '<rect x="' + x + '" y="' + y + '" width="1" height="1" fill="' + fg + '"/>';
+      if (x < 2) s += '<rect x="' + (4 - x) + '" y="' + y + '" width="1" height="1" fill="' + fg + '"/>';
+    }
+    return s + '</svg>';
+  }
+  var ALLMARK = '<svg class="mk" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><rect x=".5" y=".5" width="19" height="19" rx="5.5" fill="#101626" stroke="rgba(160,185,255,.3)"/><path d="m10 5 5 2.6-5 2.6-5-2.6z" fill="#cfd7e8"/><path d="m5 10.3 5 2.6 5-2.6M5 13.1l5 2.6 5-2.6" fill="none" stroke="#8f97ab" stroke-width="1.2" stroke-linejoin="round"/></svg>';
+  var CHECK = '<svg viewBox="0 0 12 12" fill="none" aria-label="Verified"><path d="M6 .8 7.4 2l1.8-.2.6 1.7 1.6.9-.5 1.7.5 1.7-1.6.9-.6 1.7-1.8-.2L6 11.2 4.6 10l-1.8.2-.6-1.7L.6 7.6 1.1 6 .6 4.3l1.6-.9.6-1.7 1.8.2z" fill="currentColor" fill-opacity=".18" stroke="currentColor" stroke-width=".8"/><path d="m4 6.1 1.4 1.4L8.1 4.7" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  // Resolve a registry title from the activity feeds to the matching top-registry row.
+  function regIndex(title){
+    var i;
+    for (i = 0; i < REGS.length; i++) if (REGS[i].title === title && (REGS[i].open || REGS[i].inCourt)) return i;
+    for (i = 0; i < REGS.length; i++) if (REGS[i].title === title) return i;
+    return -1;
+  }
+  function backOf(i){ return BACK[i] ? BACK[i].b : 0; }
+  function dnum(x){ return x.status.replace('Dispute ', ''); }
+
+  var state = { q: '', reg: -1, sel: 0 };
+  function inReg(x){ return state.reg < 0 || regIndex(x.registry) === state.reg; }
+  function visTape(){ return TAPE.filter(inReg); }
+  function curReq(){ var v = visTape(); if (!v.length) return null; var x = TAPE[state.sel]; return v.indexOf(x) > -1 ? x : v[0]; }
+
+  // Fade the bottom edge of a scroll area only while more rows sit below.
+  function fadeWatch(el){ function f(){ el.classList.toggle('fade', el.scrollHeight - el.scrollTop - el.clientHeight > 2); } el.addEventListener('scroll', f, { passive: true }); return f; }
+  var fadeReg = fadeWatch($('#regList')), fadeTape = fadeWatch($('#tape')), fadeDisp = fadeWatch($('#dlist')), fadeSide = fadeWatch($('#sbody'));
+
+  // ---------- Snapshot labels ----------
+  $('#topSnap span:last-child').textContent = SNAPLABEL;
+  $('#topSnap').setAttribute('data-tip', 'Real Curate data captured at this time. It does not update. Every age on this page is measured to this moment. Scope: ' + S.scope + '.');
+  $('#snapTxt').textContent = SNAPLABEL;
+  $('#mStamp').innerHTML = '<span class="sdot"></span>' + SNAPLABEL;
+
+  // ---------- Ticker ----------
+  function renderTick(){
+    var h = '<div class="mkt">' + ALLMARK + '<div class="mk-t"><b>All registries</b><span>Ethereum + Gnosis</span></div>' +
+      (state.reg >= 0 ? '<button class="selchip" data-clear data-tip="These figures cover all registries. Your selection filters the tape, the request panel and the open disputes. Click to clear it.">Selected · <span>' + esc(REGS[state.reg].title) + '</span><i aria-hidden="true">×</i></button>' : '') + '</div>';
+    h += '<div class="hero" data-tip="' + esc('<b>' + nf(TOCH) + ' = ' + nf(F.requestsOpen) + ' open − ' + nf(F.inCourt) + ' in court</b><br><span class=tm>Open = requests not yet resolved, all registries, at snapshot. The ' + F.inCourt + ' in court are already challenged. The tape lists the newest ' + TAPE.length + ' of the ' + nf(TOCH) + '.</span>') + '"><span class="v">' + nf(TOCH) + '</span><span class="k">open to challenge<small>' + nf(F.requestsOpen) + ' open (<em>' + nf(F.inCourt) + ' in court</em>)</small></span></div>';
+    function st(k, v, tip, cls){ return '<div class="stat" data-tip="' + esc(tip) + '"><span class="k">' + k + '</span><span class="v' + (cls ? ' ' + cls : '') + '">' + v + '</span></div>'; }
+    h += st('Highest backlog', bp(BTOP.b) + ' <small>' + esc(BTOP.r.title) + '</small>', '<b>' + esc(BTOP.r.title) + '</b><br><span class=tm>' + BTOP.r.open + ' open ÷ ' + nf(BTOP.r.entries) + ' entries, at snapshot. Highest of the top ' + REGS.length + ' registries.</span>');
+    h += st('Challenge pressure · 30d', bp(PRESS) + ' <small>' + CH30 + ' / ' + nf(REQ30) + '</small>', '<b>' + CH30 + ' challenges ÷ ' + nf(REQ30) + ' requests</b><br><span class=tm>' + WINFULL + ', all registries.</span>');
+    h += st('Oldest open dispute', ageH(OLDDSP.at) + ' h <small>' + ageD(OLDDSP.at) + ' d · ' + esc(dnum(OLDDSP)) + '</small>', '<b>' + esc(OLDDSP.status) + ' · ' + esc(OLDDSP.registry) + '</b><br><span class=tm>Challenged ' + dateLong(OLDDSP.at) + ' ' + hm(OLDDSP.at) + ' UTC. In court ' + ageHD(OLDDSP.at) + ' at snapshot.</span>', 'a');
+    h += st('Oldest listed request', ageH(OLDREQ.at) + ' h <small>' + ageD(OLDREQ.at) + ' d</small>', '<b>' + esc(OLDREQ.registry) + '</b><br><span class=tm>Requested ' + dateLong(OLDREQ.at) + ' ' + hm(OLDREQ.at) + ' UTC. Oldest of the ' + TAPE.length + ' open-to-challenge requests the snapshot lists.</span>');
+    h += '<div class="sp"></div><p class="tfn"><b>open to challenge</b> = open − in court · <b>backlog</b> = open ÷ entries · <b>age</b> = snapshot − event time, at ' + dayLabel(SNAP) + ' ' + hm(SNAP) + ' UTC · <b>pressure</b> = Σ challenges ÷ Σ requests, ' + WIN + ' · Ethereum + Gnosis</p>';
+    h += '<button class="ib info" id="infoBtn" data-info="tick" aria-label="How the headline figures are computed" aria-expanded="false" aria-controls="pop"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.3v3.9M8 4.9v.1"/></svg></button>';
+    $('#tick').innerHTML = h;
+  }
+  // Longer wording for each pane, behind the (i) next to its title. The footnotes keep one formula line.
+  var INFO = {
+    tick: { t: 'How the headline figures are computed', d: [
+      [openSplit(F.requestsOpen, F.inCourt), 'Requests not yet resolved at snapshot time, all ' + nf(F.registries) + ' registries. A disputed request stays open until jurors rule, so the ' + F.inCourt + ' in court are part of the ' + nf(F.requestsOpen) + '.'],
+      [nf(TOCH) + ' open to challenge', 'Open − in court = <b>' + nf(F.requestsOpen) + ' − ' + nf(F.inCourt) + '</b>. A request in court has already been challenged; the other ' + nf(TOCH) + ' have not. The tape lists the newest ' + TAPE.length + ' of them one by one.'],
+      ['Highest backlog · ' + bp(BTOP.b), 'Open ÷ entries per registry, top ' + REGS.length + ' registries, at snapshot: ' + esc(BTOP.r.title) + ', ' + BTOP.r.open + ' ÷ ' + nf(BTOP.r.entries) + '. Overall ' + nf(F.requestsOpen) + ' ÷ ' + nf(F.entries) + ' = ' + bp(BALL) + '.'],
+      ['Challenge pressure · ' + bp(PRESS), CH30 + ' challenges ÷ ' + nf(REQ30) + ' requests, ' + WINFULL + ', all registries.'],
+      ['Oldest', 'Snapshot time (' + SNAPTIME + ') minus the challenge time (dispute) or the request time (listed request), in hours and days.']
+    ], f: SNAPLABEL + '. Scope: Ethereum and Gnosis mainnets. The ticker covers all registries and does not change when you select one.' },
+    reg: { t: 'Backlog by registry', d: [
+      ['Backlog = open ÷ entries', 'Per registry, at snapshot (' + SNAPTIME + '). The top ' + REGS.length + ' of ' + nf(F.registries) + ' registries, Ethereum + Gnosis, sorted by open requests.'],
+      ['Open', 'Not yet resolved, including requests in court. An amber dot marks a registry with requests in court; its open to challenge = open − in court.'],
+      ['Bars', 'Scaled to the highest backlog, ' + esc(BTOP.r.title) + ' at ' + bp(BTOP.b) + '. Selecting a row filters the tape, the request panel and the open disputes.']
+    ] },
+    tape: { t: 'The tape', d: [
+      ['Rows', 'The ' + TAPE.length + ' open-to-challenge requests the snapshot lists, of ' + nf(TOCH) + ', newest first by request time.'],
+      ['Run', 'How many requests from the same registry the tape has shown so far, reading down from the newest.'],
+      ['Age', 'Snapshot (' + SNAPTIME + ') − request time, in hours and days. Replay plays the rows back in the order they arrived.']
+    ] },
+    disp: { t: 'Open disputes', d: [
+      ['Rows', 'All ' + COURT.length + ' open disputes, Ethereum + Gnosis, oldest first. These are the ' + F.inCourt + ' in court counted in the ' + nf(F.requestsOpen) + ' open.'],
+      ['Age', 'Snapshot (' + SNAPTIME + ') − challenge time, in hours and days.'],
+      ['Bars', 'Scaled to the oldest, ' + esc(OLDDSP.status) + ' at ' + ageH(OLDDSP.at) + ' h. Open a row for its timeline.']
+    ] },
+    side: { t: 'The selected request', d: [
+      ['Hours open', 'Snapshot (' + SNAPTIME + ') − request time.'],
+      ['Backlog in this registry', 'Its open requests ÷ its entries, at snapshot. The bar is scaled to the highest backlog, ' + esc(BTOP.r.title) + ' at ' + bp(BTOP.b) + '.'],
+      ['Open to challenge', 'For a selected registry with no listed request: open − in court.']
+    ] },
+    bot: { t: 'Challenge pressure', d: [
+      ['Pressure = Σ challenges ÷ Σ requests', CH30 + ' ÷ ' + nf(REQ30) + ', ' + WINFULL + ', all registries, Ethereum + Gnosis.'],
+      ['Squares', 'One per request, in day order, left to right. A day’s challenges are marked amber on its first squares.' + (CAPPED ? ' ' + CAPPED + ' challenge(s) fell on days with fewer requests and are not drawn.' : '')],
+      ['Scope', 'The snapshot has no per-registry series, so selecting a registry does not filter this pane.']
+    ] }
+  };
+  var popBtn = null;
+  function togglePop(open, btn){
+    var p = $('#pop');
+    if (open === false || (btn && btn === popBtn && p.classList.contains('open'))) {
+      p.classList.remove('open'); if (popBtn) popBtn.setAttribute('aria-expanded', 'false'); popBtn = null; return;
+    }
+    var I = btn && INFO[btn.getAttribute('data-info')]; if (!I) return;
+    if (popBtn) popBtn.setAttribute('aria-expanded', 'false');
+    p.innerHTML = '<h4>' + I.t + '</h4><dl>' + I.d.map(function(x){ return '<div><dt>' + x[0] + '</dt><dd>' + x[1] + '</dd></div>'; }).join('') + '</dl>' + (I.f ? '<p class="fine">' + I.f + '</p>' : '');
+    p.setAttribute('aria-label', I.t);
+    p.classList.add('open'); btn.setAttribute('aria-expanded', 'true'); popBtn = btn;
+    var r = btn.getBoundingClientRect(), w = p.offsetWidth, h = p.offsetHeight;
+    var top = r.bottom + 8; if (top + h > window.innerHeight - 12) top = Math.max(12, r.top - h - 8);
+    p.style.top = top + 'px'; p.style.left = Math.max(12, Math.min(window.innerWidth - w - 12, r.left - 10)) + 'px';
+  }
+  document.addEventListener('click', function(e){
+    var b = e.target.closest('[data-info]');
+    if (b) { togglePop(true, b); return; }
+    if (!e.target.closest('#pop')) togglePop(false);
+  });
+
+  // ---------- Registry selection (filters the tape, the request panel and the disputes) ----------
+  function setReg(i){
+    state.reg = i;
+    var v = visTape(); if (v.length && v.indexOf(TAPE[state.sel]) < 0) state.sel = TAPE.indexOf(v[0]);
+    renderTick(); renderRegs(); renderTape(false); renderDisp(); renderSide();
+    $('#pressScope').classList.toggle('em', state.reg >= 0);
+  }
+  document.addEventListener('click', function(e){ if (e.target.closest('[data-clear]')) setReg(-1); });
+
+  // ---------- Backlog by registry ----------
+  var regAll = false;
+  function renderRegs(){
+    var q = state.q.trim().toLowerCase();
+    var rows = BACK.filter(function(o){
+      return !q || o.r.title.toLowerCase().indexOf(q) > -1 || o.r.chain.toLowerCase().indexOf(q) > -1 || o.r.kind.toLowerCase().indexOf(q) > -1;
+    }).sort(function(a, b){ return (b.r.open - a.r.open) || (b.r.entries - a.r.entries); });
+    function bar(b){ return b > 0 ? '<i class="bg" style="width:' + (b / BMAX * 100).toFixed(1) + '%"></i>' : ''; }
+    var h = '';
+    if (!q) h += '<button class="rrow all' + (state.reg < 0 ? ' on' : '') + '" data-i="-1" data-tip="' + esc('<b>All registries</b><br><span class=tm>' + nf(F.requestsOpen) + ' open ÷ ' + nf(F.entries) + ' entries = ' + bp(BALL) + ', across all ' + nf(F.registries) + ' lists<br>' + openSplit(F.requestsOpen, F.inCourt) + ' · ' + nf(TOCH) + ' open to challenge</span>') + '">' + bar(BALL) + ALLMARK +
+      '<span class="rn"><span class="rt"><span>All registries</span></span><span class="rs"><span class="mono">' + nf(F.entries) + '</span>entries · ' + nf(F.registries) + ' lists</span></span>' +
+      '<span class="num r">' + nf(F.requestsOpen) + '</span><span class="bk">' + bp(BALL) + '</span></button>';
+    rows.forEach(function(o){
+      var r = o.r;
+      h += '<button class="rrow' + (state.reg === o.i ? ' on' : '') + '" data-i="' + o.i + '" data-tip="' + esc('<b>' + r.title + '</b><br><span class=tm>' + r.kind + ' list on ' + r.chain + (r.verified ? ', verified' : '') + ', since ' + monYear(r.created) + '<br>' + r.open + ' open ÷ ' + nf(r.entries) + ' entries = ' + bp(o.b) + (r.inCourt ? '<br>' + openSplit(r.open, r.inCourt) + ' · ' + toCh(r) + ' open to challenge' : '') + '</span>') + '">' + bar(o.b) + regMark(r) +
+        '<span class="rn"><span class="rt">' + (r.verified ? CHECK : '') + '<span>' + esc(r.title) + '</span></span><span class="rs"><span class="mono">' + nf(r.entries) + '</span>entries · ' + r.chain + '</span></span>' +
+        '<span class="num r' + (r.open ? '' : ' z') + '">' + (r.inCourt ? '<span class="cdot"></span>' : '') + r.open + '</span><span class="bk' + (r.open ? '' : ' z') + '">' + bp(o.b) + '</span></button>';
+    });
+    if (!rows.length) h += '<div class="empty">No registry in the top ' + REGS.length + ' matches “' + esc(state.q) + '”.</div>';
+    $('#regList').innerHTML = h;
+    $('#regPane').classList.toggle('all', regAll || !!q);
+    $('#moreBtn').textContent = regAll ? 'Show fewer' : 'Show all ' + REGS.length;
+    $('#moreBtn').parentNode.hidden = !!q;
+    fadeReg();
+  }
+  $('#regFn').innerHTML = '<b>backlog</b> = open ÷ entries, top ' + REGS.length + ', at snapshot';
+  $('#regList').addEventListener('click', function(e){ var b = e.target.closest('.rrow'); if (b) setReg(+b.dataset.i); });
+  $('#moreBtn').addEventListener('click', function(){ regAll = !regAll; renderRegs(); });
+  $('#q').addEventListener('input', function(e){ state.q = e.target.value; renderRegs(); });
+
+  // ---------- Tape: open requests, strictly newest first, running count per registry ----------
+  function renderTape(animate){
+    var body = $('#tape'), list = visTape(), h = '';
+    $('#tapeCt').textContent = state.reg < 0 ? '(' + list.length + ' of ' + nf(TOCH) + ' open to challenge)' : '(' + list.length + ' of ' + TAPE.length + ' listed)';
+    if (!list.length) {
+      var R = REGS[state.reg];
+      var c = toCh(R);
+      body.innerHTML = '<div class="empty"><b>' + esc(R.title) + '</b>: ' + openSplit(R.open, R.inCourt) + ', so <b>' + c + '</b> open to challenge.<br>' + (c ? 'None of them are among the ' + TAPE.length + ' newest, which are all this snapshot lists.' : (R.open ? 'Every open request here is already in court.' : 'Nothing here is waiting to be challenged.')) + '<br><br><button class="btn btn-ghost btn-sm" data-clear>Show all registries</button></div>';
+      fadeTape(); return;
+    }
+    list.forEach(function(x, k){
+      var gi = TAPE.indexOf(x), id = parseId(x.id), R = REGS[regIndex(x.registry)], cn = id ? chainName(id.chain) : '';
+      h += '<button class="trow' + (animate && !RM ? ' in' : '') + '" role="option" data-g="' + gi + '" style="animation-delay:' + ((list.length - 1 - k) * 70) + 'ms" data-tip="' + esc('<b>' + x.status + ' · ' + x.registry + '</b><br><span class=tm>Item on ' + cn + (id ? ' (chain ID ' + id.chain + ')' : '') + '<br>' + (x.id || '') + '<br>by ' + x.actor + ' · ' + dateLong(x.at) + ' ' + hm(x.at) + ' UTC<br>Run ' + RUN[gi] + ' of ' + TOT[x.registry] + ' from this registry in the tape<br>Open ' + ageHD(x.at) + ' at snapshot</span>') + '">' +
+        '<span class="t">' + hm(x.at) + '</span>' +
+        '<span class="it"><span class="l1">' + (id ? addrMark(id.addr, 14) : '') + '<span>' + (id ? id.short : '—') + '</span></span>' +
+        '<span class="l2">' + (cn ? '<span class="cid">' + esc(cn) + '</span>' : '') + (R ? regMark(R, 12) : '') + '<span>' + esc(x.registry) + '</span></span></span>' +
+        '<span class="ru">' + RUN[gi] + '</span><span class="ah">' + ageH(x.at) + '</span><span class="ad">' + ageD(x.at) + '</span></button>';
+    });
+    body.innerHTML = h; markSel(); fadeTape();
+  }
+  $('#tapeFn').innerHTML = '<b>age</b> = snapshot − request time · <b>run</b> = same-registry count';
+  function markSel(){
+    var x = curReq(), gi = x ? TAPE.indexOf(x) : -1;
+    $$('#tape .trow').forEach(function(r){ var on = +r.dataset.g === gi; r.classList.toggle('sel', on); r.setAttribute('aria-selected', on); });
+  }
+  $('#tape').addEventListener('click', function(e){ var r = e.target.closest('.trow'); if (r) select(+r.dataset.g); });
+  $('#replay').addEventListener('click', function(){ renderTape(true); });
+  function select(gi){
+    state.sel = gi; markSel(); renderSide();
+    var row = $('#tape .trow[data-g="' + gi + '"]'); if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest' });
+  }
+  function move(delta){
+    var v = visTape(); if (!v.length) return;
+    var p = Math.max(0, Math.min(v.length - 1, v.indexOf(curReq()) + delta));
+    select(TAPE.indexOf(v[p]));
+  }
+
+  // ---------- Open disputes, oldest first, age bars ----------
+  function renderDisp(){
+    var list = COURT.filter(inReg), h = '';
+    $('#dispCt').textContent = state.reg < 0 ? '(' + list.length + ')' : '(' + list.length + ' of ' + COURT.length + ')';
+    list.forEach(function(x){
+      var R = REGS[regIndex(x.registry)];
+      h += '<button class="drow" data-dispute="' + COURT.indexOf(x) + '" data-tip="' + esc('<b>' + x.status + ' · ' + x.registry + '</b><br><span class=tm>Challenged ' + dateLong(x.at) + ' ' + hm(x.at) + ' UTC by ' + x.actor + '<br>In court ' + ageHD(x.at) + ' at snapshot</span>') + '">' +
+        '<i class="bg" style="width:' + (ageS(x.at) / MAXDSP * 100).toFixed(1) + '%"></i>' +
+        '<span class="nm"><span class="l1"><span class="pill a">' + esc(dnum(x)) + '</span>' + (R ? regMark(R, 14) : '') + '<b>' + esc(x.registry) + '</b></span><small>challenged ' + dayLabel(x.at) + ' · ' + hm(x.at) + ' UTC</small></span>' +
+        '<span class="n">' + ageH(x.at) + '</span><span class="p">' + ageD(x.at) + '</span></button>';
+    });
+    if (!list.length) h = '<div class="empty">No open disputes in <b>' + esc(REGS[state.reg].title) + '</b>.<br><br><button class="btn btn-ghost btn-sm" data-clear>Show all registries</button></div>';
+    $('#dlist').innerHTML = h; fadeDisp();
+  }
+  $('#dispFn').innerHTML = '<b>age</b> = snapshot − challenge time, all ' + COURT.length + ' disputes';
+  $('#dlist').addEventListener('click', function(e){ var b = e.target.closest('[data-dispute]'); if (b) disputeSheet(COURT[+b.dataset.dispute]); });
+
+  // ---------- Time strip: items placed on a shared UTC axis that ends at the snapshot ----------
+  function strip(el, items, selKey, unit, label){
+    if (!el) return;
+    var W = Math.max(220, Math.round(el.clientWidth || 270));
+    var U = unit === 'd' ? 86400 : 3600, padL = 6, padR = 6, dia = unit === 'd' ? 9 : 7.5, rad = unit === 'd' ? 3.6 : 3.1, pw = W - padL - padR;
+    var t0 = Math.min.apply(null, items.map(function(i){ return i.at; })), end = SNAP;
+    var steps = unit === 'd' ? [1, 2, 3, 7] : [1, 2, 3, 4, 6, 12], step = steps[steps.length - 1], start = Math.floor(t0 / (step * U)) * step * U;
+    for (var si = 0; si < steps.length; si++) {
+      var st0 = Math.floor(t0 / (steps[si] * U)) * steps[si] * U;
+      if (steps[si] * U / (end - st0) * pw >= (unit === 'd' ? 34 : 30)) { step = steps[si]; start = st0; break; }
+    }
+    function X(t){ return padL + (t - start) / (end - start) * pw; }
+    var its = items.map(function(it){ return { at: it.at, key: it.key, tip: it.tip, x: X(it.at) }; }).sort(function(a, b){ return a.at - b.at; });
+    var rows = [];
+    its.forEach(function(it){ var k = 0; while (rows[k] != null && it.x - rows[k] < dia) k++; rows[k] = it.x; it.row = k; });
+    var nr = Math.max(1, rows.length), top = 16, axisY = top + 6 + (nr - 1) * dia + 7, H = axisY + 17, xe = X(end);
+    var s = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(label) + '">';
+    s += '<line class="sx" x1="' + padL + '" x2="' + (W - padR) + '" y1="' + axisY + '" y2="' + axisY + '"/>';
+    for (var t = start; t < end; t += step * U) {
+      var xx = X(t); if (xe - xx < 40) continue;
+      var d = D(t), lab = unit === 'd' ? (d.getUTCDate() === 1 ? dayLabel(t) : String(d.getUTCDate())) : (d.getUTCHours() === 0 ? dayLabel(t) : pad(d.getUTCHours()));
+      s += '<line class="stk" x1="' + xx.toFixed(1) + '" x2="' + xx.toFixed(1) + '" y1="' + axisY + '" y2="' + (axisY + 4) + '"/><text class="sl" x="' + xx.toFixed(1) + '" y="' + (axisY + 14) + '" text-anchor="' + (xx < padL + 8 ? 'start' : 'middle') + '">' + lab + '</text>';
+    }
+    s += '<line class="ssn" x1="' + xe + '" x2="' + xe + '" y1="' + (top - 4) + '" y2="' + (axisY + 4) + '"/><text class="sl sn" x="' + xe + '" y="' + (axisY + 14) + '" text-anchor="end">' + hm(end) + '</text>';
+    var sel = its.filter(function(i){ return i.key === selKey; })[0];
+    if (sel) {
+      var sy = axisY - 6 - sel.row * dia;
+      s += '<line class="sbar" x1="' + sel.x.toFixed(1) + '" x2="' + xe + '" y1="' + axisY + '" y2="' + axisY + '"/><line class="sdrop" x1="' + sel.x.toFixed(1) + '" x2="' + sel.x.toFixed(1) + '" y1="' + sy + '" y2="' + axisY + '"/>';
+    }
+    its.forEach(function(it){
+      var cy = axisY - 6 - it.row * dia, on = it.key === selKey;
+      s += '<g class="sd' + (on ? ' on' : '') + '" data-key="' + it.key + '" data-tip="' + esc(it.tip) + '"><circle class="hitc" cx="' + it.x.toFixed(1) + '" cy="' + cy + '" r="7"/><circle class="dt" cx="' + it.x.toFixed(1) + '" cy="' + cy + '" r="' + (on ? rad + 0.9 : rad) + '"/></g>';
+    });
+    el.innerHTML = s + '</svg>';
+  }
+
+  // ---------- Request panel ----------
+  function setChallenge(on){ $$('[data-act="challenge"]').forEach(function(b){ b.disabled = !on; if (on) b.removeAttribute('data-tip'); else b.setAttribute('data-tip', 'Select an open request to challenge'); }); }
+  function backlogBlock(R, i){
+    var b = backOf(i);
+    return '<div class="share"><div class="row"><span>Backlog in this registry</span><b>' + bp(b) + '</b></div>' +
+      '<div class="meter" role="img" aria-label="' + esc('Backlog ' + bp(b) + ', bar scaled to the highest backlog ' + bp(BTOP.b)) + '"><i style="width:' + (b / BMAX * 100).toFixed(1) + '%"></i></div>' +
+      '<div class="row"><span>' + R.open + ' open ÷ ' + nf(R.entries) + ' entries</span><small>full bar = ' + bp(BTOP.b) + '</small></div></div>';
+  }
+  function renderSide(){
+    var sb = $('#sbody'), x = curReq(), v = visTape();
+    $('#pagerTxt').textContent = x ? (v.indexOf(x) + 1) + ' / ' + v.length : '0 / 0';
+    $('#prevBtn').disabled = !x; $('#nextBtn').disabled = !x;
+    if (!x) { $('#sideH').textContent = 'Registry'; renderRegState(sb); setChallenge(false); fadeSide(); return; }
+    $('#sideH').textContent = 'Request';
+    setChallenge(true);
+    var gi = TAPE.indexOf(x), ri = regIndex(x.registry), id = parseId(x.id), R = REGS[ri] || null, cn = id ? chainName(id.chain) : '';
+    var h = '<div class="req-h"><div class="rh1"><span class="pill n"><i class="pd"></i>' + esc(x.status) + '</span><span class="cap">open to challenge</span></div>' +
+      '<div class="rg">' + (R ? regMark(R, 22) : '') + '<span>' + esc(x.registry) + '</span></div>' +
+      '<div class="rmeta">Registry on ' + esc(x.chain) + (R ? ' · ' + R.kind + (R.verified ? ' · verified' : '') : '') + '</div></div>';
+    var known = id && CHAINS[id.chain];
+    h += '<div class="itembox"><div class="ib-h"><span>Item on</span><span class="cid">' + esc(known ? cn : 'chain ID ' + (id ? id.chain : '')) + '</span><span class="sp"></span>' + (known ? '<span class="mono" style="color:var(--dim)">chain ID ' + esc(id.chain) + '</span>' : '') + '</div>' +
+      '<div class="idline">' + (id ? addrMark(id.addr, 16) : '') + '<code>' + esc(id ? id.addr : '') + '</code><button class="ib" id="copyId" aria-label="Copy item ID" data-tip="Copy full item ID"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="5" y="5" width="8.5" height="8.5" rx="2"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button></div></div>';
+    h += '<div class="openbox"><div class="big"><span class="v">' + ageH(x.at) + '</span><span class="u">hours open</span></div>' +
+      '<div class="since"><b>' + ageD(x.at) + ' d</b> · requested <b>' + hm(x.at) + '</b> UTC, ' + dateLong(x.at) + '</div></div>';
+    h += '<dl class="facts"><dt>Submitted by</dt><dd>' + addrMark(x.actor, 14) + esc(x.actor) + '</dd>' +
+      '<dt>In the tape</dt><dd>' + (gi + 1) + ' of ' + TAPE.length + ' · run ' + RUN[gi] + ' of ' + TOT[x.registry] + '</dd></dl>';
+    if (R) h += '<div class="hr"></div>' + backlogBlock(R, ri);
+    h += '<p class="fn"><b>age</b> = snapshot − request · <b>backlog</b> = open ÷ entries</p>';
+    sb.innerHTML = h;
+    $('#mbI').textContent = (id ? id.short : x.status) + ' · ' + ageH(x.at) + ' h open';
+    $('#mbS').textContent = x.registry;
+    fadeSide();
+  }
+  function renderRegState(sb){
+    var R = REGS[state.reg], disputes = COURT.filter(inReg);
+    var h = '<div class="req-h"><div class="rh1"><span class="pill n">Registry</span>' + (R.verified ? '<span class="cap">verified</span>' : '') + '</div>' +
+      '<div class="rg">' + regMark(R, 22) + '<span>' + esc(R.title) + '</span></div>' +
+      '<div class="rmeta">' + R.kind + ' list on ' + R.chain + ' · since ' + monYear(R.created) + '</div></div>';
+    var c = toCh(R);
+    h += '<div class="openbox"><div class="big"><span class="v">' + c + '</span><span class="u">open to challenge</span></div>' +
+      '<div class="since"><b>' + R.open + '</b> open (<b>' + R.inCourt + '</b> in court)</div>' +
+      '<p class="note">' + (c ? 'The tape lists only the ' + TAPE.length + ' newest open-to-challenge requests across Curate. None are in this registry, so its ' + c + ' can’t be shown one by one.' : (R.open ? 'All ' + R.open + ' open requests here are in court, so nothing is left to challenge.' : 'Nothing in this registry is waiting to be challenged.')) + '</p>' +
+      '<button class="btn btn-ghost btn-sm" data-clear style="align-self:flex-start;margin-top:2px">Back to all registries</button></div>';
+    h += backlogBlock(R, state.reg);
+    if (disputes.length) {
+      h += '<div class="mlist"><div class="ml-h">Open disputes here · age</div>' + disputes.map(function(d){ return '<button class="mrow" data-dispute="' + COURT.indexOf(d) + '"><span class="pill a">' + esc(dnum(d)) + '</span><span class="x">' + ageHD(d.at) + '</span><span class="y">' + dayLabel(d.at) + ' ›</span></button>'; }).join('') + '</div>';
+    }
+    h += '<p class="fn"><b>to challenge</b> = open − in court · <b>backlog</b> = open ÷ entries</p>';
+    sb.innerHTML = h;
+    $('#mbI').textContent = R.title + ' · ' + c + ' open to challenge';
+    $('#mbS').textContent = c ? 'None among the ' + TAPE.length + ' listed in the tape' : (R.open ? 'All ' + R.open + ' open requests are in court' : 'No open requests');
+  }
+  $('#sbody').addEventListener('click', function(e){
+    if (e.target.closest('#copyId')) {
+      var x = curReq(); if (!x) return;
+      try { navigator.clipboard.writeText(x.id).then(function(){ toast('Item ID copied'); }, function(){ toast(x.id); }); } catch (err) { toast(x.id); }
+      return;
+    }
+    var dd = e.target.closest('[data-dispute]'); if (dd) disputeSheet(COURT[+dd.dataset.dispute]);
+  });
+  $('#prevBtn').addEventListener('click', function(){ move(-1); });
+  $('#nextBtn').addEventListener('click', function(){ move(1); });
+
+  // ---------- Challenge pressure: one square per request, in day order ----------
+  var firstWaffle = true, WG = null;
+  $('#pfig').innerHTML = '<span class="v">' + bp(PRESS) + '</span><span class="q">' + CH30 + ' <span>challenges ÷</span> ' + nf(REQ30) + ' <span>requests</span></span><span class="w">' + WIN + ' · all registries</span>' +
+    '<div class="pleg"><span><i style="background:rgba(207,215,232,.45)"></i>one request</span><span><i style="background:var(--amber)"></i>one challenge</span></div>';
+  $('#pressFn').innerHTML = '<b>pressure</b> = Σ challenges ÷ Σ requests = ' + CH30 + ' ÷ ' + nf(REQ30) + ' · ' + WIN + ' (' + series.length + ' UTC days) · Ethereum + Gnosis';
+  function renderWaffle(){
+    var box = $('#waffle'), W = box.clientWidth, H = box.clientHeight; if (!W || !H || !REQ30) return;
+    var axisH = 16, best = null;
+    for (var r = 4; r <= 80; r++) {
+      var c = Math.ceil(REQ30 / r), p = Math.min(W / c, (H - axisH) / r);
+      if (!best || p > best.p) best = { r: r, c: c, p: p };
+    }
+    var R = best.r, P = best.p, cell = Math.max(1.5, P * 0.78), gw = best.c * P;
+    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc('Challenge pressure ' + bp(PRESS) + ': ' + nf(REQ30) + ' squares, one per request, ' + CH30 + ' of them amber, one per challenge, ' + WIN) + '"><g class="wf' + (firstWaffle && !RM ? ' wgrow' : '') + '" id="wf">';
+    var k = 0, starts = [];
+    series.forEach(function(d, di){
+      starts.push(k);
+      var amber = Math.min(d.challenges, d.requests);
+      for (var j = 0; j < d.requests; j++, k++) {
+        var col = Math.floor(k / R), row = k % R;
+        s += '<rect class="' + (j < amber ? 'c' : 'r') + '" data-d="' + di + '" x="' + (col * P).toFixed(2) + '" y="' + (row * P).toFixed(2) + '" width="' + cell.toFixed(2) + '" height="' + cell.toFixed(2) + '" rx="' + Math.min(1.2, cell / 4).toFixed(2) + '"' + (firstWaffle && !RM ? ' style="animation-delay:' + Math.round(col * 9) + 'ms"' : '') + '/>';
+      }
+    });
+    s += '</g>';
+    // Day labels: each sits where that day's squares begin; the last day is labelled at the right edge, where its squares end.
+    var labY = R * P + 12, li = -1, lastX = -999;
+    for (var q = series.length - 1; q >= 0; q--) if (series[q].requests) { li = q; break; }
+    var rightX = Math.min(gw, W);
+    series.forEach(function(d, di){
+      if (!d.requests || di === li) return;
+      var x = Math.floor(starts[di] / R) * P;
+      if (x - lastX < 54 || x + 44 > rightX - 44) return;
+      s += '<text class="axis" x="' + x.toFixed(1) + '" y="' + labY + '">' + dayLabel(d.day) + '</text>';
+      lastX = x;
+    });
+    if (li > -1) s += '<text class="axis" text-anchor="end" x="' + rightX.toFixed(1) + '" y="' + labY + '">' + dayLabel(series[li].day) + '</text>';
+    s += '<rect id="whit" x="0" y="0" width="' + gw.toFixed(1) + '" height="' + (R * P).toFixed(1) + '" fill="transparent"/></svg>';
+    box.innerHTML = s;
+    WG = { R: R, P: P, starts: starts, gw: gw };
+    firstWaffle = false;
+  }
+  function waffleDay(e){
+    if (!WG) return -1;
+    var r = $('#waffle').getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+    if (x < 0 || y < 0 || x >= WG.gw || y >= WG.R * WG.P) return -1;
+    var k = Math.floor(x / WG.P) * WG.R + Math.floor(y / WG.P);
+    if (k >= REQ30) return -1;
+    for (var i = series.length - 1; i >= 0; i--) if (WG.starts[i] <= k && series[i].requests) return i;
+    return -1;
+  }
+  var wHov = -1;
+  $('#waffle').addEventListener('pointermove', function(e){
+    var di = waffleDay(e), g = $('#wf'); if (!g) return;
+    if (di !== wHov) {
+      wHov = di;
+      g.classList.toggle('hov', di >= 0);
+      $$('#wf rect').forEach(function(rc){ rc.classList.toggle('on', +rc.dataset.d === di); });
+    }
+    if (di < 0) { tip.classList.remove('show'); return; }
+    var d = series[di], part = di === series.length - 1 && LASTPARTIAL;
+    tip.innerHTML = '<b>' + dayFull(d.day) + '</b><br><span class=tm>' + d.requests + ' request' + (d.requests === 1 ? '' : 's') + ' · ' + d.challenges + ' challenge' + (d.challenges === 1 ? '' : 's') + (part ? '<br>Partial day: 00:00 to ' + hm(SNAP) + ' UTC' : '') + '</span>';
+    tip.classList.add('show');
+    var tw = tip.offsetWidth, th = tip.offsetHeight;
+    tip.style.left = Math.min(window.innerWidth - tw - 8, Math.max(8, e.clientX - tw / 2)) + 'px';
+    tip.style.top = (e.clientY - th - 14 < 8 ? e.clientY + 18 : e.clientY - th - 14) + 'px';
+    tipEl = null;
+  });
+  $('#waffle').addEventListener('pointerleave', function(){ wHov = -1; var g = $('#wf'); if (g) { g.classList.remove('hov'); $$('#wf rect.on').forEach(function(rc){ rc.classList.remove('on'); }); } tip.classList.remove('show'); });
+  if (window.ResizeObserver) new ResizeObserver(function(){ renderWaffle(); }).observe($('#waffle')); else window.addEventListener('resize', renderWaffle);
+
+  // ---------- Sheets ----------
+  var lastFocus = null, sheetStrip = null;
+  function openSheet(title, body, foot){
+    if (!sheetOpen()) lastFocus = document.activeElement;
+    var sh = $('#sheet');
+    sh.innerHTML = '<div class="sh"><h3 id="sheetT">' + title + '</h3><button class="ib" data-close aria-label="Close"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="m4 4 8 8M12 4l-8 8"/></svg></button><kbd class="desk-only">Esc</kbd></div><div class="sb">' + body + '</div>' + (foot ? '<div class="sf">' + foot + '</div>' : '');
+    sh.classList.add('open'); $('#scrim').classList.add('open');
+    sheetStrip = null;
+    setTimeout(function(){ var f = sh.querySelector('textarea, [data-close]'); f && f.focus(); }, 60);
+  }
+  function closeSheet(){ $('#sheet').classList.remove('open'); $('#scrim').classList.remove('open'); sheetStrip = null; if (lastFocus && lastFocus.focus) lastFocus.focus(); }
+  function sheetOpen(){ return $('#sheet').classList.contains('open'); }
+  $('#scrim').addEventListener('click', closeSheet);
+  $('#sheet').addEventListener('click', function(e){
+    if (e.target.closest('[data-close]')) { closeSheet(); return; }
+    if (e.target.closest('[data-confirm]')) { e.preventDefault(); closeSheet(); toast('Prototype: the wallet step is not wired'); return; }
+    var g = e.target.closest('.strip .sd'); if (g && sheetStrip) { sheetStrip.pick(+g.dataset.key); return; }
+    var dd = e.target.closest('[data-dispute]'); if (dd) disputeSheet(COURT[+dd.dataset.dispute]);
+  });
+  var draft = '';
+  function challengeSheet(){
+    var x = curReq(); if (!x) { toast('Select an open request first'); return; }
+    var id = parseId(x.id);
+    var body = '<dl class="kv"><dt>Registry</dt><dd class="t">' + esc(x.registry) + '</dd><dt>Item</dt><dd>' + esc(x.id || '') + '</dd><dt>Item chain</dt><dd class="t">' + (id ? chainName(id.chain) : '') + '</dd><dt>Request</dt><dd class="t">' + esc(x.status) + '</dd><dt>Submitted by</dt><dd>' + esc(x.actor) + '</dd><dt>Open for</dt><dd>' + ageHD(x.at) + ' (since ' + hm(x.at) + ' UTC)</dd></dl>' +
+      '<div class="form"><label for="ev2">Evidence for jurors</label><textarea id="ev2" placeholder="Why does this entry break the list’s policy? Link sources.">' + esc(draft) + '</textarea></div>' +
+      '<div class="box"><b>How it settles</b><p class="fine" style="color:var(--mute)">You post the challenge deposit the registry sets; your wallet shows the exact amount. Kleros jurors rule. The winner takes the deposit pool minus one arbitration cost.</p></div>' +
+      '<p class="fine">Open for = snapshot (' + SNAPTIME + ') − request time.</p>';
+    openSheet('Challenge ' + (id ? id.short : 'request'), body, '<button class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-blue" data-confirm>Confirm in wallet</button>');
+    var ev2 = $('#ev2'); ev2.addEventListener('input', function(){ draft = ev2.value; });
+  }
+  function disputeSheet(x){
+    var R = REGS[regIndex(x.registry)], others = COURT.filter(function(d){ return d !== x && d.registry === x.registry; });
+    var body = '<div class="sub">' + (R ? regMark(R, 18) : '') + '<b>' + esc(x.registry) + '</b><span>· ' + esc(x.chain) + '</span></div>' +
+      '<div class="openbox"><div class="big"><span class="v">' + ageH(x.at) + '</span><span class="u">hours in court</span></div>' +
+      '<div class="since"><b>' + ageD(x.at) + ' d</b> · challenged <b>' + hm(x.at) + '</b> UTC, ' + dateLong(x.at) + '</div>' +
+      '<div class="strip-h"><b>Challenge time · all ' + COURT.length + ' open disputes</b><span class="cap">' + MON[D(SNAP).getUTCMonth()] + ', UTC</span></div><div class="strip" id="shStrip"></div>' +
+      '<div class="leg2"><span><i class="ld"></i>dispute</span><span><i class="lb"></i>in court until snapshot</span><span><i class="ls"></i>snapshot ' + hm(SNAP) + ' UTC</span></div></div>' +
+      '<div class="sec"><div class="sec-h">Other open disputes in this registry · age</div>' + (others.length ? '<div class="mlist">' + others.map(function(d){ return '<button class="mrow" data-dispute="' + COURT.indexOf(d) + '"><span class="pill a">' + esc(dnum(d)) + '</span><span class="x">' + ageHD(d.at) + '</span><span class="y">' + dayLabel(d.at) + ' ' + hm(d.at) + ' ›</span></button>'; }).join('') + '</div>' : '<p class="note">None. This is the only open dispute here.</p>') + '</div>' +
+      '<div class="sec"><div class="sec-h">Account on this case</div><div class="acct">' + addrMark(x.actor, 20) + esc(x.actor) + '</div></div>' +
+      '<p class="fine">Age = snapshot (' + SNAPTIME + ') − challenge time. Jurors decide whether the entry stays.</p>';
+    openSheet('<span class="pill a" style="font-size:12px;height:24px">' + esc(dnum(x)) + '</span>Dispute', body, '<button class="btn btn-ghost" data-close>Close</button><a class="btn btn-blue" href="#" data-confirm>Open in Kleros Court</a>');
+    sheetStrip = { pick: function(k){ disputeSheet(COURT[k]); }, draw: function(){ strip($('#shStrip'), COURT.map(function(d, i){ return { at: d.at, key: i, tip: '<b>' + esc(d.status) + '</b><br><span class=tm>' + esc(d.registry) + '<br>challenged ' + dayLabel(d.at) + ' ' + hm(d.at) + ' UTC · in court ' + ageHD(d.at) + '</span>' }; }), COURT.indexOf(x), 'd', 'Challenge times of the ' + COURT.length + ' open disputes; this one has been in court ' + ageHD(x.at)); } };
+    requestAnimationFrame(sheetStrip.draw);
+  }
+  function keysSheet(){
+    var k = [['J', 'Older request in the tape'], ['K', 'Newer request in the tape'], ['/', 'Filter registries'], ['C', 'Challenge the selected request'], ['Esc', 'Close, or clear the selection'], ['?', 'This list']];
+    openSheet('Keyboard', '<div class="keylist">' + k.map(function(r){ return '<div><kbd style="display:inline-flex">' + r[0] + '</kbd></div><span>' + r[1] + '</span>'; }).join('') + '</div>', '');
+  }
+  document.addEventListener('click', function(e){ var b = e.target.closest('[data-act="challenge"]'); if (b && !b.disabled) challengeSheet(); });
+  $('#helpBtn').addEventListener('click', keysSheet);
+  $('#connectBtn').addEventListener('click', function(){ toast('Prototype: wallet connection is not wired'); });
+
+  // ---------- Toast ----------
+  var toastT;
+  function toast(m){ var t = $('#toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(function(){ t.classList.remove('show'); }, 2200); }
+
+  // ---------- Tooltips ----------
+  var tip = $('#tip'), tipEl = null;
+  document.addEventListener('mouseover', function(e){
+    if (e.target.closest('#waffle')) return;
+    var el = e.target.closest('[data-tip]');
+    if (el === tipEl) return; tipEl = el;
+    if (!el || !el.getAttribute('data-tip') || window.matchMedia('(hover: none)').matches) { tip.classList.remove('show'); return; }
+    tip.innerHTML = el.getAttribute('data-tip');
+    var r = el.getBoundingClientRect(); tip.classList.add('show');
+    var tw = tip.offsetWidth, th = tip.offsetHeight;
+    var left = Math.min(window.innerWidth - tw - 8, Math.max(8, r.left + r.width / 2 - tw / 2));
+    var topP = r.bottom + 8; if (topP + th > window.innerHeight - 8) topP = r.top - th - 8;
+    tip.style.left = left + 'px'; tip.style.top = topP + 'px';
+  });
+  document.addEventListener('scroll', function(){ tip.classList.remove('show'); tipEl = null; togglePop(false); }, true);
+
+  // ---------- Keyboard ----------
+  document.addEventListener('keydown', function(e){
+    var tag = (e.target.tagName || '').toLowerCase(), typing = tag === 'input' || tag === 'textarea';
+    if (e.key === 'Escape') {
+      if ($('#pop').classList.contains('open')) { togglePop(false); return; }
+      if (sheetOpen()) { closeSheet(); return; }
+      if (typing) { e.target.blur(); if (e.target.id === 'q' && e.target.value) { e.target.value = ''; state.q = ''; renderRegs(); } return; }
+      if (state.reg >= 0) setReg(-1);
+      return;
+    }
+    if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (sheetOpen() && e.key !== '?') return;
+    var k = e.key;
+    if (k === '/') { e.preventDefault(); $('#q').focus(); }
+    else if (k === 'j' || k === 'J') { e.preventDefault(); move(1); }
+    else if (k === 'k' || k === 'K') { e.preventDefault(); move(-1); }
+    else if (k === 'c' || k === 'C') { e.preventDefault(); if (curReq()) challengeSheet(); else toast('This registry has no listed open request to challenge'); }
+    else if (k === '?') { if (sheetOpen()) closeSheet(); else keysSheet(); }
+  });
+
+  var rzT;
+  window.addEventListener('resize', function(){ clearTimeout(rzT); rzT = setTimeout(function(){ if (sheetStrip && sheetOpen()) sheetStrip.draw(); fadeReg(); fadeTape(); fadeDisp(); fadeSide(); togglePop(false); }, 80); });
+
+  // ---------- Boot ----------
+  renderTick();
+  renderRegs();
+  renderTape(false);
+  renderDisp();
+  renderSide();
+  renderWaffle();
+})();
+</script>
+</body>
+</html>

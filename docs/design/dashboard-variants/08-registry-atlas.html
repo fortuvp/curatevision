@@ -1,0 +1,1128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Registry Atlas</title>
+<meta name="description" content="Curate home dashboard variant: where the entries are and where the backlog is. A squarified treemap of lists sized by entries and coloured by open share, with a cumulative concentration curve showing how few lists hold them.">
+<meta name="color-scheme" content="dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=Geist+Mono:wght@400..600&family=Urbanist:wght@400..700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --stage:#03050a;
+  --frame:#070a11;
+  --panel:#0a0e17;
+  --panel-2:#0e1320;
+  --raise:#161d2c;
+  --line:rgba(255,255,255,.07);
+  --line-2:rgba(255,255,255,.12);
+  --ink:#edf1f8;
+  --ink-2:#aab3c4;
+  --ink-3:#8a94a8;
+  --ink-4:#5c6577;
+  --blue:#3b82f6;
+  --blue-hi:#7cb2ff;
+  --ice:#dbe8ff;
+  /* open-share ramp, one hue, luminance steps ~.02 / .07 / .19 / .49; bin 0 lifted so empty lists still read as tiles */
+  --s0:#1d2636;
+  --s1:#1b4a8c;
+  --s2:#3277e0;
+  --s3:#9cc4f8;
+  --ease:cubic-bezier(.2,.8,.2,1);
+  --spring:cubic-bezier(.34,1.42,.5,1);
+  --r-frame:34px;
+  --gx:48px;
+  --gy:24px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%;background:var(--stage)}
+body{display:flow-root;min-height:100vh;background:var(--stage);color:var(--ink);font:400 14px/1.45 Geist,ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+a{color:inherit;text-decoration:none}
+.num{font-variant-numeric:tabular-nums}
+[hidden]{display:none!important}
+
+/* ---------- stage: broad aurora around the frame ---------- */
+.aurora{position:fixed;inset:-20%;z-index:0;pointer-events:none;filter:blur(52px);
+  background:
+    radial-gradient(30% 24% at 14% 10%, rgba(37,99,235,.95), transparent 70%),
+    radial-gradient(26% 34% at 94% 22%, rgba(56,189,248,.78), transparent 70%),
+    radial-gradient(40% 16% at 56% 8%, rgba(29,78,216,.7), transparent 72%),
+    radial-gradient(28% 26% at 88% 94%, rgba(37,99,235,.7), transparent 72%),
+    radial-gradient(22% 30% at 4% 70%, rgba(14,116,224,.5), transparent 72%),
+    linear-gradient(128deg, transparent 30%, rgba(29,78,216,.42) 46%, rgba(56,189,248,.3) 56%, transparent 68%);
+  animation:drift 26s ease-in-out infinite alternate}
+@keyframes drift{from{transform:translate3d(-1.5%,-1%,0) rotate(0deg)}to{transform:translate3d(1.5%,1.2%,0) rotate(2.5deg)}}
+
+.frame{position:relative;z-index:1;margin:var(--gy) var(--gx);min-height:calc(100vh - var(--gy)*2);border-radius:var(--r-frame);
+  background:radial-gradient(70% 34% at 50% -6%, rgba(59,130,246,.13), transparent 70%), var(--frame);
+  box-shadow:0 0 0 1px rgba(255,255,255,.07), 0 40px 120px -40px rgba(0,0,0,.9), 0 0 80px -20px rgba(37,99,235,.35);
+  padding:0 30px 18px;display:flex;flex-direction:column}
+
+/* ---------- top bar ---------- */
+.top{display:flex;align-items:center;gap:20px;height:58px;border-bottom:1px solid var(--line);margin:0 -30px;padding:0 30px}
+.brand{display:flex;align-items:center;gap:10px;font:600 17px/1 Urbanist,sans-serif;letter-spacing:.01em}
+.brand svg{display:block}
+.nav{display:flex;gap:2px;margin:0 auto;padding:4px;border-radius:999px;background:rgba(255,255,255,.03);box-shadow:inset 0 0 0 1px var(--line)}
+.nav a{padding:7px 14px;border-radius:999px;color:var(--ink-2);font-size:13px;font-weight:500;transition:color .2s,background .2s}
+.nav a:hover{color:var(--ink)}
+.nav a[aria-current]{background:var(--raise);color:var(--ink);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+.top-r{display:flex;align-items:center;gap:10px}
+.scope{display:flex;align-items:center;gap:8px;height:34px;padding:0 12px;border-radius:10px;box-shadow:inset 0 0 0 1px var(--line-2);font-size:12px;color:var(--ink-2)}
+.scope i{width:6px;height:6px;border-radius:50%;background:var(--ink-3)}
+.scope i+i{margin-left:-4px;background:var(--ink-2)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:34px;padding:0 14px;border-radius:10px;font-size:13px;font-weight:600;transition:transform .2s var(--ease),background .2s,box-shadow .2s}
+.btn-p{background:var(--blue);color:#fff;box-shadow:0 8px 24px -8px rgba(59,130,246,.8), inset 0 1px 0 rgba(255,255,255,.25)}
+.btn-p:hover{background:#4b8ef8}
+.btn-g{box-shadow:inset 0 0 0 1px var(--line-2);color:var(--ink)}
+.btn-g:hover{background:rgba(255,255,255,.04)}
+.btn:active{transform:scale(.97)}
+.menu-b{display:none;width:34px;height:34px;border-radius:10px;box-shadow:inset 0 0 0 1px var(--line-2);align-items:center;justify-content:center}
+.menu{display:none}
+
+/* ---------- head ---------- */
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;padding:18px 0 14px}
+h1{font:500 34px/1.08 Urbanist,sans-serif;letter-spacing:-.025em}
+h1 em{font-style:normal;color:var(--blue-hi);font-variant-numeric:tabular-nums}
+h1 em.bk{color:var(--s3)}
+.sub{margin-top:6px;color:var(--ink-2);font-size:13.5px}
+.stamp{font:400 11px/1 "Geist Mono",monospace;color:var(--ink-3);letter-spacing:.02em;white-space:nowrap;display:flex;align-items:center;gap:8px}
+.stamp i{width:6px;height:6px;border-radius:50%;background:var(--ink-3)}
+
+/* ---------- atlas ---------- */
+.atlas{display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:14px;align-items:stretch}
+.card{position:relative;border-radius:22px;background:var(--panel);box-shadow:inset 0 0 0 1px var(--line)}
+.map-card{padding:10px 12px 10px;isolation:isolate;min-width:0}
+/* the one focal rim */
+.map-card::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;
+  background:linear-gradient(140deg, rgba(124,178,255,.55), rgba(124,178,255,0) 28%, rgba(124,178,255,0) 70%, rgba(56,189,248,.45));
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+.map-card::after{content:"";position:absolute;left:12%;right:12%;bottom:-18px;height:40px;z-index:-1;border-radius:50%;background:rgba(59,130,246,.32);filter:blur(28px)}
+
+.mc-h{display:flex;align-items:center;gap:12px;padding:0 0 10px;flex-wrap:wrap}
+.tabs{position:relative;display:flex;padding:3px;border-radius:12px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line)}
+.tab{position:relative;z-index:1;display:flex;align-items:center;gap:7px;height:30px;padding:0 12px;border-radius:9px;font-size:13px;font-weight:500;color:var(--ink-2);transition:color .2s;white-space:nowrap}
+.tab span{font:400 11.5px/1 "Geist Mono",monospace;color:var(--ink-3);transition:color .2s}
+.tab[aria-selected=true]{color:var(--ink)}
+.tab[aria-selected=true] span{color:var(--blue-hi)}
+.tab-ind{position:absolute;z-index:0;top:3px;height:30px;border-radius:9px;background:var(--raise);box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 0 0 1px rgba(255,255,255,.05);transition:left .42s var(--spring),width .42s var(--spring)}
+
+.legend{display:flex;align-items:center;gap:16px;min-width:0;margin-left:auto}
+.lg-ramp{display:flex;align-items:center;gap:8px}
+.lg-t{font:500 10.5px/1.2 Geist,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);white-space:nowrap}
+.lg-t small{display:block;font:400 10px/1.2 "Geist Mono",monospace;letter-spacing:0;text-transform:none;color:var(--ink-3)}
+.lg-scale{display:flex;gap:2px}
+.lg-b{display:flex;flex-direction:column;gap:4px;align-items:flex-start;padding:3px;border-radius:6px;transition:background .2s}
+.lg-b:hover,.lg-b:focus-visible{background:rgba(255,255,255,.05);outline:none}
+.lg-b i{display:block;width:34px;height:8px;border-radius:3px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
+.lg-b span{font:400 10px/1 "Geist Mono",monospace;color:var(--ink-2);white-space:nowrap}
+.lg-none{font:400 11.5px/1.2 Geist,sans-serif;color:var(--ink-2);display:flex;align-items:center;gap:8px;white-space:nowrap}
+.lg-none i{width:22px;height:8px;border-radius:3px;background:var(--s0);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
+.lg-k{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-2);white-space:nowrap}
+.lg-k svg{color:var(--blue-hi)}
+.lg-k .ring{width:16px;height:12px;border-radius:4px;background:var(--s0);box-shadow:inset 0 0 0 2px var(--ice), 0 0 8px rgba(191,219,254,.3)}
+
+.map{position:relative;height:clamp(380px, calc(100vh - 292px), 680px);border-radius:12px;overflow:hidden;touch-action:manipulation}
+.mc-f{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 4px 0;font:400 11px/1.35 "Geist Mono",monospace;color:var(--ink-3);letter-spacing:.01em;min-width:0}
+.mc-f b{font-weight:500;color:var(--ink-2)}
+
+/* ---------- tiles ---------- */
+.tile{position:absolute;left:0;top:0;border-radius:var(--tr,8px);overflow:hidden;text-align:left;color:var(--tink,#fff);
+  background:radial-gradient(120% 90% at 0% 0%, rgba(255,255,255,.12), rgba(255,255,255,0) 55%), linear-gradient(180deg, transparent 40%, rgba(2,6,16,.26)), var(--fill);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.1), inset 0 1px 0 rgba(255,255,255,.08);
+  transition:left .62s var(--ease),top .62s var(--ease),width .62s var(--ease),height .62s var(--ease),opacity .35s var(--ease),transform .35s var(--ease),box-shadow .25s,filter .25s;
+  opacity:0;transform:scale(.94)}
+.tile[data-bin="0"]{background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0) 60%), var(--fill);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
+.tile[data-bin="3"]{background:radial-gradient(120% 90% at 0% 0%, rgba(255,255,255,.3), rgba(255,255,255,0) 55%), var(--fill);box-shadow:inset 0 0 0 1px rgba(255,255,255,.3), inset 0 0 60px rgba(255,255,255,.18), inset 0 1px 0 rgba(255,255,255,.4)}
+.tile.in{opacity:1;transform:none}
+.tile.out{opacity:0!important;transform:scale(.9)!important;pointer-events:none}
+.tile.other::before{content:"";position:absolute;inset:5px;border-radius:calc(var(--tr,8px) - 3px);border:1px dashed rgba(255,255,255,.2);pointer-events:none}
+/* in court: an inset ice ring that survives every size */
+.tile.court::after{content:"";position:absolute;inset:2px;border-radius:calc(var(--tr,8px) - 1px);box-shadow:inset 0 0 0 2px var(--ice), inset 0 0 26px rgba(191,219,254,.3);pointer-events:none}
+.tile[data-bin="3"].court::after{box-shadow:inset 0 0 0 2px #06132a, inset 0 0 0 4px var(--ice)}
+.map.has-hot .tile.in:not(.hot){opacity:.5}
+.map[data-bin] .tile.in{opacity:.16}
+.map[data-bin="0"] .tile[data-bin="0"],.map[data-bin="1"] .tile[data-bin="1"],.map[data-bin="2"] .tile[data-bin="2"],.map[data-bin="3"] .tile[data-bin="3"]{opacity:1}
+.tile.in.hot{z-index:5;transform:translateY(-2px) scale(1.01);filter:brightness(1.14);box-shadow:inset 0 0 0 1px rgba(255,255,255,.45), 0 22px 44px -14px rgba(0,0,0,.85), 0 0 0 3px rgba(3,5,10,.92)}
+.tile:focus-visible{outline:2px solid var(--blue-hi);outline-offset:-2px}
+.no-anim .tile{transition:none!important}
+
+.t-in{position:absolute;inset:0;padding:var(--tp,12px);display:flex;flex-direction:column;justify-content:space-between;gap:4px;pointer-events:none}
+.t-top{min-width:0;display:flex;flex-direction:column;align-items:flex-start}
+.t-name{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:100%;font:600 var(--tn,15px)/1.14 Urbanist,sans-serif;letter-spacing:-.005em;overflow-wrap:anywhere}
+.t-name svg{display:inline-block;vertical-align:-.1em;margin-left:5px;opacity:.9}
+.t-tag{display:inline-flex;align-items:center;margin-top:7px;height:19px;padding:0 7px;border-radius:6px;background:rgba(3,8,20,.32);font:500 10.5px/1 "Geist Mono",monospace;letter-spacing:.01em;white-space:nowrap}
+.t-meta{display:block;max-width:100%;margin-top:6px;font:500 10px/1.2 Geist,sans-serif;letter-spacing:.08em;text-transform:uppercase;opacity:.82;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.t-bot{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;min-width:0}
+.t-num{font:500 var(--te,26px)/.95 Geist,sans-serif;letter-spacing:-.02em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.t-num small{display:block;margin-top:6px;font:500 10px/1 Geist,sans-serif;letter-spacing:.08em;text-transform:uppercase;opacity:.82}
+.t-chips{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.t-bot.stack{flex-direction:column-reverse;align-items:flex-start;gap:8px}
+.t-bot.stack .t-chips{align-items:flex-start}
+.chip{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:7px;background:rgba(3,6,14,.5);font:500 11px/1 Geist,sans-serif;color:#fff;white-space:nowrap;font-variant-numeric:tabular-nums;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.chip b{font-weight:600}
+.chip-c{box-shadow:inset 0 0 0 1px rgba(219,232,255,.5)}
+.chip i,.cb i{flex:none;width:6px;height:6px;border-radius:50%;background:var(--ice);animation:ping 2.2s var(--ease) infinite}
+@keyframes ping{0%{box-shadow:0 0 0 0 rgba(219,232,255,.6)}70%,100%{box-shadow:0 0 0 7px rgba(219,232,255,0)}}
+.cb{position:absolute;top:calc(var(--tp) - 2px);right:calc(var(--tp) - 2px);display:inline-flex;align-items:center;gap:5px;height:19px;padding:0 6px;border-radius:6px;background:rgba(3,6,14,.6);font:500 10.5px/1 Geist,sans-serif;color:#fff}
+.sz-xl{--tn:22px;--te:44px;--tp:16px}
+.sz-lg{--tn:16px;--te:28px;--tp:13px}
+.sz-md{--tn:13px;--te:18px;--tp:10px}
+.sz-ms{--tn:12px;--te:13px;--tp:8px}
+.sz-sm{--tn:10.5px;--te:10.5px;--tp:5px}
+.sz-ms .t-name,.sz-sm .t-name{-webkit-line-clamp:1}
+.sz-ms .t-num,.sz-sm .t-num{font-weight:600;letter-spacing:0}
+.sz-sm .t-in{gap:1px;justify-content:flex-end}
+.t-sub{font:500 10px/1.1 Geist,sans-serif;opacity:.8;margin-top:3px;white-space:nowrap}
+
+/* ---------- concentration curve: how few lists hold the entries (and the backlog) ---------- */
+.rail{display:flex;flex-direction:column;height:0;min-height:100%;overflow:hidden;padding:16px 18px 14px}
+.cc-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.cc-h h2{font:600 15px/1 Urbanist,sans-serif;letter-spacing:.005em}
+.cc-h p{font:400 10.5px/1 "Geist Mono",monospace;color:var(--ink-3);white-space:nowrap}
+.cc-hero{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-top:18px}
+.cc-big{min-width:0}
+.cc-big b{display:block;font:500 46px/.92 Geist,sans-serif;letter-spacing:-.035em;font-variant-numeric:tabular-nums;color:var(--ink)}
+.cc-big span{display:block;margin-top:9px;font-size:12.5px;line-height:1.35;color:var(--ink-2);max-width:210px}
+.cc-need{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:7px}
+.cc-need>span{font:500 9.5px/1 Geist,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.cc-need dl{display:flex;border-radius:11px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line)}
+.cc-need dl div{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:46px;padding:7px 8px 8px}
+.cc-need dl div+div{box-shadow:-1px 0 0 var(--line)}
+.cc-need dt{font:400 10px/1 "Geist Mono",monospace;color:var(--ink-3)}
+.cc-need dd{font:500 18px/1 Geist,sans-serif;font-variant-numeric:tabular-nums;color:var(--ink)}
+.cc-lg{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:18px;font-size:11.5px;color:var(--ink-2)}
+.cc-k{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.cc-k i{display:block;width:18px;height:0;border-top:2px solid var(--blue)}
+.cc-k i.op{border-top:2px dashed var(--s3)}
+.cc-k i.eq{border-top:2px dotted var(--ink-3)}
+.cc-k.mu{color:var(--ink-3)}
+.cc-chart{position:relative;flex:1;min-height:230px;margin:4px -4px 0 -2px}
+.cc-chart svg{position:absolute;inset:0;display:block;overflow:visible}
+.cc-grid{stroke:var(--line);stroke-width:1}
+.cc-tk{font:400 10px/1 "Geist Mono",monospace;fill:var(--ink-3)}
+.cc-ax{font:500 9.5px/1 Geist,sans-serif;letter-spacing:.08em;text-transform:uppercase;fill:var(--ink-3)}
+.cc-brk{stroke:var(--ink-3);stroke-width:1.25}
+.cc-area{fill:url(#ccGrad)}
+.cc-ln{fill:none;stroke:var(--blue);stroke-width:2.25;stroke-linejoin:round;stroke-linecap:round}
+.cc-ln-r{fill:none;stroke:var(--blue);stroke-width:1.5;stroke-dasharray:2 4;stroke-linecap:round}
+.cc-op{fill:none;stroke:var(--s3);stroke-width:1.5;stroke-dasharray:5 4;stroke-linejoin:round}
+.cc-eq{fill:none;stroke:var(--ink-3);stroke-width:1.75;stroke-dasharray:.5 4;stroke-linecap:round}
+.cc-eq-t{font:400 10px/1 "Geist Mono",monospace;fill:var(--ink-3)}
+.cc-gd{stroke:rgba(255,255,255,.2);stroke-width:1;stroke-dasharray:2 3}
+.cc-pt{fill:var(--panel);stroke:var(--blue-hi);stroke-width:1.5}
+.cc-pt.ms{fill:var(--blue-hi);stroke:var(--panel);stroke-width:2}
+.cc-pt.rest{fill:var(--panel);stroke:var(--blue-hi);stroke-dasharray:2 2}
+.cc-pt.on{fill:#fff;stroke:var(--panel);stroke-width:2;stroke-dasharray:none}
+.cc-an-v{font:600 13px/1 Geist,sans-serif;font-variant-numeric:tabular-nums;fill:var(--ink)}
+.cc-an-c{font:400 9.5px/1 "Geist Mono",monospace;fill:var(--ink-3)}
+.cc-guide{stroke:rgba(255,255,255,.4);stroke-width:1;pointer-events:none}
+.cc-opt{fill:var(--s3);stroke:var(--panel);stroke-width:2;pointer-events:none}
+.cc-hit{fill:transparent;cursor:pointer}
+.cc-hit:focus{outline:none}
+.cc-read{height:36px;margin-top:4px;font-size:12px;line-height:1.5;color:var(--ink-2);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.cc-read b{font-weight:600;color:var(--ink)}
+.cc-read em{font-style:normal;color:var(--s3)}
+.cc-f{margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font:400 10.5px/1.5 "Geist Mono",monospace;color:var(--ink-3)}
+
+/* ---------- hover card ---------- */
+.tip{position:fixed;left:0;top:0;z-index:40;width:348px;padding:14px;border-radius:16px;pointer-events:none;
+  background:rgba(10,14,23,.94);backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2);
+  box-shadow:0 0 0 1px rgba(255,255,255,.1), 0 24px 60px -18px rgba(0,0,0,.9);
+  opacity:0;transform:translate3d(-999px,-999px,0);transition:opacity .16s}
+.tip.on{opacity:1}
+.tp-h{display:grid;grid-template-columns:12px minmax(0,1fr);gap:10px;align-items:start}
+.tp-sw{width:12px;height:12px;border-radius:4px;margin-top:3px;background:var(--fill);box-shadow:inset 0 0 0 1px rgba(255,255,255,.15)}
+.tp-sw.c{box-shadow:inset 0 0 0 2px var(--ice)}
+.tp-t{font:600 16px/1.15 Urbanist,sans-serif}
+.tp-m{margin-top:4px;font:400 11px/1.3 Geist,sans-serif;color:var(--ink-3)}
+.tp-big{display:flex;gap:18px;margin-top:12px}
+.tp-big div{display:flex;flex-direction:column;gap:5px}
+.tp-big b{font:500 24px/1 Geist,sans-serif;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.tp-big span{font:500 9.5px/1 Geist,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.kv{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;margin-top:12px;border-radius:11px;overflow:hidden;background:var(--line)}
+.kv div{background:var(--panel-2);padding:8px 10px;min-width:0}
+.kv span{display:block;font:500 9.5px/1 Geist,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.kv b{display:flex;align-items:center;gap:5px;margin-top:6px;font:500 13px/1.1 Geist,sans-serif;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kv b svg{flex:none;color:var(--blue-hi)}
+.kv b.ct{color:var(--ice)}
+.kv b.mu{color:var(--ink-3)}
+.tp-f{margin-top:10px;font:400 10.5px/1.35 "Geist Mono",monospace;color:var(--ink-3);display:flex;justify-content:space-between;gap:8px}
+
+/* ---------- sheet (tap or click on a tile / row) ---------- */
+.scrim{position:fixed;inset:0;z-index:50;background:rgba(2,4,9,.5);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);opacity:0;visibility:hidden;transition:opacity .35s,visibility 0s .35s}
+.scrim.open{opacity:1;visibility:visible;transition:opacity .35s,visibility 0s}
+.sheet{position:fixed;z-index:51;top:12px;right:12px;bottom:12px;width:420px;max-width:calc(100vw - 24px);border-radius:28px;overflow:auto;
+  background:radial-gradient(90% 40% at 100% 0%, rgba(59,130,246,.14), transparent 70%), #090d16;
+  box-shadow:0 0 0 1px rgba(255,255,255,.09), -30px 0 80px -30px rgba(0,0,0,.9);
+  padding:22px 24px 24px;visibility:hidden;transform:translateX(calc(100% + 24px));transition:transform .5s var(--ease),visibility 0s .5s}
+.sheet.open{visibility:visible;transform:none;transition:transform .5s var(--ease),visibility 0s}
+.sh-grab{display:none}
+.sh-x{position:absolute;top:18px;right:18px;width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 1px var(--line-2);color:var(--ink-2)}
+.sh-x:hover{color:var(--ink);background:rgba(255,255,255,.04)}
+.sh-m{font:500 10.5px/1 Geist,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);padding-right:44px}
+.sh-t{margin-top:10px;font:500 28px/1.08 Urbanist,sans-serif;letter-spacing:-.015em;padding-right:30px}
+.sh-big{margin-top:22px;display:flex;gap:28px}
+.sh-big div{display:flex;flex-direction:column;gap:7px}
+.sh-big b{font:500 44px/1 Geist,sans-serif;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.sh-big span{font:500 10px/1 Geist,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.sheet .kv{margin-top:22px;border-radius:16px;grid-template-columns:1fr 1fr}
+.sheet .kv div{padding:13px 14px}
+.sheet .kv b{font-size:17px;margin-top:8px}
+.sh-note{margin-top:14px;font:400 11px/1.5 "Geist Mono",monospace;color:var(--ink-3)}
+.sh-a{display:flex;gap:8px;margin-top:24px}
+.sh-a .btn{height:42px;flex:1;border-radius:12px}
+
+/* ---------- footnotes: every derived figure, its formula and window ---------- */
+.notes{margin-top:14px;padding:4px 4px 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 28px;list-style:none;font:400 11px/1.5 "Geist Mono",monospace;color:var(--ink-3)}
+.notes li{position:relative;padding-left:14px}
+.notes li::before{content:attr(data-n);position:absolute;left:0;color:var(--ink-4)}
+.notes b{font-weight:500;color:var(--ink-2)}
+
+/* ---------- responsive ---------- */
+@media (max-width:1180px){
+  :root{--gx:28px}
+  .atlas{grid-template-columns:1fr}
+  .rail{height:auto;min-height:0}
+  .cc-chart{flex:none;height:340px}
+  .map{height:clamp(380px,56vw,600px)}
+}
+@media (max-width:860px){
+  .nav{display:none}
+  .scope{display:none}
+  .top-r{margin-left:auto}
+  .menu-b{display:inline-flex}
+  .menu{position:absolute;z-index:30;top:58px;right:16px;left:16px;display:flex;flex-direction:column;padding:6px;border-radius:16px;background:rgba(12,16,26,.96);backdrop-filter:blur(12px);box-shadow:0 0 0 1px var(--line-2),0 24px 60px -20px #000;
+    opacity:0;transform:translateY(-6px) scale(.98);transform-origin:top right;pointer-events:none;transition:opacity .2s,transform .25s var(--ease)}
+  .menu.open{opacity:1;transform:none;pointer-events:auto}
+  .menu a{padding:12px 14px;border-radius:10px;color:var(--ink-2);font-weight:500}
+  .menu a[aria-current]{background:var(--raise);color:var(--ink)}
+  .lg-k.lg-v{display:none}
+  .notes{grid-template-columns:1fr}
+}
+@media (max-width:640px){
+  :root{--gx:8px;--gy:8px;--r-frame:26px}
+  .frame{padding:0 14px 16px}
+  .top{margin:0 -14px;padding:0 14px 0 16px;height:56px}
+  .menu{top:56px}
+  .btn-connect span{display:none}
+  .btn-connect{width:34px;padding:0}
+  .head{flex-direction:column;align-items:flex-start;gap:8px;padding:16px 2px 12px}
+  h1{font-size:25px;line-height:1.12}
+  .dsk{display:none}
+  .sub{display:none}
+  .stamp{font-size:10.5px}
+  .map-card{padding:8px;border-radius:18px}
+  .mc-h{gap:10px;padding-bottom:8px}
+  .tabs{flex:1;min-width:0}
+  .tab{flex:1;justify-content:center;padding:0 6px;font-size:12.5px;gap:5px}
+  .tab span{display:none}
+  .legend{order:3;width:100%;gap:10px;justify-content:space-between;padding:0 2px;margin-left:0}
+  .lg-ramp{gap:6px}
+  .lg-t small{display:none}
+  .lg-b{padding:2px}
+  .lg-b i{width:30px;height:7px}
+  .lg-b span{font-size:9.5px}
+  .lg-k{font-size:11px}
+  .map{height:420px;border-radius:10px}
+  .mc-f{padding:9px 2px 2px;font-size:10.5px}
+  .sz-xl{--tn:18px;--te:32px;--tp:12px}
+  .sz-lg{--tn:15px;--te:23px;--tp:10px}
+  .rail{border-radius:18px;padding:14px 12px 12px}
+  .cc-hero{margin-top:14px;gap:10px}
+  .cc-big b{font-size:38px}
+  .cc-big span{font-size:12px;max-width:170px}
+  .cc-need dl div{min-width:38px;padding:6px 6px 7px}
+  .cc-need dd{font-size:16px}
+  .cc-lg{margin-top:14px;gap:6px 12px;font-size:11px}
+  .cc-chart{height:272px;margin:2px -2px 0 -2px}
+  .cc-read{height:auto;min-height:36px}
+  .cc-f{font-size:10px}
+  .sheet{top:auto;left:0;right:0;bottom:0;width:auto;max-width:none;max-height:86vh;border-radius:26px 26px 0 0;padding:10px 18px calc(22px + env(safe-area-inset-bottom));transform:translateY(105%)}
+  .sh-grab{display:block;width:100%;height:20px;margin-bottom:6px;position:relative}
+  .sh-grab::after{content:"";position:absolute;left:50%;top:6px;width:40px;height:4px;margin-left:-20px;border-radius:4px;background:rgba(255,255,255,.18)}
+  .sh-x{top:24px}
+  .sh-t{font-size:24px}
+  .sh-big b{font-size:36px}
+  .notes{font-size:10.5px;padding:2px 2px 0}
+}
+@media (hover:none){ .tip{display:none} }
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition-duration:0s!important;transition-delay:0s!important}
+  .aurora{animation:none}
+}
+</style>
+</head>
+<body>
+<div class="aurora" aria-hidden="true"></div>
+
+<div class="frame">
+  <header class="top">
+    <a class="brand" href="#" aria-label="Curate home">
+      <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true"><rect x=".75" y=".75" width="24.5" height="24.5" rx="7.5" stroke="rgba(255,255,255,.28)" stroke-width="1.5"/><rect x="6" y="7" width="14" height="3" rx="1.5" fill="#7cb2ff"/><rect x="6" y="11.5" width="9" height="3" rx="1.5" fill="rgba(255,255,255,.7)"/><rect x="6" y="16" width="11.5" height="3" rx="1.5" fill="rgba(255,255,255,.4)"/></svg>
+      Curate
+    </a>
+    <nav class="nav" aria-label="Primary">
+      <a href="#" aria-current="page">Dashboard</a>
+      <a href="#">Browse</a>
+      <a href="#">Launch a list</a>
+      <a href="#">Guide</a>
+    </nav>
+    <div class="top-r">
+      <div class="scope" title="Data scope"><i></i><i></i><span id="scopeT">Ethereum + Gnosis</span></div>
+      <a class="btn btn-p btn-connect" href="#" aria-label="Connect wallet">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="1.5" y="3.5" width="13" height="10" rx="2.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 8.5h1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M3.5 3.5l7-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <span>Connect</span>
+      </a>
+      <button class="menu-b" id="menuB" aria-label="Open menu" aria-expanded="false" aria-controls="menu">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 5h11M2.5 11h11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <nav class="menu" id="menu" aria-label="Primary (mobile)">
+      <a href="#" aria-current="page">Dashboard</a>
+      <a href="#">Browse</a>
+      <a href="#">Launch a list</a>
+      <a href="#">Guide</a>
+    </nav>
+  </header>
+
+  <section class="head">
+    <div>
+      <h1 id="h1">Where the entries and the backlog sit</h1>
+      <p class="sub">Each tile is a list sized by entries and coloured by open share; the curve shows how few lists hold them.</p>
+    </div>
+    <div class="stamp" id="stamp"><i></i>Snapshot</div>
+  </section>
+
+  <section class="atlas">
+    <div class="card map-card" id="mapCard">
+      <div class="mc-h">
+        <div class="tabs" role="tablist" aria-label="Chain" id="tabs"><span class="tab-ind" id="tabInd" aria-hidden="true"></span></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="map" id="map" role="group" aria-label="Treemap of lists: area is entries, colour is open share (open requests divided by entries), a ring marks lists with entries in court"></div>
+      <div class="mc-f"><span id="capL"></span></div>
+    </div>
+
+    <aside class="card rail" aria-labelledby="ccT">
+      <div class="cc-h"><h2 id="ccT">How concentrated</h2><p>cumulative share of entries</p></div>
+      <div class="cc-hero">
+        <div class="cc-big"><b id="ccBig">0.0%</b><span id="ccBigL"></span></div>
+        <div class="cc-need"><span>Lists needed for</span><dl id="ccNeed"></dl></div>
+      </div>
+      <div class="cc-lg" id="ccLg"></div>
+      <div class="cc-chart" id="ccChart"><svg id="ccSvg" role="img" aria-labelledby="ccT ccDesc"><desc id="ccDesc"></desc></svg></div>
+      <p class="cc-read" id="ccRead"></p>
+      <p class="cc-f" id="ccF"></p>
+    </aside>
+  </section>
+
+  <ol class="notes" id="notes" aria-label="How the figures are computed"></ol>
+</div>
+
+<div class="tip" id="tip" role="tooltip"></div>
+<div class="scrim" id="scrim"></div>
+<aside class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="shT" aria-hidden="true">
+  <button class="sh-grab" id="shGrab" aria-label="Close details"></button>
+  <button class="sh-x" id="shX" aria-label="Close details"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+  <div id="shBody"></div>
+</aside>
+
+<script src="./snapshot.js"></script>
+<script>
+(function(){
+  "use strict";
+  var S = window.CURATE_SNAPSHOT;
+  if(!S){ document.getElementById('h1').textContent = 'Snapshot unavailable'; return; }
+  var F = S.figures;
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function fmt(n){ return Number(n).toLocaleString('en-US'); }
+  /* open share as a percentage: two decimals under 10%, "0%" for none */
+  function pctS(f){ if(f==null) return '—'; if(f===0) return '0%'; var p = f*100; return (p<0.01 ? '<0.01' : p>=10 ? p.toFixed(1) : p.toFixed(2))+'%'; }
+  function pEdge(f){ return String(+(f*100).toFixed(3)); }
+  function utc(s){ return new Date(s+'T00:00:00Z'); }
+  function isoDate(s){ var d = utc(s); return d.getUTCDate()+' '+MON[d.getUTCMonth()]+' '+d.getUTCFullYear(); }
+  function pad(n){ return (n<10?'0':'')+n; }
+  function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function sum(arr,k){ return arr.reduce(function(a,b){ return a+(b[k]||0); },0); }
+  /* cut long names in the middle so the end that differs stays visible; '' means "use the short code" */
+  function midTrunc(s, max){
+    if(s.length<=max) return s;
+    var parts = s.split(' - ');
+    if(parts.length===2){
+      if(parts[0].length+1+parts[1].length<=max) return parts[0]+'…'+parts[1];
+      var tail = parts[1].split(' ')[0];
+      if(parts[0].length+1+tail.length<=max) return parts[0]+'…'+tail;
+      return '';
+    }
+    var first = s.split(' ')[0], keepT = Math.ceil((max-1)*.5), keepH = max-1-keepT;
+    var h = s.slice(0,keepH), t = s.slice(s.length-keepT);
+    var hc = h.replace(/\s+\S*$/,''); if(hc.length>=first.length) h = hc;
+    var tc = t.replace(/^\S*\s+/,''); if(tc.length>=4) t = tc;
+    if(h.trim().length<first.length) return '';
+    return h.trim()+'…'+t.trim();
+  }
+  var SHIELD = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M6 1l4 1.6v3.1c0 2.4-1.7 4.3-4 5.3-2.3-1-4-2.9-4-5.3V2.6L6 1z" fill="currentColor" fill-opacity=".18" stroke="currentColor" stroke-width="1.1"/><path d="M4.2 6.1l1.3 1.3 2.4-2.6" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  /* ---- snapshot stamp (the window for every figure on the page) ---- */
+  var snap = new Date(S.snapshotAt);
+  var snapTxt = snap.getUTCDate()+' '+MON[snap.getUTCMonth()]+' '+snap.getUTCFullYear()+', '+pad(snap.getUTCHours())+':'+pad(snap.getUTCMinutes())+' UTC';
+  var SCOPE = String(S.scope||'Ethereum + Gnosis').replace(/\s*\(.*\)\s*$/,'');
+  document.getElementById('stamp').innerHTML = '<i></i>Snapshot · '+esc(snapTxt);
+  document.getElementById('scopeT').textContent = SCOPE;
+
+  /* ---- entities: the snapshot's largest lists ---- */
+  var NTOP = S.topRegistries.length;
+  var CODE = {
+    'Address Tags':'Tags',
+    'Ledger Contract Domain Name registry v2':'Ledger v2',
+    'Kleros Tokens':'Tokens',
+    'Kleros Storytelling - Standard Impact':'Story·Std',
+    'Kleros Storytelling - High Impact':'Story·High',
+    'Seer Markets':'Seer',
+    'Address Tags Query (ATQ) Registry':'ATQ',
+    'Omen Verified Market':'Omen',
+    'Address Tags (v2) - alpha version':'Tags v2',
+    'DeversiFi Storytelling - Standard Impact':'DeversiFi',
+    'Consensus Layer Withdrawal Protection':'CL Withdraw'
+  };
+  function genCode(t){
+    var m = t.match(/\(([A-Z0-9]{2,6})\)/); if(m) return m[1];
+    var w = t.replace(/^Kleros\s+/,'').split(/\s+/)[0];
+    return w.length>9 ? w.slice(0,8)+'.' : w;
+  }
+  var top = S.topRegistries.map(function(r,i){
+    return {key:'r'+i, title:r.title, kind:r.kind, chain:r.chain, entries:r.entries, open:r.open, inCourt:r.inCourt, verified:r.verified, created:r.created,
+      share: r.entries>0 ? r.open/r.entries : 0, code:CODE[r.title]||genCode(r.title)};
+  });
+  /* same-named lists: tell them apart by created date, at the coarsest precision that is unique */
+  var byTitle = {};
+  top.forEach(function(e){ (byTitle[e.title]=byTitle[e.title]||[]).push(e); });
+  Object.keys(byTitle).forEach(function(t){
+    var g = byTitle[t]; if(g.length<2) return;
+    var my = g.map(function(e){ var d = utc(e.created); return d.getUTCMonth()+'-'+d.getUTCFullYear(); });
+    var uniq = my.every(function(v,i){ return my.indexOf(v)===i; });
+    g.forEach(function(e){
+      var d = utc(e.created), yy = '’'+String(d.getUTCFullYear()).slice(2);
+      if(uniq){ e.tag = MON[d.getUTCMonth()]+' '+d.getUTCFullYear(); e.tagS = MON[d.getUTCMonth()]+' '+yy; }
+      else { e.tag = isoDate(e.created); e.tagS = d.getUTCDate()+' '+MON[d.getUTCMonth()]+' '+yy; }
+    });
+  });
+  function fullName(e){ return e.agg ? e.title : e.title+(e.tag?' · '+e.tag:''); }
+
+  /* ---- the "other lists" remainder = snapshot totals minus the listed lists ---- */
+  var topEntries = sum(top,'entries'), topOpen = sum(top,'open'), topCourt = sum(top,'inCourt');
+  var topVerified = top.filter(function(r){return r.verified;}).length;
+  var REST_ALL = {entries:F.entries-topEntries, lists:F.registries-NTOP, open:F.requestsOpen-topOpen, inCourt:F.inCourt-topCourt, verified:F.verified-topVerified};
+  var chains = S.entriesByChain.slice().sort(function(a,b){return b.entries-a.entries;});
+  var views = {all:{id:'all', label:'All', scope:SCOPE, total:F.entries, open:F.requestsOpen, openExact:true, lists:top.slice(), rest:REST_ALL}};
+  var order = ['all'];
+  chains.forEach(function(c){
+    var inC = top.filter(function(r){return r.chain===c.chain;});
+    /* a chain's remainder: entries are exact; open / in court are known only when the all-chain remainder is zero */
+    var rest = {entries:c.entries-sum(inC,'entries'), lists:null, open:REST_ALL.open===0?0:null, inCourt:REST_ALL.inCourt===0?0:null, verified:null};
+    views[c.chain] = {id:c.chain, label:c.chain, scope:c.chain, total:c.entries, open:sum(inC,'open')+(rest.open||0), openExact:rest.open!=null, lists:inC, rest:rest, inTop:sum(inC,'entries')};
+    order.push(c.chain);
+  });
+  var ENT = {};
+  top.forEach(function(e){ ENT[e.key] = e; });
+  order.forEach(function(v){
+    var V = views[v], R = V.rest;
+    var a = {key:'agg-'+v, agg:true, view:v, chain:v==='all'?null:v, kind:null, created:null,
+      entries:R.entries, lists:R.lists, open:R.open, inCourt:R.inCourt, verifiedCount:R.verified,
+      share: R.open==null ? null : (R.entries>0 ? R.open/R.entries : 0),
+      title: v==='all' ? fmt(R.lists)+' other lists' : 'Rest of '+v, code: v==='all' ? 'Other' : 'Rest'};
+    V.agg = a; ENT[a.key] = a;
+  });
+
+  /* ---- open-share scale: 4 bins, step = a third of the largest share, rounded up to a nice value ---- */
+  var maxShare = Math.max.apply(null, top.map(function(e){ return e.share; }).concat([views.all.agg.share||0]));
+  var STEPS = [0.0001,0.0002,0.00025,0.0005,0.001,0.002,0.0025,0.005,0.01,0.02,0.025,0.05,0.1,0.2,0.25];
+  var step = 0.25; for(var si=0; si<STEPS.length; si++){ if(STEPS[si] >= maxShare/3){ step = STEPS[si]; break; } }
+  var BINS = [
+    {label:'0%', long:'no open requests', fill:'var(--s0)', ink:'#fff'},
+    {label:'<'+pEdge(step)+'%', long:'above 0% and under '+pEdge(step)+'%', fill:'var(--s1)', ink:'#fff'},
+    {label:pEdge(step)+'–'+pEdge(2*step)+'%', long:pEdge(step)+'% to under '+pEdge(2*step)+'%', fill:'var(--s2)', ink:'#fff'},
+    {label:'≥'+pEdge(2*step)+'%', long:pEdge(2*step)+'% or more', fill:'var(--s3)', ink:'#06132a'}
+  ];
+  function binOf(e){ var s = e.share; if(s==null || s===0) return 0; if(s<step) return 1; if(s<2*step) return 2; return 3; }
+  function fillOf(e){ return BINS[binOf(e)].fill; }
+
+  /* ---- H1 follows the chain tab: where the entries and the open requests sit ---- */
+  var h1 = document.getElementById('h1'), h1Vals = {}, h1Raf = {};
+  function animNum(id, to){
+    var el = document.getElementById(id); if(!el) return;
+    var from = h1Vals[id]==null ? (reduce ? to : 0) : h1Vals[id];
+    cancelAnimationFrame(h1Raf[id]);
+    if(reduce || from===to){ el.textContent = fmt(to); h1Vals[id] = to; return; }
+    var t0 = performance.now(), dur = h1Vals[id]==null ? 900 : 520;
+    (function stepF(t){ var p = Math.min(1,(t-t0)/dur), e = 1-Math.pow(1-p,3), v = Math.round(from+(to-from)*e);
+      el.textContent = fmt(v); h1Vals[id] = v; if(p<1) h1Raf[id] = requestAnimationFrame(stepF); })(t0);
+    setTimeout(function(){ if(document.getElementById(id)===el && h1Vals[id]!==to){ cancelAnimationFrame(h1Raf[id]); el.textContent = fmt(to); h1Vals[id] = to; } }, dur+200);
+  }
+  function setH1(V){
+    var prevE = h1Vals.h1n, prevO = h1Vals.h1o;
+    h1.innerHTML = 'Where <em id="h1n"></em> entries and <em class="bk" id="h1o"></em>'+(V.openExact?'':'+')+' open requests sit'+(V.id==='all'?'':'<span class="dsk"> on '+esc(V.id)+'</span>');
+    h1Vals.h1n = prevE; h1Vals.h1o = prevO;
+    animNum('h1n', V.total); animNum('h1o', V.open);
+  }
+
+  /* ---- tabs ---- */
+  var tabsEl = document.getElementById('tabs'), ind = document.getElementById('tabInd');
+  order.forEach(function(v){
+    var b = document.createElement('button');
+    b.className = 'tab'; b.setAttribute('role','tab'); b.dataset.view = v;
+    b.setAttribute('aria-selected', v==='all'?'true':'false');
+    b.innerHTML = esc(views[v].label)+'<span>'+fmt(views[v].total)+'</span>';
+    b.addEventListener('click', function(){ setView(v); });
+    tabsEl.appendChild(b);
+  });
+  tabsEl.addEventListener('keydown', function(e){
+    if(e.key!=='ArrowRight' && e.key!=='ArrowLeft') return;
+    var i = order.indexOf(view) + (e.key==='ArrowRight'?1:-1);
+    i = (i+order.length)%order.length; setView(order[i]);
+    tabsEl.querySelector('[data-view="'+order[i]+'"]').focus();
+  });
+  function moveInd(){
+    var a = tabsEl.querySelector('[aria-selected=true]'); if(!a) return;
+    ind.style.left = a.offsetLeft+'px'; ind.style.width = a.offsetWidth+'px';
+  }
+
+  /* ---- legend: what colour and ring mean ---- */
+  var lg = document.getElementById('legend');
+  lg.innerHTML = '<div class="lg-ramp" id="lgRamp"><span class="lg-t">Open share<small>open ÷ entries</small></span><div class="lg-scale" role="list">'+
+    BINS.map(function(b,i){ return '<button class="lg-b" role="listitem" data-bin="'+i+'" aria-label="Highlight lists whose open share is '+b.long+'"><i style="background:'+b.fill+'"></i><span>'+b.label+'</span></button>'; }).join('')+
+    '</div></div><div class="lg-none" id="lgNone" hidden><i></i><span id="lgNoneT"></span></div>'+
+    '<span class="lg-k"><i class="ring"></i>In court</span>'+
+    '<span class="lg-k lg-v">'+SHIELD+'Verified</span>';
+  var lgRamp = document.getElementById('lgRamp'), lgNone = document.getElementById('lgNone');
+
+  /* ---- tiles ---- */
+  var map = document.getElementById('map');
+  var tiles = {};
+  Object.keys(ENT).forEach(function(k){
+    var t = document.createElement('button');
+    t.className = 'tile out'+(ENT[k].agg?' other':'');
+    t.dataset.key = k; t.tabIndex = -1;
+    map.appendChild(t); tiles[k] = t;
+  });
+
+  /* ---- squarified treemap (Bruls, Huizing, van Wijk) ---- */
+  function squarify(items, W, H){
+    var total = items.reduce(function(a,b){return a+b.v;},0), area = W*H, out = [];
+    var nodes = items.map(function(it){ return {ref:it.ref, a:it.v/total*area}; });
+    var R = {x:0,y:0,w:W,h:H}, row = [], i = 0;
+    function worst(rw, side){
+      var s=0, mx=0, mn=Infinity;
+      rw.forEach(function(n){ s+=n.a; if(n.a>mx) mx=n.a; if(n.a<mn) mn=n.a; });
+      var s2=s*s, d2=side*side; return Math.max(d2*mx/s2, s2/(d2*mn));
+    }
+    function place(rw){
+      var s = rw.reduce(function(a,n){return a+n.a;},0);
+      if(R.w >= R.h){ var cw = s/R.h, cy = R.y;
+        rw.forEach(function(n){ var nh=n.a/cw; out.push({ref:n.ref,x:R.x,y:cy,w:cw,h:nh}); cy+=nh; });
+        R = {x:R.x+cw, y:R.y, w:R.w-cw, h:R.h};
+      } else { var rh = s/R.w, cx = R.x;
+        rw.forEach(function(n){ var nw=n.a/rh; out.push({ref:n.ref,x:cx,y:R.y,w:nw,h:rh}); cx+=nw; });
+        R = {x:R.x, y:R.y+rh, w:R.w, h:R.h-rh};
+      }
+    }
+    while(i < nodes.length){
+      var side = Math.min(R.w,R.h), n = nodes[i];
+      if(!row.length || worst(row.concat([n]),side) <= worst(row,side)){ row.push(n); i++; }
+      else { place(row); row = []; }
+    }
+    if(row.length) place(row);
+    return out;
+  }
+  /* every listed list gets its own tile, plus one remainder tile; nothing is folded */
+  function plan(V, W, H){
+    var items = V.lists.concat(V.agg.entries>0 ? [V.agg] : []).sort(function(a,b){return b.entries-a.entries;});
+    return squarify(items.map(function(e){return {v:e.entries, ref:e};}), W, H);
+  }
+
+  function sizeClass(w,h){
+    if(w>=240 && h>=150) return 'xl';
+    if(w>=140 && h>=104) return 'lg';
+    if(w>=88 && h>=64) return 'md';
+    if(w>=56 && h>=42) return 'ms';
+    if(w>=30 && h>=22) return 'sm';
+    return 'xs';
+  }
+  var PADS = {xl:16, lg:13, md:10, ms:8, sm:5, xs:0};
+  function tileInner(e, sz, w, h){
+    var p = PADS[sz], court = e.inCourt>0, isAgg = !!e.agg, cnt = fmt(e.entries);
+    if(sz==='xs') return '';
+    var shield = (!isAgg && e.verified) ? SHIELD : '';
+    if(sz==='xl' || sz==='lg'){
+      var fs = sz==='xl' ? 22 : 16, cpl = Math.floor((w-2*p)/(fs*.5));
+      var name = isAgg ? e.title : (midTrunc(e.title, Math.max(8, cpl*2-3)) || e.code);
+      var tag = (!isAgg && e.tag) ? '<span class="t-tag">'+esc(e.tag)+'</span>' : '';
+      var meta = isAgg ? (e.chain ? 'Outside the top '+NTOP : 'Combined · outside the top '+NTOP) : e.chain+' · '+e.kind;
+      var te = sz==='xl' ? 44 : 28, lines = name.length > cpl ? 2 : 1;
+      var est = 2*p + lines*fs*1.14 + (tag?26:0) + 16 + te*.95 + 16 + 8, small = true;
+      if(est > h){ small = false; est -= 16; }
+      if(est > h){ meta = ''; est -= 16; }
+      var chips = '', cw = 0, nch = 0;
+      if(e.open>0){ var c1 = pctS(e.share)+' open · '+fmt(e.open); chips += '<span class="chip"><b>'+pctS(e.share)+'</b> open · '+fmt(e.open)+'</span>'; cw = Math.max(cw, c1.length*6.2+18); nch++; }
+      if(court){ var c2 = fmt(e.inCourt)+' in court'; chips += '<span class="chip chip-c"><i></i>'+c2+'</span>'; cw = Math.max(cw, c2.length*6.2+32); nch++; }
+      var stack = chips && (cnt.length*te*.58 + 10 + cw > w-2*p);
+      if(stack){ est += nch*26; if(est > h && meta){ meta = ''; est -= 16; } if(est > h && small){ small = false; est -= 16; } }
+      return '<span class="t-in"><span class="t-top"><span class="t-name">'+withMark(name, shield)+'</span>'+tag+(meta?'<span class="t-meta">'+esc(meta)+'</span>':'')+'</span>'+
+        '<span class="t-bot'+(stack?' stack':'')+'"><span class="t-num">'+cnt+(small?'<small>entries</small>':'')+'</span><span class="t-chips">'+chips+'</span></span></span>';
+    }
+    var badge = court && w>=54 ? '<span class="cb"><i></i>'+fmt(e.inCourt)+'</span>' : '';
+    var avail = w - 2*p - (badge ? 34 : 0);
+    if(sz==='md'){
+      var cpl2 = Math.floor(avail/6.6), tg = (!isAgg && e.tagS) ? e.tagS : '';
+      var ln = Math.max(1, Math.min(3, Math.floor((h - 2*p - 22 - (tg?14:0) - 6)/15)));
+      var nm = isAgg ? e.title : (midTrunc(e.title, Math.max(6, cpl2*ln-2)) || e.code);
+      var sh = e.open>0 && w-2*p >= 96 ? '<span class="t-sub">'+pctS(e.share)+' open</span>' : '';
+      return '<span class="t-in"><span class="t-top"><span class="t-name" style="-webkit-line-clamp:'+ln+';padding-right:'+(badge?30:0)+'px">'+esc(nm)+'</span>'+(tg?'<span class="t-sub">'+esc(tg)+'</span>':'')+'</span>'+
+        '<span class="t-bot"><span class="t-num">'+cnt+'</span>'+sh+'</span></span>'+badge;
+    }
+    if(sz==='ms'){
+      var sub = (!isAgg && e.tagS && h>=58) ? '<span class="t-sub">'+esc(e.tagS)+'</span>' : '';
+      var ml = h >= (sub ? 92 : 76) ? 2 : 1;
+      var fitsAll = e.title.length*6.2 <= avail*ml - (ml>1?10:0) && (ml>1 || e.title.length*6.2<=avail);
+      var lbl = fitsAll ? e.title : e.code;
+      if(lbl.length*6.4 > avail*ml) lbl = '';
+      return '<span class="t-in"><span class="t-top">'+(lbl?'<span class="t-name" style="-webkit-line-clamp:'+ml+'">'+esc(lbl)+'</span>':'')+sub+'</span><span class="t-bot"><span class="t-num">'+cnt+'</span></span></span>'+badge;
+    }
+    /* sm: the number only, and only when it fits */
+    if(cnt.length*6.4 > w-2*p) return '';
+    var cd = (h>=34 && e.code.length*6.4 <= w-2*p) ? '<span class="t-name">'+esc(e.code)+'</span>' : '';
+    return '<span class="t-in">'+cd+'<span class="t-num">'+cnt+'</span></span>';
+  }
+  /* keep the verified mark glued to the last word so it never wraps alone */
+  function withMark(name, mark){
+    if(!mark) return esc(name);
+    var i = name.lastIndexOf(' ');
+    return esc(name.slice(0,i+1))+'<span style="white-space:nowrap">'+esc(name.slice(i+1))+mark+'</span>';
+  }
+  function tileAria(e){
+    return fullName(e)+', '+(e.chain||'both chains')+', '+fmt(e.entries)+' entries, '+(e.open==null?'open requests unknown':fmt(e.open)+' open requests, open share '+pctS(e.share))+(e.inCourt?', '+e.inCourt+' in court':'')+(e.verified?', verified':'');
+  }
+
+  var view = 'all', first = true;
+  function layout(animate){
+    var V = views[view], W = map.clientWidth, H = map.clientHeight, G = 2;
+    if(!W || !H) return;
+    var rects = plan(V, W, H);
+    var live = {};
+    if(!animate) map.classList.add('no-anim');
+    rects.forEach(function(r,idx){
+      var e = r.ref, t = tiles[e.key]; live[e.key] = true;
+      var x0 = Math.round(r.x)+G, y0 = Math.round(r.y)+G, x1 = Math.round(r.x+r.w)-G, y1 = Math.round(r.y+r.h)-G;
+      var w = Math.max(0,x1-x0), h = Math.max(0,y1-y0), sz = sizeClass(w,h), B = BINS[binOf(e)];
+      var entering = t.classList.contains('out');
+      if(entering && animate){ t.style.transition = 'none'; }
+      t.style.left = x0+'px'; t.style.top = y0+'px'; t.style.width = w+'px'; t.style.height = h+'px';
+      t.style.setProperty('--tr', Math.max(3, Math.min(12, Math.min(w,h)/7))+'px');
+      t.style.setProperty('--fill', B.fill); t.style.setProperty('--tink', B.ink);
+      t.dataset.bin = binOf(e);
+      t.classList.remove('sz-xl','sz-lg','sz-md','sz-ms','sz-sm','sz-xs','court');
+      t.classList.add('sz-'+sz);
+      if(e.inCourt>0) t.classList.add('court');
+      t.innerHTML = tileInner(e, sz, w, h);
+      t.setAttribute('aria-label', tileAria(e));
+      t.tabIndex = 0;
+      if(entering){
+        if(animate){ void t.offsetWidth; t.style.transition = ''; }
+        if(first && !reduce){ t.style.transitionDelay = (idx*45)+'ms'; }
+        t.classList.remove('out'); t.classList.add('in');
+      }
+    });
+    Object.keys(tiles).forEach(function(k){
+      if(!live[k]){ tiles[k].classList.add('out'); tiles[k].classList.remove('in','hot'); tiles[k].tabIndex = -1; }
+    });
+    if(!animate){ void map.offsetWidth; map.classList.remove('no-anim'); }
+    if(first){ first = false; setTimeout(function(){ Object.keys(tiles).forEach(function(k){ tiles[k].style.transitionDelay=''; }); }, 1400); }
+  }
+
+  /* caption under the map: what the area measures, and what the remainder tile is */
+  var capL = document.getElementById('capL');
+  function renderCaption(){
+    var V = views[view], a = V.agg;
+    capL.innerHTML = 'Area = entries · <b>'+V.lists.length+' list'+(V.lists.length===1?'':'s')+'</b>'+
+      (a.entries>0 ? ' + <b>'+esc(a.title)+'</b> ('+fmt(V.total)+' − '+fmt(V.total-a.entries)+' = '+fmt(a.entries)+' entries)' : '')+' · '+esc(V.scope)+', at snapshot';
+  }
+
+  /* ---- legend scope ---- */
+  function renderLegend(){
+    var V = views[view];
+    var anyOpen = V.lists.some(function(e){ return e.open>0; }) || (V.rest.open>0);
+    lgRamp.hidden = !anyOpen; lgNone.hidden = anyOpen;
+    if(!anyOpen) document.getElementById('lgNoneT').textContent = 'No open requests on '+V.id;
+    clearBin();
+  }
+
+  /* ---- concentration curve: cumulative share of entries, largest list first ---- */
+  var NS = 'http://www.w3.org/2000/svg';
+  var ccChart = document.getElementById('ccChart'), ccSvg = document.getElementById('ccSvg'), ccRead = document.getElementById('ccRead'), ccDesc = document.getElementById('ccDesc');
+  var cc = null, ccGeo = null, ccHotK = null, ccBigV = null, ccBigRaf = 0;
+  function pct1(f){ return (f*100).toFixed(1)+'%'; }
+  function ccModel(V){
+    var list = V.lists.slice().sort(function(a,b){return b.entries-a.entries;});
+    var a = V.agg, hasOpen = V.open>0 && V.openExact, ce = 0, co = 0, pts = [{k:0, e:0, o:0}];
+    list.forEach(function(r,i){ ce += r.entries; co += r.open; pts.push({k:i+1, ref:r, cumE:ce, cumO:co, e:ce/V.total, o:hasOpen ? co/V.open : null}); });
+    var rest = a.entries>0 ? {ref:a, share:a.entries/V.total, o:(hasOpen && a.open!=null) ? (co+a.open)/V.open : null} : null;
+    return {V:V, list:list, pts:pts, rest:rest, N:list.length, K:Math.min(3,list.length), hasOpen:hasOpen,
+      nLists: V.id==='all' ? F.registries : null, restLabel: V.id==='all' ? fmt(a.lists)+' others' : 'rest'};
+  }
+  /* smallest k whose cumulative share reaches p; beyond the listed lists the count is not in the snapshot */
+  function ccNeed(m, p){ for(var i=1;i<m.pts.length;i++){ if(m.pts[i].e >= p) return String(i); } return '>'+m.N; }
+  function svgEl(tag, attrs, parent){ var e = document.createElementNS(NS, tag); for(var k in attrs) e.setAttribute(k, attrs[k]); if(parent) parent.appendChild(e); return e; }
+  function svgText(txt, attrs, parent){ var e = svgEl('text', attrs, parent); e.textContent = txt; return e; }
+  function ccIndex(key){
+    if(!cc) return -1;
+    if(cc.rest && cc.rest.ref.key===key) return cc.N+1;
+    for(var i=1;i<cc.pts.length;i++){ if(cc.pts[i].ref.key===key) return i; }
+    return -1;
+  }
+
+  function animBig(to){
+    var el = document.getElementById('ccBig');
+    var from = ccBigV==null ? (reduce ? to : 0) : ccBigV;
+    cancelAnimationFrame(ccBigRaf);
+    if(reduce || from===to){ el.textContent = pct1(to); ccBigV = to; return; }
+    var t0 = performance.now(), dur = ccBigV==null ? 900 : 520;
+    (function st(t){ var p = Math.min(1,(t-t0)/dur), e = 1-Math.pow(1-p,3), v = from+(to-from)*e;
+      el.textContent = pct1(p<1 ? v : to); ccBigV = p<1 ? v : to; if(p<1) ccBigRaf = requestAnimationFrame(st); })(t0);
+    setTimeout(function(){ if(ccBigV!==to){ cancelAnimationFrame(ccBigRaf); el.textContent = pct1(to); ccBigV = to; } }, dur+200);
+  }
+
+  function ccDefault(){
+    var m = cc, V = m.V, K = m.K, pK = m.pts[K];
+    if(!m.hasOpen) return 'No open requests '+(V.id==='all' ? 'anywhere' : 'on '+esc(V.id))+' at the snapshot, so only the entries curve is drawn.';
+    var tighter = pK.o > pK.e;
+    return '<b>The backlog is '+(tighter?'tighter still':'spread wider')+':</b> the top '+K+' hold <em>'+pct1(pK.o)+'</em> of open requests ('+fmt(pK.cumO)+' of '+fmt(V.open)+'), against '+pct1(pK.e)+' of entries.';
+  }
+  function ccReadFor(i){
+    var m = cc;
+    if(i===m.N+1){
+      var a = m.rest.ref;
+      return '<b>'+esc(a.title)+'</b> '+fmt(a.entries)+' entries = '+pct1(m.rest.share)+' of entries'+(m.hasOpen && a.open!=null ? ', '+fmt(a.open)+' open requests' : '')+(a.lists==null ? '; list count not in the snapshot' : '')+'.';
+    }
+    var p = m.pts[i];
+    return '<b>#'+i+' '+esc(fullName(p.ref))+'</b> '+fmt(p.ref.entries)+' entries · top '+i+' = '+pct1(p.e)+' of entries'+(m.hasOpen ? ', <em>'+pct1(p.o)+'</em> of open requests' : '')+'.';
+  }
+
+  function renderConc(animate){
+    var m = cc = ccModel(views[view]), V = m.V, K = m.K;
+    animBig(m.pts[K].e);
+    document.getElementById('ccBigL').textContent = V.id==='all'
+      ? 'of all entries sit in the '+K+' largest of '+fmt(F.registries)+' lists'
+      : 'of '+V.id+' entries sit in its '+K+' largest lists';
+    document.getElementById('ccNeed').innerHTML = [0.5,0.8,0.9].map(function(p){ return '<div><dt>'+Math.round(p*100)+'%</dt><dd>'+ccNeed(m,p)+'</dd></div>'; }).join('');
+    document.getElementById('ccLg').innerHTML = '<span class="cc-k"><i></i>Entries</span>'+
+      (m.hasOpen ? '<span class="cc-k"><i class="op"></i>Open requests, same order</span>' : '<span class="cc-k mu">No open requests on '+esc(V.id)+'</span>')+
+      (m.nLists ? '<span class="cc-k"><i class="eq"></i>Equal split</span>' : '');
+    var who = V.id==='all' ? 'the top k lists' : 'the k largest '+esc(V.id)+' lists';
+    document.getElementById('ccF').innerHTML = 'cumulative share = Σ entries of '+who+' ÷ '+fmt(V.total)+' entries'+
+      (m.hasOpen ? '; dashed = Σ open of the same lists ÷ '+fmt(V.open)+' open' : '')+
+      (m.nLists ? '; dotted = k ÷ '+fmt(m.nLists)+' lists' : '; '+esc(V.id)+' list count not in the snapshot')+
+      '. '+esc(V.scope)+', at snapshot '+esc(snapTxt)+'.';
+    var tops = [1,K,m.N].filter(function(v,i,s){ return s.indexOf(v)===i; });
+    ccDesc.textContent = 'Cumulative share of '+(V.id==='all'?'':V.id+' ')+'entries by list rank: '+
+      tops.map(function(k){ return 'top '+k+' '+pct1(m.pts[k].e); }).join(', ')+(m.rest ? ', '+m.restLabel+' '+pct1(m.rest.share) : '')+'.';
+    ccHotK = null;
+    drawCurve(animate);
+    ccRead.innerHTML = ccDefault();
+  }
+
+  function drawCurve(animate){
+    var m = cc; if(!m) return;
+    var W = ccChart.clientWidth, H = ccChart.clientHeight; if(!W || !H) return;
+    while(ccSvg.lastChild) ccSvg.removeChild(ccSvg.lastChild);
+    ccSvg.appendChild(ccDesc);
+    ccSvg.setAttribute('viewBox','0 0 '+W+' '+H); ccSvg.setAttribute('width',W); ccSvg.setAttribute('height',H);
+    var L = 38, R = 8, T = 42, B = 38, pw = W-L-R, ph = H-T-B, N = m.N;
+    var gap = m.rest ? Math.max(34, Math.round(pw*.12)) : 0, u = (pw-gap)/N, XR = L+pw;
+    function X(k){ return L+k*u; }
+    function Y(f){ return T+ph*(1-f); }
+    ccGeo = {X:X, Y:Y, XR:XR, T:T, ph:ph, u:u};
+    var defs = svgEl('defs', {}, ccSvg), gr = svgEl('linearGradient', {id:'ccGrad', x1:0, y1:0, x2:0, y2:1}, defs);
+    svgEl('stop', {offset:'0', 'stop-color':'#3b82f6', 'stop-opacity':'.34'}, gr);
+    svgEl('stop', {offset:'1', 'stop-color':'#3b82f6', 'stop-opacity':'.02'}, gr);
+    var clip = svgEl('clipPath', {id:'ccClip'}, defs), clipR = svgEl('rect', {x:0, y:0, width:animate&&!reduce ? 0 : W, height:H}, clip);
+
+    /* y grid: cumulative % of entries */
+    var ax = svgEl('g', {'aria-hidden':'true'}, ccSvg);
+    [0,.25,.5,.75,1].forEach(function(f){
+      svgEl('line', {class:'cc-grid', x1:L, x2:XR, y1:Y(f), y2:Y(f)}, ax);
+      svgText(f===1 ? '100%' : String(f*100), {class:'cc-tk', x:L-8, y:Y(f)+3.5, 'text-anchor':'end'}, ax);
+    });
+    /* x ticks: rank among the lists, then the remainder after an axis break */
+    var ticks = N<=6 ? m.pts.slice(1).map(function(p){return p.k;}) : [1,3,5,10,N].filter(function(v,i,s){ return v<=N && s.indexOf(v)===i; });
+    ticks.forEach(function(k){ svgText(String(k), {class:'cc-tk', x:X(k), y:Y(0)+16, 'text-anchor':'middle'}, ax); });
+    if(m.rest){
+      svgText(V_restTick(m), {class:'cc-tk', x:XR, y:Y(0)+16, 'text-anchor':'end'}, ax);
+      var bx = (X(N)+XR)/2, by = Y(0);
+      svgEl('rect', {x:bx-5, y:by-3, width:10, height:6, fill:'#0a0e17'}, ax);
+      svgEl('line', {class:'cc-brk', x1:bx-6, y1:by+4, x2:bx-2, y2:by-4}, ax);
+      svgEl('line', {class:'cc-brk', x1:bx+2, y1:by+4, x2:bx+6, y2:by-4}, ax);
+    }
+    svgText('Lists, largest first →', {class:'cc-ax', x:L, y:H-6}, ax);
+
+    var g = svgEl('g', {'clip-path':'url(#ccClip)', 'aria-hidden':'true'}, ccSvg);
+    /* equal split: what the top k would hold if every list were the same size */
+    if(m.nLists){
+      svgEl('polyline', {class:'cc-eq', points:m.pts.map(function(p){ return X(p.k)+','+Y(p.k/m.nLists); }).join(' ')}, g);
+    }
+    var line = m.pts.map(function(p){ return X(p.k).toFixed(1)+','+Y(p.e).toFixed(1); });
+    svgEl('path', {class:'cc-area', d:'M'+line.join(' L')+' L'+X(N).toFixed(1)+','+Y(0)+' L'+X(0)+','+Y(0)+' Z'}, g);
+    if(m.hasOpen){
+      var op = m.pts.map(function(p){ return X(p.k).toFixed(1)+','+Y(p.o).toFixed(1); });
+      if(m.rest && m.rest.o!=null) op.push(XR.toFixed(1)+','+Y(m.rest.o).toFixed(1));
+      svgEl('path', {class:'cc-op', d:'M'+op.join(' L')}, g);
+    }
+    svgEl('path', {class:'cc-ln', d:'M'+line.join(' L')}, g);
+    if(m.rest) svgEl('path', {class:'cc-ln-r', d:'M'+X(N).toFixed(1)+','+Y(m.pts[N].e).toFixed(1)+' L'+XR.toFixed(1)+','+Y(1).toFixed(1)}, g);
+    if(m.nLists){
+      var eqN = N/m.nLists;
+      svgText('equal split · '+pct1(eqN), {class:'cc-eq-t', x:X(N), y:Y(eqN)-8, 'text-anchor':'end'}, g);
+    }
+
+    /* milestones: top 1, top 3, top N, and the remainder, labelled above the plot */
+    var ms = [1,m.K,N].filter(function(v,i,s){ return s.indexOf(v)===i; }).map(function(k){ return {x:X(k), y:Y(m.pts[k].e), v:pct1(m.pts[k].e), c:'top '+k}; });
+    if(m.rest) ms.push({x:XR, y:Y(1), v:'+'+pct1(m.rest.share), c:m.restLabel});
+    var an = svgEl('g', {'aria-hidden':'true'}, ccSvg);
+    ms.forEach(function(a){
+      svgEl('line', {class:'cc-gd', x1:a.x, x2:a.x, y1:T-2, y2:Math.max(T-2, a.y-6)}, g);
+      a.g = svgEl('g', {}, an);
+      svgText(a.v, {class:'cc-an-v', x:0, y:T-19, 'text-anchor':'middle'}, a.g);
+      svgText(a.c, {class:'cc-an-c', x:0, y:T-7, 'text-anchor':'middle'}, a.g);
+      var bb = a.g.getBBox(); a.w = Math.max(bb.width, 30);
+    });
+    /* 1-D label layout: centre on the point, then push apart and keep inside the chart */
+    var GAP = 8, lo = 2, hi = W-2;
+    ms.forEach(function(a,i){ a.l = Math.max(a.x-a.w/2, lo, i ? ms[i-1].l+ms[i-1].w+GAP : lo); });
+    for(var i=ms.length-1;i>=0;i--){
+      var lim = i===ms.length-1 ? hi : ms[i+1].l-GAP, b = ms[i];
+      if(b.l+b.w > lim) b.l = lim-b.w;
+    }
+    ms.forEach(function(a){ a.g.setAttribute('transform','translate('+(a.l+a.w/2).toFixed(1)+',0)'); });
+
+    /* points on the entries curve */
+    var pg = svgEl('g', {'clip-path':'url(#ccClip)', 'aria-hidden':'true'}, ccSvg);
+    ccGeo.pts = [null];
+    m.pts.slice(1).forEach(function(p){
+      var big = p.k===1 || p.k===m.K || p.k===N;
+      ccGeo.pts.push(svgEl('circle', {class:'cc-pt'+(big?' ms':''), cx:X(p.k), cy:Y(p.e), r:big?4.5:3, 'data-r':big?4.5:3}, pg));
+    });
+    if(m.rest) ccGeo.pts.push(svgEl('circle', {class:'cc-pt rest', cx:XR-1, cy:Y(1), r:4, 'data-r':4}, pg));
+
+    /* hover: a guide, the open value at that rank, and the matching tile */
+    ccGeo.guide = svgEl('line', {class:'cc-guide', x1:0, x2:0, y1:T, y2:Y(0), visibility:'hidden'}, ccSvg);
+    ccGeo.opt = svgEl('circle', {class:'cc-opt', r:3.5, cx:0, cy:0, visibility:'hidden'}, ccSvg);
+    var hit = svgEl('g', {}, ccSvg);
+    m.pts.slice(1).forEach(function(p){
+      var x0 = p.k===1 ? L : X(p.k)-u/2, x1 = X(p.k)+u/2;
+      svgEl('rect', {class:'cc-hit', x:x0, y:T-4, width:x1-x0, height:ph+8, 'data-key':p.ref.key}, hit);
+    });
+    if(m.rest){ var rx = X(N)+u/2; svgEl('rect', {class:'cc-hit', x:rx, y:T-4, width:W-rx, height:ph+8, 'data-key':m.rest.ref.key}, hit); }
+
+    if(animate && !reduce){
+      var t0 = performance.now(), dur = 900;
+      (function grow(t){ var p = Math.min(1,(t-t0)/dur), e = 1-Math.pow(1-p,3); clipR.setAttribute('width', (W*e).toFixed(1)); if(p<1) requestAnimationFrame(grow); })(t0);
+      an.animate([{opacity:0},{opacity:1}], {duration:420, delay:520, easing:'cubic-bezier(.2,.8,.2,1)', fill:'backwards'});
+    }
+    if(ccHotK) ccHot(ccHotK);
+  }
+  function V_restTick(m){ return m.V.id==='all' ? '+'+fmt(m.rest.ref.lists) : 'rest'; }
+
+  function ccHot(key){
+    if(!ccGeo || !cc) return;
+    ccGeo.pts.forEach(function(c){ if(c){ c.classList.remove('on'); c.setAttribute('r', c.getAttribute('data-r')); } });
+    var i = key ? ccIndex(key) : -1;
+    ccHotK = i>0 ? key : null;
+    if(i<1){ ccGeo.guide.setAttribute('visibility','hidden'); ccGeo.opt.setAttribute('visibility','hidden'); ccRead.innerHTML = ccDefault(); return; }
+    var isRest = i===cc.N+1, x = isRest ? ccGeo.XR-1 : ccGeo.X(i), c = ccGeo.pts[i];
+    c.classList.add('on'); c.setAttribute('r', 5.5);
+    ccGeo.guide.setAttribute('x1', x); ccGeo.guide.setAttribute('x2', x); ccGeo.guide.setAttribute('visibility','visible');
+    var o = isRest ? cc.rest.o : (cc.hasOpen ? cc.pts[i].o : null);
+    if(o!=null){ ccGeo.opt.setAttribute('cx', x); ccGeo.opt.setAttribute('cy', ccGeo.Y(o)); ccGeo.opt.setAttribute('visibility','visible'); }
+    else ccGeo.opt.setAttribute('visibility','hidden');
+    ccRead.innerHTML = ccReadFor(i);
+  }
+
+  function setView(v){
+    if(v===view && !first) return;
+    view = v;
+    tabsEl.querySelectorAll('.tab').forEach(function(b){ b.setAttribute('aria-selected', b.dataset.view===v?'true':'false'); });
+    moveInd(); hideTip(); clearHot();
+    setH1(views[v]); renderLegend();
+    layout(true);
+    renderConc(true);
+    renderCaption();
+  }
+
+  /* ---- hover card: kind, chain, created, open, in court, verified ---- */
+  var tip = document.getElementById('tip'), hot = null;
+  function rankIn(e){
+    var list = views[view].lists.slice().sort(function(a,b){return b.entries-a.entries;});
+    return list.indexOf(e)+1;
+  }
+  function kvCells(e){
+    var ver = e.agg ? (e.verifiedCount!=null ? fmt(e.verifiedCount)+' of '+fmt(e.lists) : '—') : (e.verified ? SHIELD+'Yes' : 'No');
+    return [
+      ['Kind', e.agg ? 'Mixed' : esc(e.kind), e.agg?'mu':''],
+      ['Chain', e.agg ? (e.chain ? esc(e.chain) : 'Both') : esc(e.chain), ''],
+      ['Created', e.agg ? '—' : esc(isoDate(e.created)), e.agg?'mu':''],
+      ['Open', e.open==null ? '—' : fmt(e.open), e.open ? '' : 'mu'],
+      ['In court', e.inCourt==null ? '—' : fmt(e.inCourt), e.inCourt>0 ? 'ct' : 'mu'],
+      ['Verified', ver, (!e.agg && !e.verified) ? 'mu' : '']
+    ];
+  }
+  function kvHTML(e){ return '<div class="kv">'+kvCells(e).map(function(c){ return '<div><span>'+c[0]+'</span><b class="'+c[2]+'">'+c[1]+'</b></div>'; }).join('')+'</div>'; }
+  function formulaOf(e){ return e.open==null ? 'open share unknown for this remainder' : 'open share = '+fmt(e.open)+' ÷ '+fmt(e.entries); }
+  function tipHTML(e){
+    var V = views[view];
+    var meta = e.agg ? (e.lists!=null ? fmt(V.total)+' total − '+fmt(V.total-e.entries)+' in the top '+NTOP+' = '+fmt(e.entries)+' entries' : fmt(V.total)+' on '+esc(e.chain)+' − '+fmt(V.total-e.entries)+' in the top '+NTOP) : '#'+rankIn(e)+' of '+V.lists.length+' by entries'+(V.id==='all'?'':' on '+esc(V.id))+' · top '+rankIn(e)+' hold '+pct1(cc.pts[rankIn(e)].e)+' of entries';
+    return '<div class="tp-h"><span class="tp-sw'+(e.inCourt>0?' c':'')+'" style="--fill:'+fillOf(e)+'"></span><div><div class="tp-t">'+esc(fullName(e))+'</div><div class="tp-m">'+meta+'</div></div></div>'+
+      '<div class="tp-big"><div><b>'+fmt(e.entries)+'</b><span>Entries</span></div><div><b>'+pctS(e.share)+'</b><span>Open share</span></div></div>'+
+      kvHTML(e)+'<div class="tp-f"><span>'+formulaOf(e)+'</span><span>Click for details</span></div>';
+  }
+  function placeTip(x,y){
+    var w = tip.offsetWidth, h = tip.offsetHeight, vw = innerWidth, vh = innerHeight, ox = 18, oy = 18;
+    var nx = x+ox+w > vw-8 ? x-ox-w : x+ox;
+    var ny = y+oy+h > vh-8 ? y-oy-h : y+oy;
+    tip.style.transform = 'translate3d('+Math.max(8,nx)+'px,'+Math.max(8,ny)+'px,0)';
+  }
+  function showTip(html){ tip.className = 'tip on'; tip.innerHTML = html; }
+  function hideTip(){ tip.classList.remove('on'); }
+  /* hot: light one tile and its point on the concentration curve together */
+  function setHot(k){
+    if(hot===k) return; clearHot(); hot = k;
+    if(tiles[k]){ tiles[k].classList.add('hot'); map.classList.add('has-hot'); }
+    ccHot(k);
+  }
+  function clearHot(){
+    if(hot && tiles[hot]) tiles[hot].classList.remove('hot');
+    hot = null; map.classList.remove('has-hot');
+    ccHot(null);
+  }
+  map.addEventListener('pointermove', function(ev){
+    if(ev.pointerType!=='mouse') return;
+    var t = ev.target.closest('.tile'); if(!t || t.classList.contains('out')){ hideTip(); clearHot(); return; }
+    var k = t.dataset.key;
+    if(hot!==k){ setHot(k); showTip(tipHTML(ENT[k])); }
+    placeTip(ev.clientX, ev.clientY);
+  });
+  map.addEventListener('pointerleave', function(){ hideTip(); clearHot(); });
+  map.addEventListener('focusin', function(ev){
+    var t = ev.target.closest('.tile'); if(!t) return;
+    setHot(t.dataset.key); showTip(tipHTML(ENT[t.dataset.key]));
+    var b = t.getBoundingClientRect(); placeTip(b.left+Math.min(b.width-10, 40), b.top+Math.min(b.height-10,30));
+  });
+  map.addEventListener('focusout', function(){ hideTip(); clearHot(); });
+  map.addEventListener('click', function(ev){ var t = ev.target.closest('.tile'); if(t && !t.classList.contains('out')) openSheet(t.dataset.key, t); });
+
+  ccSvg.addEventListener('pointerover', function(ev){ var r = ev.target.closest('.cc-hit'); if(r) setHot(r.getAttribute('data-key')); });
+  ccSvg.addEventListener('pointerleave', clearHot);
+  ccSvg.addEventListener('click', function(ev){ var r = ev.target.closest('.cc-hit'); if(r){ var k = r.getAttribute('data-key'); openSheet(k, tiles[k]); } });
+
+  /* legend bins highlight the matching tiles */
+  function setBin(b){ map.dataset.bin = b; }
+  function clearBin(){ delete map.dataset.bin; }
+  lg.addEventListener('pointerover', function(ev){ var b = ev.target.closest('.lg-b'); if(b) setBin(b.dataset.bin); });
+  lg.addEventListener('pointerleave', clearBin);
+  lg.addEventListener('focusin', function(ev){ var b = ev.target.closest('.lg-b'); if(b) setBin(b.dataset.bin); });
+  lg.addEventListener('focusout', clearBin);
+  lg.addEventListener('click', function(ev){ var b = ev.target.closest('.lg-b'); if(!b) return; if(map.dataset.bin===b.dataset.bin && ev.pointerType!=='mouse') clearBin(); else setBin(b.dataset.bin); });
+
+  /* ---- sheet: the hover card's fields, for touch and for keyboard ---- */
+  var sheet = document.getElementById('sheet'), scrim = document.getElementById('scrim'), shBody = document.getElementById('shBody'), lastFocus = null;
+  function openSheet(k, from){
+    var e = ENT[k]; if(!e) return;
+    var V = views[view];
+    lastFocus = from || document.activeElement;
+    hideTip();
+    var meta = e.agg ? (e.chain ? e.chain+' · remainder' : SCOPE+' · remainder') : (e.chain+' · '+e.kind+' Curate · #'+rankIn(e)+' by entries');
+    var html = '<div class="sh-m">'+esc(meta)+'</div><h2 class="sh-t" id="shT">'+esc(fullName(e))+'</h2>'+
+      '<div class="sh-big"><div><b>'+fmt(e.entries)+'</b><span>Entries</span></div><div><b>'+pctS(e.share)+'</b><span>Open share</span></div></div>'+
+      kvHTML(e)+
+      '<p class="sh-note">'+formulaOf(e)+(e.agg ? '<br>'+(e.lists!=null ? 'entries = '+fmt(V.total)+' − '+fmt(V.total-e.entries)+' in the top '+NTOP+'; lists = '+fmt(F.registries)+' − '+NTOP : 'entries = '+fmt(V.total)+' on '+esc(e.chain)+' − '+fmt(V.total-e.entries)+' in the top '+NTOP) : '')+'<br>at snapshot, '+esc(snapTxt)+'</p>'+
+      '<div class="sh-a"><a class="btn btn-p" href="#">'+(e.agg?'Browse all lists':'Open list')+'</a><a class="btn btn-g" href="#">'+(e.agg?'Launch a list':'Submit an entry')+'</a></div>';
+    shBody.innerHTML = html;
+    sheet.scrollTop = 0;
+    sheet.classList.add('open'); scrim.classList.add('open'); sheet.setAttribute('aria-hidden','false');
+    setTimeout(function(){ document.getElementById('shX').focus({preventScroll:true}); }, reduce?0:60);
+  }
+  function closeSheet(){
+    if(!sheet.classList.contains('open')) return;
+    sheet.classList.remove('open'); scrim.classList.remove('open'); sheet.setAttribute('aria-hidden','true');
+    if(lastFocus && lastFocus.focus) lastFocus.focus({preventScroll:true});
+  }
+  document.getElementById('shX').addEventListener('click', closeSheet);
+  document.getElementById('shGrab').addEventListener('click', closeSheet);
+  scrim.addEventListener('click', closeSheet);
+  document.addEventListener('keydown', function(e){
+    if(e.key==='Escape'){ closeSheet(); closeMenu(); }
+    if(e.key==='Tab' && sheet.classList.contains('open')){
+      var f = Array.prototype.filter.call(sheet.querySelectorAll('button,a[href]'), function(x){ return x.offsetParent!==null; });
+      if(!f.length) return; var a = f[0], z = f[f.length-1];
+      if(e.shiftKey && document.activeElement===a){ e.preventDefault(); z.focus(); }
+      else if(!e.shiftKey && document.activeElement===z){ e.preventDefault(); a.focus(); }
+    }
+  });
+  /* swipe down to close (mobile sheet) */
+  (function(){
+    var y0 = null, dy = 0;
+    sheet.addEventListener('touchstart', function(e){ if(sheet.scrollTop<=0){ y0 = e.touches[0].clientY; dy = 0; } }, {passive:true});
+    sheet.addEventListener('touchmove', function(e){ if(y0==null) return; dy = e.touches[0].clientY - y0; if(dy>0){ sheet.style.transition='none'; sheet.style.transform='translateY('+dy+'px)'; } }, {passive:true});
+    sheet.addEventListener('touchend', function(){ if(y0==null) return; sheet.style.transition=''; sheet.style.transform=''; if(dy>90) closeSheet(); y0 = null; });
+  })();
+
+  /* ---- footnotes: every derived figure, its formula and its window ---- */
+  (function(){
+    var R = REST_ALL, ver = top.filter(function(e){ return e.verified; }).length, ccAll = ccModel(views.all);
+    var court = top.filter(function(e){ return e.inCourt>0; });
+    var open = top.filter(function(e){ return e.open>0; }).sort(function(a,b){ return b.share-a.share; });
+    var chainRest = order.slice(1).map(function(c){ var V = views[c]; return esc(c)+' '+fmt(V.total)+' − '+fmt(V.inTop)+' = '+fmt(V.rest.entries); }).join('; ');
+    var chainOpen = order.slice(1).map(function(c){ return esc(c)+' '+fmt(views[c].open); }).join(', ');
+    var notes = [
+      '<b>Tile area = entries</b> per list: the '+NTOP+' largest lists in the snapshot, plus <b>other lists</b> = '+fmt(F.entries)+' total − '+fmt(topEntries)+' in the top '+NTOP+' = '+fmt(R.entries)+' entries across '+fmt(F.registries)+' − '+NTOP+' = '+fmt(R.lists)+' lists.',
+      '<b>Tile colour = open share</b> = open requests ÷ entries, per list. Largest: '+open.slice(0,1).map(function(e){ return esc(e.code)+' '+fmt(e.open)+' ÷ '+fmt(e.entries)+' = '+pctS(e.share); }).join('')+'. Bins step by '+pEdge(step)+'% (a third of the largest share, rounded up).',
+      '<b>Ring = entries in court</b>: '+court.map(function(e){ return esc(e.code)+' '+fmt(e.inCourt); }).join(' + ')+' = '+fmt(topCourt)+' of '+fmt(F.inCourt)+' disputes; other lists '+fmt(F.inCourt)+' − '+fmt(topCourt)+' = '+fmt(R.inCourt)+'.',
+      '<b>Other lists</b>: open '+fmt(F.requestsOpen)+' − '+fmt(topOpen)+' = '+fmt(R.open)+'; verified '+fmt(F.verified)+' − '+fmt(ver)+' = '+fmt(R.verified)+'. Kind and created date are not in the snapshot for them.',
+      '<b>Chain tabs</b>: rest of a chain = chain entries − its lists in the top '+NTOP+' ('+chainRest+'). Open on a chain = Σ open of its lists ('+chainOpen+').',
+      '<b>Concentration curve</b> = Σ entries of the k largest lists ÷ '+fmt(F.entries)+' entries: '+[1,3,NTOP].map(function(k){ var c = ccAll.pts[k].cumE; return 'top '+k+' = '+fmt(c)+' ÷ '+fmt(F.entries)+' = '+pct1(c/F.entries); }).join('; ')+'; the other '+fmt(R.lists)+' lists = '+fmt(R.entries)+' ÷ '+fmt(F.entries)+' = '+pct1(R.entries/F.entries)+'. Lists needed for 50 / 80 / 90% = smallest k that reaches it ('+[0.5,0.8,0.9].map(function(p){ return ccNeed(ccAll,p); }).join(' / ')+').',
+      '<b>Open line</b> = Σ open of the same k lists ÷ '+fmt(F.requestsOpen)+' (top 3 = '+fmt(ccAll.pts[3].cumO)+' ÷ '+fmt(F.requestsOpen)+' = '+pct1(ccAll.pts[3].o)+'). <b>Equal split</b> = k ÷ '+fmt(F.registries)+' lists (top '+NTOP+' = '+pct1(NTOP/F.registries)+'). Chain tabs use the chain total; their list count is not in the snapshot.',
+      '<b>Window</b>: state at the snapshot, '+esc(snapTxt)+', '+esc(SCOPE)+' mainnets. Open = registration or removal requests not yet resolved.'
+    ];
+    document.getElementById('notes').innerHTML = notes.map(function(n,i){ return '<li data-n="'+(i+1)+'">'+n+'</li>'; }).join('');
+  })();
+
+  /* ---- mobile menu ---- */
+  var menuB = document.getElementById('menuB'), menu = document.getElementById('menu');
+  function closeMenu(){ menu.classList.remove('open'); menuB.setAttribute('aria-expanded','false'); }
+  menuB.addEventListener('click', function(e){ e.stopPropagation(); var o = !menu.classList.contains('open'); menu.classList.toggle('open',o); menuB.setAttribute('aria-expanded', o?'true':'false'); });
+  document.addEventListener('click', function(e){ if(!menu.contains(e.target)) closeMenu(); });
+
+  /* ---- boot ---- */
+  function boot(){
+    setView('all');
+    var lw = map.clientWidth, lh = map.clientHeight;
+    new ResizeObserver(function(){
+      var w = map.clientWidth, h = map.clientHeight;
+      if(w===lw && h===lh) return; lw = w; lh = h;
+      layout(false); moveInd();
+    }).observe(map);
+    var cw = ccChart.clientWidth, ch = ccChart.clientHeight;
+    new ResizeObserver(function(){
+      var w = ccChart.clientWidth, h = ccChart.clientHeight;
+      if(w===cw && h===ch) return; cw = w; ch = h;
+      drawCurve(false);
+    }).observe(ccChart);
+  }
+  if(document.fonts && document.fonts.ready){ document.fonts.ready.then(function(){ moveInd(); }); }
+  setTimeout(boot, 0);
+})();
+</script>
+</body>
+</html>

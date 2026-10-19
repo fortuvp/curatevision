@@ -1,19 +1,19 @@
-import React, { useMemo } from 'react'
+import React from 'react'
 import styled, { css } from 'styled-components'
 import { smallScreenStyle } from 'styles/small-screen-style'
-import { NavLink, Link, useLocation } from 'react-router-dom'
-import { useWeb3Context } from 'hooks/use-web3-context'
-import useUrlChainId from 'hooks/use-url-chain-id'
-import { SAVED_NETWORK_KEY } from 'utils/string'
+import { Link, useLocation } from 'react-router-dom'
 import { preloadFactory } from 'bootstrap/app-router'
+import { useLaunchChainId } from './launch-chain'
 
 const DesktopNav = styled.nav`
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 750;
-  line-height: 1;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--glass);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
 
   ${smallScreenStyle(
     () => css`
@@ -22,82 +22,64 @@ const DesktopNav = styled.nav`
   )}
 `
 
-const StyledNavLink = styled(NavLink)`
+/* Primary navigation (DESIGN.md): sans 14/500, the active item in the action color. */
+const NavLink = styled(Link)<{ $active?: boolean }>`
   display: inline-flex;
   align-items: center;
-  min-height: 36px;
-  padding: 0 13px;
-  border-radius: 3px;
-  color: var(--curate-muted);
-  text-decoration: none;
-  transition:
-    color 0.2s ease,
-    background 0.2s ease;
-
-  &:hover {
-    color: var(--curate-text);
-    background: rgba(255, 255, 255, 0.06);
-  }
-
-  &.active {
-    color: var(--curate-text);
-    background: rgba(255, 255, 255, 0.1);
-  }
-`
-
-const StyledLink = styled(Link)<{ $active?: boolean }>`
-  display: inline-flex;
-  align-items: center;
-  min-height: 36px;
-  padding: 0 13px;
-  border-radius: 3px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: var(--radius-pill);
   color: ${({ $active }) =>
-    $active ? 'var(--curate-text)' : 'var(--curate-muted)'};
+    $active ? 'var(--color-text)' : 'var(--color-muted)'};
   background: ${({ $active }) =>
-    $active ? 'rgba(255, 255, 255, 0.1)' : 'transparent'};
+    $active ? 'var(--color-primary-soft)' : 'transparent'};
+  box-shadow: ${({ $active }) =>
+    $active
+      ? 'inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 28%, transparent)'
+      : 'none'};
   text-decoration: none;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: 500;
+  white-space: nowrap;
   transition:
-    color 0.2s ease,
-    background 0.2s ease;
+    color var(--motion),
+    background var(--motion);
 
   &:hover {
-    color: var(--curate-text);
-    background: rgba(255, 255, 255, 0.06);
+    color: var(--color-text);
+    background: ${({ $active }) =>
+      $active ? 'var(--color-primary-soft)' : 'var(--color-raised)'};
   }
 `
 
 const AppMenu = () => {
   const { pathname } = useLocation()
-  const { networkId } = useWeb3Context()
-  const urlChainId = useUrlChainId()
-  const isHome = pathname === '/'
+  const launchChainId = useLaunchChainId()
 
-  const currentChainId = useMemo(() => {
-    if (urlChainId) return urlChainId
-    const saved = localStorage.getItem(SAVED_NETWORK_KEY)
-    return saved ? Number(saved) : networkId
-  }, [urlChainId, networkId])
   return (
-    <DesktopNav>
-      <StyledLink to="/" $active={isHome}>
+    <DesktopNav aria-label="Main">
+      <NavLink to="/" $active={pathname === '/'}>
         Dashboard
-      </StyledLink>
-      <StyledLink
+      </NavLink>
+      <NavLink
         to="/browse"
         $active={pathname === '/browse' || pathname.startsWith('/tcr/')}
       >
         Browse
-      </StyledLink>
-      <StyledLink
-        to={`/launch/${currentChainId}`}
+      </NavLink>
+      <NavLink
+        to={`/launch/${launchChainId}`}
         $active={
           pathname.startsWith('/launch') || pathname.startsWith('/factory')
         }
         onMouseEnter={() => preloadFactory()}
       >
         Launch a list
-      </StyledLink>
-      <StyledNavLink to="/guide">Guide & Skills</StyledNavLink>
+      </NavLink>
+      <NavLink to="/guide" $active={pathname === '/guide'}>
+        Guide
+      </NavLink>
     </DesktopNav>
   )
 }

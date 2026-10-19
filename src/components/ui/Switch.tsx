@@ -1,79 +1,111 @@
 import React, { useState, useCallback, useEffect } from 'react'
-import styled, { css } from 'styled-components'
+import styled from 'styled-components'
+import { useFormItemControl } from './form-item-context'
+import { joinClassNames } from './kit-styles'
 
-interface SwitchButtonStyledProps {
-  $checked: boolean
-  $size?: string
+/*
+ * Switch, v2: a 40x24 pill (32x18 small). Off is a recessed raised track,
+ * on is the action fill with a soft glow. The thumb springs across with a
+ * slight overshoot and stretches while pressed.
+ */
+const SIZES = {
+  default: { width: 40, height: 24, thumb: 18 },
+  small: { width: 32, height: 18, thumb: 14 },
 }
 
-const SwitchButton = styled.button<SwitchButtonStyledProps>`
+const dims = (size?: string) => (size === 'small' ? SIZES.small : SIZES.default)
+
+const Handle = styled.span<{ $checked: boolean; $size?: string }>`
+  position: absolute;
+  top: 50%;
+  /* left, not a fixed translate: labelled switches are wider than the track. */
+  left: ${({ $checked, $size }) =>
+    $checked ? `calc(100% - ${dims($size).thumb + 3}px)` : '3px'};
+  width: ${({ $size }) => dims($size).thumb}px;
+  height: ${({ $size }) => dims($size).thumb}px;
+  border-radius: var(--radius-pill);
+  background: ${({ $checked }) =>
+    $checked ? 'var(--color-on-primary)' : 'var(--switch-thumb-off)'};
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--stage) 50%, transparent),
+    inset 0 1px 0 var(--glass-highlight);
+  transform: translateY(-50%);
+  transition:
+    left var(--dur-control) var(--ease-spring),
+    width var(--dur-hover) var(--ease-out),
+    margin var(--dur-hover) var(--ease-out),
+    background var(--dur-hover) var(--ease-out);
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: background var(--dur-hover) linear;
+  }
+`
+
+const SwitchButton = styled.button<{ $checked: boolean; $size?: string }>`
   position: relative;
   display: inline-flex;
   align-items: center;
-  min-width: ${({ $size }) => ($size === 'small' ? '28px' : '44px')};
-  height: ${({ $size }) => ($size === 'small' ? '16px' : '22px')};
-  border: none;
-  border-radius: 100px;
-  cursor: pointer;
-  transition: all 0.2s;
+  flex: 0 0 auto;
+  min-width: ${({ $size }) => dims($size).width}px;
+  height: ${({ $size }) => dims($size).height}px;
   padding: 0;
-  outline: none;
-  box-sizing: border-box;
+  border: 1px solid
+    ${({ $checked }) =>
+      $checked
+        ? 'color-mix(in srgb, var(--color-primary) 50%, transparent)'
+        : 'var(--glass-border)'};
+  border-radius: var(--radius-pill);
+  /* Off colors per theme; light gets a grey track and a white thumb. */
+  --switch-track-off: var(--color-raised);
+  --switch-thumb-off: var(--color-muted);
+  background: ${({ $checked }) =>
+    $checked ? 'var(--color-primary-fill)' : 'var(--switch-track-off)'};
+  box-shadow: ${({ $checked }) =>
+    $checked
+      ? '0 0 16px -4px var(--color-primary), inset 0 1px 0 var(--glass-highlight)'
+      : 'inset 0 1px 2px color-mix(in srgb, var(--stage) 40%, transparent)'};
+  vertical-align: middle;
+  cursor: pointer;
+  transition:
+    background var(--dur-control) var(--ease-out),
+    border-color var(--dur-control) var(--ease-out),
+    box-shadow var(--dur-control) var(--ease-out);
 
-  background: ${({ $checked, theme }) =>
-    $checked ? theme.primaryColor : theme.switchOffBg};
+  /* Static selector (no props): styled-components scopes it to every switch. */
+  body[data-theme='light'] & {
+    --switch-track-off: var(--color-border-strong);
+    --switch-thumb-off: var(--color-surface);
+  }
 
   &:hover:not(:disabled) {
-    background: ${({ $checked, theme }) =>
-      $checked ? theme.switchHoverBg : theme.switchOffBg};
+    border-color: ${({ $checked }) =>
+      $checked
+        ? 'color-mix(in srgb, var(--color-primary) 70%, transparent)'
+        : 'var(--color-border-strong)'};
   }
 
-  &:focus-visible {
-    box-shadow: 0 0 0 2px ${({ theme }) => theme.focusShadowColor};
+  /* Press: the thumb stretches toward where it is going. */
+  &:active:not(:disabled) ${Handle} {
+    width: ${({ $size }) => dims($size).thumb + 4}px;
+    margin-left: ${({ $checked }) => ($checked ? '-4px' : '0')};
   }
 
-  ${({ disabled }) =>
-    disabled &&
-    css`
-      cursor: not-allowed;
-      opacity: 0.4;
-    `}
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
 `
 
-interface HandleStyledProps {
-  $checked: boolean
-  $size?: string
-}
-
-const Handle = styled.span<HandleStyledProps>`
-  position: absolute;
-  top: 2px;
-  left: ${({ $checked, $size }) => {
-    if ($checked)
-      return $size === 'small' ? 'calc(100% - 14px)' : 'calc(100% - 20px)'
-
-    return '2px'
-  }};
-  width: ${({ $size }) => ($size === 'small' ? '12px' : '18px')};
-  height: ${({ $size }) => ($size === 'small' ? '12px' : '18px')};
-  border-radius: 50%;
-  background: ${({ theme }) => theme.switchHandleBg};
-  transition: left 0.2s;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-`
-
-interface InnerTextStyledProps {
-  $checked: boolean
-  $size?: string
-}
-
-const InnerText = styled.span<InnerTextStyledProps>`
-  font-size: ${({ $size }) => ($size === 'small' ? '9px' : '12px')};
-  color: ${({ $checked, theme }) =>
-    $checked ? theme.textOnPrimary || '#fff' : '#fff'};
+const InnerText = styled.span<{ $checked: boolean; $size?: string }>`
+  font-family: var(--font-sans);
+  font-size: var(--fs-label);
+  line-height: 1;
+  font-weight: 500;
+  color: ${({ $checked }) =>
+    $checked ? 'var(--color-on-primary)' : 'var(--color-muted)'};
   padding: ${({ $checked, $size }) => {
-    const handleSpace = $size === 'small' ? '16px' : '24px'
-    return $checked ? `0 ${handleSpace} 0 6px` : `0 6px 0 ${handleSpace}`
+    const handleSpace = `${dims($size).thumb + 8}px`
+    return $checked ? `0 ${handleSpace} 0 8px` : `0 8px 0 ${handleSpace}`
   }};
   white-space: nowrap;
   user-select: none;
@@ -90,6 +122,11 @@ interface SwitchProps {
   style?: React.CSSProperties
   className?: string
   defaultChecked?: boolean
+  id?: string
+  'aria-label'?: string
+  'aria-labelledby'?: string
+  'aria-describedby'?: string
+  'aria-invalid'?: React.AriaAttributes['aria-invalid']
 }
 
 const Switch: React.FC<SwitchProps> = ({
@@ -103,7 +140,19 @@ const Switch: React.FC<SwitchProps> = ({
   style,
   className,
   defaultChecked = false,
+  id,
+  'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledby,
+  'aria-describedby': ariaDescribedby,
+  'aria-invalid': ariaInvalid,
 }) => {
+  const a11y = useFormItemControl({
+    id,
+    'aria-label': ariaLabel,
+    'aria-labelledby': ariaLabelledby,
+    'aria-describedby': ariaDescribedby,
+    'aria-invalid': ariaInvalid,
+  })
   const [internalChecked, setInternalChecked] = useState(defaultChecked)
   const isControlled = controlledChecked !== undefined
   const checked = isControlled ? controlledChecked : internalChecked
@@ -127,6 +176,7 @@ const Switch: React.FC<SwitchProps> = ({
   return (
     <SwitchButton
       type="button"
+      {...a11y}
       role="switch"
       aria-checked={checked}
       $checked={checked}
@@ -134,12 +184,17 @@ const Switch: React.FC<SwitchProps> = ({
       disabled={disabled}
       onClick={handleClick}
       style={style}
-      className={className}
+      className={joinClassNames(
+        'ui-switch',
+        checked && 'ui-switch-checked',
+        size === 'small' && 'ui-switch-small',
+        className,
+      )}
     >
-      <InnerText $checked={checked} $size={size}>
+      <InnerText className="ui-switch-inner" $checked={checked} $size={size}>
         {checked ? checkedChildren : unCheckedChildren}
       </InnerText>
-      <Handle $checked={checked} $size={size} />
+      <Handle className="ui-switch-handle" $checked={checked} $size={size} />
     </SwitchButton>
   )
 }
