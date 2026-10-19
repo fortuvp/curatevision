@@ -1,17 +1,8 @@
 import React from 'react'
-import styled, { css } from 'styled-components'
-import { Link, useParams } from 'react-router-dom'
-import { BigNumber, ethers } from 'ethers'
+import styled, { css, keyframes } from 'styled-components'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import useDocumentHead from 'hooks/use-document-head'
-import useArbitrationCost from 'hooks/arbitration-cost'
-import useCountUp from 'hooks/use-count-up'
-import { useEthersProvider } from 'hooks/ethers-adapters'
 import { NETWORKS, NETWORKS_INFO, getNativeCurrency } from 'config/networks'
-import {
-  defaultArbitrator,
-  defaultArbitratorExtraData,
-} from 'config/tcr-addresses'
-import { jurorsAndCourtIDFromExtraData } from 'utils/string'
 import { formatDuration, formatDurationLong } from 'utils/time'
 import { preloadFactory, preloadPermanentFactory } from 'bootstrap/app-router'
 import {
@@ -22,26 +13,30 @@ import { CurateIcon } from 'components/curate/icons'
 import {
   ButtonAnchor,
   ButtonLink,
-  Chip,
   Label,
   Page,
-  SkeletonBlock,
   Surface,
+  VisuallyHidden,
 } from 'components/curate/primitives'
+import { litThumb, recessTrack } from 'components/ui/kit-styles'
 import { reveal } from 'components/curate/motion/reveal'
 import { ChainSwitch } from './chain-switch'
 import { Lifecycle, axisScale, type LifecycleSpec } from './lifecycle'
-import { useInView } from './use-in-view'
 
 /*
- * Launch a list (route /launch/:chainId): the chooser between the two list
+ * Launch a list (route /launch/:chainId): a choice between the two list
  * types that can be created today, Standard (Light Curate) and Stake (Stake
- * Curate), on the chain from the URL. The hero carries what both share on
- * this chain, read live from the default court. Each card leads with its
- * default deposit, draws an entry's life to scale under its default periods
- * (one time axis for both cards), says what can be lost, names one advantage
- * and one trade-off and opens its factory. Then a note that Classic lists can
- * no longer be created, and the assisted route.
+ * Curate), on the chain from the URL. The two cards are the options of one
+ * radio group and neither is chosen at first: the rim previews on hover and
+ * focus and stays on the chosen card, whose foot then offers its factory.
+ * The choice lives in `?kind=`, so it survives the back button and a chain
+ * switch. Each card leads with what the two sides get (the submitter's
+ * money back, the challenger's bounty), then the wizard defaults the creator
+ * can change, an entry's life drawn to scale under the default periods (one
+ * time axis for both cards), and one advantage and one trade-off. The
+ * court, and so the arbitration fee and the number of jurors, is the
+ * creator's pick in the factory: this page shows no figure for it. Then a
+ * note that Classic lists can no longer be created, and the assisted route.
  */
 
 const SUPPORTED_CHAINS: number[] = [
@@ -67,6 +62,26 @@ const STANDARD_DEFAULTS = {
 
 const CONTACT_HREF =
   'mailto:contact@kleros.io?subject=Launch%20a%20Curate%20list'
+
+/* ---------- The two kinds ---------- */
+
+const KINDS = {
+  standard: {
+    name: 'Standard list',
+    href: (chainId: number) => `/factory/${chainId}`,
+    preload: preloadFactory,
+  },
+  stake: {
+    name: 'Stake list',
+    href: (chainId: number) => `/factory-permanent/${chainId}`,
+    preload: preloadPermanentFactory,
+  },
+} as const
+
+type Kind = keyof typeof KINDS
+
+const isKind = (value: string | null): value is Kind =>
+  value === 'standard' || value === 'stake'
 
 /* ---------- Lifecycles, on one shared scale ---------- */
 
@@ -162,85 +177,23 @@ const Title = styled.h1`
 
 const Lede = styled.p`
   margin: 0;
-  max-width: 52ch;
+  max-width: 50ch;
   color: var(--color-muted);
   font-size: 17px;
   line-height: 26px;
+  text-wrap: balance;
 `
 
-/* The court both list types share on this chain, as a stat strip. */
-const Stats = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 16px 0;
-  margin-top: 8px;
+/* ---------- The choice: two equal cards in one radio group ---------- */
 
-  @media (max-width: 720px) {
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-  }
-`
+/* The cards' rows, shared through subgrid so the two cards line up. */
+const CARD_ROWS = 6
 
-const Stat = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  padding: 0 32px;
-
-  & + & {
-    border-left: 1px solid var(--glass-border);
-  }
-
-  @media (max-width: 720px) {
-    align-items: flex-start;
-    padding: 0 20px 0 0;
-
-    & + & {
-      padding: 0 0 0 20px;
-    }
-  }
-`
-
-const figure = css`
-  color: var(--color-text);
-  font-family: var(--font-figure);
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-
-  small {
-    margin-left: 0.22em;
-    color: var(--color-muted);
-    font-size: 0.5em;
-    font-weight: 400;
-    letter-spacing: 0;
-  }
-`
-
-const StatValue = styled.div`
-  ${figure}
-  font-size: 30px;
-  line-height: 34px;
-  letter-spacing: -0.035em;
-`
-
-const StatNote = styled.span`
-  max-width: 30ch;
-  color: var(--color-muted);
-  font-size: 12px;
-  line-height: 16px;
-`
-
-/* ---------- Cards ---------- */
-
-const Cards = styled.div`
+const Choices = styled.div`
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
-  margin-top: 48px;
+  margin-top: 44px;
 
   @media (max-width: 960px) {
     grid-template-columns: minmax(0, 1fr);
@@ -252,20 +205,210 @@ const Cards = styled.div`
   }
 `
 
-const Card = styled(Surface)`
+/* The radio's dot: an empty ring that lights a core when chosen. */
+const PickDot = styled.span`
+  position: relative;
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--color-faint);
+  border-radius: 50%;
+  transition: border-color var(--motion);
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    border-radius: 50%;
+    background: var(--edge-2);
+    box-shadow: 0 0 10px var(--edge-2);
+    transform: scale(0);
+    transition: transform var(--dur-control) var(--ease-spring);
+  }
+`
+
+/*
+ * The radio itself, in the selector language: a recessed pill that says
+ * what it does ("Choose"), which becomes the raised, lit thumb ("Selected")
+ * once chosen. The input is visually hidden but keeps the keyboard: Tab
+ * enters the group, the arrows move and choose, Space chooses. Its name is
+ * the visible verb plus the card's title ("Choose Standard list").
+ */
+const Pick = styled.label`
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 13px 0 9px;
+  border-radius: var(--radius-pill);
+  ${recessTrack}
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--motion),
+    box-shadow var(--motion),
+    color var(--motion);
+
+  input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+`
+
+const ringGradient = css`
+  linear-gradient(
+    120deg,
+    var(--color-primary),
+    var(--aurora-b) 28%,
+    color-mix(in srgb, var(--color-warning) 70%, transparent) 48%,
+    var(--aurora-c) 72%,
+    var(--color-primary)
+  )
+`
+
+const ringMask = css`
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+`
+
+const Option = styled(Surface)`
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   padding: 28px;
   ${reveal}
 
-  /* The featured card keeps its rim; the other one brightens its border. */
-  ${({ $featured }) =>
-    !$featured &&
-    css`
-      &:hover {
-        border-color: var(--color-border-strong);
-      }
-    `}
+  /* Side by side, the cards share their rows: the drawings line up. */
+  @supports (grid-template-rows: subgrid) {
+    display: grid;
+    grid-row: span ${CARD_ROWS};
+    grid-template-rows: subgrid;
+    row-gap: 0;
+  }
+
+  /* A click anywhere on a card not yet chosen chooses it. */
+  &:not([data-checked]) {
+    cursor: pointer;
+  }
+
+  /* The encircling: previewed on hover and focus, held while chosen. */
+  &::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    z-index: 2;
+    padding: 1.5px;
+    border-radius: inherit;
+    background: ${ringGradient};
+    ${ringMask}
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--dur-control) var(--ease-out);
+  }
+
+  /* A single comet of light runs the rim when the card is chosen. */
+  &::after {
+    content: '';
+    position: absolute;
+    inset: -1.5px;
+    z-index: 3;
+    padding: 2px;
+    border-radius: inherit;
+    background: conic-gradient(
+      from var(--cv-comet),
+      transparent 0deg 290deg,
+      color-mix(in srgb, var(--edge-2) 80%, transparent) 340deg,
+      white 354deg,
+      transparent 360deg
+    );
+    ${ringMask}
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  @media (hover: hover) {
+    &:hover::before {
+      opacity: 0.45;
+    }
+
+    &:not([data-checked]):hover ${Pick} {
+      color: var(--color-text);
+    }
+
+    &:not([data-checked]):hover ${PickDot} {
+      border-color: var(--edge-2);
+    }
+  }
+
+  &:has(input:focus-visible) {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 4px;
+  }
+
+  &:has(input:focus-visible)::before {
+    opacity: 0.8;
+  }
+
+  /* Chosen: the rim stays, light pools behind the pill and under the card. */
+  &[data-checked] {
+    background:
+      radial-gradient(
+        90% 55% at 100% 0%,
+        color-mix(in srgb, var(--edge-2) 8%, transparent),
+        transparent 70%
+      ),
+      var(--color-surface);
+    box-shadow:
+      inset 0 1px 0 var(--glass-highlight),
+      0 0 0 4px color-mix(in srgb, var(--edge-1) 12%, transparent),
+      var(--shadow-card),
+      0 36px 90px -50px var(--edge-1);
+  }
+
+  &[data-checked]::before {
+    padding: 2px;
+    opacity: 1;
+  }
+
+  &[data-checked]::after {
+    animation: cv-comet 2400ms cubic-bezier(0.45, 0, 0.2, 1) 1 both;
+  }
+
+  &[data-checked] ${Pick} {
+    ${litThumb}
+    color: var(--color-text);
+  }
+
+  &[data-checked] ${PickDot} {
+    border-color: var(--edge-2);
+
+    &::after {
+      transform: scale(1);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::before {
+      transition: none;
+    }
+
+    &::after {
+      display: none;
+    }
+  }
 
   @media (max-width: 720px) {
     padding: 20px 16px;
@@ -289,62 +432,135 @@ const CardTitle = styled.h2`
   letter-spacing: -0.03em;
 `
 
-/* The card's headline: its default deposit, with side figures. */
-const Deposit = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 18px 28px;
-  margin-top: 24px;
+/*
+ * The card's lead: what each side gets. The submitter's deposit comes back
+ * (green, as on the drawing's funds lane); a challenger who shows the entry
+ * breaks the rules earns a bounty (amber, the contested tone). Side by side
+ * in a wide card, stacked in a narrow one: two cards between 961 and 1180px,
+ * or a phone. (Media queries: the styled-components 5 parser drops
+ * container queries.)
+ */
+const narrowCard = (rules: ReturnType<typeof css>) => css`
+  @media (min-width: 961px) and (max-width: 1180px), (max-width: 560px) {
+    ${rules}
+  }
 `
 
-const Headline = styled.div`
+const Sides = styled.dl`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 28px 0 0;
+
+  ${narrowCard(css`
+    grid-template-columns: minmax(0, 1fr);
+  `)}
+`
+
+const Side = styled.div<{ $tone: 'registered' | 'contested' }>`
   display: flex;
   flex-direction: column;
   gap: 8px;
   min-width: 0;
+  padding-right: 24px;
+
+  & + & {
+    padding: 0 0 0 24px;
+    border-left: 1px solid var(--glass-border);
+  }
+
+  dt {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  dt i {
+    width: 8px;
+    height: 8px;
+    border-radius: var(--radius-pill);
+    background: ${({ $tone }) => `var(--status-${$tone})`};
+    box-shadow: 0 0 0 3px ${({ $tone }) => `var(--status-${$tone}-soft)`};
+  }
+
+  dd {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+  }
+
+  ${narrowCard(css`
+    padding-right: 0;
+
+    & + & {
+      margin-top: 18px;
+      padding: 18px 0 0;
+      border-top: 1px solid var(--glass-border);
+      border-left: 0;
+    }
+  `)}
 `
 
-const Amount = styled.div`
-  ${figure}
-  font-size: clamp(36px, 1vw + 28px, 44px);
-  line-height: 1;
-  letter-spacing: -0.045em;
-`
+/* The side's outcome, in the display face; durations in the figure face. */
+const Outcome = styled.span`
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 28px;
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
 
-const Breakdown = styled.p`
-  margin: 0;
-  color: var(--color-muted);
-  font-size: var(--fs-small);
-  line-height: var(--lh-small);
-  font-variant-numeric: tabular-nums;
-
-  span {
-    display: block;
-    color: var(--color-faint);
+  b {
+    font-family: var(--font-figure);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
   }
 `
 
-const SideStats = styled.dl`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 24px;
-  margin: 0;
-  padding-bottom: 2px;
+const Condition = styled.span`
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+`
 
-  div {
+/* The wizard defaults behind the card, all of them the creator's to change. */
+const Defaults = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 26px 0 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--glass-border);
+
+  dl {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 28px;
+    margin: 0;
+  }
+
+  dl > div {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  dt {
+    color: var(--color-muted);
+    font-size: 12px;
+    line-height: 16px;
   }
 
   dd {
     margin: 0;
     color: var(--color-text);
     font-family: var(--font-figure);
-    font-size: 18px;
-    line-height: 22px;
+    font-size: 15px;
+    line-height: 20px;
     font-weight: 500;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
@@ -360,43 +576,17 @@ const SideStats = styled.dl`
 `
 
 const Drawing = styled.div`
-  margin: 26px 0 0;
+  margin: 22px 0 0;
   padding: 22px 0 20px;
   border-top: 1px solid var(--glass-border);
   border-bottom: 1px solid var(--glass-border);
-`
-
-/* What can be lost, under the drawing's happy path. */
-const Risk = styled.p`
-  display: grid;
-  grid-template-columns: 8px minmax(0, 1fr);
-  align-items: baseline;
-  gap: 10px;
-  margin: 18px 0 0;
-  color: var(--color-muted);
-  font-size: var(--fs-small);
-  line-height: var(--lh-small);
-
-  i {
-    width: 8px;
-    height: 8px;
-    border-radius: var(--radius-pill);
-    background: var(--status-off);
-    box-shadow: 0 0 0 3px var(--status-off-soft);
-    transform: translateY(-1px);
-  }
-
-  b {
-    color: var(--color-text);
-    font-weight: 500;
-  }
 `
 
 const Points = styled.ul`
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin: 22px 0 28px;
+  margin: 22px 0 0;
   padding: 0;
   list-style: none;
 `
@@ -414,22 +604,6 @@ const Point = styled.li<{ $con?: boolean }>`
     color: ${({ $con }) =>
       $con ? 'var(--color-faint)' : 'var(--color-primary)'};
   }
-`
-
-const VisuallyHidden = styled.span`
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-  border: 0;
-`
-
-const CardAction = styled.div`
-  margin-top: auto;
 `
 
 const ArrowIcon = () => (
@@ -455,13 +629,40 @@ const MinusIcon = () => (
   </svg>
 )
 
+/* ---------- The chosen card's foot: continue to its factory ---------- */
+
+const footIn = keyframes`
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+`
+
+/* In the card's own flow: nothing floats over the page. */
+const Foot = styled.div`
+  display: flex;
+  align-items: center;
+  margin: 24px 0 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--glass-border);
+  animation: ${footIn} 360ms var(--ease-out) both;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+
+  @media (max-width: 560px) {
+    > * {
+      width: 100%;
+    }
+  }
+`
+
 /* ---------- Classic note, Pro ---------- */
 
 const ClassicNote = styled.p`
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  margin: 18px 0 0;
+  margin: 24px 0 0;
   padding: 0 4px;
   color: var(--color-muted);
   font-size: var(--fs-small);
@@ -522,28 +723,103 @@ const ProActions = styled.div`
   gap: 8px;
 `
 
-/* ---------- Figures ---------- */
+/* ---------- One option of the radio group ---------- */
 
-/** "0.0309" from wei, trailing zeros trimmed (same rule as eth-amount). */
-const formatNative = (wei: BigNumber) =>
-  ethers.utils.formatEther(wei).replace(/\.?0+$/, '')
+/** True when the click ended a text selection inside `node`. */
+const selectingText = (node: Node) => {
+  const selection = window.getSelection()
+  return Boolean(
+    selection &&
+    !selection.isCollapsed &&
+    selection.anchorNode &&
+    node.contains(selection.anchorNode),
+  )
+}
 
-/**
- * A decimal string that counts up to its exact value once `armed` (in
- * view). The digits are set in the figure face with tabular numbers, so
- * they do not jitter; screen readers get the final value as text, in
- * browse mode too, and never the rolling digits.
- */
-const Count = ({ exact, armed }: { exact: string; armed: boolean }) => {
-  const value = Number(exact)
-  const decimals = Math.min(6, exact.split('.')[1]?.length ?? 0)
-  const current = useCountUp(armed ? value : 0)
-  const shown = current === value ? exact : current.toFixed(decimals)
+const Choice = ({
+  kind,
+  family,
+  summary,
+  checked,
+  onChoose,
+  chainId,
+  index,
+  children,
+}: {
+  kind: Kind
+  /** The Curate product it is built on, the eyebrow above the name. */
+  family: string
+  /** One sentence for screen readers: what sets this kind apart. */
+  summary: string
+  checked: boolean
+  onChoose: (kind: Kind) => void
+  chainId: number
+  index: number
+  children: React.ReactNode
+}) => {
+  const { name, href, preload } = KINDS[kind]
+  const titleId = `launch-${kind}`
+  const verbId = `launch-${kind}-verb`
+  const summaryId = `launch-${kind}-summary`
+
+  /*
+   * Pointer convenience on top of the native radio (which keeps the
+   * keyboard path): a click on the card's text chooses it, unless it lands
+   * on a control or ends a text selection, so the text stays selectable.
+   */
+  const onCardClick = (event: React.MouseEvent<HTMLElement>) => {
+    if (checked) return
+    const target = event.target as Element
+    if (target.closest('a, button, label, input')) return
+    if (selectingText(event.currentTarget)) return
+    onChoose(kind)
+  }
+
   return (
-    <>
-      <VisuallyHidden>{exact}</VisuallyHidden>
-      <span aria-hidden>{shown}</span>
-    </>
+    <Option
+      $padding="none"
+      data-checked={checked ? '' : undefined}
+      onClick={onCardClick}
+      onPointerEnter={() => preload()}
+      style={{ ['--i' as string]: index }}
+    >
+      <CardHead>
+        <div>
+          <Label $tone="faint">{family}</Label>
+          <CardTitle id={titleId}>{name}</CardTitle>
+        </div>
+        <Pick>
+          <input
+            type="radio"
+            name="launch-kind"
+            value={kind}
+            checked={checked}
+            onChange={() => onChoose(kind)}
+            aria-labelledby={`${verbId} ${titleId}`}
+            aria-describedby={summaryId}
+          />
+          <PickDot aria-hidden />
+          <span id={verbId} aria-hidden>
+            {checked ? 'Selected' : 'Choose'}
+          </span>
+        </Pick>
+      </CardHead>
+      <VisuallyHidden id={summaryId}>{summary}</VisuallyHidden>
+      {children}
+      {checked && (
+        <Foot>
+          <ButtonLink
+            to={href(chainId)}
+            $variant="primary"
+            onMouseEnter={() => preload()}
+            onFocus={() => preload()}
+          >
+            Create a {name}
+            <ArrowIcon />
+          </ButtonLink>
+        </Foot>
+      )}
+    </Option>
   )
 }
 
@@ -558,42 +834,30 @@ const LaunchListPage = () => {
   const chain = NETWORKS_INFO[chainId as keyof typeof NETWORKS_INFO]
   const chainName = chain?.name ?? `chain ${chainId}`
   const symbol = getNativeCurrency(chainId).symbol
-  const arbitratorAddress = defaultArbitrator[chainId]?.address
-  const extraData = defaultArbitratorExtraData[chainId]?.data
-  const jurors = extraData
-    ? jurorsAndCourtIDFromExtraData(extraData).numberOfJurors
-    : undefined
   const stakeToken = defaultStakeToken[chainId]?.label
 
-  // Read-only: the arbitration cost both factories start from on this chain.
-  const provider = useEthersProvider({ chainId })
-  const { arbitrationCost, error: costError } = useArbitrationCost({
-    address: arbitratorAddress,
-    arbitratorExtraData: extraData,
-    library: provider,
-  })
-  const costLoading =
-    arbitrationCost === undefined &&
-    !costError &&
-    !!provider &&
-    !!arbitratorAddress &&
-    !!extraData
-  const cost = arbitrationCost ? formatNative(arbitrationCost) : undefined
-  /** A Standard default deposit: base plus the live arbitration cost. */
-  const total = (base: number) =>
-    arbitrationCost
-      ? formatNative(ethers.utils.parseEther(String(base)).add(arbitrationCost))
-      : undefined
-  const submitTotal = total(STANDARD_DEFAULTS.submissionBaseDeposit)
-  const removeTotal = total(STANDARD_DEFAULTS.removalBaseDeposit)
+  // The chosen kind lives in the URL; nothing is chosen until someone picks.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const kindParam = searchParams.get('kind')
+  const kind = isKind(kindParam) ? kindParam : undefined
+  const choose = (next: Kind) => {
+    KINDS[next].preload()
+    setSearchParams(
+      (previous) => {
+        const params = new URLSearchParams(previous)
+        params.set('kind', next)
+        return params
+      },
+      { replace: true, preventScrollReset: true },
+    )
+  }
 
-  const [statsRef, statsSeen] = useInView<HTMLDivElement>()
-  const [standardRef, standardSeen] = useInView<HTMLDivElement>()
-  const [stakeRef, stakeSeen] = useInView<HTMLDivElement>()
+  const period = formatDuration(challengePeriod)
+  const withdrawing = formatDuration(withdrawingPeriod)
 
   useDocumentHead(
     'Launch a list | Kleros Curate',
-    'Create a Kleros Curate list: a Standard list with a challenge period and refundable deposits, or a Stake list with a token stake that stays locked while the entry is listed. Classic lists can no longer be created.',
+    'Create a Kleros Curate list: a Standard list, where a submitter’s deposit comes back after the challenge period, or a Stake list, where the stake stays locked while the entry is listed and a challenger can earn it at any time. Classic lists can no longer be created.',
   )
 
   return (
@@ -609,118 +873,79 @@ const LaunchListPage = () => {
           Launch a list on <em>{chainName}</em>
         </Title>
         <Lede style={{ ['--i' as string]: 2 }}>
-          Both kinds send disputes to Kleros jurors; they differ in what a
-          submitter puts at risk, and for how long.
+          Either kind sends its disputes to Kleros: you pick the court and the
+          number of jurors when you create the list.
         </Lede>
-        <Stats
-          ref={statsRef}
-          role="group"
-          aria-label={`The default court on ${chainName}, shared by both kinds`}
-          style={{ ['--i' as string]: 3 }}
-        >
-          <Stat>
-            <Label $tone="faint">Arbitration cost · now</Label>
-            <StatValue>
-              {cost ? (
-                <>
-                  <Count exact={cost} armed={statsSeen} />
-                  <small>{symbol}</small>
-                </>
-              ) : costLoading ? (
-                <SkeletonBlock $width="7ch" $height="34px" role="status">
-                  <VisuallyHidden>Reading the arbitration cost</VisuallyHidden>
-                </SkeletonBlock>
-              ) : (
-                '—'
-              )}
-            </StatValue>
-            {costError && (
-              <StatNote>
-                Could not read the court: the cost is added in the wizard
-              </StatNote>
-            )}
-          </Stat>
-          <Stat>
-            <Label $tone="faint">Jurors · first round</Label>
-            <StatValue>
-              {jurors !== undefined ? (
-                <Count exact={String(jurors)} armed={statsSeen} />
-              ) : (
-                '—'
-              )}
-            </StatValue>
-          </Stat>
-        </Stats>
       </Header>
 
-      <Cards>
-        <Card
-          as="section"
-          $featured
-          $padding="none"
-          aria-labelledby="launch-standard"
-          style={{ ['--i' as string]: 4 }}
+      <Choices role="group" aria-label="List type">
+        <Choice
+          kind="standard"
+          family="Light Curate"
+          summary={`The submitter's deposit, in ${symbol}, comes back in full after the ${formatDurationLong(challengePeriod)} challenge period; a challenger who shows within that period that the entry breaks the rules earns its base deposit.`}
+          checked={kind === 'standard'}
+          onChoose={choose}
+          chainId={chainId}
+          index={3}
         >
-          <CardHead>
-            <div>
-              <Label $tone="faint">Light Curate</Label>
-              <CardTitle id="launch-standard">Standard list</CardTitle>
-            </div>
-            <Chip $selected>Default</Chip>
-          </CardHead>
+          <Sides>
+            <Side $tone="registered">
+              <Label as="dt" $tone="faint">
+                <i aria-hidden />
+                Submitter
+              </Label>
+              <dd>
+                <Outcome>
+                  Back in <b>{period}</b>
+                </Outcome>
+                <Condition>
+                  The whole deposit, when the entry follows the rules
+                </Condition>
+              </dd>
+            </Side>
+            <Side $tone="contested">
+              <Label as="dt" $tone="faint">
+                <i aria-hidden />
+                Challenger
+              </Label>
+              <dd>
+                <Outcome>Earns the base deposit</Outcome>
+                <Condition>
+                  For showing, within those {period}, that the entry breaks the
+                  rules
+                </Condition>
+              </dd>
+            </Side>
+          </Sides>
 
-          <Deposit ref={standardRef}>
-            <Headline>
-              <Label $tone="faint">Submit deposit · default</Label>
-              <Amount>
-                {submitTotal ? (
-                  <Count exact={submitTotal} armed={standardSeen} />
-                ) : costLoading ? (
-                  <SkeletonBlock $width="5ch" $height="44px">
-                    <VisuallyHidden>
-                      Reading the arbitration cost
-                    </VisuallyHidden>
-                  </SkeletonBlock>
-                ) : (
-                  STANDARD_DEFAULTS.submissionBaseDeposit
-                )}
-                <small>{symbol}</small>
-              </Amount>
-              <Breakdown>
-                {cost
-                  ? `= ${STANDARD_DEFAULTS.submissionBaseDeposit} base deposit + ${cost} arbitration cost`
-                  : `+ the arbitration cost, in ${symbol}`}
-                <span>Paid in {symbol}, no token approval</span>
-              </Breakdown>
-            </Headline>
-            <SideStats>
+          <Defaults>
+            <Label $tone="faint">Defaults · you set them</Label>
+            <dl>
               <div>
-                <Label as="dt" $tone="faint">
-                  Remove deposit
-                </Label>
+                <dt>Base deposit</dt>
                 <dd>
-                  {removeTotal ?? STANDARD_DEFAULTS.removalBaseDeposit}
-                  <small>{removeTotal ? symbol : `${symbol} + cost`}</small>
+                  {STANDARD_DEFAULTS.submissionBaseDeposit}
+                  <small>{symbol}</small>
                 </dd>
               </div>
               <div>
-                <Label as="dt" $tone="faint">
-                  Challenge period
-                </Label>
-                <dd>{formatDuration(challengePeriod)}</dd>
+                <dt>Removal deposit</dt>
+                <dd>
+                  {STANDARD_DEFAULTS.removalBaseDeposit}
+                  <small>{symbol}</small>
+                </dd>
               </div>
-            </SideStats>
-          </Deposit>
+              <div>
+                <dt>Arbitration</dt>
+                <dd>
+                  Court’s fee<small>in {symbol}</small>
+                </dd>
+              </div>
+            </dl>
+          </Defaults>
 
           <Drawing>
             <Lifecycle spec={STANDARD_LIFE} scale={SCALE} delay={700} />
-            <Risk>
-              <i aria-hidden />
-              <span>
-                <b>If challenged and you lose,</b> the deposit goes to the
-                challenger, minus the arbitration cost.
-              </span>
-            </Risk>
           </Drawing>
 
           <Points aria-label="Trade-offs">
@@ -740,87 +965,81 @@ const LaunchListPage = () => {
               </span>
             </Point>
           </Points>
-          <CardAction>
-            <ButtonLink
-              to={`/factory/${chainId}`}
-              $variant="primary"
-              $block
-              onMouseEnter={() => preloadFactory()}
-              onFocus={() => preloadFactory()}
-            >
-              Create a Standard list
-              <ArrowIcon />
-            </ButtonLink>
-          </CardAction>
-        </Card>
+        </Choice>
 
-        <Card
-          as="section"
-          $padding="none"
-          aria-labelledby="launch-stake"
-          style={{ ['--i' as string]: 5 }}
+        <Choice
+          kind="stake"
+          family="Stake Curate"
+          summary={`The submitter's stake stays locked while the entry is listed and comes back ${formatDurationLong(withdrawingPeriod)} after withdrawing; a challenger who shows at any time that the entry breaks the rules earns the whole stake.`}
+          checked={kind === 'stake'}
+          onChoose={choose}
+          chainId={chainId}
+          index={4}
         >
-          <CardHead>
-            <div>
-              <Label $tone="faint">Stake Curate</Label>
-              <CardTitle id="launch-stake">Stake list</CardTitle>
-            </div>
-          </CardHead>
+          <Sides>
+            <Side $tone="registered">
+              <Label as="dt" $tone="faint">
+                <i aria-hidden />
+                Submitter
+              </Label>
+              <dd>
+                <Outcome>Back on withdrawal</Outcome>
+                <Condition>
+                  Locked while listed, returned {withdrawing} after you withdraw
+                </Condition>
+              </dd>
+            </Side>
+            <Side $tone="contested">
+              <Label as="dt" $tone="faint">
+                <i aria-hidden />
+                Challenger
+              </Label>
+              <dd>
+                <Outcome>Earns the whole stake</Outcome>
+                <Condition>
+                  For showing, at any time, that the entry breaks the rules
+                </Condition>
+              </dd>
+            </Side>
+          </Sides>
 
-          <Deposit ref={stakeRef}>
-            <Headline>
-              <Label $tone="faint">Minimum stake · default</Label>
-              <Amount>
-                <Count
-                  exact={String(STAKE_DEFAULTS.submissionMinDeposit)}
-                  armed={stakeSeen}
-                />
-                <small>{stakeToken ?? 'tokens'}</small>
-              </Amount>
-              <Breakdown>
-                {cost
-                  ? `+ ${cost} ${symbol} arbitration deposit`
-                  : `+ the arbitration deposit, in ${symbol}`}
-                <span>
-                  {stakeToken
-                    ? `Any ERC-20; ${stakeToken} is pre-filled`
-                    : 'Any ERC-20, chosen in the wizard'}
-                </span>
-              </Breakdown>
-            </Headline>
-            <SideStats>
+          <Defaults>
+            <Label $tone="faint">Defaults · you set them</Label>
+            <dl>
               <div>
-                <Label as="dt" $tone="faint">
-                  Challenger stake
-                </Label>
+                {stakeToken ? (
+                  <>
+                    <dt>Minimum stake</dt>
+                    <dd>
+                      {STAKE_DEFAULTS.submissionMinDeposit}
+                      <small>{stakeToken}</small>
+                    </dd>
+                  </>
+                ) : (
+                  <>
+                    <dt>Stake token</dt>
+                    <dd>Any ERC-20</dd>
+                  </>
+                )}
+              </div>
+              <div>
+                <dt>Challenger stake</dt>
                 <dd>
                   {STAKE_DEFAULTS.challengeStakeMultiplier}%
                   <small>of the entry’s</small>
                 </dd>
               </div>
               <div>
-                <Label as="dt" $tone="faint">
-                  Reinclusion period
-                </Label>
+                <dt>Arbitration</dt>
                 <dd>
-                  {formatDuration(
-                    STAKE_DEFAULTS.reinclusionPeriodDuration * HOUR,
-                  )}
-                  <small>after a ruling keeps it</small>
+                  Court’s fee<small>in {symbol}</small>
                 </dd>
               </div>
-            </SideStats>
-          </Deposit>
+            </dl>
+          </Defaults>
 
           <Drawing>
             <Lifecycle spec={STAKE_LIFE} scale={SCALE} delay={780} />
-            <Risk>
-              <i aria-hidden />
-              <span>
-                <b>If challenged and you lose,</b> the challenger takes the
-                stake and the entry leaves the list.
-              </span>
-            </Risk>
           </Drawing>
 
           <Points aria-label="Trade-offs">
@@ -840,22 +1059,10 @@ const LaunchListPage = () => {
               </span>
             </Point>
           </Points>
-          <CardAction>
-            <ButtonLink
-              to={`/factory-permanent/${chainId}`}
-              $variant="secondary"
-              $block
-              onMouseEnter={() => preloadPermanentFactory()}
-              onFocus={() => preloadPermanentFactory()}
-            >
-              Create a Stake list
-              <ArrowIcon />
-            </ButtonLink>
-          </CardAction>
-        </Card>
-      </Cards>
+        </Choice>
+      </Choices>
 
-      <ClassicNote style={{ ['--i' as string]: 6 }}>
+      <ClassicNote style={{ ['--i' as string]: 5 }}>
         <CurateIcon name="help" size={16} />
         <span>
           Classic lists can no longer be created; existing ones keep working.{' '}
@@ -867,7 +1074,7 @@ const LaunchListPage = () => {
         as="section"
         $padding="none"
         aria-labelledby="launch-pro"
-        style={{ ['--i' as string]: 7 }}
+        style={{ ['--i' as string]: 6 }}
       >
         <div>
           <Label $tone="faint">Assisted route</Label>
