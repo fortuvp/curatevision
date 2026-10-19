@@ -10,6 +10,7 @@ import React, {
 } from 'react'
 import { createPortal } from 'react-dom'
 import styled, { css } from 'styled-components'
+import { useFormItemControl } from './form-item-context'
 import { KitIcon } from './kit-icons'
 import {
   fieldFocus,
@@ -26,7 +27,9 @@ import {
  * Select, v2: the same raised 44px field as Input with a chevron that turns
  * on open; the option panel is glass like the app bar menus (40px rows,
  * radius 12, the chosen row tinted and checked). Keyboard works throughout
- * (arrows, Enter, Escape), and the panel flips above when there is no room.
+ * (arrows, Enter, Escape, Tab), and the panel flips above when there is no
+ * room. Escape closes only the panel, never a dialog around it, and the
+ * panel closes as soon as focus leaves the field.
  */
 /* Panel geometry: 40px rows with a 2px gap, 6px padding and a hairline. */
 const PANEL_MAX = 296
@@ -156,7 +159,7 @@ const OptionItem = styled.div<{
   ${menuRow}
   justify-content: space-between;
   color: ${({ $selected }) =>
-    $selected ? 'var(--color-primary)' : 'var(--color-text)'};
+    $selected ? 'var(--color-primary-on-soft)' : 'var(--color-text)'};
   background: ${({ $selected, $highlighted }) =>
     $selected
       ? 'var(--color-primary-soft)'
@@ -194,7 +197,7 @@ const OptionLabel = styled.span`
 const OptionCheck = styled.span`
   display: inline-flex;
   flex: 0 0 auto;
-  color: var(--color-primary);
+  color: var(--color-primary-on-soft);
 `
 
 const EmptyOption = styled.div`
@@ -237,6 +240,10 @@ interface SelectProps {
   className?: string
   id?: string
   name?: string
+  'aria-label'?: string
+  'aria-labelledby'?: string
+  'aria-describedby'?: string
+  'aria-invalid'?: React.AriaAttributes['aria-invalid']
 }
 
 interface SelectComponent extends React.FC<SelectProps> {
@@ -263,7 +270,18 @@ const Select: SelectComponent = ({
   children,
   className,
   id,
+  'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledby,
+  'aria-describedby': ariaDescribedby,
+  'aria-invalid': ariaInvalid,
 }) => {
+  const a11y = useFormItemControl({
+    id,
+    'aria-label': ariaLabel,
+    'aria-labelledby': ariaLabelledby,
+    'aria-describedby': ariaDescribedby,
+    'aria-invalid': ariaInvalid,
+  })
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [highlighted, setHighlighted] = useState(-1)
@@ -274,6 +292,7 @@ const Select: SelectComponent = ({
   const dropdownRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const listboxId = useId()
+  const optionId = (index: number) => `${listboxId}-opt-${index}`
   const [dropdownPos, setDropdownPos] = useState<{
     top?: number
     bottom?: number
@@ -373,35 +392,51 @@ const Select: SelectComponent = ({
     setHighlighted(-1)
   }, [])
 
-  // Click outside, Escape, scroll and resize while open
+  // While open: a click outside or focus moving elsewhere closes the panel,
+  // and scroll or resize re-place it.
   useEffect(() => {
     if (!open) return undefined
+    const outside = (target: EventTarget | null) =>
+      !(target instanceof Node) ||
+      (!triggerRef.current?.contains(target) &&
+        !dropdownRef.current?.contains(target))
     const handleClickOutside = (e: MouseEvent) => {
-      if (
-        triggerRef.current &&
-        !triggerRef.current.contains(e.target as Node) &&
-        dropdownRef.current &&
-        !dropdownRef.current.contains(e.target as Node)
-      )
-        close()
+      if (outside(e.target)) close()
     }
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        close()
-        triggerRef.current?.focus()
-      }
+    const handleFocusIn = (e: FocusEvent) => {
+      if (outside(e.target)) close()
+    }
+    // Escape belongs to the open panel alone. This runs in the capture phase
+    // and stops there, so a dialog listening on the document never sees the
+    // key; it also catches the key when focus has fallen to <body>.
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      e.stopPropagation()
+      close()
+      triggerRef.current?.focus()
     }
     document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('keydown', handleKeyDown)
+    document.addEventListener('focusin', handleFocusIn)
+    document.addEventListener('keydown', handleEscape, true)
     window.addEventListener('scroll', updateDropdownPosition, true)
     window.addEventListener('resize', updateDropdownPosition)
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('focusin', handleFocusIn)
+      document.removeEventListener('keydown', handleEscape, true)
       window.removeEventListener('scroll', updateDropdownPosition, true)
       window.removeEventListener('resize', updateDropdownPosition)
     }
   }, [open, close, updateDropdownPosition])
+
+  // Keep the highlighted row in view as the arrow keys move it.
+  useEffect(() => {
+    if (!open || highlighted < 0) return
+    dropdownRef.current
+      ?.querySelectorAll('[role="option"]')
+      [highlighted]?.scrollIntoView({ block: 'nearest' })
+  }, [open, highlighted])
 
   // Focus the search input when the panel opens
   useEffect(() => {
@@ -469,6 +504,11 @@ const Select: SelectComponent = ({
         e.preventDefault()
         const opt = filteredOptions[highlighted]
         if (opt) handleSelect(opt)
+      } else if (e.key === 'Tab' && open) {
+        // Focus moves on as usual. From the search box (in the floating
+        // panel) it moves on from the trigger, so the tab order holds.
+        if (e.target !== triggerRef.current) triggerRef.current?.focus()
+        close()
       }
     },
     [
@@ -480,8 +520,14 @@ const Select: SelectComponent = ({
       filteredOptions,
       highlighted,
       handleSelect,
+      close,
     ],
   )
+
+  const activeDescendant =
+    open && highlighted >= 0 && highlighted < filteredOptions.length
+      ? optionId(highlighted)
+      : undefined
 
   // Find display label for selected value
   const selectedLabel = useMemo(() => {
@@ -505,11 +551,12 @@ const Select: SelectComponent = ({
       <SelectTrigger
         ref={triggerRef}
         type="button"
-        id={id}
+        {...a11y}
         role="combobox"
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listboxId : undefined}
+        aria-activedescendant={activeDescendant}
         aria-busy={loading || undefined}
         disabled={disabled}
         onClick={handleToggle}
@@ -564,7 +611,12 @@ const Select: SelectComponent = ({
                 }}
                 onKeyDown={handleKeyDown}
                 placeholder="Search"
+                role="combobox"
                 aria-label="Search options"
+                aria-autocomplete="list"
+                aria-expanded={open}
+                aria-controls={listboxId}
+                aria-activedescendant={activeDescendant}
                 onClick={(e: React.MouseEvent) => e.stopPropagation()}
               />
             )}
@@ -574,6 +626,7 @@ const Select: SelectComponent = ({
               filteredOptions.map((opt, index) => (
                 <OptionItem
                   key={opt.value}
+                  id={optionId(index)}
                   role="option"
                   aria-selected={opt.value === currentVal}
                   aria-disabled={opt.disabled || undefined}
@@ -585,6 +638,8 @@ const Select: SelectComponent = ({
                   $disabled={opt.disabled}
                   $highlighted={index === highlighted}
                   onMouseEnter={() => setHighlighted(index)}
+                  // Keep focus on the trigger (or the search box) on click.
+                  onMouseDown={(e: React.MouseEvent) => e.preventDefault()}
                   onClick={(e: React.MouseEvent) => {
                     e.stopPropagation()
                     handleSelect(opt)

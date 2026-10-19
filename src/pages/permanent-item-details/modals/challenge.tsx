@@ -380,7 +380,7 @@ const ChallengeModal = ({
               confirmBlocker={blocker}
               loading={isChallenging}
             />
-            <GateHelper gate={gate} />
+            <GateHelper gate={gate} caption={false} />
           </Stack>
         </DialogColumns>
       ) : (

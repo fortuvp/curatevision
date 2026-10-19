@@ -3,7 +3,6 @@ import styled from 'styled-components'
 import { toast } from 'react-toastify'
 import { withFormik, FieldArray, useField, type FormikProps } from 'formik'
 import { ItemTypes as AllItemTypes } from '@kleros/gtcr-encoder'
-import ItemDetailsCard from 'components/item-details-card'
 import objectWithoutKey from 'utils/object-without-key'
 import { CurateIcon } from 'components/curate/icons'
 import { reveal } from 'components/curate/motion/reveal'
@@ -29,9 +28,9 @@ import type { StepProps, TcrState } from '.'
 /*
  * Step 2, the item: the fields every entry has (one row per field, a
  * column header with one line of help on wide screens, stacked labels on
- * phones), the list-of-lists switch and the preview of an entry with those
- * fields. The identifier rules and the two submit checks (one ID field,
- * unique names) are the ones the previous step had.
+ * phones) and the list-of-lists switch. The identifier rules and the two
+ * submit checks (one ID field, unique names) are the ones the previous step
+ * had.
  */
 
 export const ItemTypes = objectWithoutKey(AllItemTypes, 'TWITTER_USER_ID')
@@ -39,8 +38,6 @@ export const ItemTypes = objectWithoutKey(AllItemTypes, 'TWITTER_USER_ID')
 const { IMAGE, FILE, GTCR_ADDRESS, LONG_TEXT } = AllItemTypes
 
 const MAX_IDENTIFIERS = 5
-
-export type ItemSection = 'fields' | 'preview'
 
 const COLUMNS = '28px minmax(0, 1fr) minmax(0, 1.25fr) 150px 72px 34px'
 
@@ -234,21 +231,6 @@ const ToggleLabel = styled.label`
   }
 `
 
-/** The preview borrows the entry card; inside a step it loses its own panel. */
-const PreviewFrame = styled.div`
-  padding: 20px;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius);
-  background: var(--color-raised);
-
-  > #item-details-card {
-    padding: 0;
-    border: 0;
-    background: transparent;
-    box-shadow: none;
-  }
-`
-
 /** A text input bound to one column property, labelled for screen readers. */
 const ColumnInput = ({
   name,
@@ -288,22 +270,18 @@ const ColumnInput = ({
 }
 
 type ItemFormValues = TcrState
-type ItemParamsOuterProps = StepProps & { section?: ItemSection }
+type ItemParamsOuterProps = StepProps
 type ItemParamsProps = ItemParamsOuterProps & FormikProps<ItemFormValues>
 
 const ItemParams = ({
   handleSubmit,
   setFieldValue,
   formId,
-  section,
   values: { columns, isTCRofTCRs },
   status,
   setTcrState,
-  tcrState,
 }: ItemParamsProps) => {
   const ids = useId()
-  const { tcrLogo, tcrPrimaryDocument, tcrDescription, tcrTitle } =
-    tcrState || {}
 
   const toggleTCRofTCRs = useCallback(() => {
     if (!isTCRofTCRs) {
@@ -335,37 +313,25 @@ const ItemParams = ({
   }
 
   const identifierCount = columns.filter((column) => column.isIdentifier).length
-  const showFields = section !== 'preview'
-  const showPreview = section !== 'fields'
   const problem = typeof status === 'string' ? status : ''
 
-  // The form wraps the preview too, so Next on the preview step submits it.
   return (
     <form id={formId} onSubmit={handleSubmit} noValidate>
       <StepBody>
-        {showFields ? (
-          <StepHeader
-            heading="Define the entry fields"
-            lede="Each field is a column of the list, shown in this order: put the image or the title first."
-          />
-        ) : (
-          <StepHeader
-            heading="Preview an entry"
-            lede="How an entry page looks with these fields."
-          />
-        )}
+        <StepHeader
+          heading="Define the entry fields"
+          lede="Each field is a column of the list, shown in this order: put the image or the title first."
+        />
 
-        {showFields && (
-          <SwitchField
-            id={`${ids}-list-of-lists`}
-            label="This is a list of lists"
-            help="Entries are other lists: one field, the list address; title and logo come from each list."
-            checked={!!isTCRofTCRs}
-            onChange={toggleTCRofTCRs}
-          />
-        )}
+        <SwitchField
+          id={`${ids}-list-of-lists`}
+          label="This is a list of lists"
+          help="Entries are other lists: one field, the list address; title and logo come from each list."
+          checked={!!isTCRofTCRs}
+          onChange={toggleTCRofTCRs}
+        />
 
-        {showFields && !isTCRofTCRs && (
+        {!isTCRofTCRs && (
           <FieldArray name="columns">
             {({ push, remove }) => (
               <Editor role="group" aria-label="Entry fields">
@@ -512,28 +478,6 @@ const ItemParams = ({
               </Editor>
             )}
           </FieldArray>
-        )}
-
-        {showPreview && (
-          <PreviewFrame>
-            <ItemDetailsCard
-              title="Preview"
-              columns={columns}
-              itemMetaEvidence={
-                isTCRofTCRs && {
-                  file: {
-                    fileURI: tcrPrimaryDocument,
-                    metadata: {
-                      tcrTitle,
-                      tcrDescription,
-                      logoURI: tcrLogo,
-                    },
-                  },
-                }
-              }
-              disabled
-            />
-          </PreviewFrame>
         )}
       </StepBody>
     </form>

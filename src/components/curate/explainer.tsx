@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import styled, { css, keyframes } from 'styled-components'
 import { Label, Surface } from './primitives'
 import { reveal } from './motion/reveal'
@@ -70,6 +70,11 @@ const Top = styled.div`
 
 const Heading = styled.h2`
   margin: 0;
+  /* Focus lands here only by code, after the reader opens the explainer. */
+  &:focus {
+    outline: none;
+  }
+
   color: var(--color-text);
   font-family: var(--font-display);
   font-size: 22px;
@@ -290,7 +295,9 @@ const Pill = styled.button<{ $embedded: boolean }>`
     height: 20px;
     border-radius: var(--radius-pill);
     background: var(--color-primary-soft);
-    color: var(--color-primary);
+    /* Primary pulled toward the text ink: AA on the soft fill in every
+       theme (plain primary is under 4.5:1 in Dark and Light). */
+    color: color-mix(in srgb, var(--color-primary) 70%, var(--color-text));
     box-shadow: 0 0 10px -2px var(--color-primary);
     font-size: 11px;
     font-weight: 600;
@@ -323,14 +330,29 @@ export const Explainer = ({
   embedded?: boolean
 }) => {
   const [hidden, setHidden] = useExplainerHidden(id)
+  const pillRef = useRef<HTMLButtonElement>(null)
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  // The pill and the panel swap, so the pressed control unmounts: focus
+  // follows to the heading (opened) or the pill (closed). Only after the
+  // reader toggles, never on load, when the open state comes from storage.
+  const toggled = useRef(false)
+  useEffect(() => {
+    if (!toggled.current) return
+    ;(hidden ? pillRef : headingRef).current?.focus()
+  }, [hidden])
+  const toggle = (next: boolean) => {
+    toggled.current = true
+    setHidden(next)
+  }
 
   if (hidden)
     return (
       <Pill
+        ref={pillRef}
         type="button"
         $embedded={embedded}
         aria-expanded={false}
-        onClick={() => setHidden(false)}
+        onClick={() => toggle(false)}
       >
         <span aria-hidden>?</span>
         {eyebrow ?? 'How it works'}
@@ -341,7 +363,9 @@ export const Explainer = ({
     <>
       <Top>
         {eyebrow && <Label $tone="faint">{eyebrow}</Label>}
-        <Heading>{heading}</Heading>
+        <Heading ref={headingRef} tabIndex={-1}>
+          {heading}
+        </Heading>
         {intro && <Intro>{intro}</Intro>}
       </Top>
       <Body $withSchematic={!!schematic}>
@@ -358,7 +382,7 @@ export const Explainer = ({
       </Body>
       <Footer>
         {footer}
-        <TextButton type="button" aria-expanded onClick={() => setHidden(true)}>
+        <TextButton type="button" onClick={() => toggle(true)}>
           Close
         </TextButton>
       </Footer>

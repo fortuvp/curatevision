@@ -58,9 +58,10 @@ const ActionButton = styled(Button)`
   text-align: center;
 `
 
+/* Set apart by weight, not opacity: faded white falls under 4.5:1 on the blue fill. */
 const Amounts = styled.span`
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
-  opacity: 0.85;
 `
 
 interface ItemActionButtonProps {
@@ -72,7 +73,7 @@ interface ItemActionButtonProps {
   /** "60 sDAI + 36 xDAI": the exact amounts the action sends. */
   amounts?: React.ReactNode
   disabled?: boolean
-  /** Why the button is disabled ("Connect wallet to challenge"). */
+  /** Why the button is disabled ("Connect a wallet to challenge"). */
   blocker?: string
   loading?: boolean
   block?: boolean

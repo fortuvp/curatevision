@@ -43,9 +43,15 @@ export interface EntryStatusView {
    * appeal period whose loser's half ends first). Defaults to `deadline`.
    */
   windowEnd?: number
-  /** Names the deadline in the hover text; defaults to "Closes". */
+  /**
+   * Names the deadline in the hover text and the track's label, as a full
+   * sentence ("The loser can fund until"); defaults to "Closes".
+   */
   deadlineName?: string
-  /** Follows the countdown: "to challenge", "to fund", "left". */
+  /**
+   * Follows the countdown, short enough for the status column: "to
+   * challenge", "loser funds", "left".
+   */
   deadlineVerb?: string
   /** Shown when there is no deadline, or once it has passed. */
   detail?: string
@@ -89,7 +95,7 @@ const appealOpen = (
       deadline: end,
       windowStart: start || undefined,
       deadlineName: 'No ruling: either side can fund until',
-      deadlineVerb: 'for either side to fund',
+      deadlineVerb: 'either side funds',
       passedDetail: 'appeal closing',
     }
   if (ts < half)
@@ -100,8 +106,8 @@ const appealOpen = (
       deadline: half,
       windowStart: start || undefined,
       windowEnd: end,
-      deadlineName: 'The loser’s half ends',
-      deadlineVerb: 'for the loser to fund',
+      deadlineName: 'The loser can fund until',
+      deadlineVerb: 'loser funds',
       passedDetail: 'loser’s half over',
     }
   return {

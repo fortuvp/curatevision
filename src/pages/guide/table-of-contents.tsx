@@ -37,7 +37,7 @@ const useActiveSection = (ids: string[], offset: number): string => {
 }
 
 /** Smooth-scrolls to a section and keeps the hash in the address bar. */
-const useJump = () => {
+export const useJump = () => {
   const reduced = useReducedMotion()
   return (event: React.MouseEvent<HTMLAnchorElement>, id: string) => {
     const target = document.querySelector(`#${id}`)

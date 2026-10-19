@@ -29,14 +29,12 @@ import { truncateAtWord } from 'utils/truncate-at-word'
 import { formatDurationLong } from 'utils/time'
 import { getAddressPage } from 'utils/network-utils'
 import { STATUS_CODE } from 'utils/permanent-item-status'
-import { getListOfListsAddresses } from 'config/list-of-lists'
 import useUrlChainId from 'hooks/use-url-chain-id'
 import useArbitrationCost from 'hooks/arbitration-cost'
 import useTokenSymbol from 'hooks/token-symbol'
 import useNativeCurrency from 'hooks/native-currency'
 import useDocumentHead from 'hooks/use-document-head'
 import useNow from 'hooks/use-now'
-import useStoredLayout from 'hooks/use-stored-layout'
 import { useAttachment } from 'hooks/use-attachment'
 import { useEthersProvider } from 'hooks/ethers-adapters'
 import ETHAmount from 'components/eth-amount'
@@ -75,6 +73,8 @@ import { CurateIcon } from 'components/curate/icons'
 import { useStakeSummary } from 'components/curate/registry-stake-summary'
 import type { StakeLane } from 'components/curate/registry-stake-summary'
 import { StakeInsights } from 'components/curate/registry-stake-insights'
+import { useRegistryLayout } from 'components/curate/registry-shared-layout'
+import { useRegistryVerified } from 'components/curate/registry-shared-verified'
 import ErrorPage from '../error-page'
 
 /*
@@ -297,7 +297,8 @@ const StakeRegistry = () => {
   const { graphqlBatcher } = useGraphqlBatcher()
   const library = useEthersProvider({ chainId: chainId ?? undefined })
   const nativeCurrency = useNativeCurrency()
-  const [layout, setLayout] = useStoredLayout('registry-entries', 'table')
+  const [layout, setLayout] = useRegistryLayout('registry-entries')
+  const trust = useRegistryVerified(chainId, tcrAddress)
   const [nsfwFilterOn, setNsfwFilterOn] = useState(true)
   const [itemSearch, setItemSearch] = useState('')
   const [revealed, setRevealed] = useState<Set<string>>(() => new Set())
@@ -858,9 +859,6 @@ const StakeRegistry = () => {
 
   const loading = !registry
   const itemsLoading = loading || itemsQuery.isLoading
-  const verified = getListOfListsAddresses(chainId).includes(
-    tcrAddress.toLowerCase(),
-  )
   const pageStart = pageStartIndex + 1
   // A page past the end of the list: it came back empty.
   const outOfRange = !itemsLoading && pageLength === 0 && currentPage > 1
@@ -903,12 +901,12 @@ const StakeRegistry = () => {
         logoURI={metadata?.logoURI}
         chainId={chainId}
         address={tcrAddress}
-        verified={verified}
+        verified={trust.verified}
+        listOfLists={trust.listOfLists}
         kindLabel={KIND_LABEL}
         itemName={itemName}
         primaryLabel={`Submit ${itemName}`}
         primaryAmount={primaryAmount}
-        depositLabel={depositFallback ? 'Minimum stake' : undefined}
         depositNote={
           depositFallback
             ? `Plus an arbitration deposit in ${nativeCurrency} that could not be read just now. Both stay locked while your ${itemName} is listed and come back when you withdraw, unless a challenge succeeds.`
@@ -917,6 +915,9 @@ const StakeRegistry = () => {
         onPrimary={openSubmit}
         policyURI={policyURI}
         onOpenPolicy={policyURI ? openPolicy : undefined}
+        // The policy history reads Light and Classic events only; on a
+        // Stake list it would shimmer and then show nothing.
+        policyUpdated={false}
         stats={stats}
         parameters={parameters}
         explainerId={`registry-stake-${tcrAddress.toLowerCase()}`}

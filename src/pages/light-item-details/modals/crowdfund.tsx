@@ -36,7 +36,7 @@ import {
   type ReceiptLine,
 } from 'components/curate/what-happens-next'
 import { Dialog, DialogColumns } from 'components/curate/item-light-dialog'
-import { useActionGate } from 'components/curate/item-light-gate'
+import { gatedConfirm, useActionGate } from 'components/curate/item-light-gate'
 import { formatAmount, formatEther } from 'components/curate/item-light-format'
 
 const { parseEther } = ethers.utils
@@ -455,24 +455,24 @@ const CrowdfundModal = ({
             receipt={receipt}
             total={total}
             steps={steps}
-            confirmLabel="Contribute"
-            onConfirm={crowdfundSide}
-            confirmDisabled={
-              !gate.ready ||
-              isSubmitting ||
-              !contribution ||
-              contribution.isZero()
-            }
-            confirmBlocker={
-              gate.blocker ??
-              (contribution && contribution.isZero()
-                ? 'Choose an amount above zero'
-                : undefined)
-            }
-            loading={isSubmitting}
+            {...gatedConfirm(gate, {
+              label: 'Contribute',
+              onConfirm: crowdfundSide,
+              disabled:
+                !gate.ready ||
+                isSubmitting ||
+                !contribution ||
+                contribution.isZero(),
+              blocker:
+                gate.blocker ??
+                (contribution && contribution.isZero()
+                  ? 'Choose an amount above zero'
+                  : undefined),
+              loading: isSubmitting,
+            })}
             policy={`Amounts are in ${nativeCurrency}. Appeal fees are set by the list's stake multipliers and the court's arbitration cost.`}
           />
-          {gate.controls && (
+          {!gate.fix && gate.controls && (
             <Row $justify="flex-end" $wrap>
               {gate.controls}
             </Row>

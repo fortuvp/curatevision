@@ -1,5 +1,5 @@
 import { gql, request } from 'graphql-request'
-import { NETWORKS, NETWORKS_INFO } from 'config/networks'
+import { NETWORKS } from 'config/networks'
 import { subgraphUrl, subgraphUrlPermanent } from 'config/tcr-addresses'
 import { getListOfListsAddresses } from 'config/list-of-lists'
 import { parseIpfs } from 'utils/ipfs-parse'
@@ -8,6 +8,7 @@ import {
   fetchRegistryCreationTimes,
   readCachedCreationTimes,
 } from 'utils/registry-creation'
+import { getNativeCurrency } from 'config/chains'
 import {
   DashboardActivity,
   DashboardData,
@@ -18,18 +19,103 @@ import {
   RegistryKind,
   TrustStatus,
 } from './types'
+import { entryCount } from './view'
 
 export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
-const DAYS_30 = 30 * 24 * 60 * 60
+const DAY = 24 * 60 * 60
 const DASHBOARD_QUERY_TIMEOUT_MS = 10_000
 const METADATA_TIMEOUT_MS = 2_000
 const LEADERBOARD_PAGE_SIZE = 1000
 const LEADERBOARD_MAX_PAGES = 5
+/** Registries read per page; a full page means there may be more. */
+const REGISTRY_PAGE_SIZE = 160
+const REGISTRY_MAX_PAGES = 10
+/** Open requests read per chain to count them; a full read caps the count. */
+const OPEN_REQUEST_LIMIT = 1000
+/** Unchallenged requests read per chain for the cards (the count is separate). */
+const UNCHALLENGED_CARD_LIMIT = 40
+/** Rulings read per chain over the 30-day window. */
+const DECIDED_LIMIT = 200
+/** Latest requests read per chain and kind for the activity feeds. */
+const LATEST_LIMIT = 20
 const SUPPORTED_CHAIN_IDS = [
   NETWORKS.ethereum,
   NETWORKS.gnosis,
   NETWORKS.sepolia,
 ]
+
+/**
+ * Start of the 30-day window every dashboard figure shares: the chart's
+ * first UTC day, so the series, the curators, the challenges and the rulings
+ * cover the same 29 full days plus today so far.
+ */
+export const windowStart = (nowSeconds: number): number =>
+  Math.floor(nowSeconds / DAY) * DAY - 29 * DAY
+
+const LREGISTRY_FIELDS = `
+  id
+  chainId
+  title
+  description
+  numberOfAbsent
+  numberOfRegistered
+  numberOfRegistrationRequested
+  numberOfClearingRequested
+  numberOfChallengedRegistrations
+  numberOfChallengedClearing
+  registrationMetaEvidence {
+    uri
+  }
+  requests(limit: 1, order_by: [{ submissionTime: asc }]) {
+    submissionTime
+  }
+`
+
+const REGISTRY_FIELDS = `
+  id
+  chainId
+  numberOfItems
+  registrationMetaEvidence {
+    uri
+  }
+  requests(limit: 1, order_by: [{ submissionTime: asc }]) {
+    submissionTime
+  }
+`
+
+const REQUEST_FIELDS = `
+  id
+  chainId
+  registry_id
+  requestType
+  requester
+  challenger
+  deposit
+  disputeID
+  disputed
+  resolved
+  disputeOutcome
+  submissionTime
+  resolutionTime
+`
+
+/** Light entries carry their fields; the first identifier names the card. */
+const LIGHT_ITEM_PREVIEW = `
+  item {
+    itemID
+    props(order_by: { label: asc }) {
+      label
+      value
+      isIdentifier
+    }
+  }
+`
+
+const CLASSIC_ITEM = `
+  item {
+    itemID
+  }
+`
 
 const ENVIO_DASHBOARD_QUERY = gql`
   query EnvioDashboard(
@@ -38,101 +124,18 @@ const ENVIO_DASHBOARD_QUERY = gql`
     $verifiedSources: [String!]!
   ) {
     lregistries: LRegistry(
-      limit: 160
+      limit: ${REGISTRY_PAGE_SIZE}
       where: { chainId: { _eq: $chainId } }
-      order_by: [{ numberOfRegistered: desc }]
+      order_by: [{ numberOfRegistered: desc }, { id: asc }]
     ) {
-      id
-      chainId
-      title
-      description
-      numberOfAbsent
-      numberOfRegistered
-      numberOfRegistrationRequested
-      numberOfClearingRequested
-      numberOfChallengedRegistrations
-      numberOfChallengedClearing
-      registrationMetaEvidence {
-        uri
-      }
-      requests(limit: 1, order_by: [{ submissionTime: asc }]) {
-        submissionTime
-      }
+      ${LREGISTRY_FIELDS}
     }
     registries: Registry(
-      limit: 160
+      limit: ${REGISTRY_PAGE_SIZE}
       where: { chainId: { _eq: $chainId } }
-      order_by: [{ numberOfItems: desc }]
+      order_by: [{ numberOfItems: desc }, { id: asc }]
     ) {
-      id
-      chainId
-      numberOfItems
-      registrationMetaEvidence {
-        uri
-      }
-      requests(limit: 1, order_by: [{ submissionTime: asc }]) {
-        submissionTime
-      }
-    }
-    latestLightItems: LItem(
-      limit: 36
-      where: { chainId: { _eq: $chainId } }
-      order_by: [{ latestRequestSubmissionTime: desc }]
-    ) {
-      id
-      itemID
-      chainId
-      registry_id
-      status
-      latestRequestSubmissionTime
-      latestRequester
-      latestChallenger
-      registry {
-        title
-      }
-      props(order_by: { label: asc }) {
-        label
-        value
-        isIdentifier
-      }
-      requests(limit: 1, order_by: { submissionTime: desc }) {
-        requestType
-        requester
-        challenger
-        deposit
-        disputeID
-        disputed
-        resolved
-        disputeOutcome
-        submissionTime
-        resolutionTime
-      }
-    }
-    latestClassicItems: Item(
-      limit: 36
-      where: { chainId: { _eq: $chainId } }
-      order_by: [{ latestRequestSubmissionTime: desc }]
-    ) {
-      id
-      itemID
-      chainId
-      registry_id
-      status
-      latestRequestSubmissionTime
-      latestRequester
-      latestChallenger
-      requests(limit: 1, order_by: { submissionTime: desc }) {
-        requestType
-        requester
-        challenger
-        deposit
-        disputeID
-        disputed
-        resolved
-        disputeOutcome
-        submissionTime
-        resolutionTime
-      }
+      ${REGISTRY_FIELDS}
     }
     lightRequests: LRequest(
       limit: 360
@@ -140,27 +143,9 @@ const ENVIO_DASHBOARD_QUERY = gql`
       order_by: [{ submissionTime: desc }]
     ) {
       id
-      chainId
       registry_id
-      requestType
-      requester
-      challenger
-      deposit
-      disputeID
       disputed
-      resolved
-      disputeOutcome
       submissionTime
-      challengeTime
-      resolutionTime
-      registry {
-        title
-        numberOfRegistered
-        numberOfRegistrationRequested
-        numberOfClearingRequested
-        numberOfChallengedRegistrations
-        numberOfChallengedClearing
-      }
     }
     classicRequests: Request(
       limit: 360
@@ -168,77 +153,102 @@ const ENVIO_DASHBOARD_QUERY = gql`
       order_by: [{ submissionTime: desc }]
     ) {
       id
-      chainId
       registry_id
-      requestType
-      requester
-      challenger
-      deposit
-      disputeID
       disputed
-      resolved
-      disputeOutcome
       submissionTime
-      resolutionTime
-      registry {
-        numberOfItems
-      }
     }
-    lightDisputes: LRequest(
-      limit: 80
-      where: { chainId: { _eq: $chainId }, disputed: { _eq: true } }
-      order_by: [{ challengeTime: desc }]
+    latestLight: LRequest(
+      limit: ${LATEST_LIMIT}
+      where: { chainId: { _eq: $chainId } }
+      order_by: [{ submissionTime: desc }]
     ) {
-      id
-      chainId
-      registry_id
-      requestType
-      requester
-      challenger
-      deposit
-      disputeID
-      disputed
-      resolved
-      disputeOutcome
-      submissionTime
+      ${REQUEST_FIELDS}
       challengeTime
-      resolutionTime
       registry {
         title
       }
+      ${LIGHT_ITEM_PREVIEW}
     }
-    classicDisputes: Request(
-      limit: 80
-      where: { chainId: { _eq: $chainId }, disputed: { _eq: true } }
+    latestClassic: Request(
+      limit: ${LATEST_LIMIT}
+      where: { chainId: { _eq: $chainId } }
       order_by: [{ submissionTime: desc }]
     ) {
-      id
-      chainId
-      registry_id
-      requestType
-      requester
-      challenger
-      deposit
-      disputeID
-      disputed
-      resolved
-      disputeOutcome
-      submissionTime
-      resolutionTime
+      ${REQUEST_FIELDS}
+      ${CLASSIC_ITEM}
+    }
+    unchallengedLight: LRequest(
+      limit: ${UNCHALLENGED_CARD_LIMIT}
+      where: {
+        chainId: { _eq: $chainId }
+        resolved: { _eq: false }
+        disputed: { _eq: false }
+      }
+      order_by: [{ submissionTime: desc }]
+    ) {
+      ${REQUEST_FIELDS}
+      registry {
+        title
+      }
+      ${LIGHT_ITEM_PREVIEW}
+    }
+    unchallengedClassic: Request(
+      limit: ${UNCHALLENGED_CARD_LIMIT}
+      where: {
+        chainId: { _eq: $chainId }
+        resolved: { _eq: false }
+        disputed: { _eq: false }
+      }
+      order_by: [{ submissionTime: desc }]
+    ) {
+      ${REQUEST_FIELDS}
+      ${CLASSIC_ITEM}
+    }
+    decidedLight: LRequest(
+      limit: ${DECIDED_LIMIT}
+      where: {
+        chainId: { _eq: $chainId }
+        disputed: { _eq: true }
+        resolved: { _eq: true }
+        resolutionTime: { _gte: $since }
+      }
+      order_by: [{ resolutionTime: desc }]
+    ) {
+      ${REQUEST_FIELDS}
+      challengeTime
+      registry {
+        title
+      }
+      ${LIGHT_ITEM_PREVIEW}
+    }
+    decidedClassic: Request(
+      limit: ${DECIDED_LIMIT}
+      where: {
+        chainId: { _eq: $chainId }
+        disputed: { _eq: true }
+        resolved: { _eq: true }
+        resolutionTime: { _gte: $since }
+      }
+      order_by: [{ resolutionTime: desc }]
+    ) {
+      ${REQUEST_FIELDS}
+      ${CLASSIC_ITEM}
     }
     openLightRequests: LRequest(
-      limit: 1000
+      limit: ${OPEN_REQUEST_LIMIT}
       where: { chainId: { _eq: $chainId }, resolved: { _eq: false } }
     ) {
       id
       registry_id
+      disputed
     }
     openClassicRequests: Request(
-      limit: 1000
+      limit: ${OPEN_REQUEST_LIMIT}
       where: { chainId: { _eq: $chainId }, resolved: { _eq: false } }
     ) {
       id
       registry_id
+      disputed
     }
     openLightDisputes: LRequest(
       limit: 400
@@ -249,23 +259,12 @@ const ENVIO_DASHBOARD_QUERY = gql`
       }
       order_by: [{ challengeTime: desc }]
     ) {
-      id
-      chainId
-      registry_id
-      requestType
-      requester
-      challenger
-      deposit
-      disputeID
-      disputed
-      resolved
-      disputeOutcome
-      submissionTime
+      ${REQUEST_FIELDS}
       challengeTime
-      resolutionTime
       registry {
         title
       }
+      ${LIGHT_ITEM_PREVIEW}
     }
     openClassicDisputes: Request(
       limit: 400
@@ -276,19 +275,8 @@ const ENVIO_DASHBOARD_QUERY = gql`
       }
       order_by: [{ submissionTime: desc }]
     ) {
-      id
-      chainId
-      registry_id
-      requestType
-      requester
-      challenger
-      deposit
-      disputeID
-      disputed
-      resolved
-      disputeOutcome
-      submissionTime
-      resolutionTime
+      ${REQUEST_FIELDS}
+      ${CLASSIC_ITEM}
     }
     resolvedLightBounties: LRequest(
       limit: 240
@@ -301,10 +289,7 @@ const ENVIO_DASHBOARD_QUERY = gql`
       order_by: [{ resolutionTime: desc }]
     ) {
       id
-      chainId
-      challenger
       deposit
-      resolutionTime
     }
     resolvedClassicBounties: Request(
       limit: 240
@@ -317,10 +302,7 @@ const ENVIO_DASHBOARD_QUERY = gql`
       order_by: [{ resolutionTime: desc }]
     ) {
       id
-      chainId
-      challenger
       deposit
-      resolutionTime
     }
     verifiedClassic: Item(
       limit: 500
@@ -355,9 +337,36 @@ const ENVIO_DASHBOARD_QUERY = gql`
   }
 `
 
+/** Further pages of registries, read only when the first page was full. */
+const ENVIO_LREGISTRY_PAGE_QUERY = gql`
+  query EnvioLRegistryPage($chainId: Int!, $offset: Int!) {
+    lregistries: LRegistry(
+      limit: ${REGISTRY_PAGE_SIZE}
+      offset: $offset
+      where: { chainId: { _eq: $chainId } }
+      order_by: [{ numberOfRegistered: desc }, { id: asc }]
+    ) {
+      ${LREGISTRY_FIELDS}
+    }
+  }
+`
+
+const ENVIO_REGISTRY_PAGE_QUERY = gql`
+  query EnvioRegistryPage($chainId: Int!, $offset: Int!) {
+    registries: Registry(
+      limit: ${REGISTRY_PAGE_SIZE}
+      offset: $offset
+      where: { chainId: { _eq: $chainId } }
+      order_by: [{ numberOfItems: desc }, { id: asc }]
+    ) {
+      ${REGISTRY_FIELDS}
+    }
+  }
+`
+
 const PERMANENT_DASHBOARD_QUERY = gql`
-  query PermanentDashboard {
-    registries(first: 120, orderBy: createdAt, orderDirection: desc) {
+  query PermanentDashboard($since: BigInt!) {
+    registries(first: 1000, orderBy: createdAt, orderDirection: desc) {
       id
       token
       createdAt
@@ -397,10 +406,37 @@ const PERMANENT_DASHBOARD_QUERY = gql`
     challenges(first: 90, orderBy: createdAt, orderDirection: desc) {
       id
       createdAt
+      resolutionTime
       challenger
       disputeID
       disputeOutcome
       challengerStake
+      item {
+        itemID
+        metadata {
+          props {
+            label
+            value
+            isIdentifier
+          }
+        }
+        registry {
+          id
+        }
+      }
+    }
+    decidedChallenges: challenges(
+      first: 200
+      where: { resolutionTime_gte: $since }
+      orderBy: resolutionTime
+      orderDirection: desc
+    ) {
+      id
+      createdAt
+      resolutionTime
+      challenger
+      disputeID
+      disputeOutcome
       item {
         itemID
         metadata {
@@ -463,6 +499,7 @@ const ENVIO_CURATOR_PAGE_QUERY = gql`
       requester
       challenger
       disputed
+      resolved
       disputeOutcome
       submissionTime
       challengeTime
@@ -480,6 +517,7 @@ const ENVIO_CURATOR_PAGE_QUERY = gql`
       requester
       challenger
       disputed
+      resolved
       disputeOutcome
       submissionTime
       resolutionTime
@@ -509,6 +547,7 @@ const PERMANENT_CURATOR_PAGE_QUERY = gql`
       createdAt
       challenger
       disputeOutcome
+      resolutionTime
     }
   }
 `
@@ -523,14 +562,7 @@ interface DashboardRequestRow {
   challenger?: string
   challengeTime?: string | number
   disputed?: boolean
-  [key: string]: unknown
-}
-
-/** A classic/light item row as the dashboard queries select it. */
-interface DashboardItemRow {
-  id?: string
-  registry_id?: string
-  requests?: DashboardRequestRow[]
+  item?: { itemID?: string; props?: unknown[] }
   [key: string]: unknown
 }
 
@@ -551,6 +583,7 @@ interface PermanentSubmissionRow {
 /** A permanent challenge row. */
 interface PermanentChallengeRow {
   createdAt?: string | number
+  resolutionTime?: string | number | null
   challenger?: string
   challengerStake?: string
   disputeOutcome?: string
@@ -594,11 +627,7 @@ export const formatAgo = (timestamp?: number): string => {
 
 export const formatWei = (value?: string | null, chainId?: number): string => {
   if (!value || value === '0') return '0'
-  const symbol =
-    chainId && NETWORKS_INFO[chainId as keyof typeof NETWORKS_INFO]
-      ? NETWORKS_INFO[chainId as keyof typeof NETWORKS_INFO].nativeCurrency
-          .symbol
-      : 'ETH'
+  const symbol = chainId ? getNativeCurrency(chainId).symbol : 'ETH'
   const wei = BigInt(value)
   const whole = wei / 10n ** 18n
   const fractional = (wei % 10n ** 18n) / 10n ** 15n
@@ -756,7 +785,6 @@ const enrichRegistryMetadata = async (
     }),
   )
 }
-
 export const buildActivityHref = (
   chainId: number,
   registryAddress: string,
@@ -818,7 +846,8 @@ const requestToActivity = (
 ): DashboardActivity => {
   const chainId = toNumber(requestEntity.chainId)
   const registryAddress = normalizeAddress(requestEntity.registry_id)
-  const itemID = requestEntity.id?.split('@')?.[0]
+  const itemID: string | undefined =
+    requestEntity.item?.itemID ?? requestEntity.id?.split('@')?.[0]
   const isRemoval = requestEntity.requestType === 'ClearingRequested'
   const isChallenge =
     requestEntity.disputed &&
@@ -841,6 +870,7 @@ const requestToActivity = (
       kindHint,
     ),
     itemID,
+    previewProps: previewProps(requestEntity.item?.props),
     actor: normalizeAddress(requestEntity.requester),
     secondaryActor: normalizeAddress(requestEntity.challenger),
     kind: outcome
@@ -867,52 +897,6 @@ const requestToActivity = (
   }
 }
 
-const itemToActivity = (
-  item: any,
-  kindHint: RegistryKind,
-): DashboardActivity => {
-  const requestEntity = item.requests?.[0] ?? {}
-  const chainId = toNumber(item.chainId)
-  const registryAddress = normalizeAddress(item.registry_id)
-  const isRemoval = requestEntity.requestType === 'ClearingRequested'
-  const timestamp =
-    toNumber(item.latestRequestSubmissionTime) ||
-    toNumber(requestEntity.submissionTime)
-
-  return {
-    id: `${kindHint}-item-${item.id}`,
-    chainId,
-    registryAddress,
-    registryTitle: registryTitle(
-      registryAddress,
-      item.registry?.title,
-      kindHint,
-    ),
-    itemID: item.itemID,
-    previewProps: previewProps(item.props),
-    actor: normalizeAddress(requestEntity.requester || item.latestRequester),
-    secondaryActor: normalizeAddress(
-      requestEntity.challenger || item.latestChallenger,
-    ),
-    kind: requestEntity.disputed
-      ? 'challenge'
-      : isRemoval
-        ? 'removal'
-        : 'submission',
-    requestType: isRemoval ? 'removal' : 'submission',
-    disputeID: requestEntity.disputeID
-      ? String(requestEntity.disputeID)
-      : undefined,
-    status: requestEntity.disputed
-      ? `Dispute #${requestEntity.disputeID || 'pending'}`
-      : isRemoval
-        ? 'Removal requested'
-        : 'Registration requested',
-    timestamp,
-    href: buildActivityHref(chainId, registryAddress, item.itemID),
-  }
-}
-
 const permanentSubmissionToActivity = (
   submission: any,
   chainId: number,
@@ -930,12 +914,16 @@ const permanentSubmissionToActivity = (
     previewProps: previewProps(submission.item?.metadata?.props),
     actor: normalizeAddress(submission.submitter),
     kind: 'submission',
-    status: 'Permanent submission',
+    status: 'Stake submission',
     timestamp: toNumber(submission.createdAt),
     href: buildActivityHref(chainId, registryAddress, submission.item?.itemID),
   }
 }
 
+/**
+ * A Stake Curate challenge. Once resolved it is a ruling on a listed entry:
+ * Accept keeps it, Reject removes it, None (no ruling) withdraws it.
+ */
 const permanentChallengeToActivity = (
   challenge: any,
   chainId: number,
@@ -943,6 +931,14 @@ const permanentChallengeToActivity = (
 ): DashboardActivity => {
   const registryAddress = normalizeAddress(challenge.item?.registry?.id)
   const registry = registryMap.get(registryAddress)
+  const resolvedAt = toNumber(challenge.resolutionTime)
+  const outcome: DashboardActivity['outcome'] = !resolvedAt
+    ? undefined
+    : challenge.disputeOutcome === 'Accept'
+      ? 'kept'
+      : challenge.disputeOutcome === 'Reject'
+        ? 'removed'
+        : 'no-ruling'
   return {
     id: `permanent-challenge-${chainId}-${challenge.id}`,
     chainId,
@@ -952,18 +948,43 @@ const permanentChallengeToActivity = (
     itemID: challenge.item?.itemID,
     previewProps: previewProps(challenge.item?.metadata?.props),
     actor: normalizeAddress(challenge.challenger),
-    kind: 'challenge',
-    status: `Dispute #${challenge.disputeID || 'pending'}`,
-    timestamp: toNumber(challenge.createdAt),
+    kind: outcome ? 'resolution' : 'challenge',
+    outcome,
+    disputeID: challenge.disputeID ? String(challenge.disputeID) : undefined,
+    status: outcome
+      ? outcomeLabel(outcome)
+      : `Dispute #${challenge.disputeID || 'pending'}`,
+    timestamp: resolvedAt || toNumber(challenge.createdAt),
     href: buildActivityHref(chainId, registryAddress, challenge.item?.itemID),
   }
 }
 
+type UserField =
+  | 'submissions'
+  | 'removals'
+  | 'challenges'
+  | 'decidedChallenges'
+  | 'successfulChallenges'
+
+const emptyChainStats = (): DashboardUser['chains'][number] => ({
+  activity: 0,
+  submissions: 0,
+  removals: 0,
+  challenges: 0,
+  decidedChallenges: 0,
+  successfulChallenges: 0,
+  lastActiveAt: 0,
+})
+
+/**
+ * Counts one action for a curator. `activity` is requests plus challenges:
+ * a challenge counts once, whether it is later decided or won.
+ */
 const accumulateUser = (
   users: Map<string, DashboardUser>,
   chainId: number,
   address: string | undefined | null,
-  field: 'submissions' | 'removals' | 'challenges' | 'successfulChallenges',
+  field: UserField,
   timestamp: number,
 ) => {
   const normalized = normalizeAddress(address)
@@ -978,27 +999,21 @@ const accumulateUser = (
       submissions: 0,
       removals: 0,
       challenges: 0,
+      decidedChallenges: 0,
       successfulChallenges: 0,
       activity: 0,
       lastActiveAt: 0,
     } satisfies DashboardUser)
 
+  const counts =
+    field === 'submissions' || field === 'removals' || field === 'challenges'
   existing[field] += 1
-  existing.activity += 1
+  if (counts) existing.activity += 1
   existing.lastActiveAt = Math.max(existing.lastActiveAt, timestamp)
 
-  const chainStats =
-    existing.chains[chainId] ??
-    ({
-      activity: 0,
-      submissions: 0,
-      removals: 0,
-      challenges: 0,
-      successfulChallenges: 0,
-      lastActiveAt: 0,
-    } satisfies DashboardUser['chains'][number])
+  const chainStats = existing.chains[chainId] ?? emptyChainStats()
   chainStats[field] += 1
-  chainStats.activity += 1
+  if (counts) chainStats.activity += 1
   chainStats.lastActiveAt = Math.max(chainStats.lastActiveAt, timestamp)
   existing.chains[chainId] = chainStats
 
@@ -1011,18 +1026,22 @@ const accumulateUser = (
   users.set(normalized, existing)
 }
 
-const normalizeEnvio = (
-  payload: any,
-  chainId: number,
-): {
+interface NormalizedChain {
   registries: DashboardRegistry[]
+  /** Latest requests (and Stake submissions), whatever their state. */
   activities: DashboardActivity[]
-  disputes: DashboardActivity[]
+  unchallenged: DashboardActivity[]
+  /** Unresolved requests with no challenge on this chain. */
+  unchallengedCount: number
+  unchallengedCapped: boolean
+  decided: DashboardActivity[]
+  decidedCapped: boolean
   openDisputes: DashboardActivity[]
-  users: Map<string, DashboardUser>
   bountyWei: string
   verifiedRegistryAddresses: string[]
-} => {
+}
+
+const normalizeEnvio = (payload: any, chainId: number): NormalizedChain => {
   const verifiedAddresses = new Set<string>()
   for (const address of getListOfListsAddresses(chainId))
     verifiedAddresses.add(normalizeAddress(address))
@@ -1052,6 +1071,8 @@ const normalizeEnvio = (
       title: registryTitle(address, registry.title, 'light'),
       description: registry.description,
       metadataURI: registry.registrationMetaEvidence?.uri,
+      // Entries settled on or off the list; the ones with an open request
+      // are pendingCount, and entryCount (view.ts) adds the two.
       itemCount:
         toNumber(registry.numberOfRegistered) +
         toNumber(registry.numberOfAbsent),
@@ -1090,82 +1111,42 @@ const normalizeEnvio = (
   }
 
   const registryByAddress = new Map(registries.map((r) => [r.address, r]))
-  const users = new Map<string, DashboardUser>()
-  const activityRequests = [
-    ...(payload.lightRequests ?? []).map(
-      (item: DashboardRequestRow) => [item, 'light'] as const,
-    ),
-    ...(payload.classicRequests ?? []).map(
-      (item: DashboardRequestRow) => [item, 'classic'] as const,
-    ),
-  ]
-
-  for (const [requestEntity] of activityRequests) {
+  for (const requestEntity of [
+    ...(payload.lightRequests ?? []),
+    ...(payload.classicRequests ?? []),
+  ] as DashboardRequestRow[]) {
     const registry = registryByAddress.get(
       normalizeAddress(requestEntity.registry_id),
     )
-    const timestamp = toNumber(requestEntity.submissionTime)
-    if (registry) {
-      registry.activeCount += 1
-      registry.lastActivityAt = Math.max(
-        registry.lastActivityAt || 0,
-        timestamp,
-      )
-      if (requestEntity.disputed) registry.disputeCount += 1
-    }
-
-    const field =
-      requestEntity.requestType === 'ClearingRequested'
-        ? 'removals'
-        : 'submissions'
-    accumulateUser(users, chainId, requestEntity.requester, field, timestamp)
-    if (requestEntity.disputed)
-      accumulateUser(
-        users,
-        chainId,
-        requestEntity.challenger,
-        'challenges',
-        toNumber(requestEntity.challengeTime) || timestamp,
-      )
+    if (!registry) continue
+    registry.activeCount += 1
+    registry.lastActivityAt = Math.max(
+      registry.lastActivityAt || 0,
+      toNumber(requestEntity.submissionTime),
+    )
+    if (requestEntity.disputed) registry.disputeCount += 1
   }
 
   let bountyWei = '0'
   for (const bounty of [
     ...(payload.resolvedLightBounties ?? []),
     ...(payload.resolvedClassicBounties ?? []),
-  ]) {
+  ])
     bountyWei = addBigIntStrings(bountyWei, bounty.deposit)
-    accumulateUser(
-      users,
-      chainId,
-      bounty.challenger,
-      'successfulChallenges',
-      toNumber(bounty.resolutionTime),
-    )
-  }
 
-  const activities = [
-    ...(payload.latestLightItems ?? []).map((item: DashboardItemRow) =>
-      itemToActivity(item, 'light'),
+  const toActivities = (light: string, classic: string) => [
+    ...(payload[light] ?? []).map((row: DashboardRequestRow) =>
+      requestToActivity(row, 'light'),
     ),
-    ...(payload.latestClassicItems ?? []).map((item: DashboardItemRow) =>
-      itemToActivity(item, 'classic'),
-    ),
-  ]
-
-  const disputes = [
-    ...(payload.lightDisputes ?? []).map((item: DashboardRequestRow) =>
-      requestToActivity(item, 'light'),
-    ),
-    ...(payload.classicDisputes ?? []).map((item: DashboardRequestRow) =>
-      requestToActivity(item, 'classic'),
+    ...(payload[classic] ?? []).map((row: DashboardRequestRow) =>
+      requestToActivity(row, 'classic'),
     ),
   ]
 
   const openRequestRows = [
     ...(payload.openLightRequests ?? []),
     ...(payload.openClassicRequests ?? []),
-  ] as { registry_id?: string }[]
+  ] as DashboardRequestRow[]
   const openRequestsByRegistry = new Map<string, number>()
   for (const row of openRequestRows) {
     const address = normalizeAddress(row.registry_id)
@@ -1175,17 +1156,8 @@ const normalizeEnvio = (
     )
   }
   const openRequestsCapped =
-    (payload.openLightRequests ?? []).length >= 1000 ||
-    (payload.openClassicRequests ?? []).length >= 1000
-
-  const openDisputes = [
-    ...(payload.openLightDisputes ?? []).map((item: DashboardRequestRow) =>
-      requestToActivity(item, 'light'),
-    ),
-    ...(payload.openClassicDisputes ?? []).map((item: DashboardRequestRow) =>
-      requestToActivity(item, 'classic'),
-    ),
-  ]
+    (payload.openLightRequests ?? []).length >= OPEN_REQUEST_LIMIT ||
+    (payload.openClassicRequests ?? []).length >= OPEN_REQUEST_LIMIT
 
   // Requests open per list = its unresolved requests right now (the
   // per-list status counters drift on some deployments).
@@ -1196,12 +1168,18 @@ const normalizeEnvio = (
       registry.activeCount = open
     }
 
+  const decided = toActivities('decidedLight', 'decidedClassic')
   return {
     registries,
-    activities,
-    disputes,
-    openDisputes,
-    users,
+    activities: toActivities('latestLight', 'latestClassic'),
+    unchallenged: toActivities('unchallengedLight', 'unchallengedClassic'),
+    unchallengedCount: openRequestRows.filter((row) => !row.disputed).length,
+    unchallengedCapped: openRequestsCapped,
+    decided,
+    decidedCapped:
+      (payload.decidedLight ?? []).length >= DECIDED_LIMIT ||
+      (payload.decidedClassic ?? []).length >= DECIDED_LIMIT,
+    openDisputes: toActivities('openLightDisputes', 'openClassicDisputes'),
     bountyWei,
     verifiedRegistryAddresses: [...verifiedAddresses],
   }
@@ -1212,15 +1190,7 @@ const normalizePermanent = (
   chainId: number,
   since: number,
   verifiedRegistryAddresses: Set<string>,
-): {
-  registries: DashboardRegistry[]
-  activities: DashboardActivity[]
-  disputes: DashboardActivity[]
-  openDisputes: DashboardActivity[]
-  users: Map<string, DashboardUser>
-  bountyWei: string
-  verifiedRegistryAddresses: string[]
-} => {
+): NormalizedChain => {
   const registries: DashboardRegistry[] = (payload.registries ?? []).map(
     (registry: PermanentRegistryRow) => {
       const address = normalizeAddress(registry.id)
@@ -1266,55 +1236,26 @@ const normalizePermanent = (
   )
 
   const registryMap = new Map(registries.map((r) => [r.address, r]))
-  const users = new Map<string, DashboardUser>()
+  const touch = (registryId: string | undefined, timestamp: number) => {
+    const registry = registryMap.get(normalizeAddress(registryId))
+    if (!registry) return undefined
+    registry.lastActivityAt = Math.max(registry.lastActivityAt || 0, timestamp)
+    if (timestamp >= since) registry.activeCount += 1
+    return registry
+  }
 
-  const activities = (payload.submissions ?? []).map(
-    (submission: PermanentSubmissionRow) => {
-      const timestamp = toNumber(submission.createdAt)
-      accumulateUser(
-        users,
-        chainId,
-        submission.submitter,
-        'submissions',
-        timestamp,
-      )
-      const registry = registryMap.get(
-        normalizeAddress(submission.item?.registry?.id),
-      )
-      if (registry)
-        registry.lastActivityAt = Math.max(
-          registry.lastActivityAt || 0,
-          timestamp,
-        )
-      if (registry && timestamp >= since) registry.activeCount += 1
-      return permanentSubmissionToActivity(submission, chainId, registryMap)
-    },
-  )
+  for (const submission of (payload.submissions ??
+    []) as PermanentSubmissionRow[])
+    touch(submission.item?.registry?.id, toNumber(submission.createdAt))
 
-  const disputes = (payload.challenges ?? []).map(
-    (challenge: PermanentChallengeRow) => {
-      const timestamp = toNumber(challenge.createdAt)
-      accumulateUser(
-        users,
-        chainId,
-        challenge.challenger,
-        'challenges',
-        timestamp,
-      )
-      const registry = registryMap.get(
-        normalizeAddress(challenge.item?.registry?.id),
-      )
-      if (registry) {
-        registry.disputeCount += 1
-        registry.lastActivityAt = Math.max(
-          registry.lastActivityAt || 0,
-          timestamp,
-        )
-        if (timestamp >= since) registry.activeCount += 1
-      }
-      return permanentChallengeToActivity(challenge, chainId, registryMap)
-    },
-  )
+  for (const challenge of (payload.challenges ??
+    []) as PermanentChallengeRow[]) {
+    const registry = touch(
+      challenge.item?.registry?.id,
+      toNumber(challenge.createdAt),
+    )
+    if (registry) registry.disputeCount += 1
+  }
 
   const bountyWei = (payload.challenges ?? [])
     .filter(
@@ -1327,17 +1268,22 @@ const normalizePermanent = (
       '0',
     )
 
-  const openDisputes = (payload.openChallenges ?? []).map(
-    (challenge: PermanentChallengeRow) =>
-      permanentChallengeToActivity(challenge, chainId, registryMap),
-  )
+  const toActivity = (challenge: PermanentChallengeRow) =>
+    permanentChallengeToActivity(challenge, chainId, registryMap)
 
   return {
     registries,
-    activities,
-    disputes,
-    openDisputes,
-    users,
+    activities: (payload.submissions ?? [])
+      .slice(0, LATEST_LIMIT)
+      .map((submission: PermanentSubmissionRow) =>
+        permanentSubmissionToActivity(submission, chainId, registryMap),
+      ),
+    unchallenged: [],
+    unchallengedCount: 0,
+    unchallengedCapped: false,
+    decided: (payload.decidedChallenges ?? []).map(toActivity),
+    decidedCapped: (payload.decidedChallenges ?? []).length >= DECIDED_LIMIT,
+    openDisputes: (payload.openChallenges ?? []).map(toActivity),
     bountyWei,
     verifiedRegistryAddresses: [...verifiedRegistryAddresses],
   }
@@ -1350,30 +1296,31 @@ const mergeUsers = (maps: Map<string, DashboardUser>[]): DashboardUser[] => {
     for (const [address, user] of map) {
       const existing = merged.get(address)
       if (!existing) {
-        merged.set(address, { ...user })
+        merged.set(address, {
+          ...user,
+          chains: Object.fromEntries(
+            Object.entries(user.chains).map(([id, stats]) => [
+              id,
+              { ...stats },
+            ]),
+          ),
+        })
         continue
       }
       existing.submissions += user.submissions
       existing.removals += user.removals
       existing.challenges += user.challenges
+      existing.decidedChallenges += user.decidedChallenges
       existing.successfulChallenges += user.successfulChallenges
       existing.activity += user.activity
       existing.lastActiveAt = Math.max(existing.lastActiveAt, user.lastActiveAt)
       for (const [chainIdKey, chainStats] of Object.entries(user.chains)) {
         const chainId = Number(chainIdKey)
-        const existingChain =
-          existing.chains[chainId] ??
-          ({
-            activity: 0,
-            submissions: 0,
-            removals: 0,
-            challenges: 0,
-            successfulChallenges: 0,
-            lastActiveAt: 0,
-          } satisfies DashboardUser['chains'][number])
+        const existingChain = existing.chains[chainId] ?? emptyChainStats()
         existingChain.submissions += chainStats.submissions
         existingChain.removals += chainStats.removals
         existingChain.challenges += chainStats.challenges
+        existingChain.decidedChallenges += chainStats.decidedChallenges
         existingChain.successfulChallenges += chainStats.successfulChallenges
         existingChain.activity += chainStats.activity
         existingChain.lastActiveAt = Math.max(
@@ -1412,26 +1359,32 @@ const normalizeEnvioLeaderboardPage = (
         : 'submissions'
     accumulateUser(users, chainId, requestEntity.requester, field, timestamp)
 
-    if (requestEntity.disputed)
-      accumulateUser(
-        users,
-        chainId,
-        requestEntity.challenger,
-        'challenges',
-        toNumber(requestEntity.challengeTime) || timestamp,
-      )
-
-    if (
-      requestEntity.disputed &&
-      requestEntity.disputeOutcome === 'Reject' &&
-      requestEntity.challenger
+    if (!requestEntity.disputed) continue
+    const challengedAt = toNumber(requestEntity.challengeTime) || timestamp
+    accumulateUser(
+      users,
+      chainId,
+      requestEntity.challenger,
+      'challenges',
+      challengedAt,
     )
+    if (!requestEntity.resolved) continue
+    // Decided: the court ruled (or refused to). Reject is a ruling for the
+    // challenger, whichever request (submission or removal) was challenged.
+    accumulateUser(
+      users,
+      chainId,
+      requestEntity.challenger,
+      'decidedChallenges',
+      challengedAt,
+    )
+    if (requestEntity.disputeOutcome === 'Reject')
       accumulateUser(
         users,
         chainId,
         requestEntity.challenger,
         'successfulChallenges',
-        toNumber(requestEntity.resolutionTime) || timestamp,
+        challengedAt,
       )
   }
 
@@ -1465,6 +1418,14 @@ const normalizePermanentLeaderboardPage = (
       chainId,
       challenge.challenger,
       'challenges',
+      timestamp,
+    )
+    if (!toNumber(challenge.resolutionTime)) continue
+    accumulateUser(
+      users,
+      chainId,
+      challenge.challenger,
+      'decidedChallenges',
       timestamp,
     )
     if (challenge.disputeOutcome === 'Reject')
@@ -1526,20 +1487,19 @@ const permanentPageEvents = (
     .map((at: number) => ({ at, chainId, kind: 'challenges' as const })),
 ]
 
-const DAY = 24 * 60 * 60
-
-/** Buckets events into the last 30 UTC days, oldest first. */
-const buildSeries = (events: ActivityEvent[], now: number): DashboardDay[] => {
-  const today = Math.floor(now / DAY) * DAY
+/** Buckets events into the window's 30 UTC days, oldest first. */
+const buildSeries = (
+  events: ActivityEvent[],
+  since: number,
+): DashboardDay[] => {
   const days: DashboardDay[] = Array.from({ length: 30 }, (_, index) => ({
-    day: today - (29 - index) * DAY,
+    day: since + index * DAY,
     submissions: 0,
     removals: 0,
     challenges: 0,
   }))
-  const first = days[0].day
   for (const event of events) {
-    const index = Math.floor((event.at - first) / DAY)
+    const index = Math.floor((event.at - since) / DAY)
     if (index >= 0 && index < days.length) days[index][event.kind] += 1
   }
   return days
@@ -1606,17 +1566,18 @@ const fetchCuratorLeaderboard = async (
     events: ActivityEvent[]
     full: boolean
   }[]
-  const nowSeconds = Math.floor(Date.now() / 1000)
   const events = valid.flatMap((page) => page.events)
   return {
-    users: mergeUsers(valid.map((page) => page.users)).slice(0, 100),
-    series: buildSeries(events, nowSeconds),
+    // Every curator, not a top slice: the page's totals (curators,
+    // challenges, decided, won) are summed from this list.
+    users: mergeUsers(valid.map((page) => page.users)),
+    series: buildSeries(events, since),
     seriesByChain: Object.fromEntries(
       SUPPORTED_CHAIN_IDS.map((chainId) => [
         chainId,
         buildSeries(
           events.filter((event) => event.chainId === chainId),
-          nowSeconds,
+          since,
         ),
       ]),
     ),
@@ -1666,7 +1627,7 @@ const buildMetrics = (
   verifiedRegistries: registries.filter((r) => r.trustStatus === 'verified')
     .length,
   curatedItems: registries.reduce(
-    (sum, registry) => sum + registry.itemCount,
+    (sum, registry) => sum + entryCount(registry),
     0,
   ),
   activeVerification: registries.reduce(
@@ -1700,8 +1661,40 @@ const safeRequest = async <T>(
   }
 }
 
+/**
+ * The first page of each registry kind comes with the dashboard query; when
+ * it is full, read on until a short page, so no list drops out of the totals.
+ */
+const readRemainingRegistries = async (payload: any, chainId: number) => {
+  const pages: [string, string][] = [
+    ['lregistries', ENVIO_LREGISTRY_PAGE_QUERY],
+    ['registries', ENVIO_REGISTRY_PAGE_QUERY],
+  ]
+  await Promise.all(
+    pages.map(async ([key, query]) => {
+      const rows: unknown[] = payload[key] ?? []
+      let last = rows.length
+      for (
+        let page = 1;
+        last >= REGISTRY_PAGE_SIZE && page < REGISTRY_MAX_PAGES;
+        page += 1
+      ) {
+        const next = await safeRequest<any>(subgraphUrl[chainId], query, {
+          chainId,
+          offset: page * REGISTRY_PAGE_SIZE,
+        })
+        const more: unknown[] = next?.[key] ?? []
+        rows.push(...more)
+        last = next ? more.length : 0
+      }
+      payload[key] = rows
+    }),
+  )
+  return payload
+}
+
 export const fetchDashboardData = async (): Promise<DashboardData> => {
-  const since = Math.floor(Date.now() / 1000) - DAYS_30
+  const since = windowStart(Math.floor(Date.now() / 1000))
   // Creation blocks come from chain logs (cached once read). Use what is
   // cached now and refresh in the background; never block the page on it.
   const cachedCreation = readCachedCreationTimes(SUPPORTED_CHAIN_IDS)
@@ -1717,7 +1710,12 @@ export const fetchDashboardData = async (): Promise<DashboardData> => {
           verifiedSources: getListOfListsAddresses(chainId),
         },
       )
-      return payload ? normalizeEnvio(payload, chainId) : null
+      return payload
+        ? normalizeEnvio(
+            await readRemainingRegistries(payload, chainId),
+            chainId,
+          )
+        : null
     }),
   )
 
@@ -1726,6 +1724,7 @@ export const fetchDashboardData = async (): Promise<DashboardData> => {
       const payload = await safeRequest<any>(
         subgraphUrlPermanent[chainId],
         PERMANENT_DASHBOARD_QUERY,
+        { since: String(since) },
       )
       const verifiedRegistryAddresses = new Set(
         envioResults[index]?.verifiedRegistryAddresses ??
@@ -1739,7 +1738,7 @@ export const fetchDashboardData = async (): Promise<DashboardData> => {
 
   const allResults = [...envioResults, ...permanentResults].filter(
     Boolean,
-  ) as ReturnType<typeof normalizeEnvio>[]
+  ) as NormalizedChain[]
 
   const registries = applyCreationTimes(
     await enrichRegistryMetadata(
@@ -1755,16 +1754,14 @@ export const fetchDashboardData = async (): Promise<DashboardData> => {
       (b.lastActivityAt || 0) - (a.lastActivityAt || 0),
   )
 
-  const activities = allResults
-    .flatMap((result) => result.activities)
-    .filter((activity) => activity.timestamp > 0)
-    .sort((a, b) => b.timestamp - a.timestamp)
-    .slice(0, 80)
+  const newestFirst = (rows: DashboardActivity[]) =>
+    rows
+      .filter((activity) => activity.timestamp > 0)
+      .sort((a, b) => b.timestamp - a.timestamp)
 
-  const openDisputes = allResults
-    .flatMap((result) => result.openDisputes ?? [])
-    .filter((activity) => activity.timestamp > 0)
-    .sort((a, b) => b.timestamp - a.timestamp)
+  const openDisputes = newestFirst(
+    allResults.flatMap((result) => result.openDisputes),
+  )
   // "In court" per list = its disputes that are open right now (the per-list
   // counters drift on some deployments and were double counted before).
   const openByRegistry = new Map<string, number>()
@@ -1776,35 +1773,41 @@ export const fetchDashboardData = async (): Promise<DashboardData> => {
     registry.disputeCount =
       openByRegistry.get(`${registry.chainId}:${registry.address}`) ?? 0
 
-  const disputes = allResults
-    .flatMap((result) => result.disputes)
-    .filter((activity) => activity.timestamp > 0)
-    .sort((a, b) => b.timestamp - a.timestamp)
-    .slice(0, 40)
-
-  const { users, series, seriesByChain, seriesTruncated } =
-    await fetchCuratorLeaderboard(since)
-
+  const unchallengedCount: DashboardData['unchallengedCount'] = {}
+  const decidedCapped: DashboardData['decidedCapped'] = {}
   const bountyByChain: Record<number, string> = {}
-  let resultIndex = 0
-  for (const chainId of SUPPORTED_CHAIN_IDS) {
-    const envio = envioResults[resultIndex]
-    const permanent = permanentResults[resultIndex]
+  SUPPORTED_CHAIN_IDS.forEach((chainId, index) => {
+    const envio = envioResults[index]
+    const permanent = permanentResults[index]
+    unchallengedCount[chainId] = {
+      count: envio?.unchallengedCount ?? 0,
+      capped: !!envio?.unchallengedCapped,
+    }
+    decidedCapped[chainId] =
+      !!envio?.decidedCapped || !!permanent?.decidedCapped
     bountyByChain[chainId] = addBigIntStrings(
       envio?.bountyWei ?? '0',
       permanent?.bountyWei ?? '0',
     )
-    resultIndex += 1
-  }
+  })
+
+  const { users, series, seriesByChain, seriesTruncated } =
+    await fetchCuratorLeaderboard(since)
 
   return {
     generatedAt: Date.now(),
+    since,
     series,
     seriesByChain,
     seriesTruncated,
     registries,
-    activities,
-    disputes,
+    activities: newestFirst(allResults.flatMap((result) => result.activities)),
+    unchallenged: newestFirst(
+      allResults.flatMap((result) => result.unchallenged),
+    ),
+    unchallengedCount,
+    decided: newestFirst(allResults.flatMap((result) => result.decided)),
+    decidedCapped,
     openDisputes,
     users,
     metrics: buildMetrics(registries, users, bountyByChain),

@@ -6,6 +6,8 @@ import styled, { keyframes } from 'styled-components'
  * with a live head at the newest day) and one mirrored below it (challenges,
  * as bars), each half on its own labelled scale so the smaller series stays
  * readable. A scanner reveal sweeps left to right on load; hover scrubs days.
+ * When the newest day is still running (`partialLast`), its stretch of the
+ * line is dashed and the tooltip says "so far", so it never reads as a drop.
  */
 
 const scan = keyframes`
@@ -90,18 +92,40 @@ const Tip = styled.div`
   }
 `
 
+/* Each date sits under its own day. */
 const Axis = styled.div`
-  display: flex;
-  justify-content: space-between;
+  position: relative;
+  height: 16px;
   margin-top: 8px;
   color: var(--color-faint);
   font-size: 11px;
+  line-height: 16px;
+
+  span {
+    position: absolute;
+    top: 0;
+    white-space: nowrap;
+    transform: translateX(-50%);
+  }
+
+  span:first-child {
+    transform: none;
+  }
+
+  span:last-child {
+    transform: translateX(-100%);
+  }
 `
 
-/** Monotone cubic (Fritsch–Carlson): never overshoots the data. */
-const smoothPath = (pts: [number, number][]) => {
+/**
+ * Monotone cubic (Fritsch–Carlson): never overshoots the data. Returns the
+ * start point and one cubic segment per gap, so a stretch can be drawn apart.
+ */
+const smoothSegments = (
+  pts: [number, number][],
+): { start: string; segments: string[] } => {
   const n = pts.length
-  if (n < 2) return ''
+  if (n < 2) return { start: '', segments: [] }
   const xs = pts.map((p) => p[0])
   const ys = pts.map((p) => p[1])
   const dx = Array.from({ length: n - 1 }, (_, i) => xs[i + 1] - xs[i])
@@ -126,12 +150,14 @@ const smoothPath = (pts: [number, number][]) => {
       m[i + 1] = ((3 * b) / h) * slope[i]
     }
   }
-  let d = `M ${xs[0]} ${ys[0]}`
+  const segments: string[] = []
   for (let i = 0; i < n - 1; i++) {
     const h = dx[i]
-    d += ` C ${xs[i] + h / 3} ${ys[i] + (m[i] * h) / 3} ${xs[i + 1] - h / 3} ${ys[i + 1] - (m[i + 1] * h) / 3} ${xs[i + 1]} ${ys[i + 1]}`
+    segments.push(
+      `C ${xs[i] + h / 3} ${ys[i] + (m[i] * h) / 3} ${xs[i + 1] - h / 3} ${ys[i + 1] - (m[i + 1] * h) / 3} ${xs[i + 1]} ${ys[i + 1]}`,
+    )
   }
-  return d
+  return { start: `M ${xs[0]} ${ys[0]}`, segments }
 }
 
 const nice = (max: number) => {
@@ -150,6 +176,7 @@ export const ActivityWave = ({
   downColor = 'var(--status-contested)',
   height = 260,
   ariaLabel,
+  partialLast = false,
 }: {
   up: number[]
   down: number[]
@@ -160,6 +187,8 @@ export const ActivityWave = ({
   downColor?: string
   height?: number
   ariaLabel: string
+  /** The newest point is a day still in progress. */
+  partialLast?: boolean
 }) => {
   const id = useId().replace(/:/g, '')
   const ref = useRef<HTMLDivElement>(null)
@@ -184,8 +213,16 @@ export const ActivityWave = ({
   // the lower half keeps an 18px gutter at the bottom for its scale label
   const yDown = (v: number) => mid + (v / downMax) * (height - mid - 24)
   const pts = up.map((v, i) => [x(i), yUp(v)] as [number, number])
-  const line = smoothPath(pts)
+  const { start, segments } = smoothSegments(pts)
+  const line = [start, ...segments].join(' ')
   const area = `${line} L ${width} ${mid} L 0 ${mid} Z`
+  const dashLast = partialLast && segments.length > 1
+  const settled = dashLast ? [start, ...segments.slice(0, -1)].join(' ') : line
+  const before = pts[pts.length - 2]
+  const running =
+    dashLast && before
+      ? `M ${before[0]} ${before[1]} ${segments[segments.length - 1]}`
+      : ''
   const barW = Math.max(3, Math.min(10, (width / Math.max(1, count)) * 0.42))
   const head = pts[pts.length - 1]
 
@@ -196,7 +233,21 @@ export const ActivityWave = ({
     setHover(Math.max(0, Math.min(count - 1, Math.round(ratio * (count - 1)))))
   }
 
-  const step = Math.max(1, Math.round(count / 6))
+  // Ticks every `step` days and on the last day, at least ~72px apart so
+  // dates never run into each other on a phone; a tick that would crowd
+  // the last one is dropped.
+  const perDay = count > 1 ? width / (count - 1) : width
+  const step = Math.max(
+    1,
+    Math.round(count / 6),
+    Math.ceil(72 / Math.max(1, perDay)),
+  )
+  const ticks = labels
+    .map((label, i) => ({ label, i }))
+    .filter(
+      ({ i }) =>
+        i === count - 1 || (i % step === 0 && (count - 1 - i) * perDay >= 64),
+    )
 
   return (
     <Wrap
@@ -264,13 +315,24 @@ export const ActivityWave = ({
         <g className="reveal">
           <path d={area} fill={`url(#up-${id})`} />
           <path
-            d={line}
+            d={settled}
             fill="none"
             stroke={`url(#fade-${id})`}
             strokeWidth="2.4"
             strokeLinecap="round"
             filter={`url(#glow-${id})`}
           />
+          {running && (
+            <path
+              d={running}
+              fill="none"
+              stroke={upColor}
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeDasharray="3 5"
+              opacity="0.8"
+            />
+          )}
           {down.map((v, i) =>
             v > 0 ? (
               <rect
@@ -348,7 +410,10 @@ export const ActivityWave = ({
             left: `${Math.min(88, Math.max(12, (hover / Math.max(1, count - 1)) * 100))}%`,
           }}
         >
-          <b>{labels[hover]}</b>
+          <b>
+            {labels[hover]}
+            {partialLast && hover === count - 1 ? ' · today so far' : ''}
+          </b>
           <div>
             <span>
               <i style={{ background: upColor }} />
@@ -366,11 +431,14 @@ export const ActivityWave = ({
         </Tip>
       )}
       <Axis aria-hidden>
-        {labels
-          .filter((_, i) => i % step === 0 || i === count - 1)
-          .map((label, i) => (
-            <span key={`${label}-${i}`}>{label}</span>
-          ))}
+        {ticks.map(({ label, i }) => (
+          <span
+            key={`${label}-${i}`}
+            style={{ left: `${(x(i) / width) * 100}%` }}
+          >
+            {label}
+          </span>
+        ))}
       </Axis>
     </Wrap>
   )

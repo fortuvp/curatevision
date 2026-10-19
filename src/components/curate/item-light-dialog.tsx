@@ -1,15 +1,19 @@
 import React, { useEffect, useId, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import styled, { keyframes } from 'styled-components'
+import { appKitModal } from 'config/wagmi'
 import { IconButton, Label } from './primitives'
 import { CurateIcon } from './icons'
+import { trapTab } from './item-light-focus-trap'
 
 /*
  * Dialog for the item pages and their flows: a near-opaque panel over a
  * blurred page (the only blur is the backdrop's), with the aurora glowing
  * along its top edge. It rises and scales in from 96% (opacity and
  * transform only), Escape and the scrim close it, the page behind stops
- * scrolling, and focus moves into the dialog and back.
+ * scrolling, Tab stays inside it, and focus moves into the dialog and back.
+ * While the wallet modal is open on top, Escape belongs to it alone, so a
+ * typed justification is never thrown away with it.
  */
 
 const fadeIn = keyframes`
@@ -201,7 +205,7 @@ export const Dialog = ({
     const previous = document.activeElement as HTMLElement | null
     const { overflow } = document.body.style
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onCloseRef.current()
+      if (event.key === 'Escape' && !appKitModal?.isOpen()) onCloseRef.current()
     }
     document.body.style.overflow = 'hidden'
     document.addEventListener('keydown', onKeyDown)
@@ -228,6 +232,7 @@ export const Dialog = ({
         aria-modal="true"
         aria-labelledby={title ? titleId : undefined}
         tabIndex={-1}
+        onKeyDown={trapTab}
       >
         <Head>
           <Titles>

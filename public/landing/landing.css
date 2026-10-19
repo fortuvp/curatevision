@@ -179,6 +179,8 @@
 html {
   background: var(--stage);
   scroll-behavior: smooth;
+  /* Anchor jumps and focus scrolling stop below the floating bar. */
+  scroll-padding-top: 88px;
   -webkit-text-size-adjust: 100%;
 }
 
@@ -731,6 +733,15 @@ main,
   width: min(280px, 100%);
 }
 
+/* No series: the gauge column goes and the copy takes the hero. */
+.hero-viz[hidden] {
+  display: none;
+}
+
+.hero--solo {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .label {
   display: inline-block;
   margin: 0;
@@ -920,6 +931,10 @@ main,
   font-size: 13px;
 }
 
+.featured-live--foot {
+  display: none;
+}
+
 .featured-top {
   display: flex;
   align-items: flex-end;
@@ -1061,6 +1076,8 @@ main,
   position: relative;
   outline-offset: 6px;
   border-radius: var(--radius);
+  /* A horizontal drag reads the days; a vertical swipe still scrolls. */
+  touch-action: pan-y;
 }
 
 .chart svg {
@@ -1071,8 +1088,9 @@ main,
 
 .chart .axis {
   fill: var(--color-faint);
-  font-family: var(--font-mono);
-  font-size: 10px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 
 .chart .axis-x {
@@ -1094,13 +1112,11 @@ main,
 }
 
 .chart .guide-label {
-  fill: var(--color-faint);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  paint-order: stroke;
-  stroke: var(--color-surface);
-  stroke-width: 3px;
-  stroke-linejoin: round;
+  /* Muted, not faint: the newest day's glow can sit behind it. */
+  fill: var(--color-muted);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 
 .chart .axis--challenges {
@@ -1311,8 +1327,9 @@ main,
 
 .gauge .end {
   fill: var(--color-faint);
-  font-family: var(--font-mono);
-  font-size: 10px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 
 .gauge-center {
@@ -1346,7 +1363,8 @@ main,
 
 .gauge-caption {
   max-width: 62%;
-  color: var(--color-faint);
+  /* Muted, not faint: it sits on the ring's brightest glow. */
+  color: var(--color-muted);
   font-size: 12px;
   line-height: 15px;
 }
@@ -1357,6 +1375,10 @@ main,
   font-size: 13px;
   line-height: 18px;
   text-align: center;
+}
+
+.gauge-note span {
+  display: block;
 }
 
 .gauge-note b {
@@ -1402,7 +1424,7 @@ main,
   line-height: 22px;
 }
 
-/* ---------- Roles: one panel, hairline rows, a drawing per role ---------- */
+/* ---------- Roles: one panel, hairline rows, each row one link ---------- */
 
 .role-list {
   display: flex;
@@ -1424,7 +1446,9 @@ main,
   min-height: 88px;
   padding: 14px 14px 14px 22px;
   border-radius: 14px;
-  transition: background 200ms var(--ease-out);
+  transition:
+    background 200ms var(--ease-out),
+    transform var(--motion);
 }
 
 .role + .role::after {
@@ -1495,7 +1519,8 @@ main,
 
 .role-viz figcaption {
   color: var(--color-faint);
-  font-size: 12px;
+  /* 13px: faint text sits on the row's raised fill while it is hovered. */
+  font-size: 13px;
   line-height: 16px;
 }
 
@@ -1535,68 +1560,70 @@ main,
 
 .role .btn {
   grid-area: action;
+  /* The row is the hit area (its ::after), so the button is not the
+     containing block and does not shrink it on press. */
+  position: static;
 }
 
-/* Bar sparkline: one bar per day, the newest the brightest. */
-.spark {
-  display: flex;
-  align-items: flex-end;
-  gap: 2px;
-  height: 32px;
+.role .btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
 }
 
-.spark-bar {
-  flex: 0 0 4px;
-  height: max(2px, calc(var(--v, 0) * 100%));
-  border-radius: 1.5px;
-  background: color-mix(in srgb, var(--color-primary) 38%, transparent);
-  transform-origin: bottom;
-  transform: scaleY(0);
-}
-
-.spark-bar[data-zero] {
-  height: 2px;
-  opacity: 0.35;
-}
-
-.spark-bar[data-last] {
-  background: var(--color-primary);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--color-primary) 80%, transparent);
-}
-
-.spark[data-drawn] .spark-bar {
+.role .btn:active {
   transform: none;
-  transition: transform 520ms var(--ease-out);
-  transition-delay: calc(var(--i) * 16ms);
 }
 
-/* Challenges: stacked blocks, one per challenge, so they can be counted. */
-.spark--blocks .spark-bar {
-  background: color-mix(in srgb, var(--status-contested) 30%, transparent);
+.role:active {
+  transform: scale(0.995);
 }
 
-.spark--blocks .spark-bar[data-last] {
-  background: color-mix(in srgb, var(--status-contested) 30%, transparent);
-  box-shadow: none;
+@media (hover: hover) and (pointer: fine) {
+  .role:hover .btn--quiet {
+    border-color: var(--color-border-strong);
+  }
 }
 
-.spark--blocks[data-stacked] .spark-bar:not([data-zero]) {
-  display: flex;
-  flex-direction: column-reverse;
-  gap: 2px;
-  height: auto;
-  background: none;
-}
+/* Wide screens: the rows share one set of columns (subgrid), so the
+   drawings, the figures and the buttons line up from row to row. */
+@media (min-width: 901px) {
+  .role-list {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
+    column-gap: 32px;
+  }
 
-.spark--blocks .spark-bar i {
-  display: block;
-  height: 6px;
-  border-radius: 1px;
-  background: var(--status-contested);
-}
+  .role {
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    grid-template-areas: none;
+  }
 
-.spark--blocks:not([data-stacked]) .spark-bar:not([data-zero]) {
-  background: var(--status-contested);
+  .role-title {
+    grid-area: 1 / 1 / 2 / 3;
+  }
+
+  .role--viz .role-title {
+    grid-area: 1 / 1 / 2 / 2;
+  }
+
+  .role-viz {
+    grid-area: 1 / 2 / 2 / 3;
+  }
+
+  .role-figure {
+    grid-area: 1 / 3 / 2 / 4;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+  }
+
+  .role .btn {
+    grid-area: 1 / 4 / 2 / 5;
+    justify-self: end;
+  }
 }
 
 /* Mini ring: the verified share, same 270° geometry as the big gauge. */
@@ -1978,6 +2005,13 @@ main,
 }
 
 @media (max-width: 900px) {
+  /* As the app: the frame goes edge to edge with a 16px gutter. */
+  :root {
+    --frame-gap: 0px;
+    --frame-radius: 0px;
+    --frame-pad: 16px;
+  }
+
   .nav {
     display: none;
   }
@@ -2031,10 +2065,8 @@ main,
 }
 
 @media (max-width: 640px) {
-  :root {
-    --frame-gap: 8px;
-    --frame-radius: 20px;
-    --frame-pad: 16px;
+  html {
+    scroll-padding-top: 76px;
   }
 
   .bar {
@@ -2090,10 +2122,36 @@ main,
     padding-top: 18px;
   }
 
-  .featured-scope {
-    flex-direction: column;
-    align-items: flex-start;
+  /* One line of scope (window + chip), one short stamp; the app link
+     moves under the chart's x-axis. */
+  .featured-bar {
     gap: 8px;
+    padding-bottom: 14px;
+  }
+
+  .featured-scope {
+    flex-wrap: wrap;
+    gap: 6px 10px;
+  }
+
+  .featured:not([data-empty-state]) .featured-brand {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .featured-meta .featured-live {
+    display: none;
+  }
+
+  .featured-live--foot {
+    display: flex;
+    width: fit-content;
+    margin: 2px 0 0 auto;
+    font-size: 13px;
   }
 
   .stats {
@@ -2191,7 +2249,6 @@ main,
   .theme-pill,
   .flow-wires .wire,
   .chart .bar rect,
-  .spark-bar,
   .window-rail span,
   .role,
   .btn {

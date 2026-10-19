@@ -514,13 +514,14 @@ const ItemStatusCard = ({
       >
         {inCourt ? (
           <Head>
-            <EntryStatus status={view} now={now} />
+            {/* The status is the hero's (and the bar's on phones); the card
+                only asks for the action. */}
             <Prompt>
               {statusCode === STATUS_CODE.CHALLENGED
-                ? 'Jurors read the evidence before they vote. If you know something they should, add it now.'
+                ? 'Know something the jurors should? Add it before they vote.'
                 : statusCode === STATUS_CODE.WAITING_ARBITRATOR
-                  ? `The appeal period ended ${formatAbsolute(appealEnd)}. The final ruling waits to be given and enforced.`
-                  : `The ${loserName} did not fund the appeal in time. The ruling is final and waits to be enforced.`}
+                  ? 'Enforced once the court gives the final ruling.'
+                  : 'Waiting to be enforced.'}
             </Prompt>
             {statusCode === STATUS_CODE.CHALLENGED && (
               <Stack $gap={8}>
@@ -639,7 +640,17 @@ const ItemStatusCard = ({
       </Card>
 
       <StickyActionBar
-        status={<EntryStatus status={view} now={now} />}
+        status={
+          <EntryStatus
+            status={
+              // The hero's ring draws this window; the bar keeps the words.
+              inWindow || isPending || appealable
+                ? { ...view, windowStart: undefined }
+                : view
+            }
+            now={now}
+          />
+        }
         action={barAction}
       />
 

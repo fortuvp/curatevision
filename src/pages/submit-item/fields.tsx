@@ -7,12 +7,17 @@ import { addPeriod } from 'utils/string'
 import { parseRichAddress, references } from 'utils/rich-address'
 import { Button } from 'components/curate/primitives'
 import { formatFileSize } from './amounts'
-import { isEmptyField, isRequired, type FieldValue } from './form'
+import {
+  isEmptyField,
+  isRequired,
+  withWebScheme,
+  type FieldValue,
+} from './form'
 
 /*
- * One field per registry column. A state mark in the left gutter (empty; a
- * neutral dot once filled; a check only once a validated column passed its
- * check on blur; needs a fix), the label with "Optional" on the columns that are,
+ * One field per registry column. A state mark in the left gutter (a faint
+ * dot while empty; a darker dot once filled; a check only once a validated
+ * column passed its check on blur; needs a fix), the label with "Optional" on the columns that are,
  * the control, the column's description as a quiet hint under it, and the
  * validation message inline. Values keep the shape the encoders expect
  * (strings; a File while an upload is stashed, resolved at submit time).
@@ -36,6 +41,7 @@ const VALIDATED_TYPES = new Set<string>([
   ItemTypes.ADDRESS,
   ItemTypes.GTCR_ADDRESS,
   ItemTypes.RICH_ADDRESS,
+  ItemTypes.LINK,
   ItemTypes.IMAGE,
   ItemTypes.FILE,
 ])
@@ -46,10 +52,12 @@ const Shell = styled.div`
   gap: 0 16px;
   min-width: 0;
 
-  /* The field being edited lights its mark. */
-  &:focus-within > span[data-state='empty'],
-  &:focus-within > span[data-state='filled'] {
-    border-color: var(--color-primary);
+  /* The field being edited lights its dot, with a halo like a status dot. */
+  &:focus-within > span[data-state='empty']::after,
+  &:focus-within > span[data-state='filled']::after {
+    width: 8px;
+    height: 8px;
+    background: var(--color-primary);
     box-shadow: 0 0 0 4px var(--color-primary-soft);
   }
 
@@ -72,7 +80,7 @@ const Mark = styled.span<{ $state: FieldState }>`
   width: 22px;
   height: 22px;
   margin-top: 1px;
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid transparent;
   border-radius: var(--radius-pill);
   color: transparent;
   transition:
@@ -81,23 +89,32 @@ const Mark = styled.span<{ $state: FieldState }>`
     box-shadow var(--motion),
     color var(--motion);
 
-  /* Filled, not (yet) validated: a neutral dot, not a check. */
+  /*
+   * Empty: a small faint dot, a bullet rather than an unanswered radio.
+   * Filled, not (yet) validated: the dot grows and darkens, not a check.
+   */
   ${({ $state }) =>
-    $state === 'filled' &&
+    ($state === 'empty' || $state === 'filled') &&
     css`
       &::after {
         content: '';
-        width: 8px;
-        height: 8px;
+        width: ${$state === 'filled' ? 8 : 6}px;
+        height: ${$state === 'filled' ? 8 : 6}px;
         border-radius: var(--radius-pill);
-        background: var(--color-muted);
+        background: ${$state === 'filled'
+          ? 'var(--color-muted)'
+          : 'var(--color-border-strong)'};
+        transition:
+          width var(--motion),
+          height var(--motion),
+          background var(--motion),
+          box-shadow var(--motion);
       }
     `}
 
   ${({ $state }) =>
     $state === 'valid' &&
     css`
-      border-color: transparent;
       background: var(--color-primary-fill);
       box-shadow: 0 0 12px
         color-mix(in srgb, var(--color-primary) 45%, transparent);
@@ -116,7 +133,7 @@ const Mark = styled.span<{ $state: FieldState }>`
   @media (max-width: 520px) {
     width: 18px;
     height: 18px;
-    margin-top: 1px;
+    margin-top: 3px;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -223,28 +240,41 @@ const controlStyles = css`
     color: var(--color-faint);
   }
 
-  &:hover:not(:disabled) {
-    border-color: var(--color-border-strong);
-  }
-
   &:focus {
     outline: none;
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 4px var(--color-primary-soft);
-  }
-
-  &[aria-invalid='true'] {
-    border-color: var(--color-danger);
-  }
-
-  &[aria-invalid='true']:focus {
-    box-shadow: 0 0 0 4px var(--color-danger-soft);
   }
 
   &:disabled {
     color: var(--color-muted);
     cursor: not-allowed;
     opacity: 0.7;
+  }
+
+  /*
+   * The global form reset paints text inputs and textareas with !important.
+   * The doubled class outranks it, so every control here keeps one fill,
+   * the focus ring and the invalid border.
+   */
+  && {
+    border-color: var(--glass-border) !important;
+    background: var(--color-raised) !important;
+  }
+
+  &&:hover:not(:disabled):not(:focus):not([aria-invalid='true']) {
+    border-color: var(--color-border-strong) !important;
+  }
+
+  &&:focus {
+    border-color: var(--color-primary) !important;
+    box-shadow: 0 0 0 4px var(--color-primary-soft) !important;
+  }
+
+  &&[aria-invalid='true'] {
+    border-color: var(--color-danger) !important;
+  }
+
+  &&[aria-invalid='true']:focus {
+    box-shadow: 0 0 0 4px var(--color-danger-soft) !important;
   }
 `
 
@@ -296,22 +326,52 @@ const Joined = styled.div<{ $invalid?: boolean }>`
         $invalid ? 'var(--color-danger-soft)' : 'var(--color-primary-soft)'};
   }
 
-  input {
-    height: 100%;
-    border: 0;
-    border-radius: 0 var(--radius) var(--radius) 0;
-    background: transparent;
+  @media (max-width: 520px) {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+`
+
+/**
+ * The address half of Joined: no fill, border or ring of its own (the
+ * wrapper draws them), with the doubled class outranking the global reset.
+ */
+const JoinedInput = styled.input`
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0 16px;
+  border: 0;
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-variant-numeric: tabular-nums;
+
+  &::placeholder {
+    color: var(--color-faint);
+  }
+
+  &:disabled {
+    color: var(--color-muted);
+    cursor: not-allowed;
+    opacity: 0.7;
+  }
+
+  && {
+    outline: none;
+    border-radius: 0 var(--radius) var(--radius) 0 !important;
+    background: transparent !important;
     box-shadow: none !important;
   }
 
   @media (max-width: 520px) {
-    grid-template-columns: 1fr;
-    height: auto;
+    height: 46px;
 
-    input {
-      height: 46px;
-      border-top: 1px solid var(--glass-border);
-      border-radius: 0 0 var(--radius) var(--radius);
+    &&,
+    &&:hover {
+      border-top: 1px solid var(--glass-border) !important;
+      border-radius: 0 0 var(--radius) var(--radius) !important;
     }
   }
 `
@@ -848,7 +908,7 @@ export const ColumnField = ({
           </Select>
           <Caret />
         </SelectWrap>
-        <MonoInput
+        <JoinedInput
           {...shared}
           type="text"
           value={address}
@@ -878,14 +938,21 @@ export const ColumnField = ({
   else {
     const numeric =
       type === ItemTypes.NUMBER || type === ItemTypes.TWITTER_USER_ID
+    const isLink = type === ItemTypes.LINK
     control = (
       <Input
         {...shared}
-        type={type === ItemTypes.LINK ? 'url' : 'text'}
+        type={isLink ? 'url' : 'text'}
         inputMode={numeric ? 'decimal' : undefined}
-        placeholder={type === ItemTypes.LINK ? 'https://' : undefined}
+        placeholder={isLink ? 'https://' : undefined}
         value={text}
         onChange={(event) => onChange(event.target.value)}
+        onBlur={() => {
+          // "example.org" becomes "https://example.org", then validates.
+          const next = isLink ? withWebScheme(text) : text
+          if (next !== text) onCommit(next)
+          else onBlur()
+        }}
       />
     )
   }

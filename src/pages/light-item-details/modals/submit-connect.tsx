@@ -31,7 +31,7 @@ import {
   type ReceiptLine,
 } from 'components/curate/what-happens-next'
 import { Dialog } from 'components/curate/item-light-dialog'
-import { useActionGate } from 'components/curate/item-light-gate'
+import { gatedConfirm, useActionGate } from 'components/curate/item-light-gate'
 import { FieldLabel, Notice } from 'components/curate/item-light-notice'
 import { formatAmount } from 'components/curate/item-light-format'
 import { SubmissionFlowScaffold, SubmissionNavigation } from './submit'
@@ -313,6 +313,7 @@ const SubmitConnectModal = (props: SubmitConnectModalProps) => {
 
   const gate = useActionGate({
     verb: 'enable the badge',
+    shortVerb: 'enable the badge',
     amount: relTCRSubmissionDeposit,
     pending: relTCRSubmissionDeposit ? undefined : 'Loading the deposit',
   })
@@ -409,18 +410,22 @@ const SubmitConnectModal = (props: SubmitConnectModalProps) => {
               receipt={receipt}
               total={total}
               steps={steps}
-              confirmLabel="Enable badge"
-              onConfirm={handleSubmit}
-              confirmDisabled={!!confirmBlocker || isSubmitting}
-              confirmBlocker={confirmBlocker}
-              loading={isSubmitting}
+              {...gatedConfirm(gate, {
+                label: 'Enable badge',
+                onConfirm: handleSubmit,
+                disabled: !!confirmBlocker || isSubmitting,
+                blocker: confirmBlocker,
+                loading: isSubmitting,
+              })}
               policy={`This is a deposit, not a fee. Amounts are in ${nativeCurrency}.`}
             />
             <SubmissionNavigation>
               <Button type="button" $variant="secondary" onClick={onCancel}>
                 Back
               </Button>
-              {gate.controls && <Row $gap={8}>{gate.controls}</Row>}
+              {!gate.fix && gate.controls && (
+                <Row $gap={8}>{gate.controls}</Row>
+              )}
             </SubmissionNavigation>
           </Stack>
         }

@@ -53,6 +53,17 @@ export const validSort = (value: string | null): RegistrySort =>
 export const validChain = (value: string | null): ChainFilter =>
   value && SUPPORTED_CHAIN_IDS.includes(Number(value)) ? Number(value) : 'all'
 
+/**
+ * Every entry a list holds, the figure its registry page shows. Light
+ * lists count settled entries in `itemCount` and the ones with an open
+ * request in `pendingCount`; Classic (`numberOfItems`) and Stake (submitted,
+ * absent and disputed) already count every entry in `itemCount`.
+ */
+export const entryCount = (registry: DashboardRegistry): number =>
+  registry.kind === 'light'
+    ? registry.itemCount + registry.pendingCount
+    : registry.itemCount
+
 const signalScore = (registry: DashboardRegistry): number => {
   const trust = registry.trustStatus === 'verified' ? 100000 : 0
   const kind =
@@ -69,7 +80,7 @@ const signalScore = (registry: DashboardRegistry): number => {
     kind +
     Math.min(registry.activeCount, 300) * 150 +
     Math.min(registry.pendingCount, 200) * 80 +
-    Math.min(registry.itemCount, 12000) +
+    Math.min(entryCount(registry), 12000) +
     recent
   )
 }
@@ -84,7 +95,7 @@ export const sortRegistries = (
 ): DashboardRegistry[] =>
   [...registries].sort((a, b) => {
     if (sort === 'items')
-      return b.itemCount - a.itemCount || signalScore(b) - signalScore(a)
+      return entryCount(b) - entryCount(a) || signalScore(b) - signalScore(a)
     if (sort === 'recent')
       return (
         (b.lastActivityAt || 0) - (a.lastActivityAt || 0) ||
@@ -136,6 +147,7 @@ const toCard = (
   activity: DashboardActivity,
   now: number,
   verb: string,
+  detail: string = activity.status,
 ): BoardCard => ({
   id: activity.id,
   href: activity.href,
@@ -144,7 +156,7 @@ const toCard = (
   chainId: activity.chainId,
   actor: activity.actor,
   when: `${verb} ${formatAgo(activity.timestamp, now)}`,
-  detail: activity.status,
+  detail,
   tone:
     activity.kind === 'resolution'
       ? activity.outcome === 'registered' || activity.outcome === 'kept'
@@ -158,57 +170,53 @@ const toCard = (
 })
 
 /**
- * The three attention columns. The dashboard query does not return each
- * registry's challengePeriodDuration, so "window open" cards show when the
- * request was made; the exact countdown lives on the registry and item pages.
+ * The three attention columns, all in the page's chain scope:
+ *  - unchallenged: unresolved requests nobody has challenged. The indexer
+ *    has no challenge period, so a card never claims its window is still
+ *    open (the item page has the countdown); some may be waiting to be
+ *    executed.
+ *  - in court: every dispute open right now.
+ *  - decided: every ruling in the 30-day window.
  */
 export const buildBoard = (
-  activities: DashboardActivity[],
-  disputes: DashboardActivity[],
+  unchallenged: DashboardActivity[],
+  decided: DashboardActivity[],
   openDisputes: DashboardActivity[],
   now: number,
   chains: number[],
 ) => {
   const inScope = (activity: DashboardActivity) =>
     chains.includes(activity.chainId)
-  const seen = new Set<string>()
-  const unique = (activity: DashboardActivity) => {
-    const key = activity.href
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
+  const unique = () => {
+    const seen = new Set<string>()
+    return (activity: DashboardActivity) => {
+      if (seen.has(activity.id)) return false
+      seen.add(activity.id)
+      return true
+    }
   }
-  const windowOpen = activities
+  const open = unchallenged
     .filter(inScope)
-    .filter(
-      (activity) =>
-        (activity.kind === 'submission' || activity.kind === 'removal') &&
-        activity.itemID,
-    )
-    .filter(unique)
+    .filter(unique())
     .map((activity) =>
       toCard(
-        {
-          ...activity,
-          status:
-            activity.kind === 'removal'
-              ? 'removal · window open'
-              : 'window open',
-        },
+        activity,
         now,
         activity.kind === 'removal' ? 'removal asked' : 'submitted',
+        '',
       ),
     )
-  // Every dispute that is open right now, not only the latest ones.
   const inCourt = openDisputes
     .filter(inScope)
-    .filter(unique)
-    .map((activity) => toCard(activity, now, 'challenged'))
-  const decided = disputes
+    .filter(unique())
+    .map((activity) => ({
+      ...toCard(activity, now, 'challenged', 'Dispute'),
+      detailId: activity.disputeID ? `#${activity.disputeID}` : undefined,
+    }))
+  const rulings = decided
     .filter(inScope)
     .filter((activity) => activity.kind === 'resolution')
-    .sort((a, b) => b.timestamp - a.timestamp)
-    .filter(unique)
+    .filter(unique())
     .map((activity) => toCard(activity, now, 'decided'))
-  return { windowOpen, inCourt, decided }
+  return { open, inCourt, decided: rulings }
 }

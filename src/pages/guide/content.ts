@@ -1,4 +1,6 @@
 import type { StatusTone } from 'components/curate/primitives'
+import { STATUS_CODE as LIGHT_STATUS } from 'utils/item-status'
+import { STATUS_CODE as STAKE_STATUS } from 'utils/permanent-item-status'
 
 /*
  * The guide's words, kept apart from its layout. Every mechanism here follows
@@ -57,61 +59,61 @@ export interface GuideStep {
 export const SUBMIT_STEPS: GuideStep[] = [
   {
     title: 'Open the registry and read its policy',
-    body: 'Check every criterion against what you are about to submit. Ambiguous cases are decided by jurors, not by the submitter.',
+    body: 'Check your entry against every criterion; jurors decide the unclear cases.',
   },
   {
     title: 'Fill in the fields',
-    body: 'Every list defines its own fields and which of them identify an entry. Identifiers are what search finds, so write them exactly.',
+    body: 'Each list sets its own fields. Identifier fields are what search finds, so write them exactly.',
   },
   {
     title: 'Review the deposit and sign',
-    body: 'The app reads the base deposit and the arbitration cost from the chain and shows the exact total, what comes back and what can be lost before you sign.',
+    body: 'The exact total is shown before you sign.',
   },
   {
     title: 'Wait for the challenge period to end',
-    body: 'If nobody challenges, the request can be executed and your deposit returns in full. If someone does, the entry goes to court.',
+    body: 'Unchallenged, the request can be executed and your deposit returns in full; challenged, it goes to court.',
   },
 ]
 
 export const CHALLENGE_STEPS: GuideStep[] = [
   {
     title: 'Check the time left',
-    body: 'Challenges close when the challenge period ends. The countdown is on the entry and in every list row.',
+    body: 'The countdown is on the entry and in every list row.',
   },
   {
     title: 'Write the justification and attach evidence',
-    body: 'Name the criterion the entry fails and show it. Evidence is public and stays with the case; anyone can add more during the dispute’s evidence period.',
+    body: 'Name the criterion the entry fails and show it. Evidence is public.',
   },
   {
     title: 'Send the challenge deposit',
-    body: 'The list’s challenge base deposit plus the arbitration cost, shown in full before you sign. If the jurors side with the requester, it is lost.',
+    body: 'Challenge base deposit plus arbitration cost, shown before you sign; lost if the jurors side with the requester.',
   },
   {
     title: 'Follow the case',
-    body: 'Jurors are drawn and vote, and either side can appeal. When the ruling is final the entry is kept, rejected or removed, and the winner is paid.',
+    body: 'Once the ruling is final the entry is kept, rejected or removed, and the winner is paid.',
   },
 ]
 
 export const DISPUTE_STEPS: GuideStep[] = [
   {
     title: 'Evidence',
-    body: 'Both parties, and anyone else, can submit evidence. Files live on IPFS and their references are recorded on chain.',
+    body: 'Anyone can submit evidence; files live on IPFS, referenced on chain.',
   },
   {
     title: 'Jurors are drawn',
-    body: 'At random among the people who staked PNK in the court, weighted by stake. Part of each juror’s stake is locked while they rule.',
+    body: 'At random among the court’s PNK stakers, weighted by stake.',
   },
   {
     title: 'Voting',
-    body: 'Jurors answer the list’s question from the evidence, the list’s policy and then the court’s own policy. In hidden-vote courts they commit first and reveal with a justification. The option with the most votes wins.',
+    body: 'Jurors rule from the evidence and the list’s policy, then the court’s. In hidden-vote courts they commit, then reveal. The majority wins.',
   },
   {
     title: 'Appeal period',
-    body: 'Anyone can fund either side, within the deadlines drawn below.',
+    body: 'Anyone can fund either side.',
   },
   {
     title: 'Execution',
-    body: 'When the appeal period ends with no funded appeal, the ruling is final. The registry applies it and distributes the deposits.',
+    body: 'With no funded appeal the ruling is final; the registry applies it and pays out the deposits.',
   },
 ]
 
@@ -138,8 +140,7 @@ export const OUTCOMES: {
       {
         kind: 'back',
         when: 'Unchallenged',
-        result:
-          'Your deposit returns in full when the request is executed; the only cost is gas.',
+        result: 'Your deposit returns in full; you pay only gas.',
       },
       {
         kind: 'gain',
@@ -172,7 +173,7 @@ export const OUTCOMES: {
       },
     ],
     footnote:
-      'In Stake Curate a successful challenger earns the entry’s whole stake, and a failed challenge adds the challenger’s stake to the entry, which makes the next challenge more expensive.',
+      'In Stake Curate a winning challenger takes the entry’s stake; a losing one adds theirs to it.',
   },
   {
     role: 'If you fund an appeal',
@@ -181,7 +182,7 @@ export const OUTCOMES: {
         kind: 'gain',
         when: 'Both sides funded, your side wins',
         result:
-          'Your contribution back, plus a share of the losing side’s funding minus the arbitration cost of the new round, in proportion to what you put in.',
+          'Your contribution back, plus your share of the losing side’s funding after the new round’s cost.',
       },
       {
         kind: 'loss',
@@ -198,10 +199,21 @@ export const OUTCOMES: {
   },
 ]
 
-export const LEGEND: {
-  group: string
-  items: { tone: StatusTone; label: string; detail?: string; meaning: string }[]
-}[] = [
+export interface LegendItem {
+  tone: StatusTone
+  label: string
+  detail?: string
+  meaning: string
+  /** The status codes this row stands for (utils/item-status and
+   * utils/permanent-item-status), so a new code cannot go unexplained. */
+  codes: number[]
+}
+
+const APPEAL_OPEN = 'Jurors have voted; either side can fund an appeal.'
+const WINNER_FUNDING = 'The loser funded; the winner has until the period ends.'
+
+/* Labels and details as the app writes them (components/curate/entry-status). */
+export const LEGEND: { group: string; items: LegendItem[] }[] = [
   {
     group: 'Light and Classic Curate',
     items: [
@@ -210,49 +222,74 @@ export const LEGEND: {
         label: 'Submitted',
         detail: 'time left to challenge',
         meaning: 'A new entry inside its challenge period.',
+        codes: [LIGHT_STATUS.SUBMITTED],
       },
       {
         tone: 'window',
         label: 'Removal requested',
         detail: 'time left to challenge',
-        meaning:
-          'Someone asked to remove a listed entry; it stays listed until the request is executed.',
+        meaning: 'Still listed until the removal is executed.',
+        codes: [LIGHT_STATUS.REMOVAL_REQUESTED],
       },
       {
         tone: 'neutral',
         label: 'Ready to execute',
-        detail: 'unchallenged',
-        meaning:
-          'The period ended without a challenge; anyone can execute the request.',
+        detail: 'unchallenged submission / removal',
+        meaning: 'Nobody challenged; anyone can execute the request.',
+        codes: [LIGHT_STATUS.PENDING_SUBMISSION, LIGHT_STATUS.PENDING_REMOVAL],
       },
       {
         tone: 'contested',
         label: 'Challenged',
         detail: 'jurors deciding',
         meaning: 'A dispute is open in Kleros Court.',
+        codes: [LIGHT_STATUS.CHALLENGED],
       },
       {
         tone: 'contested',
         label: 'Appeal open',
         detail: 'time left to fund',
-        meaning: 'Jurors have voted; either side can fund an appeal.',
+        meaning: APPEAL_OPEN,
+        codes: [LIGHT_STATUS.CROWDFUNDING],
+      },
+      {
+        tone: 'contested',
+        label: 'Appeal · winner funding',
+        detail: 'time left',
+        meaning: WINNER_FUNDING,
+        codes: [LIGHT_STATUS.CROWDFUNDING_WINNER],
       },
       {
         tone: 'contested',
         label: 'Awaiting ruling',
         detail: 'appeal period over',
         meaning: 'No new round was funded; the final ruling is pending.',
+        codes: [LIGHT_STATUS.WAITING_ARBITRATOR],
       },
-      { tone: 'registered', label: 'Registered', meaning: 'On the list.' },
+      {
+        tone: 'contested',
+        label: 'Ruling final',
+        detail: 'awaiting enforcement',
+        meaning: 'The loser did not fund in time; the ruling stands.',
+        codes: [LIGHT_STATUS.WAITING_ENFORCEMENT],
+      },
+      {
+        tone: 'registered',
+        label: 'Registered',
+        meaning: 'On the list.',
+        codes: [LIGHT_STATUS.REGISTERED],
+      },
       {
         tone: 'off',
         label: 'Rejected',
         meaning: 'A submission that lost its dispute.',
+        codes: [LIGHT_STATUS.REJECTED],
       },
       {
         tone: 'off',
         label: 'Removed',
         meaning: 'A removal that was executed or won its dispute.',
+        codes: [LIGHT_STATUS.REMOVED],
       },
     ],
   },
@@ -264,62 +301,113 @@ export const LEGEND: {
         label: 'Pending',
         detail: 'until accepted',
         meaning: 'A new entry inside its submission period.',
+        codes: [STAKE_STATUS.PENDING],
       },
       {
         tone: 'registered',
         label: 'Accepted',
-        meaning: 'Listed, with its stake locked; it can still be challenged.',
+        meaning:
+          'Listed with its stake locked; open to challenge, even while “withdrawing”.',
+        codes: [STAKE_STATUS.ACCEPTED],
       },
       {
         tone: 'contested',
         label: 'Disputed',
         detail: 'jurors deciding',
         meaning: 'A challenge is in court.',
+        codes: [STAKE_STATUS.DISPUTED],
+      },
+      {
+        tone: 'contested',
+        label: 'Appeal open',
+        detail: 'time left to fund',
+        meaning: APPEAL_OPEN,
+        codes: [STAKE_STATUS.CROWDFUNDING],
+      },
+      {
+        tone: 'contested',
+        label: 'Appeal · winner funding',
+        detail: 'time left',
+        meaning: WINNER_FUNDING,
+        codes: [STAKE_STATUS.CROWDFUNDING_WINNER],
+      },
+      {
+        tone: 'contested',
+        label: 'Awaiting ruling',
+        detail: 'appeal period over / loser did not fund',
+        meaning: 'No new round was funded; the final ruling is pending.',
+        codes: [STAKE_STATUS.WAITING_ARBITRATOR],
       },
       {
         tone: 'neutral',
         label: 'Withdrawal ready',
+        detail: 'can be executed',
         meaning: 'The waiting period is over; the stake can be withdrawn.',
+        codes: [STAKE_STATUS.PENDING_WITHDRAWAL],
+      },
+      {
+        tone: 'off',
+        label: 'Rejected',
+        meaning: 'A pending entry that lost its dispute.',
+        codes: [STAKE_STATUS.REJECTED],
+      },
+      {
+        tone: 'off',
+        label: 'Removed',
+        meaning: 'An accepted entry that lost a challenge.',
+        codes: [STAKE_STATUS.REMOVED],
       },
       {
         tone: 'off',
         label: 'Withdrawn',
         meaning: 'The owner took the stake back; the entry left the list.',
+        codes: [STAKE_STATUS.WITHDRAWN],
       },
     ],
   },
 ]
 
+// A status code added to the app without a legend row shows up in development.
+if (import.meta.env.DEV)
+  [LIGHT_STATUS, STAKE_STATUS].forEach((codes, index) => {
+    const covered = new Set(LEGEND[index].items.flatMap((item) => item.codes))
+    const missing = Object.values(codes).filter((code) => !covered.has(code))
+    if (missing.length > 0)
+      console.warn(
+        `Guide legend "${LEGEND[index].group}" has no row for status codes ${missing.join(', ')}`,
+      )
+  })
+
 export const DECISIONS: { term: string; definition: string }[] = [
   {
     term: 'Policy',
     definition:
-      'The document jurors rule against: the subject matter, the conditions for each ruling, the evidence expected, the edge cases and the default ruling. A PDF is strongly preferred.',
+      'What jurors rule against: what belongs, the evidence expected, edge cases and the default ruling. A PDF is preferred.',
   },
   {
     term: 'Fields',
     definition:
-      'The entry schema: text, long text, link, address, rich address, image, file, number or boolean. One to five fields are identifiers; image, file and long text cannot be.',
+      'The entry schema. One to five fields identify an entry; image, file and long text cannot.',
   },
   {
     term: 'Deposits',
     definition:
-      'Four base deposits: submission, removal, challenging a submission and challenging a removal. Higher ones deter spam and raise the bounty for challengers; lower ones invite more submissions.',
+      'Submission, removal and the two challenge deposits. Higher ones deter spam and raise the bounty; lower ones invite submissions.',
   },
   {
     term: 'Challenge period',
     definition:
-      'How long each request stays open to challenges. The Kleros documentation suggests three to seven days on mainnet; shorter lists faster and leaves less time to catch a bad entry.',
+      'How long requests stay open to challenge; the docs suggest three to seven days on mainnet. A shorter period lists entries sooner but leaves less time to catch a bad entry.',
   },
   {
     term: 'Court',
     definition:
-      'Which Kleros court hears disputes and how many jurors rule in the first round. Its fee per juror times that number is the arbitration cost in every deposit.',
+      'Which court hears disputes and how many jurors rule first; fee per juror times jurors is the arbitration cost.',
   },
   {
     term: 'Governor',
     definition:
-      'The address allowed to change the deposits, the challenge period, the arbitrator and the policy later.',
+      'The address that can later change deposits, the period, the arbitrator and the policy.',
   },
 ]
 
@@ -328,77 +416,80 @@ export const AGENT_FILES: { href: string; name: string; about: string }[] = [
     href: SKILL_PATH,
     name: SKILL_PATH,
     about:
-      'The kleros-curate skill: reading a registry, building an entry, computing deposits, challenging, appealing and deploying.',
+      'The skill: read a registry, build an entry, compute deposits, challenge, appeal, deploy.',
   },
   {
     href: '/curate-agent-context.md',
     name: '/curate-agent-context.md',
-    about:
-      'Short context: supported chains, the verified list-of-lists addresses, required behaviour and routes.',
+    about: 'Chains, verified list-of-lists addresses, rules and routes.',
   },
   {
     href: '/llms.txt',
     name: '/llms.txt',
-    about:
-      'The index an agent reads first: primary URLs, where the skill lives and the non-negotiables.',
+    about: 'The index an agent reads first.',
   },
   {
     href: '/llms-full.txt',
     name: '/llms-full.txt',
-    about: 'The full agent context in one file; the prompt above points here.',
+    about: 'The full agent context in one file.',
   },
   {
     href: DOCS.skillSource,
     name: 'kleros/kleros-skills',
-    about: 'Upstream source of the skill, maintained by Kleros.',
+    about: 'Upstream source, maintained by Kleros.',
   },
 ]
 
-export const GLOSSARY: { term: string; definition: string }[] = [
+export const GLOSSARY: {
+  term: string
+  definition: string
+  /** Sections that say more, linked by number. */
+  see?: string[]
+}[] = [
   {
     term: 'Registry',
     definition:
-      'A list kept by a smart contract; also called a list or a TCR (token-curated registry). Its policy, fields and names live in a document called MetaEvidence, stored on IPFS and referenced on chain.',
+      'A list kept by a smart contract, also called a TCR (token-curated registry). Its policy, fields and names live in its MetaEvidence, on IPFS.',
   },
   {
     term: 'Entry',
     definition:
-      'One item in a registry, described by the list’s fields. The app names entries after the list’s own item name: a tag, a token, a vault.',
+      'One item in a registry; each list names its own: a tag, a token.',
   },
   {
     term: 'Deposit',
-    definition:
-      'What a requester or a challenger locks: a base deposit set by the list plus the arbitration cost, which pays the jurors if there is a dispute. It comes back in full when unchallenged; after a dispute the winner receives both deposits minus the arbitration cost.',
+    definition: 'A base deposit set by the list plus the arbitration cost.',
+    see: ['lifecycle', 'submitting'],
   },
   {
     term: 'Court',
     definition:
-      'A pool of jurors who staked PNK, with its own policy and parameters. Curate lists on Ethereum and Gnosis use Court V1; Gnosis also has a Curation court with hidden voting.',
+      'A pool of PNK-staking jurors with its own policy. Curate uses Court V1 on Ethereum and Gnosis; Gnosis has a hidden-vote Curation court.',
   },
   {
     term: 'Appeal',
-    definition:
-      'A new round with twice as many jurors plus one, started when both sides are fully funded during the appeal period. If only one side is funded, that side wins.',
+    definition: 'A new round with more jurors.',
+    see: ['disputes'],
   },
   {
     term: 'Policy',
     definition:
-      'The document that says what belongs on the list. Jurors decide from the evidence, this policy and then the court’s own policy, in that order.',
+      'What belongs on the list; jurors apply it before the court’s own policy.',
   },
   {
     term: 'Light Curate',
     definition:
-      'The default kind of list; the app calls it Standard. Only an IPFS reference to each entry is stored on chain, which keeps costs low. Deposits are paid in the chain’s native currency.',
+      'The default kind, called Standard here. Only an IPFS reference is stored on chain, so costs stay low.',
   },
   {
     term: 'Classic Curate',
     definition:
-      'The original kind of list, which stores entry data on chain. It is deprecated: existing Classic lists keep working, but no new ones can be created.',
+      'The original kind of list, which stores entry data on chain. It is being deprecated: existing Classic lists keep working, and new lists use Light Curate.',
   },
   {
     term: 'Stake Curate',
     definition:
-      'A list where the entry’s stake, in an ERC20 token, stays locked for as long as the entry is listed, so it can be challenged at any time, including during the withdrawal waiting period.',
+      'Each entry’s ERC20 stake stays locked while it is listed, so it can be challenged at any time.',
   },
 ]
 

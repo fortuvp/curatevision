@@ -95,10 +95,17 @@ const RelTCRParams = ({
     isKlerosArbitrator = false
   }
 
+  // The page owns where the wizard is: the step fields are not synced back.
   useEffect(() => {
+    const {
+      currStep: _currStep,
+      visualStep: _visualStep,
+      maxVisualStep: _maxVisualStep,
+      ...fields
+    } = values
     setTcrState((previousState) => ({
       ...previousState,
-      ...values,
+      ...fields,
     }))
   }, [values, setTcrState])
 

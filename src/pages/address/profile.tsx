@@ -213,6 +213,13 @@ const LastAction = styled.span`
   margin-left: 4px;
 `
 
+/** Stands in for the explorer links until the chains are known. */
+const PillSkeleton = styled(SkeletonBlock)`
+  width: 104px;
+  min-height: 28px;
+  border-radius: var(--radius-pill);
+`
+
 const ScopeSide = styled.div`
   display: flex;
   flex-direction: column;
@@ -289,6 +296,15 @@ const Plus = styled.span`
   color: var(--color-faint);
   font-size: 0.5em;
   line-height: 1.1;
+`
+
+/** A figure that could not be read: said in words, never shown as 0. */
+const Unavailable = styled.span`
+  color: var(--color-muted);
+  font-family: var(--font-sans);
+  font-size: var(--fs-small);
+  line-height: 24px;
+  font-weight: 400;
 `
 
 /** Read by screen readers, not shown. */
@@ -484,6 +500,8 @@ export const ProfilePanel = ({
   onScope,
   chains,
   stats,
+  governedCount,
+  governedError,
   activities,
   complete,
   listed,
@@ -504,6 +522,10 @@ export const ProfilePanel = ({
   chains: ChainActivity[]
   /** Figures for the scope. */
   stats?: AddressStats
+  /** Lists governed in the scope; undefined until the governance scan settles. */
+  governedCount?: number
+  /** The governance scan failed: the count is unknown, never 0. */
+  governedError: boolean
   /** Listed actions in the scope, newest first. */
   activities: ProfileActivity[]
   /** True when every indexed action is listed (no cut at the list limit). */
@@ -525,18 +547,32 @@ export const ProfilePanel = ({
     }
   }
 
-  const explorers = explorerLinks(
-    address,
-    chains.length > 0
-      ? chains.map((chain) => chain.chainId)
-      : SUPPORTED_CHAIN_IDS,
-  )
+  // Until the chains are known a skeleton pill stands in, so the links do
+  // not jump from every supported chain to the one the address uses.
+  const explorers = loading
+    ? []
+    : explorerLinks(
+        address,
+        chains.length > 0
+          ? chains.map((chain) => chain.chainId)
+          : SUPPORTED_CHAIN_IDS,
+      )
   const covered = coverage(activities)
   const buckets = activityBuckets(activities, now, complete)
   const record = stats ? challengeRecord(stats) : undefined
   const showGauge = !loading && !error && (record?.total ?? 0) > 0
   const isCapped = !loading && capped.length > 0
   const cappedOn = capped.map(chainName).join(' and ')
+  // Nothing indexed and no list governed: the empty state leads the panel
+  // instead of a row of zeros. A capped read keeps its figures, which are
+  // lower bounds, and a failed governance scan keeps "unavailable".
+  const quiet =
+    !loading &&
+    !isCapped &&
+    stats !== undefined &&
+    stats.activity === 0 &&
+    !governedError &&
+    !(governedCount && governedCount > 0)
   const testnetIncluded =
     scope === 'all'
       ? chains.some((chain) => chain.chainId === NETWORKS.sepolia)
@@ -551,6 +587,8 @@ export const ProfilePanel = ({
   if (scope !== 'all' && !chains.some((chain) => chain.chainId === scope))
     scopeOptions.push({ value: String(scope), label: chainName(scope) })
 
+  // The exact read limits, on hover: the footnote only names them.
+  const limits = `The read stops at ${formatInt(PROFILE_LIMIT)} requests per chain and list type (${formatInt(PERMANENT_PROFILE_LIMIT)} on Stake Curate) or when an indexer does not answer.`
   const chartSource = complete
     ? 'every indexed action'
     : `the ${formatInt(listed)} most recent actions`
@@ -631,6 +669,7 @@ export const ProfilePanel = ({
                 <CurateIcon name={copied ? 'check' : 'copy'} size={13} />
                 {copied ? 'Copied' : 'Copy'}
               </CopyButton>
+              {loading && <PillSkeleton aria-hidden />}
               {explorers.map((explorer) => (
                 <ExplorerLink
                   key={explorer.chainId}
@@ -679,6 +718,11 @@ export const ProfilePanel = ({
             </Label>
             <ChainChip chainId={chains[0].chainId} />
           </ScopeSide>
+        ) : loading ? (
+          <ScopeSide aria-hidden>
+            <SkeletonBlock $width="64px" $height="12px" />
+            <PillSkeleton />
+          </ScopeSide>
         ) : null}
       </IdentityBar>
 
@@ -704,54 +748,79 @@ export const ProfilePanel = ({
         <>
           <Body $gauge={showGauge}>
             <Main>
-              <FiguresRow>
-                <HeadlineFigure>
-                  <Label $tone="faint">Entries submitted</Label>
-                  <Big
-                    title={
-                      isCapped
-                        ? `At least ${formatInt(stats?.submissions ?? 0)}: the read stopped before the oldest requests on ${cappedOn}`
-                        : undefined
-                    }
-                  >
-                    {loading ? '—' : <Odometer value={stats?.submissions} />}
-                    {isCapped && <OrMore />}
-                  </Big>
-                </HeadlineFigure>
-                <InlineStats>
-                  {[
-                    {
-                      label: 'Removals requested',
-                      value: stats?.removals,
-                      read: true,
-                    },
-                    {
-                      label: 'Challenges',
-                      value: stats?.challenges,
-                      read: true,
-                    },
-                    { label: 'Disputes', value: stats?.disputes, read: true },
-                    // Read from each list's governor, not from the requests.
-                    { label: 'Lists governed', value: stats?.governedLists },
-                  ].map((figure) => (
-                    <div key={figure.label}>
-                      <Label as="dt" $tone="faint">
-                        {figure.label}
-                      </Label>
-                      <dd>
-                        {loading ? (
-                          '—'
-                        ) : (
-                          <>
-                            <AnimatedNumber value={figure.value} />
-                            {isCapped && figure.read && <OrMore />}
-                          </>
-                        )}
-                      </dd>
-                    </div>
-                  ))}
-                </InlineStats>
-              </FiguresRow>
+              {!quiet && (
+                <FiguresRow>
+                  <HeadlineFigure>
+                    <Label $tone="faint">Entries submitted</Label>
+                    {loading ? (
+                      <SkeletonBlock
+                        $width="140px"
+                        $height="clamp(46px, 3.04vw + 21px, 72px)"
+                        aria-hidden
+                        style={{ borderRadius: 12 }}
+                      />
+                    ) : (
+                      <Big
+                        title={
+                          isCapped
+                            ? `At least ${formatInt(stats?.submissions ?? 0)}: the read stopped before the oldest requests on ${cappedOn}. ${limits}`
+                            : undefined
+                        }
+                      >
+                        <Odometer value={stats?.submissions} />
+                        {isCapped && <OrMore />}
+                      </Big>
+                    )}
+                  </HeadlineFigure>
+                  <InlineStats>
+                    {[
+                      {
+                        label: 'Removals requested',
+                        value: stats?.removals,
+                        read: true,
+                      },
+                      {
+                        label: 'Challenges',
+                        value: stats?.challenges,
+                        read: true,
+                      },
+                      { label: 'Disputes', value: stats?.disputes, read: true },
+                      // Read from each list's governor, not from the requests,
+                      // by a scan of its own that may settle later.
+                      {
+                        label: 'Lists governed',
+                        value: governedCount,
+                        unavailable: governedError,
+                      },
+                    ].map((figure) => (
+                      <div key={figure.label}>
+                        <Label as="dt" $tone="faint">
+                          {figure.label}
+                        </Label>
+                        <dd>
+                          {figure.unavailable ? (
+                            <Unavailable title="The governor reads failed; try again later">
+                              unavailable
+                            </Unavailable>
+                          ) : loading || figure.value === undefined ? (
+                            <SkeletonBlock
+                              $width="32px"
+                              $height="20px"
+                              aria-hidden
+                              style={{ margin: '2px 0' }}
+                            />
+                          ) : (
+                            <>
+                              <AnimatedNumber value={figure.value} />
+                              {isCapped && figure.read && <OrMore />}
+                            </>
+                          )}
+                        </dd>
+                      </div>
+                    ))}
+                  </InlineStats>
+                </FiguresRow>
+              )}
 
               <ChartBlock>
                 {(loading || buckets) && (
@@ -809,6 +878,7 @@ export const ProfilePanel = ({
                 ) : (
                   <QuietState
                     icon="activity"
+                    tight={quiet}
                     title={
                       stats && stats.activity > 0
                         ? 'No dated action in this scope'
@@ -882,18 +952,17 @@ export const ProfilePanel = ({
 
           <Footnote>
             {generatedAt
-              ? `Updated ${formatAgo(Math.floor(generatedAt / 1000), now)}. `
+              ? `Updated ${formatAgo(Math.floor(generatedAt / 1000), now)}.`
               : loading
-                ? 'Reading the indexers. '
+                ? 'Reading the indexers.'
                 : ''}
-            {isCapped
-              ? `On ${cappedOn} the read stopped before this address's oldest requests (it stops at ${formatInt(PROFILE_LIMIT)} requests per chain and list type, ${formatInt(PERMANENT_PROFILE_LIMIT)} on Stake Curate, or when an indexer does not answer): figures marked + are lower bounds.`
-              : 'Figures count every indexed request.'}
-            {buckets && !complete
-              ? buckets.partialFrom !== undefined
-                ? ` The list below holds the ${formatInt(listed)} most recent actions; the chart counts them per ${unit}, and its first ${unit} holds only the listed ones.`
-                : ` The list below holds the ${formatInt(listed)} most recent actions; the chart counts them per ${unit} from the first whole ${unit} they cover.`
-              : ''}
+            {isCapped && (
+              <span title={limits}>
+                {` On ${cappedOn} the read stopped before the oldest requests (a read limit or an indexer timeout): figures marked + are lower bounds.`}
+              </span>
+            )}
+            {buckets?.partialFrom !== undefined &&
+              ` The first ${unit} holds only the listed actions.`}
           </Footnote>
         </>
       )}

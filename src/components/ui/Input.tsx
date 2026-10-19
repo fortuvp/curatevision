@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useCallback } from 'react'
 import styled, { css } from 'styled-components'
+import { useFormItemControl } from './form-item-context'
 import { KitIcon } from './kit-icons'
 import {
   fieldFocus,
@@ -265,10 +266,21 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       onPressEnter,
       onBlur,
       size,
+      'aria-label': ariaLabel,
+      'aria-labelledby': ariaLabelledby,
+      'aria-describedby': ariaDescribedby,
+      'aria-invalid': ariaInvalid,
       ...rest
     },
     ref,
   ) => {
+    const a11y = useFormItemControl({
+      id,
+      'aria-label': ariaLabel,
+      'aria-labelledby': ariaLabelledby,
+      'aria-describedby': ariaDescribedby,
+      'aria-invalid': ariaInvalid,
+    })
     const inputRef = useRef<HTMLInputElement>(null)
     const combinedRef = (ref || inputRef) as React.RefObject<HTMLInputElement>
 
@@ -309,7 +321,6 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         placeholder={placeholder}
         disabled={disabled}
         step={step}
-        id={id}
         onKeyDown={handleKeyDown}
         onBlur={onBlur}
         $size={size}
@@ -322,6 +333,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           hasAddon ? 'ui-input' : joinClassNames('ui-input', className)
         }
         {...rest}
+        {...a11y}
       />
     )
 
@@ -403,10 +415,22 @@ const TextArea = React.forwardRef<HTMLTextAreaElement, TextAreaProps>(
       autosize,
       style,
       className,
+      id,
+      'aria-label': ariaLabel,
+      'aria-labelledby': ariaLabelledby,
+      'aria-describedby': ariaDescribedby,
+      'aria-invalid': ariaInvalid,
       ...rest
     },
     ref,
   ) => {
+    const a11y = useFormItemControl({
+      id,
+      'aria-label': ariaLabel,
+      'aria-labelledby': ariaLabelledby,
+      'aria-describedby': ariaDescribedby,
+      'aria-invalid': ariaInvalid,
+    })
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const combinedRef = (ref ||
       textareaRef) as React.RefObject<HTMLTextAreaElement>
@@ -446,6 +470,7 @@ const TextArea = React.forwardRef<HTMLTextAreaElement, TextAreaProps>(
         style={style}
         className={joinClassNames('ui-input', 'ui-textarea', className)}
         {...rest}
+        {...a11y}
       />
     )
   },

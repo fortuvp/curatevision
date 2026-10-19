@@ -23,7 +23,7 @@ import { WalletContext } from 'contexts/wallet-context'
 import { capitalizeFirstLetter, ZERO_ADDRESS } from 'utils/string'
 import { CLASSIC_ITEM_DETAILS_QUERY } from 'utils/graphql'
 import { itemToStatusCode } from 'utils/item-status'
-import { formatAbsolute, formatAgo } from 'utils/time'
+import { formatAbsolute } from 'utils/time'
 import { STALE_TIME } from 'consts'
 import { parseIpfs } from 'utils/ipfs-parse'
 import { truncateAtWord } from 'utils/truncate-at-word'
@@ -31,7 +31,6 @@ import { subgraphUrl } from 'config/tcr-addresses'
 import { CurateIcon } from 'components/curate/icons'
 import {
   ChainChip,
-  Chip,
   Label,
   Page,
   SkeletonBlock,
@@ -56,6 +55,7 @@ import {
   type LightRequest as ClassicRequest,
 } from 'pages/light-item-details/request-facts'
 import ItemStatusCard from './item-status-card'
+import { formatSince } from './format-since'
 import CrowdfundingCard from './crowdfunding-card'
 import Badges from './badges'
 import { ClassicWindowPanel } from './appeal-funding'
@@ -616,6 +616,7 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
       </Crumbs>
 
       <Hero
+        as="section"
         $featured
         $padding="none"
         aria-label={`${entryName} overview`}
@@ -625,9 +626,6 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
           <Eyebrow>
             <Label $tone="faint">{entryName}</Label>
             {chainId && <ChainChip chainId={chainId} size="sm" />}
-            <Chip title="A Classic Curate list. Existing Classic lists keep working; new lists are made with Light Curate.">
-              Classic Curate
-            </Chip>
           </Eyebrow>
           <Identity>
             {logo && <Logo src={logo} alt="" />}
@@ -691,7 +689,7 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
                   {facts.isRegistration ? 'Submitted' : 'Removal requested'}
                 </Label>
                 <dd title={formatAbsolute(facts.submissionTime)}>
-                  {formatAgo(facts.submissionTime, now)}
+                  {formatSince(facts.submissionTime, now)}
                 </dd>
               </div>
               {latestRequest.requester && (

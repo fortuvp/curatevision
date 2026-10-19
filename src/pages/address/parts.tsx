@@ -35,13 +35,14 @@ const LogoBox = styled.span<{ $image?: string | null; $size: number }>`
 export const RegistryLogo = ({
   uri,
   size = 40,
+  ...rest
 }: {
   uri?: string | null
   size?: number
-}) => {
+} & React.HTMLAttributes<HTMLSpanElement>) => {
   const image = mediaUrl(uri)
   return (
-    <LogoBox $image={image} $size={size} aria-hidden>
+    <LogoBox {...rest} $image={image} $size={size} aria-hidden>
       {!image && <CurateIcon name="registry" size={Math.round(size * 0.42)} />}
     </LogoBox>
   )
@@ -112,14 +113,6 @@ export const SectionTitle = styled.h2`
   }
 `
 
-export const SectionNote = styled.p`
-  flex-basis: 100%;
-  margin: -4px 0 0;
-  color: var(--color-muted);
-  font-size: var(--fs-small);
-  line-height: var(--lh-small);
-`
-
 /** Text link in the muted role that brightens on hover. */
 export const quietLink = css`
   color: var(--color-text);
@@ -150,13 +143,13 @@ export const PartyLink = styled(Link)`
 
 /* ---------- Quiet state ---------- */
 
-const QuietWrap = styled.div`
+const QuietWrap = styled.div<{ $tight?: boolean }>`
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  padding: 48px 24px;
+  padding: ${({ $tight }) => ($tight ? '12px 24px 40px' : '48px 24px')};
   text-align: center;
   isolation: isolate;
 
@@ -212,14 +205,17 @@ export const QuietState = ({
   children,
   action,
   role,
+  tight = false,
 }: {
   icon?: CurateIconName
   title: React.ReactNode
   children?: React.ReactNode
   action?: React.ReactNode
   role?: string
+  /** Less room above: the state leads its panel right under a header. */
+  tight?: boolean
 }) => (
-  <QuietWrap role={role}>
+  <QuietWrap role={role} $tight={tight}>
     <QuietGlyph aria-hidden>
       <CurateIcon name={icon} size={18} />
     </QuietGlyph>

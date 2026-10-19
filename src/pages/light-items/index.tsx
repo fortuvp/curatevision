@@ -14,8 +14,8 @@ import localforage from 'localforage'
 import { STALE_TIME } from 'consts'
 import useUrlChainId from 'hooks/use-url-chain-id'
 import useNow from 'hooks/use-now'
-import useStoredLayout, { type ListLayout } from 'hooks/use-stored-layout'
 import useDocumentHead from 'hooks/use-document-head'
+import useNativeCurrency from 'hooks/native-currency'
 import { useAttachment } from 'hooks/use-attachment'
 import { WalletContext } from 'contexts/wallet-context'
 import { LightTCRViewContext } from 'contexts/light-tcr-view-context'
@@ -28,9 +28,7 @@ import { formatDurationLong } from 'utils/time'
 import { getAddressPage } from 'utils/network-utils'
 import { ZERO_ADDRESS, capitalizeFirstLetter } from 'utils/string'
 import { truncateAtWord } from 'utils/truncate-at-word'
-import { NETWORKS_INFO } from 'config/networks'
 import { klerosAddresses } from 'config/tcr-addresses'
-import { getListOfListsAddresses } from 'config/list-of-lists'
 import useSeerMarketsData from 'components/custom-registries/seer/use-seer-markets-data'
 import { isSeerRegistry } from 'components/custom-registries/seer/is-seer-registry'
 import ETHAmount from 'components/eth-amount'
@@ -59,6 +57,12 @@ import {
   RegistryLightEmpty,
   RegistryLightSkeleton,
 } from 'components/curate/registry-light-states'
+import { useRegistryLayout } from 'components/curate/registry-shared-layout'
+import { useRegistryVerified } from 'components/curate/registry-shared-verified'
+import {
+  readActionLink,
+  submitPathFor,
+} from 'components/curate/registry-shared-action-link'
 import ErrorPage from '../error-page'
 import SubmitModal from '../light-item-details/modals/submit'
 import SubmitConnectModal from '../light-item-details/modals/submit-connect'
@@ -269,14 +273,6 @@ const Footer = styled.div`
   ${reveal}
 `
 
-/** Phones open on stacked rows; wider screens on the table. */
-const defaultLayout = (): ListLayout =>
-  typeof window !== 'undefined' &&
-  typeof window.matchMedia === 'function' &&
-  window.matchMedia('(max-width: 720px)').matches
-    ? 'rows'
-    : 'table'
-
 const Items = () => {
   const navigate = useNavigate()
   const { search } = useLocation()
@@ -301,8 +297,9 @@ const Items = () => {
   const openAttachment = useAttachment()
   const now = useNow()
   // A remembered choice wins; the fallback follows the viewport on arrival.
-  const [fallbackLayout] = useState(defaultLayout)
-  const [layout, setLayout] = useStoredLayout('entries', fallbackLayout)
+  const [layout, setLayout] = useRegistryLayout('entries')
+  const nativeSymbol = useNativeCurrency()
+  const trust = useRegistryVerified(chainId, tcrAddress)
 
   const [submissionFormOpen, setSubmissionFormOpen] = useState<
     boolean | undefined
@@ -675,21 +672,32 @@ const Items = () => {
       })
   }, [itemSearch, items])
 
-  // This component supports URL actions.
-  // This means someone can be sent to curate with a bunch of data to submit
-  // an item to a list.
-  useEffect(() => {
-    const params = new URLSearchParams(search)
-    if (!params.get('action')) return
-
-    const initialValues: string[] = []
-    params.forEach((value, key) => {
-      if (key !== 'action') initialValues.push(value)
-    })
-
-    setQueryItemParams(initialValues)
-    setSubmissionFormOpen(true)
+  // A ?action= link (someone sent here with the values to submit) opens
+  // the full-page submit form with those values in its URL, so the link
+  // still fills the form after a reload. A connected list keeps its own
+  // dialog. It acts when the link itself changes, once the list's metadata
+  // says which kind it is.
+  const actionLink = useMemo(() => {
+    const link = readActionLink(search)
+    return link ? JSON.stringify(link) : undefined
   }, [search])
+  const connectedList =
+    metaEvidence?.metadata && metaEvidence.address === tcrAddress
+      ? Boolean(metaEvidence.metadata.isConnectedTCR)
+      : undefined
+  const handledLink = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    if (actionLink === undefined || connectedList === undefined) return
+    if (handledLink.current === actionLink) return
+    handledLink.current = actionLink
+    const link = JSON.parse(actionLink) as ReturnType<typeof readActionLink>
+    if (!connectedList && chainId && tcrAddress) {
+      navigate(submitPathFor(chainId, tcrAddress, link), { replace: true })
+      return
+    }
+    setQueryItemParams(link?.values)
+    setSubmissionFormOpen(true)
+  }, [actionLink, connectedList, chainId, tcrAddress, navigate])
 
   /* ---------- Derived copy and figures ---------- */
 
@@ -727,10 +735,6 @@ const Items = () => {
     truncateAtWord(fullSeoMetaDescription, 160),
   )
 
-  const networkInfo = chainId
-    ? NETWORKS_INFO[chainId as keyof typeof NETWORKS_INFO]
-    : undefined
-  const nativeSymbol = networkInfo?.nativeCurrency.symbol ?? 'ETH'
   const depositValue = (amount: BigNumber | undefined) =>
     amount ? (
       <ETHAmount
@@ -790,11 +794,6 @@ const Items = () => {
       ? `${submissionBase} base deposit + ${arbitration} arbitration cost`
       : undefined
   const rejectedOrRemoved = counts ? integer.format(counts.absent) : undefined
-
-  const verified =
-    !!chainId &&
-    !!tcrAddress &&
-    getListOfListsAddresses(chainId).includes(tcrAddress.toLowerCase())
 
   const stats: RegistryStat[] = [
     { label: 'Entries', value: counts && integer.format(counts.total) },
@@ -1141,7 +1140,8 @@ const Items = () => {
         logoURI={logoURI}
         chainId={chainId ?? undefined}
         address={tcrAddress}
-        verified={verified}
+        verified={trust.verified}
+        listOfLists={trust.listOfLists}
         kindLabel="Light Curate"
         itemName={itemName}
         primaryLabel={`Submit ${itemName}`}

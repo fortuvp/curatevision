@@ -237,7 +237,7 @@ export interface AddressProfileData {
   badges: AddressBadge[]
   activities: ProfileActivity[]
   disputes: ProfileActivity[]
-  governedRegistries: GovernedRegistry[]
+  /** Per chain; governedLists stays 0 here (see fetchGovernedRegistries). */
   chainBreakdown: Record<number, AddressStats>
   /**
    * Chains where the read stopped before the end (the page ceiling, or a page
@@ -537,10 +537,27 @@ const readGovernanceParams = async (
   return params
 }
 
-const fetchGovernedRegistries = async (
-  address: string,
-  registries: DashboardRegistry[],
+/**
+ * The registry index (every indexed list with its title and logo). The page
+ * passes one that reads the dashboard's shared query cache, so the profile,
+ * the governance scan and the dashboard and browse pages share one load.
+ */
+export type RegistryIndexReader = () => Promise<DashboardRegistry[]>
+
+const readRegistryIndex: RegistryIndexReader = async () =>
+  (await fetchDashboardData()).registries
+
+/**
+ * The lists whose governor() is this address, with their parameters. Read
+ * apart from the profile: one governor() call per indexed list takes a few
+ * seconds, and the figures, chart and list should not wait for it.
+ */
+export const fetchGovernedRegistries = async (
+  rawAddress: string,
+  readIndex: RegistryIndexReader = readRegistryIndex,
 ): Promise<GovernedRegistry[]> => {
+  const address = normalizeAddress(rawAddress)
+  const registries = await readIndex()
   const governed: GovernedRegistry[] = []
   for (
     let start = 0;
@@ -645,6 +662,7 @@ export const buildBadges = (stats: AddressStats): AddressBadge[] => [
 
 export const fetchAddressProfileData = async (
   rawAddress: string,
+  readIndex: RegistryIndexReader = readRegistryIndex,
 ): Promise<AddressProfileData> => {
   const address = normalizeAddress(rawAddress)
   const totals = emptyStats()
@@ -657,12 +675,12 @@ export const fetchAddressProfileData = async (
   // and no cut applies.
   const isZero = address === ZERO_ADDRESS
 
-  // The registry index (titles, logos) is read once, in parallel with the
-  // profile queries; the governance scan below reads its governors.
-  const dashboardPromise = fetchDashboardData()
+  // The registry index (titles, logos) is read in parallel with the profile
+  // queries.
+  const indexPromise = readIndex()
   // Rejections surface at the await below; this only keeps an early one from
   // being reported as unhandled while the profile queries are still running.
-  dashboardPromise.catch(() => undefined)
+  indexPromise.catch(() => undefined)
 
   const [envioResults, permanentResults] = await Promise.all([
     Promise.all(
@@ -743,7 +761,7 @@ export const fetchAddressProfileData = async (
     }
   }
 
-  const { registries } = await dashboardPromise
+  const registries = await indexPromise
   const index = new Map(
     registries.map((registry) => [
       `${registry.chainId}:${normalizeAddress(registry.address)}`,
@@ -764,14 +782,6 @@ export const fetchAddressProfileData = async (
       activity.registryTitle = registry.title
   }
 
-  const governedRegistries = await fetchGovernedRegistries(address, registries)
-  totals.governedLists = governedRegistries.length
-  for (const registry of governedRegistries) {
-    if (!chainBreakdown[registry.chainId])
-      chainBreakdown[registry.chainId] = emptyStats()
-    chainBreakdown[registry.chainId].governedLists += 1
-  }
-
   activities.sort((a, b) => b.timestamp - a.timestamp)
   disputes.sort((a, b) => b.timestamp - a.timestamp)
 
@@ -782,7 +792,6 @@ export const fetchAddressProfileData = async (
     badges: buildBadges(totals),
     activities: activities.slice(0, ACTIVITY_LIMIT),
     disputes: disputes.slice(0, DISPUTE_LIMIT),
-    governedRegistries,
     chainBreakdown,
     cappedChains: [...capped],
   }

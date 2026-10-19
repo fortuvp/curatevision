@@ -67,8 +67,9 @@ export { rulingSentence } from './facts'
  * assets, then the facts behind it. Under it, the withdrawal as a
  * three-node stepper and, while an appeal is open, the funding of each
  * side. While jurors decide it asks for evidence instead of showing a dead
- * button. On phones the one action moves to the shared sticky bar (status
- * plus that action), so each control appears once.
+ * button. On phones the shared sticky bar repeats the one action while this
+ * card is off screen and steps aside while it is on screen, so each control
+ * shows once; the bar's copy has its own id.
  */
 
 const Card = styled(Surface)`
@@ -248,25 +249,6 @@ const WithdrawalState = styled.span`
   line-height: var(--lh-small);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
-`
-
-/* Above 720px the card holds the action; on phones the sticky bar does. */
-const DesktopAction = styled.div`
-  display: flex;
-  flex-direction: column;
-
-  @media (max-width: 720px) {
-    display: none;
-  }
-`
-
-/* Collapses on phones when the action it holds moved to the bar. */
-const ActionGroup = styled(Stack)`
-  @media (max-width: 720px) {
-    &:not(:has(> :not(${DesktopAction}))) {
-      display: none;
-    }
-  }
 `
 
 /** The challenger's share of the stake, as a bar that grows in. */
@@ -669,18 +651,16 @@ const ItemStatusCard = ({
         {prompt && <Prompt>{prompt}</Prompt>}
 
         {statusCode === STATUS_CODE.DISPUTED ? (
-          <ActionGroup $gap={8}>
-            <DesktopAction>
-              <Button
-                type="button"
-                $variant="primary"
-                $block
-                onClick={scrollToEvidenceComposer}
-              >
-                <CurateIcon name="policy" size={16} />
-                Add evidence
-              </Button>
-            </DesktopAction>
+          <Stack $gap={8}>
+            <Button
+              type="button"
+              $variant="primary"
+              $block
+              onClick={scrollToEvidenceComposer}
+            >
+              <CurateIcon name="policy" size={16} />
+              Add evidence
+            </Button>
             {courtHref && (
               <ButtonAnchor
                 $variant="secondary"
@@ -693,13 +673,13 @@ const ItemStatusCard = ({
                 <CurateIcon name="external" size={14} />
               </ButtonAnchor>
             )}
-          </ActionGroup>
+          </Stack>
         ) : (
           !inCourt && (
-            <ActionGroup $gap={8}>
-              <DesktopAction>{actionButton()}</DesktopAction>
+            <Stack $gap={8}>
+              {actionButton()}
               {directAction && <GateHelper gate={executeGate} />}
-            </ActionGroup>
+            </Stack>
           )
         )}
 
@@ -747,30 +727,23 @@ const ItemStatusCard = ({
                 )}
               </>
             )}
+            {/* A past dispute is told by the hero and the history; these
+                rows are for the one running now. */}
             {hasDispute &&
               round &&
-              (appealable ||
-                statusCode === STATUS_CODE.WAITING_ARBITRATOR ||
-                offList) && (
+              (appealable || statusCode === STATUS_CODE.WAITING_ARBITRATOR) && (
                 <div>
                   <dt>{appealable ? 'Current ruling' : 'Ruling'}</dt>
-                  <dd>
-                    {offList && challenge?.disputeOutcome
-                      ? rulingLine(challenge.disputeOutcome)
-                      : rulingLine(round.ruling)}
-                  </dd>
+                  <dd>{rulingLine(round.ruling)}</dd>
                 </div>
               )}
-            {hasDispute &&
-              courtLink &&
-              !courtAsButton &&
-              (underDispute || offList) && (
-                <div>
-                  <dt>Court case</dt>
-                  <dd>{courtLink}</dd>
-                </div>
-              )}
-            {hasDispute && (underDispute || offList) && (
+            {hasDispute && courtLink && !courtAsButton && underDispute && (
+              <div>
+                <dt>Court case</dt>
+                <dd>{courtLink}</dd>
+              </div>
+            )}
+            {hasDispute && underDispute && (
               <div>
                 <dt>Arbitrator</dt>
                 <dd>

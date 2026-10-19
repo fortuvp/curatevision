@@ -1,4 +1,11 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react'
+import React, {
+  useState,
+  useRef,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+} from 'react'
 import { createPortal } from 'react-dom'
 import styled, { keyframes } from 'styled-components'
 import { kitRadius, kitType } from './kit-styles'
@@ -19,8 +26,12 @@ const tipIn = keyframes`
 /*
  * Tip: a small solid raised surface with a hairline, radius 10, no arrow.
  * It fades and grows in with the individual scale property, so it composes
- * with the inline placement transform.
+ * with the inline placement transform. The trigger is described by the tip
+ * while it shows, Escape dismisses it, and it never leaves the viewport
+ * sideways (8px margin).
  */
+const VIEWPORT_EDGE = 8
+const GAP = 8
 const TooltipBubble = styled.div`
   position: fixed;
   z-index: 1070;
@@ -85,6 +96,18 @@ const getPositionStyle = (
   }
 }
 
+/** Where the bubble's left edge lands for a placement, before clamping. */
+const leftEdge = (
+  style: React.CSSProperties,
+  placement: Placement,
+  width: number,
+) => {
+  const left = Number(style.left) || 0
+  if (placement === 'left') return left - width - GAP
+  if (placement === 'right') return left + GAP
+  return left - width / 2
+}
+
 const Tooltip: React.FC<TooltipProps> = ({
   title,
   placement = 'top',
@@ -94,7 +117,10 @@ const Tooltip: React.FC<TooltipProps> = ({
 }) => {
   const [visible, setVisible] = useState(false)
   const [posStyle, setPosStyle] = useState<React.CSSProperties>({})
+  const [shift, setShift] = useState(0)
+  const tipId = useId()
   const wrapperRef = useRef<HTMLSpanElement>(null)
+  const bubbleRef = useRef<HTMLDivElement>(null)
   const enterTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -102,7 +128,28 @@ const Tooltip: React.FC<TooltipProps> = ({
     if (!wrapperRef.current) return
     const rect = wrapperRef.current.getBoundingClientRect()
     setPosStyle(getPositionStyle(placement, rect))
+    setShift(0)
   }, [placement])
+
+  // Once the bubble has a width, slide it back inside the viewport.
+  useLayoutEffect(() => {
+    const bubble = bubbleRef.current
+    if (!visible || !bubble) return
+    const width = bubble.offsetWidth
+    const left = leftEdge(posStyle, placement, width)
+    const max = window.innerWidth - width - VIEWPORT_EDGE
+    setShift(Math.max(VIEWPORT_EDGE, Math.min(left, max)) - left)
+  }, [visible, posStyle, placement])
+
+  // Escape dismisses the tip without moving focus (WCAG 1.4.13).
+  useEffect(() => {
+    if (!visible) return undefined
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setVisible(false)
+    }
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => document.removeEventListener('keydown', onKeyDown, true)
+  }, [visible])
 
   const handleEnter = useCallback(() => {
     if (leaveTimer.current) clearTimeout(leaveTimer.current)
@@ -129,6 +176,16 @@ const Tooltip: React.FC<TooltipProps> = ({
 
   if (!title) return <>{children}</>
 
+  const child =
+    visible && React.isValidElement<{ 'aria-describedby'?: string }>(children)
+      ? React.cloneElement(children, {
+          'aria-describedby':
+            [children.props['aria-describedby'], tipId]
+              .filter(Boolean)
+              .join(' ') || undefined,
+        })
+      : children
+
   return (
     <Wrapper
       ref={wrapperRef}
@@ -138,10 +195,19 @@ const Tooltip: React.FC<TooltipProps> = ({
       onFocus={handleEnter}
       onBlur={handleLeave}
     >
-      {children}
+      {child}
       {visible &&
         createPortal(
-          <TooltipBubble role="tooltip" className="ui-tooltip" style={posStyle}>
+          <TooltipBubble
+            ref={bubbleRef}
+            id={tipId}
+            role="tooltip"
+            className="ui-tooltip"
+            style={{
+              ...posStyle,
+              left: (Number(posStyle.left) || 0) + shift,
+            }}
+          >
             {title}
           </TooltipBubble>,
           document.body,

@@ -4,7 +4,6 @@ import { FieldArray, useField, withFormik, type FormikProps } from 'formik'
 import { toast } from 'react-toastify'
 import { ItemTypes as AllItemTypes } from '@kleros/gtcr-encoder'
 import objectWithoutKey from 'utils/object-without-key'
-import ItemDetailsCard from 'components/item-details-card'
 import { CurateIcon } from 'components/curate/icons'
 import { reveal } from 'components/curate/motion/reveal'
 import {
@@ -30,9 +29,8 @@ import type { StepProps, TcrState } from '.'
 /*
  * The item step of the Stake factory: the fields every entry has, one row
  * per field (a column header with one line of help on wide screens, stacked
- * labels on phones), then a preview of an entry page with those fields. The
- * identifier rules and the two checks on Next (one identifier, unique
- * names) are unchanged.
+ * labels on phones). The identifier rules and the two checks on Next (one
+ * identifier, unique names) are unchanged.
  */
 
 export const ItemTypes = objectWithoutKey(AllItemTypes, 'TWITTER_USER_ID')
@@ -40,8 +38,6 @@ export const ItemTypes = objectWithoutKey(AllItemTypes, 'TWITTER_USER_ID')
 const { IMAGE, FILE, LONG_TEXT } = AllItemTypes
 
 const MAX_IDENTIFIERS = 5
-
-export type ItemSection = 'fields' | 'preview'
 
 const COLUMNS = '28px minmax(0, 1fr) minmax(0, 1.25fr) 150px 108px 34px'
 
@@ -188,21 +184,6 @@ const ToggleLabel = styled.label`
   }
 `
 
-/** The entry card without its own panel: it sits in a raised block. */
-const PreviewFrame = styled.div`
-  padding: 20px;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius);
-  background: var(--color-raised);
-
-  > #item-details-card {
-    padding: 0;
-    border: 0;
-    background: transparent;
-    box-shadow: none;
-  }
-`
-
 /** A text input bound to one column property, labelled for screen readers. */
 const ColumnInput = ({
   name,
@@ -242,14 +223,13 @@ const ColumnInput = ({
 }
 
 type ItemFormValues = TcrState
-type ItemParamsOuterProps = StepProps & { section?: ItemSection }
+type ItemParamsOuterProps = StepProps
 type ItemParamsProps = ItemParamsOuterProps & FormikProps<ItemFormValues>
 
 const ItemParams = ({
   handleSubmit,
   setFieldValue,
   formId,
-  section,
   values: { columns },
   status,
   setTcrState,
@@ -273,182 +253,164 @@ const ItemParams = ({
   const identifierCount = columns.filter(
     (column) => !!column.isIdentifier,
   ).length
-  const showFields = section !== 'preview'
-  const showPreview = section !== 'fields'
   const problem = typeof status === 'string' ? status : ''
 
-  // The form wraps the preview too, so Next on the preview step submits it.
   return (
     <form id={formId} noValidate onSubmit={handleSubmit}>
       <StepBody>
-        {showFields ? (
-          <StepHeader
-            heading="Define the entry fields"
-            lede={`Entries show their fields in this order: put the image or the title first. Identifier fields are searchable and shown on the entry card; at least one, up to ${MAX_IDENTIFIERS}.`}
-          />
-        ) : (
-          <StepHeader
-            heading="Preview an entry"
-            lede="How an entry page looks with these fields."
-          />
-        )}
+        <StepHeader
+          heading="Define the entry fields"
+          lede={`Entries show their fields in this order: put the image or the title first. Identifier fields are searchable and shown on the entry card; at least one, up to ${MAX_IDENTIFIERS}.`}
+        />
 
-        {showFields && (
-          <FieldArray name="columns">
-            {({ push, remove }) => (
-              <Editor role="group" aria-label="Entry fields">
-                <HeaderRow aria-hidden>
-                  <span />
-                  <span>
-                    <Label $tone="faint">Name</Label>
-                    <Small $faint>{COLUMN_HELP.name}</Small>
-                  </span>
-                  <span>
-                    <Label $tone="faint">Description</Label>
-                    <Small $faint>{COLUMN_HELP.description}</Small>
-                  </span>
-                  <span>
-                    <Label $tone="faint">Type</Label>
-                    <Small $faint>{COLUMN_HELP.type}</Small>
-                  </span>
-                  <span>
-                    <Label $tone="faint">Identifier</Label>
-                    <Small $faint>{COLUMN_HELP.identifier}</Small>
-                  </span>
-                  <span />
-                </HeaderRow>
-                {columns.map((column, index) => {
-                  const canBeIdentifier =
-                    (identifierCount < MAX_IDENTIFIERS ||
-                      !!column.isIdentifier) &&
-                    column.type !== LONG_TEXT &&
-                    column.type !== IMAGE &&
-                    column.type !== FILE
-                  const typeId = `${ids}-type-${index}`
-                  const identifierId = `${ids}-identifier-${index}`
-                  return (
-                    <FieldRow
-                      key={index}
-                      role="group"
-                      aria-label={`Field ${index + 1}`}
-                      style={{ ['--i' as string]: Math.min(index, 6) }}
-                    >
-                      <Index aria-hidden>
-                        {String(index + 1).padStart(2, '0')}
-                      </Index>
-                      <ColumnInput
-                        name={`columns[${index}].label`}
-                        label="Name"
-                        help={COLUMN_HELP.name}
-                        placeholder="Name"
-                      />
-                      <ColumnInput
-                        name={`columns[${index}].description`}
-                        label="Description"
-                        help={COLUMN_HELP.description}
-                        placeholder="What to enter"
-                      />
-                      <Cell>
-                        <CellLabel htmlFor={typeId}>
-                          <Label $tone="muted">Type</Label>
-                          <Small $muted>{COLUMN_HELP.type}</Small>
-                        </CellLabel>
-                        <Select
-                          id={typeId}
-                          aria-label={`Field ${index + 1} type`}
-                          value={column.type}
-                          onChange={(event) =>
-                            onTypeChange(index, event.target.value)
-                          }
-                        >
-                          {Object.values(ItemTypes).map((itemType) => (
-                            <option
-                              value={String(itemType)}
-                              key={String(itemType)}
-                            >
-                              {String(itemType)}
-                            </option>
-                          ))}
-                        </Select>
-                      </Cell>
-                      <ToggleCell>
-                        <ToggleLabel
-                          htmlFor={identifierId}
-                          title={
-                            canBeIdentifier
-                              ? `Searchable and shown on the entry card; up to ${MAX_IDENTIFIERS} fields.`
-                              : column.type === LONG_TEXT ||
-                                  column.type === IMAGE ||
-                                  column.type === FILE
-                                ? 'Long text, image and file fields cannot be identifiers.'
-                                : `Already ${MAX_IDENTIFIERS} identifiers.`
-                          }
-                        >
-                          <Toggle
-                            id={identifierId}
-                            type="checkbox"
-                            role="switch"
-                            aria-label={`Field ${index + 1} identifier`}
-                            aria-checked={!!column.isIdentifier}
-                            checked={!!column.isIdentifier}
-                            disabled={!canBeIdentifier}
-                            onChange={(event) =>
-                              setFieldValue(
-                                `columns[${index}].isIdentifier`,
-                                event.target.checked,
-                              )
-                            }
-                          />
-                          <span>Identifier</span>
-                        </ToggleLabel>
-                      </ToggleCell>
-                      <RemoveSlot>
-                        {columns.length > 1 && (
-                          <IconButton
-                            type="button"
-                            aria-label={`Remove field ${index + 1}`}
-                            onClick={() => remove(index)}
+        <FieldArray name="columns">
+          {({ push, remove }) => (
+            <Editor role="group" aria-label="Entry fields">
+              <HeaderRow aria-hidden>
+                <span />
+                <span>
+                  <Label $tone="faint">Name</Label>
+                  <Small $faint>{COLUMN_HELP.name}</Small>
+                </span>
+                <span>
+                  <Label $tone="faint">Description</Label>
+                  <Small $faint>{COLUMN_HELP.description}</Small>
+                </span>
+                <span>
+                  <Label $tone="faint">Type</Label>
+                  <Small $faint>{COLUMN_HELP.type}</Small>
+                </span>
+                <span>
+                  <Label $tone="faint">Identifier</Label>
+                  <Small $faint>{COLUMN_HELP.identifier}</Small>
+                </span>
+                <span />
+              </HeaderRow>
+              {columns.map((column, index) => {
+                const canBeIdentifier =
+                  (identifierCount < MAX_IDENTIFIERS ||
+                    !!column.isIdentifier) &&
+                  column.type !== LONG_TEXT &&
+                  column.type !== IMAGE &&
+                  column.type !== FILE
+                const typeId = `${ids}-type-${index}`
+                const identifierId = `${ids}-identifier-${index}`
+                return (
+                  <FieldRow
+                    key={index}
+                    role="group"
+                    aria-label={`Field ${index + 1}`}
+                    style={{ ['--i' as string]: Math.min(index, 6) }}
+                  >
+                    <Index aria-hidden>
+                      {String(index + 1).padStart(2, '0')}
+                    </Index>
+                    <ColumnInput
+                      name={`columns[${index}].label`}
+                      label="Name"
+                      help={COLUMN_HELP.name}
+                      placeholder="Name"
+                    />
+                    <ColumnInput
+                      name={`columns[${index}].description`}
+                      label="Description"
+                      help={COLUMN_HELP.description}
+                      placeholder="What to enter"
+                    />
+                    <Cell>
+                      <CellLabel htmlFor={typeId}>
+                        <Label $tone="muted">Type</Label>
+                        <Small $muted>{COLUMN_HELP.type}</Small>
+                      </CellLabel>
+                      <Select
+                        id={typeId}
+                        aria-label={`Field ${index + 1} type`}
+                        value={column.type}
+                        onChange={(event) =>
+                          onTypeChange(index, event.target.value)
+                        }
+                      >
+                        {Object.values(ItemTypes).map((itemType) => (
+                          <option
+                            value={String(itemType)}
+                            key={String(itemType)}
                           >
-                            <CurateIcon name="remove" size={16} />
-                          </IconButton>
-                        )}
-                      </RemoveSlot>
-                      {column.type === FILE && (
-                        <FileTypes>
-                          <TextField
-                            name={`columns[${index}].allowedFileTypes`}
-                            label="Allowed file types"
-                            placeholder="pdf doc mp3"
-                            help="Extensions separated by spaces."
-                          />
-                        </FileTypes>
+                            {String(itemType)}
+                          </option>
+                        ))}
+                      </Select>
+                    </Cell>
+                    <ToggleCell>
+                      <ToggleLabel
+                        htmlFor={identifierId}
+                        title={
+                          canBeIdentifier
+                            ? `Searchable and shown on the entry card; up to ${MAX_IDENTIFIERS} fields.`
+                            : column.type === LONG_TEXT ||
+                                column.type === IMAGE ||
+                                column.type === FILE
+                              ? 'Long text, image and file fields cannot be identifiers.'
+                              : `Already ${MAX_IDENTIFIERS} identifiers.`
+                        }
+                      >
+                        <Toggle
+                          id={identifierId}
+                          type="checkbox"
+                          role="switch"
+                          aria-label={`Field ${index + 1} identifier`}
+                          aria-checked={!!column.isIdentifier}
+                          checked={!!column.isIdentifier}
+                          disabled={!canBeIdentifier}
+                          onChange={(event) =>
+                            setFieldValue(
+                              `columns[${index}].isIdentifier`,
+                              event.target.checked,
+                            )
+                          }
+                        />
+                        <span>Identifier</span>
+                      </ToggleLabel>
+                    </ToggleCell>
+                    <RemoveSlot>
+                      {columns.length > 1 && (
+                        <IconButton
+                          type="button"
+                          aria-label={`Remove field ${index + 1}`}
+                          onClick={() => remove(index)}
+                        >
+                          <CurateIcon name="remove" size={16} />
+                        </IconButton>
                       )}
-                    </FieldRow>
-                  )
-                })}
-                <Stack $gap={10} style={{ marginTop: 8 }}>
-                  <div>
-                    <Button
-                      type="button"
-                      $variant="secondary"
-                      $size="sm"
-                      onClick={() => push({ ...NEW_COLUMN })}
-                    >
-                      Add a field
-                    </Button>
-                  </div>
-                  {problem && <ErrorText role="alert">{problem}</ErrorText>}
-                </Stack>
-              </Editor>
-            )}
-          </FieldArray>
-        )}
-
-        {showPreview && (
-          <PreviewFrame>
-            <ItemDetailsCard title="Preview" columns={columns} disabled />
-          </PreviewFrame>
-        )}
+                    </RemoveSlot>
+                    {column.type === FILE && (
+                      <FileTypes>
+                        <TextField
+                          name={`columns[${index}].allowedFileTypes`}
+                          label="Allowed file types"
+                          placeholder="pdf doc mp3"
+                          help="Extensions separated by spaces."
+                        />
+                      </FileTypes>
+                    )}
+                  </FieldRow>
+                )
+              })}
+              <Stack $gap={10} style={{ marginTop: 8 }}>
+                <div>
+                  <Button
+                    type="button"
+                    $variant="secondary"
+                    $size="sm"
+                    onClick={() => push({ ...NEW_COLUMN })}
+                  >
+                    Add a field
+                  </Button>
+                </div>
+                {problem && <ErrorText role="alert">{problem}</ErrorText>}
+              </Stack>
+            </Editor>
+          )}
+        </FieldArray>
       </StepBody>
     </form>
   )

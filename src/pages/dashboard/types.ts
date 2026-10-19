@@ -56,6 +56,8 @@ export interface DashboardUser {
       submissions: number
       removals: number
       challenges: number
+      /** Challenges the court has ruled on (or refused to). */
+      decidedChallenges: number
       successfulChallenges: number
       lastActiveAt: number
     }
@@ -63,7 +65,9 @@ export interface DashboardUser {
   submissions: number
   removals: number
   challenges: number
+  decidedChallenges: number
   successfulChallenges: number
+  /** Requests plus challenges (a won challenge is not counted again). */
   activity: number
   lastActiveAt: number
 }
@@ -78,7 +82,7 @@ export interface DashboardMetrics {
   bountyByChain: Record<number, string>
 }
 
-/** One UTC day of request activity (last 30 days, all chains). */
+/** One UTC day of request activity (the 30-day window, all chains). */
 export interface DashboardDay {
   /** Unix seconds at 00:00 UTC */
   day: number
@@ -89,16 +93,25 @@ export interface DashboardDay {
 
 export interface DashboardData {
   generatedAt: number
-  /** Daily requests over the last 30 days, oldest first. */
+  /** Start of the 30-day window (unix seconds, 00:00 UTC of the first day). */
+  since: number
+  /** Daily requests over the window, oldest first; the last day is today so far. */
   series: DashboardDay[]
   /** The same series per chain id. */
   seriesByChain: Record<number, DashboardDay[]>
   /** True when the 30-day page budget was exhausted on some chain. */
   seriesTruncated: boolean
   registries: DashboardRegistry[]
+  /** Latest requests per chain (and Stake submissions), newest first, whatever their state. */
   activities: DashboardActivity[]
-  /** Latest disputes, open or resolved (for the "decided" column). */
-  disputes: DashboardActivity[]
+  /** Unresolved requests nobody has challenged, newest first (cards only: capped per chain). */
+  unchallenged: DashboardActivity[]
+  /** Per chain: unresolved requests with no challenge, and whether the count hit the query cap. */
+  unchallengedCount: Record<number, { count: number; capped: boolean }>
+  /** Every ruling in the window, newest first. */
+  decided: DashboardActivity[]
+  /** Per chain: true when the rulings query hit its row limit. */
+  decidedCapped: Record<number, boolean>
   /** Every dispute open right now (disputed and not yet resolved). */
   openDisputes: DashboardActivity[]
   users: DashboardUser[]

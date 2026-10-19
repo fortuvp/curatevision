@@ -14,15 +14,17 @@ import { useEthersProvider } from 'hooks/ethers-adapters'
 import { useAttachment } from 'hooks/use-attachment'
 import { WalletContext } from 'contexts/wallet-context'
 import { useGraphqlBatcher } from 'contexts/graphql-batcher'
-import { PERMANENT_ITEM_DETAILS_QUERY } from 'utils/graphql'
+import {
+  PERMANENT_ITEM_DETAILS_QUERY,
+  PERMANENT_REGISTRY_QUERY,
+} from 'utils/graphql'
 import { STALE_TIME } from 'consts'
 import { parseIpfs } from 'utils/ipfs-parse'
 import { capitalizeFirstLetter } from 'utils/string'
 import { truncateAtWord } from 'utils/truncate-at-word'
-import { formatAbsolute, formatAgo, formatDurationLong } from 'utils/time'
+import { formatAbsolute, formatDurationLong } from 'utils/time'
 import { STATUS_CODE } from 'utils/permanent-item-status'
 import ItemDetailsCard from 'components/item-details-card'
-import PolicyUpdatedBadge from 'components/policy-updated-badge'
 import RequestTimelines from 'components/permanent-request-timelines'
 import { AddressLink } from 'components/curate/item-stake-address'
 import { CurateIcon } from 'components/curate/icons'
@@ -48,7 +50,9 @@ import {
 import { StickyActionBarSpacer } from 'components/curate/item-light-action-bar'
 import ErrorPage from '../error-page'
 import ItemStatusCard from './item-status-card'
+import { formatSince } from 'pages/item-details/format-since'
 import { StakeWindowPanel } from './item-window'
+import { PolicySince, policyInForceSince } from './policy-since'
 import { multiplierPercent, nativeText, tokenText } from './modals/shell'
 import {
   stakeFacts,
@@ -411,6 +415,25 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
     staleTime: STALE_TIME,
   })
 
+  // Every settings change of the list, for the date of the policy in force.
+  // The list page reads the same query, so it is cached when coming from it.
+  const settingsQuery = useQuery({
+    queryKey: ['permanentRegistry', tcrAddress, chainId],
+    queryFn: () =>
+      graphqlBatcher.fetch({
+        id: crypto.randomUUID(),
+        document: PERMANENT_REGISTRY_QUERY,
+        variables: { lowerCaseTCRAddress: tcrAddress?.toLowerCase() },
+        chainId: chainId!,
+        isPermanent: true,
+      }),
+    enabled: !!chainId && !!tcrAddress,
+    staleTime: STALE_TIME,
+  })
+  const policySince = policyInForceSince(
+    settingsQuery.data?.registry?.arbitrationSettings,
+  )
+
   const item = useMemo(
     () =>
       (query.isLoading ? undefined : query.data?.item) as StakeItem | undefined,
@@ -743,7 +766,11 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
               >
                 <CurateIcon name="policy" size={14} />
                 Listing policy
-                <PolicyUpdatedBadge registryAddress={tcrAddress} />
+                <PolicySince
+                  since={policySince}
+                  loading={settingsQuery.isLoading}
+                  now={now}
+                />
               </PolicyButton>
             )}
           </StatusRow>
@@ -771,8 +798,14 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
                 <Label as="dt" $tone="faint">
                   {facts.reincluded ? 'Reincluded' : 'Submitted'}
                 </Label>
-                <dd title={formatAbsolute(facts.includedAt)}>
-                  {facts.includedAt ? formatAgo(facts.includedAt, now) : '—'}
+                <dd
+                  title={
+                    facts.includedAt
+                      ? formatAbsolute(facts.includedAt)
+                      : undefined
+                  }
+                >
+                  {facts.includedAt ? formatSince(facts.includedAt, now) : '—'}
                 </dd>
               </div>
               {item.submitter && (
@@ -811,7 +844,11 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
                   Submissions
                 </Label>
                 <dd>
-                  <AnimatedNumber value={item.submissions?.length ?? 1} />
+                  {item.submissions ? (
+                    <AnimatedNumber value={item.submissions.length} />
+                  ) : (
+                    '—'
+                  )}
                 </dd>
               </div>
             </Stats>

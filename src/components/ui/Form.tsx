@@ -1,5 +1,6 @@
-import React from 'react'
+import React, { useCallback, useId, useMemo, useState } from 'react'
 import styled, { css } from 'styled-components'
+import { FormItemContext } from './form-item-context'
 import { joinClassNames, kitType } from './kit-styles'
 
 const StyledForm = styled.form<{ $layout?: string }>`
@@ -30,11 +31,10 @@ const StyledForm = styled.form<{ $layout?: string }>`
  * plus a 1px ring and a soft halo on focus) and the help line names the
  * problem; success does the same in the registered role.
  *
- * A bare input inside an addon group or a number field is not the field:
- * its group carries the border, so those inputs are left out here.
+ * A bare input inside an addon group is not the field: its group carries
+ * the border, so those inputs are left out here.
  */
-const bareInput =
-  ':is(input, textarea):not(.ui-input-group *):not(.ui-input-number *)'
+const bareInput = ':is(input, textarea):not(.ui-input-group *)'
 
 const statusField = (color: string) => css`
   .ui-form-item-control ${bareInput}, .ui-form-item-control .ui-select-trigger {
@@ -47,7 +47,6 @@ const statusField = (color: string) => css`
     &&
     .ui-form-item-control
     .ui-input-group,
-  && .ui-form-item-control .ui-input-number,
   && .ui-form-item-control .ui-select-trigger {
     border-color: color-mix(in srgb, ${color} 60%, transparent) !important;
   }
@@ -58,7 +57,6 @@ const statusField = (color: string) => css`
     &&
     .ui-form-item-control
     .ui-input-group:focus-within,
-  && .ui-form-item-control .ui-input-number:focus-within,
   && .ui-form-item-control .ui-select-trigger[aria-expanded='true'] {
     border-color: ${color} !important;
     box-shadow:
@@ -91,12 +89,13 @@ const FormItemWrapper = styled.div<{ $validateStatus?: string }>`
 /*
  * The label is one run of text, so a long one wraps naturally. A label above
  * its field needs no colon (sentence case, no punctuation); the colon shows
- * only beside the field in a horizontal form.
+ * only beside the field in a horizontal form. The field name is in text
+ * colour; a description inside it is muted by the caller.
  */
 const Label = styled.label<{ $required?: boolean }>`
   display: block;
   margin-bottom: 8px;
-  color: var(--color-muted);
+  color: var(--color-text);
   font-size: ${kitType.meta};
   line-height: ${kitType.metaLine};
   font-weight: 500;
@@ -192,41 +191,74 @@ const FormItem: React.FC<FormItemProps> = ({
   children,
   colon = true,
   required = false,
-}) => (
-  <FormItemWrapper
-    $validateStatus={validateStatus}
-    style={style}
-    className={joinClassNames(
-      'ui-form-item',
-      validateStatus && `ui-form-item-${validateStatus}`,
-      className,
-    )}
-  >
-    {label && (
-      <Label className="ui-form-item-label" $required={required}>
-        {label}
-        {colon && (
-          <span className="ui-form-item-colon" aria-hidden="true">
-            :
-          </span>
-        )}
-      </Label>
-    )}
-    <ControlWrapper className="ui-form-item-control">{children}</ControlWrapper>
-    {help && (
-      <HelpText
-        className={joinClassNames(
-          'ui-form-item-help',
-          validateStatus === 'error' && 'ui-form-item-error',
-        )}
-        $isError={validateStatus === 'error'}
-        aria-live="polite"
-      >
-        {help}
-      </HelpText>
-    )}
-  </FormItemWrapper>
-)
+}) => {
+  const baseId = useId()
+  const labelId = label ? `${baseId}-label` : undefined
+  const helpId = help ? `${baseId}-help` : undefined
+  const invalid = validateStatus === 'error'
+
+  // Controls register in mount order; the first one takes the label's `for`.
+  const [controls, setControls] = useState<string[]>([])
+  const register = useCallback((controlId: string) => {
+    setControls((previous) =>
+      previous.includes(controlId) ? previous : [...previous, controlId],
+    )
+    return () =>
+      setControls((previous) => previous.filter((id) => id !== controlId))
+  }, [])
+  const labelFor = controls[0]
+
+  const context = useMemo(
+    () => ({ labelId, labelFor, helpId, invalid, register }),
+    [labelId, labelFor, helpId, invalid, register],
+  )
+
+  return (
+    <FormItemWrapper
+      $validateStatus={validateStatus}
+      style={style}
+      className={joinClassNames(
+        'ui-form-item',
+        validateStatus && `ui-form-item-${validateStatus}`,
+        className,
+      )}
+    >
+      {label && (
+        <Label
+          id={labelId}
+          htmlFor={labelFor}
+          className="ui-form-item-label"
+          $required={required}
+        >
+          {label}
+          {colon && (
+            <span className="ui-form-item-colon" aria-hidden="true">
+              :
+            </span>
+          )}
+        </Label>
+      )}
+      <ControlWrapper className="ui-form-item-control">
+        <FormItemContext.Provider value={context}>
+          {children}
+        </FormItemContext.Provider>
+      </ControlWrapper>
+      {help && (
+        <HelpText
+          id={helpId}
+          className={joinClassNames(
+            'ui-form-item-help',
+            invalid && 'ui-form-item-error',
+          )}
+          $isError={invalid}
+          aria-live="polite"
+        >
+          {help}
+        </HelpText>
+      )}
+    </FormItemWrapper>
+  )
+}
 
 FormItem.displayName = 'Form.Item'
 

@@ -662,7 +662,7 @@ const SubmitModal: React.FC<{
             body: `The challenger stakes ${challengerText} and pays the arbitration cost. Win and your stake grows by theirs${multiplierKnown ? ` (${challengerText})` : ''}; lose and they take your ${stakeText} and ${depositText}. If the jurors refuse to rule, both stakes come back, the arbitration deposit is split, and the ${name} is withdrawn.`,
           },
         ]}
-        confirmLabel={`Submit ${name}`}
+        confirmLabel={typeof title === 'string' ? title : `Submit ${name}`}
         onConfirm={confirm}
         confirmDisabled={Boolean(blocker)}
         confirmBlocker={blocker}
@@ -679,7 +679,7 @@ const SubmitModal: React.FC<{
           ) : undefined
         }
       />
-      <GateHelper gate={gate} />
+      <GateHelper gate={gate} caption={false} />
     </Stack>
   )
 

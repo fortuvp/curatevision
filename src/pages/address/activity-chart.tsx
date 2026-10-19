@@ -1,16 +1,24 @@
-import React, { useEffect, useId, useRef, useState } from 'react'
+import React, {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import styled, { keyframes } from 'styled-components'
 
 /*
  * The address's actions over time, drawn like the home page's activity wave:
  * submissions and removal requests as a glowing area above the baseline,
  * challenges as amber bars mirrored below it. Each half has its own scale,
- * read off a small axis at the right edge (top value, 0 at the baseline,
- * bottom value), each value beside a short tick at its height; no gridlines.
+ * labelled inside the plot at the right like the home page's ("100
+ * requests" over the top, "5 challenges" at the bottom); a half with nothing
+ * in the window keeps its room and says "no challenges" rather than a scale.
  * A scanner reveal sweeps in once the chart is in view and the head at the
  * newest bucket arrives with the line; it pings only when that bucket holds
- * actions. Hover snaps a crosshair to a bucket and reads both counts.
- * Reduced motion shows the final state.
+ * actions. Hover snaps a crosshair to a bucket and reads both counts in a
+ * tooltip beside it, at the hovered value's height, so it never hides the
+ * point it reads. Reduced motion shows the final state.
  */
 
 const scan = keyframes`
@@ -64,7 +72,7 @@ const Svg = styled.svg`
 
   text {
     font-family: var(--font-figure);
-    font-size: 10px;
+    font-size: 11px;
     font-variant-numeric: tabular-nums;
     fill: var(--color-faint);
   }
@@ -92,6 +100,10 @@ const Svg = styled.svg`
 const Tip = styled.div`
   position: absolute;
   top: 0;
+  left: 0;
+  z-index: 1;
+  /* Its own width wherever it sits, so the measured size is the real one. */
+  width: max-content;
   min-width: 168px;
   padding: 10px 12px;
   border: 1px solid var(--glass-border);
@@ -99,17 +111,22 @@ const Tip = styled.div`
   background: var(--color-surface);
   box-shadow: var(--shadow-overlay);
   pointer-events: none;
-  transform: translateX(-50%);
-  transition: left 160ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    left 160ms cubic-bezier(0.16, 1, 0.3, 1),
+    top 160ms cubic-bezier(0.16, 1, 0.3, 1);
   font-size: 12px;
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
 
   b {
     display: block;
     margin-bottom: 8px;
-    color: var(--color-faint);
-    font-family: var(--font-mono);
-    font-size: 11px;
-    font-weight: 400;
+    color: var(--color-text);
+    font-size: 13px;
+    line-height: 18px;
+    font-weight: 500;
   }
 
   div {
@@ -196,16 +213,23 @@ const monotonePath = (pts: [number, number][]) => {
   return d
 }
 
-/** A round top for the scale: 5, 10, 20, 30, 50, 100… */
+/**
+ * A round top for the scale (5, then the next whole step of the leading
+ * digit: 80, 100, 200…), the same rule as the home page's activity wave so
+ * the two charts read alike.
+ */
 const niceMax = (max: number) => {
   if (max <= 5) return 5
   const pow = 10 ** Math.floor(Math.log10(max))
-  const unit = [1, 2, 3, 5, 10].find((step) => step * pow >= max) ?? 10
-  return unit * pow
+  return Math.ceil(max / pow) * pow
 }
 
-/** Room at the right edge for the scale values. */
-const GUTTER = 40
+/** Room at the right edge so the head and its ping stay inside the frame. */
+const GUTTER = 8
+/** Room under the challenge bars for the bottom scale label. */
+const LABEL_ROOM = 16
+/** Gap between the crosshair and the tooltip. */
+const TIP_GAP = 14
 
 export const ActivityChart = ({
   labels,
@@ -231,6 +255,8 @@ export const ActivityChart = ({
   const [width, setWidth] = useState(0)
   const [hover, setHover] = useState<number | null>(null)
   const [inView, setInView] = useState(false)
+  const tipRef = useRef<HTMLDivElement>(null)
+  const [tipSize, setTipSize] = useState({ width: 176, height: 84 })
 
   useEffect(() => {
     const node = ref.current
@@ -268,18 +294,32 @@ export const ActivityChart = ({
     return () => io.disconnect()
   }, [])
 
+  // The tooltip's real size, so it can sit beside the crosshair and inside
+  // the chart at any width.
+  useLayoutEffect(() => {
+    const node = tipRef.current
+    if (hover === null || !node) return
+    const next = { width: node.offsetWidth, height: node.offsetHeight }
+    setTipSize((size) =>
+      size.width === next.width && size.height === next.height ? size : next,
+    )
+  }, [hover])
+
   const count = labels.length
   const w = Math.max(width, 240)
-  // The plot ends before the gutter that holds the scale values.
   const plotW = w - GUTTER
   const mid = Math.round(height * 0.7)
   const top = 18
   const bottom = height - 4
+  // Challenge bars stop short of the bottom label.
+  const barsEnd = bottom - LABEL_ROOM
+  const upTotal = requests.reduce((sum, v) => sum + v, 0)
+  const downTotal = challenges.reduce((sum, v) => sum + v, 0)
   const upMax = niceMax(Math.max(1, ...requests))
   const downMax = niceMax(Math.max(1, ...challenges))
   const x = (i: number) => (count <= 1 ? plotW / 2 : (i / (count - 1)) * plotW)
   const yUp = (v: number) => mid - (v / upMax) * (mid - top)
-  const yDown = (v: number) => mid + 4 + (v / downMax) * (bottom - mid - 4)
+  const yDown = (v: number) => mid + 4 + (v / downMax) * (barsEnd - mid - 4)
   const pts = requests.map((v, i) => [x(i), yUp(v)] as [number, number])
   const line = monotonePath(pts)
   const area = line ? `${line}L${plotW},${mid}L0,${mid}Z` : ''
@@ -287,11 +327,31 @@ export const ActivityChart = ({
   const head = pts[pts.length - 1]
   // Live only when the newest bucket (the one holding now) has actions.
   const live = (requests[count - 1] ?? 0) + (challenges[count - 1] ?? 0) > 0
-  const scale = [
-    { value: upMax, y: top },
-    { value: 0, y: mid },
-    { value: downMax, y: bottom },
-  ]
+  // A half with nothing in the window names no scale, only the absence.
+  const upScale = upTotal > 0 ? `${upMax} requests` : 'no requests'
+  const downScale = downTotal > 0 ? `${downMax} challenges` : 'no challenges'
+
+  // The tooltip sits beside the crosshair (left of it on the right half) at
+  // the height of the value it reads. When neither side has room (a narrow
+  // chart, a bucket near the middle) it sits above the point, or below it
+  // near the top; either way the point it reads stays in view.
+  const placeTip = (index: number) => {
+    const { width: tw, height: th } = tipSize
+    const at = x(index)
+    const y = yUp(requests[index] ?? 0)
+    const clampTop = (value: number) =>
+      Math.max(0, Math.min(height - th, value))
+    const before = at - TIP_GAP - tw
+    const after = at + TIP_GAP
+    const sides = at > plotW / 2 ? [before, after] : [after, before]
+    const side = sides.find((left) => left >= 0 && left + tw <= w)
+    if (side !== undefined) return { left: side, top: clampTop(y - th / 2) }
+    return {
+      left: Math.max(0, Math.min(w - tw, at - tw / 2)),
+      top: clampTop(y - TIP_GAP - th >= 0 ? y - TIP_GAP - th : y + TIP_GAP),
+    }
+  }
+  const tip = hover === null ? undefined : placeTip(hover)
 
   const onMove = (event: React.PointerEvent) => {
     const box = ref.current?.getBoundingClientRect()
@@ -403,22 +463,16 @@ export const ActivityChart = ({
             </filter>
           </defs>
 
-          {/* The scale of each half: a value beside a short tick at its height. */}
+          {/* The scale of each half, inside the plot at the right: the top
+              of the upper half over it, the bottom of the lower half under
+              its bars. The baseline is the zero of both. */}
           <g aria-hidden>
-            {scale.map((mark) => (
-              <g key={`${mark.value}-${mark.y}`}>
-                <line
-                  x1={plotW + 10}
-                  x2={plotW + 15}
-                  y1={mark.y}
-                  y2={mark.y}
-                  style={{ stroke: 'var(--color-border-strong)' }}
-                />
-                <text x={plotW + 19} y={mark.y} dominantBaseline="middle">
-                  {mark.value}
-                </text>
-              </g>
-            ))}
+            <text x={plotW} y={top - 7} textAnchor="end">
+              {upScale}
+            </text>
+            <text x={plotW} y={bottom} textAnchor="end">
+              {downScale}
+            </text>
           </g>
 
           <g className="reveal">
@@ -518,12 +572,8 @@ export const ActivityChart = ({
         </Svg>
       )}
 
-      {hover !== null && width > 0 && (
-        <Tip
-          style={{
-            left: `${Math.min(84, Math.max(16, (x(hover) / w) * 100))}%`,
-          }}
-        >
+      {hover !== null && tip && width > 0 && (
+        <Tip ref={tipRef} style={{ left: tip.left, top: tip.top }}>
           <b>{labels[hover]}</b>
           <div>
             <span>

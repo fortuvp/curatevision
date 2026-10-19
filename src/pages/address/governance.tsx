@@ -1262,16 +1262,6 @@ const GovHead = styled.div`
   }
 `
 
-const GovEmpty = styled.p`
-  margin: 0;
-  padding: 18px 20px;
-  border: 1px dashed var(--glass-border);
-  border-radius: 14px;
-  color: var(--color-muted);
-  font-size: var(--fs-small);
-  line-height: var(--lh-small);
-`
-
 const logoUrl = (uri?: string | null): string | null => {
   if (!uri) return null
   if (/^https?:\/\//i.test(uri)) return uri
@@ -1320,11 +1310,6 @@ export const GovernancePanel = ({
           </Small>
           <SkeletonBlock $height="76px" style={{ borderRadius: 14 }} />
         </GovList>
-      ) : registries.length === 0 ? (
-        <GovEmpty>
-          No indexed list names this address as governor. A list appears here
-          once the profile scan can read its governor.
-        </GovEmpty>
       ) : (
         <GovList>
           {registries.map((registry) => {

@@ -31,7 +31,7 @@ const Divider = styled.div`
 const MenuTitle = styled.div`
   padding: 6px 10px 4px;
   color: var(--color-faint);
-  font-family: var(--font-mono);
+  font-family: var(--font-label);
   font-size: var(--fs-label);
   line-height: var(--lh-label);
   font-weight: 500;
@@ -52,7 +52,7 @@ const MenuItem = styled.button<{ $active?: boolean }>`
   background: ${({ $active }) =>
     $active ? 'var(--color-primary-soft)' : 'transparent'};
   color: ${({ $active }) =>
-    $active ? 'var(--color-primary)' : 'var(--color-text)'};
+    $active ? 'var(--color-primary-on-soft)' : 'var(--color-text)'};
   text-align: left;
   cursor: pointer;
   transition: background var(--motion);

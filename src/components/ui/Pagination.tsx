@@ -122,8 +122,9 @@ const PageButton = styled.button`
     border-color: var(--glass-border);
   }
 
+  /* Primary-on-soft ink keeps the current page at 4.5:1 on its tint. */
   &.active {
-    color: var(--color-primary);
+    color: var(--color-primary-on-soft);
     background: var(--color-primary-soft);
   }
 

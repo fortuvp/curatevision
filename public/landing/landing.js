@@ -28,6 +28,12 @@
     month: 'short',
     timeZone: 'UTC',
   })
+  const dayYearFormat = new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
   const stampFormat = new Intl.DateTimeFormat('en-GB', {
     day: 'numeric',
     month: 'short',
@@ -271,14 +277,32 @@
     registries: isCount(facts.registries) ? facts.registries : undefined,
   }
 
+  // The figures are a snapshot, so every label names its time or window
+  // instead of "now" or "the last 30 days".
   const stamp = hasSnapshot ? `${stampFormat.format(snapshotAt)} UTC` : ''
+  const shortStamp = hasSnapshot
+    ? `${dayFormat.format(snapshotAt)}, ${timeFormat.format(snapshotAt)} UTC`
+    : ''
+  const lastDay = hasSeries ? new Date(series.at(-1).day * 1000) : undefined
+  const windowText = lastDay
+    ? `${series.length} days to ${dayYearFormat.format(lastDay)}`
+    : '30 days'
   const scope = typeof data?.scope === 'string' ? data.scope : ''
   const setText = (key, text) => {
     for (const node of $$(`[data-fig="${key}"]`)) node.textContent = text
   }
   if (scope) setText('scope', scope)
+  setText('window', windowText)
+  setText('chartTitle', `Requests and challenges per day, ${windowText}`)
+  if (lastDay)
+    setText(
+      'gaugeTitle',
+      `Requests not challenged · ${series.length} days to ${dayFormat.format(lastDay)}`,
+    )
+  if (hasSnapshot)
+    setText('openUnit', `requests open on ${dayFormat.format(snapshotAt)}`)
   if (stamp) {
-    setText('stamp', `Snapshot · ${stamp}`)
+    setText('stamp', `Snapshot · ${shortStamp}`)
     setText(
       'source',
       `Figures: public Curate data on ${scope || 'Curate mainnets'}, snapshot of ${stamp}. The app shows them live.`,
@@ -290,6 +314,8 @@
     featured.dataset.emptyState = ''
     const empty = $('[data-empty]', featured)
     if (empty) empty.hidden = false
+    // No figures: a snapshot time beside them would contradict the message.
+    for (const node of $$('[data-fig="stamp"]', featured)) node.hidden = true
   }
 
   /** Rolls each digit on its own column, then settles into plain text. */
@@ -583,11 +609,12 @@
     // Provisional: the newest requests can still be challenged.
     const passed = totalRequests - totalChallenged
     const share = passed / totalRequests
+    const when = shortStamp ? ` at ${shortStamp}` : ''
     buildGauge(gaugeHost, {
       ratio: share,
       caption: 'not challenged so far',
       ends: ['0%', '100%'],
-      label: `Requests not challenged so far, last 30 days: ${integer.format(passed)} of ${integer.format(totalRequests)}, ${(share * 100).toFixed(1)}%. Some are still open to challenge.`,
+      label: `Requests not challenged, ${windowText}: ${integer.format(passed)} of ${integer.format(totalRequests)}${when}, ${(share * 100).toFixed(1)}%. Some were still open to challenge.`,
     })
     const note = $('[data-fig="gaugeNote"]')
     if (note) {
@@ -597,64 +624,26 @@
         b.textContent = text
         return b
       }
+      // Two sentences, two lines: the count with its time, then the caveat.
+      const caveat = doc.createElement('span')
+      caveat.textContent = 'Some were still open to challenge.'
       note.append(
         strong(integer.format(passed)),
         ' of ',
         strong(integer.format(totalRequests)),
-        ' requests. Some are still open to challenge.',
+        ` requests${when}. `,
+        caveat,
       )
     }
+  } else {
+    // No series: no gauge (an empty ring would read as 0%) and no caption
+    // over a blank area; the copy takes the whole hero.
+    const viz = $('.hero-viz')
+    if (viz) viz.hidden = true
+    $('.hero')?.classList.add('hero--solo')
   }
 
-  /* ---------- Role rows: daily bars and the verified share ---------- */
-
-  /** One bar per day; a real zero stays a faint stub so the baseline reads. */
-  const buildSpark = (host, values, { blocks = false } = {}) => {
-    const max = Math.max(1, ...values)
-    // Blocks: one block per challenge while they fit, so the bars can be counted.
-    const stacked = blocks && max <= 6
-    host.replaceChildren()
-    for (const [index, value] of values.entries()) {
-      const bar = doc.createElement('span')
-      bar.className = 'spark-bar'
-      if (value === 0) bar.dataset.zero = ''
-      if (index === values.length - 1) bar.dataset.last = ''
-      bar.style.setProperty('--i', String(index))
-      if (stacked && value > 0)
-        for (let unit = 0; unit < value; unit++)
-          bar.append(doc.createElement('i'))
-      else bar.style.setProperty('--v', String(value / max))
-      host.append(bar)
-    }
-    if (stacked) host.dataset.stacked = ''
-    const run = () => {
-      host.dataset.drawn = ''
-    }
-    if (reducedMotion()) run()
-    else whenInView(host, run, 0.5)
-  }
-
-  const sparkSeries = {
-    requests: series.map((row) => row.requests),
-    challenges: series.map((row) => row.challenges),
-  }
-  for (const host of $$('[data-spark]')) {
-    const values = sparkSeries[host.dataset.spark]
-    const viz = host.closest('.role-viz')
-    if (!hasSeries || !values) {
-      if (viz) viz.hidden = true
-      continue
-    }
-    buildSpark(host, values, { blocks: host.dataset.spark === 'challenges' })
-    const total = values.reduce((sum, value) => sum + value, 0)
-    host.setAttribute('role', 'img')
-    host.setAttribute(
-      'aria-label',
-      host.dataset.spark === 'challenges'
-        ? `Challenges made per day, last 30 days: ${integer.format(total)} in total, at most ${integer.format(Math.max(...values))} in a day.`
-        : `Requests per day, last 30 days: ${integer.format(total)} in total, at most ${integer.format(Math.max(...values))} in a day.`,
-    )
-  }
+  /* ---------- Role rows: the verified share ---------- */
 
   /** A 270° mini ring: the share of registries on the verified list. */
   const ringHost = $('[data-mini-ring]')
@@ -706,7 +695,10 @@
           }),
         )
       }
-    } else ringHost.closest('.role-viz')?.setAttribute('hidden', '')
+    } else {
+      ringHost.closest('.role-viz')?.setAttribute('hidden', '')
+      ringHost.closest('.role')?.classList.remove('role--viz')
+    }
   }
 
   /* ---------- Line chart: requests per day, challenges made below the baseline ---------- */
@@ -746,10 +738,15 @@
   // Below this many challenges in a day, each one gets its own block.
   const MAX_BLOCKS = 4
 
+  /**
+   * A round top for the scale with a little headroom, so the tallest day
+   * never runs into the labelled top tick ("160 requests").
+   */
   const niceTop = (max) => {
-    if (max <= 10) return 10
+    if (max <= 9) return 10
     const step = max <= 100 ? 10 : 20
-    return Math.ceil(max / step) * step
+    const top = Math.ceil(max / step) * step
+    return max > top * 0.9 ? top + step : top
   }
 
   const buildChart = (host, rows) => {
@@ -781,7 +778,8 @@
       const width = Math.max(260, Math.round(host.clientWidth))
       const height = width < 560 ? 220 : 260
       const padLeft = 34
-      const padRight = 12
+      // The average's label sits right of the plot, clear of the curve.
+      const padRight = 48
       const padTop = 14
       const barZone = 30
       const axisZone = 24
@@ -803,7 +801,7 @@
         width,
         height,
         role: 'img',
-        'aria-label': `Requests per day over the last 30 days: ${integer.format(totalRequests)} in total, ${integer.format(Math.round(average))} a day on average, at most ${integer.format(Math.max(...requests))} in a day. Challenges made per day are drawn on a separate scale below the baseline${stacked ? ', one block per challenge' : ''}: ${integer.format(totalChallenged)} in total.`,
+        'aria-label': `Requests per day, ${windowText}: ${integer.format(totalRequests)} in total, ${integer.format(Math.round(average))} a day on average, at most ${integer.format(Math.max(...requests))} in a day. Challenges made per day are drawn on a separate scale below the baseline${stacked ? ', one block per challenge' : ''}: ${integer.format(totalChallenged)} in total.`,
       })
       const defs = svgEl('defs')
 
@@ -929,22 +927,25 @@
       defs.append(wash, dots, fadeDown, dotMask, stroke, blur, headGlow, clip)
       svg.append(defs)
 
-      // Scale: three labels at most, no gridlines; one dashed average line.
+      // Scale: three labels at most, the top one with its unit, no
+      // gridlines; one dashed average line.
       for (const value of [0, top / 2, top]) {
         const label = svgEl('text', {
           class: 'axis',
           x: 0,
-          y: y(value) + 3,
+          y: y(value) + 4,
         })
-        label.textContent = integer.format(value)
+        label.textContent =
+          value === top
+            ? `${integer.format(value)} requests`
+            : integer.format(value)
         svg.append(label)
       }
       const averageY = y(average)
       const guideLabel = svgEl('text', {
         class: 'guide-label',
-        x: width - padRight,
-        y: averageY - 6,
-        'text-anchor': 'end',
+        x: width - padRight + 10,
+        y: averageY + 4,
       })
       guideLabel.textContent = `avg ${integer.format(Math.round(average))}`
       svg.append(
@@ -981,8 +982,6 @@
         stroke: 'url(#c-stroke)',
         'stroke-width': 2.2,
       })
-      // The average's label goes over the line (its halo keeps it legible
-      // where a peak crosses it, as on phones).
       svg.append(glowPath, linePath, guideLabel)
       svg.append(
         svgEl('line', {
@@ -1205,11 +1204,20 @@
       return Math.max(0, Math.min(count - 1, Math.round(ratio * (count - 1))))
     }
 
-    host.addEventListener('pointermove', (event) => {
+    // A tap opens the day's readout too (touch fires no pointermove), and a
+    // horizontal drag moves through the days (touch-action: pan-y). Only a
+    // mouse leaving hides it: a lifted finger keeps it open until a tap
+    // elsewhere blurs the chart, or the swipe becomes a page scroll.
+    const fromPointer = (event) => {
       if (progress < 1) return
       showHover(indexAt(event.clientX))
+    }
+    host.addEventListener('pointerdown', fromPointer)
+    host.addEventListener('pointermove', fromPointer)
+    host.addEventListener('pointerleave', (event) => {
+      if (event.pointerType === 'mouse') hideHover()
     })
-    host.addEventListener('pointerleave', hideHover)
+    host.addEventListener('pointercancel', hideHover)
     host.addEventListener('blur', hideHover)
     host.addEventListener('keydown', (event) => {
       if (progress < 1) return
@@ -1230,7 +1238,7 @@
     host.setAttribute('aria-roledescription', 'chart')
     host.setAttribute(
       'aria-label',
-      'Requests and challenges per day, last 30 days. Use the arrow keys to read each day.',
+      `Requests and challenges per day, ${windowText}. Use the arrow keys to read each day.`,
     )
 
     render()
@@ -1275,7 +1283,7 @@
     )
     setText(
       'chartCaption',
-      `Requests and challenges made per day, last 30 days. Requests average ${perDay} a day; challenges are drawn on a separate scale below the baseline.`,
+      `Requests and challenges made per day, ${windowText}. Requests average ${perDay} a day; challenges are drawn on a separate scale below the baseline.`,
     )
     const body = $('[data-chart-table] tbody')
     if (body)

@@ -12,6 +12,7 @@ import { wagmiConfig } from 'config/wagmi'
 import { Body, Stack } from 'components/curate/primitives'
 import { WhatHappensNext } from 'components/curate/what-happens-next'
 import { WithdrawalStepper } from '../withdrawal-stepper'
+import { capitalize } from '../facts'
 import {
   GateHelper,
   ModalShell,
@@ -107,13 +108,14 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({
     <ModalShell
       open={isOpen}
       title={`Withdraw ${itemName}`}
-      eyebrow="No deposit, gas only"
+      eyebrow={capitalize(itemName)}
       onClose={onCancel}
     >
       <Stack $gap={20}>
         <Body $muted>
-          Takes the {itemName} off the list and returns what backs it. It cannot
-          be undone once started.
+          Cannot be undone: the {itemName} stays challengeable for{' '}
+          {period ?? 'the withdrawing period'}, and if jurors keep it, it is
+          withdrawn at the ruling.
         </Body>
         <WithdrawalStepper
           stage="listed"
@@ -121,7 +123,7 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({
           notes={[
             'You, one transaction',
             periodSeconds > 0 ? formatDuration(periodSeconds) : undefined,
-            'Anyone, gas only',
+            'Anyone',
           ]}
         />
         <WhatHappensNext
@@ -155,7 +157,7 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({
           loading={loading}
           bare
         />
-        <GateHelper gate={gate} />
+        <GateHelper gate={gate} caption={false} />
       </Stack>
     </ModalShell>
   )

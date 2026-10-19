@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import styled from 'styled-components'
+import { VisuallyHidden } from '../primitives'
 
 /*
  * Odometer: each digit rolls on its own column to its value (the Energy
@@ -75,10 +76,11 @@ export const Odometer = ({ value }: { value?: number }) => {
   }, [target])
 
   if (target === undefined || shown === undefined) return <>—</>
-  if (settled) return <span aria-label={target}>{target}</span>
+  if (settled) return <span>{target}</span>
   const chars = shown.split('')
   return (
-    <Wrap aria-label={target}>
+    <Wrap>
+      <VisuallyHidden>{target}</VisuallyHidden>
       {chars.map((char, index) =>
         /\d/.test(char) ? (
           <Column key={`${index}-${chars.length}`} aria-hidden>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import styled, { css } from 'styled-components'
+import styled, { css, keyframes } from 'styled-components'
 import { Link } from 'react-router-dom'
 import { parseIpfs } from 'utils/ipfs-parse'
 import PolicyUpdatedBadge from 'components/policy-updated-badge'
@@ -131,6 +131,20 @@ const Chips = styled.div`
   gap: 6px;
 `
 
+/* The trust chip arrives with its data: it fades in rather than popping. */
+const fadeIn = keyframes`
+  from { opacity: 0; }
+  to { opacity: 1; }
+`
+
+const TrustChip = styled(Chip)`
+  animation: ${fadeIn} 240ms var(--ease-out, ease-out) both;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+`
+
 const Address = styled.span`
   padding: 0 4px;
   color: var(--color-muted);
@@ -159,9 +173,11 @@ const Action = styled.div`
   }
 `
 
+/* Full on-primary ink: any fade drops the amount under AA on the blue
+   fill. The lighter weight is what sets it apart from the label. */
 const Amount = styled.span`
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
-  opacity: 0.85;
 `
 
 const Note = styled.span`
@@ -171,6 +187,8 @@ const Note = styled.span`
   text-align: center;
 `
 
+/* Every figure sits on the band's bottom line: the headline, the inline
+   stats and the ring's caption share one row of labels and one of values. */
 const Figures = styled.div`
   display: flex;
   flex-wrap: wrap;
@@ -258,7 +276,7 @@ const InlineStats = styled.dl`
 
 const RingBlock = styled.figure`
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 16px;
   margin: 0;
 
@@ -266,6 +284,7 @@ const RingBlock = styled.figure`
     display: flex;
     flex-direction: column;
     gap: 6px;
+    margin-bottom: 5px;
   }
 
   b {
@@ -422,17 +441,11 @@ const StatValue = ({ value }: { value?: React.ReactNode }) =>
     <>{value}</>
   )
 
-/** What the primary button's amount is, and what happens to it, per kind. */
-const depositTerms = (kindLabel: string, itemName: string) =>
+/** What happens to the primary button's amount, per kind. */
+const depositNoteFor = (kindLabel: string, itemName: string) =>
   /stake/i.test(kindLabel)
-    ? {
-        label: 'Stake + arbitration',
-        note: `Locked, not spent: it stays locked while your ${itemName} is listed and comes back when you withdraw, unless a challenge succeeds.`,
-      }
-    : {
-        label: 'Submission deposit',
-        note: `A deposit, not a fee: back in full if nobody challenges your ${itemName}.`,
-      }
+    ? `Locked, not spent: it stays locked while your ${itemName} is listed and comes back when you withdraw, unless a challenge succeeds.`
+    : `A deposit, not a fee: back in full if nobody challenges your ${itemName}.`
 
 export const RegistryHeader = ({
   title,
@@ -441,15 +454,16 @@ export const RegistryHeader = ({
   chainId,
   address,
   verified,
+  listOfLists = false,
   kindLabel,
   itemName,
   primaryLabel,
   primaryAmount,
-  depositLabel,
   depositNote,
   onPrimary,
   policyURI,
   onOpenPolicy,
+  policyUpdated = true,
   badgesListTo,
   stats,
   parameters,
@@ -465,21 +479,29 @@ export const RegistryHeader = ({
   logoURI?: string | null
   chainId?: number
   address: string
-  verified: boolean
+  /**
+   * On a Kleros Verified list of lists (useRegistryVerified). Undefined
+   * while that is loading or could not be read: no trust chip then, so the
+   * header never claims Discovery without data.
+   */
+  verified?: boolean
+  /** The registry is itself a list of lists. */
+  listOfLists?: boolean
   kindLabel: string
   itemName: string
   primaryLabel: string
+  /** The exact amount the button sends; also listed in Parameters. */
   primaryAmount?: React.ReactNode
-  /**
-   * Names `primaryAmount` beside the counts. Defaults by kind: "Submission
-   * deposit" (Light, Classic) or "Stake + arbitration" (Stake).
-   */
-  depositLabel?: string
   /** The line under the button: what happens to the amount. Defaults by kind. */
   depositNote?: React.ReactNode
   onPrimary: () => void
   policyURI?: string | null
   onOpenPolicy?: () => void
+  /**
+   * Show when the policy last changed. Off where the history cannot be read
+   * (Stake lists), so no placeholder appears and then vanishes.
+   */
+  policyUpdated?: boolean
   badgesListTo?: string
   stats: RegistryStat[]
   parameters: RegistryParameter[]
@@ -497,17 +519,14 @@ export const RegistryHeader = ({
     ? getAddressPage({ networkId: chainId, address })
     : null
   const [headline, ...rest] = stats
-  const terms = depositTerms(kindLabel, itemName)
-  // The list's terms sit beside the counts: its window and its deposit.
+  // The list's window sits beside the counts; its deposit is in the button
+  // and in Parameters, never printed a third time here.
   const period = parameters.find((parameter) =>
     /period$/i.test(parameter.label),
   )
   const inline: RegistryStat[] = [
     ...rest,
     ...(period ? [{ label: period.label, value: period.value }] : []),
-    ...(primaryAmount
-      ? [{ label: depositLabel ?? terms.label, value: primaryAmount }]
-      : []),
   ]
   const showRing =
     registeredCount !== undefined &&
@@ -540,14 +559,21 @@ export const RegistryHeader = ({
             <Chips>
               {chainId && <ChainChip chainId={chainId} />}
               <Chip>{kindLabel}</Chip>
-              {verified ? (
-                <Chip title="Listed on the Kleros Verified list of lists">
+              {verified === true && (
+                <TrustChip
+                  title={
+                    listOfLists
+                      ? 'A Kleros Verified list of lists'
+                      : 'Listed on a Kleros Verified list of lists'
+                  }
+                >
                   <StatusDot $tone="registered" aria-hidden /> Verified
-                </Chip>
-              ) : (
-                <Chip title="Not on the Kleros Verified list of lists">
+                </TrustChip>
+              )}
+              {verified === false && (
+                <TrustChip title="Not listed on a Kleros Verified list of lists">
                   Discovery
-                </Chip>
+                </TrustChip>
               )}
               <Address title={address}>{truncateMiddle(address, 8, 6)}</Address>
             </Chips>
@@ -561,7 +587,7 @@ export const RegistryHeader = ({
             {primaryLabel}
             {primaryAmount && <Amount>· {primaryAmount}</Amount>}
           </Button>
-          <Note>{depositNote ?? terms.note}</Note>
+          <Note>{depositNote ?? depositNoteFor(kindLabel, itemName)}</Note>
         </Action>
       </Top>
 
@@ -599,12 +625,11 @@ export const RegistryHeader = ({
         {showRing && (
           <RingBlock>
             <RingGauge
-              size={124}
+              size={96}
               ratio={registeredShare}
               from="color-mix(in srgb, var(--status-registered) 35%, var(--color-raised))"
               to="var(--status-registered)"
               label={`Registered now: ${integer.format(registeredCount)} of ${integer.format(totalCount)} entries`}
-              caption="registered"
             />
             <figcaption>
               <Label $tone="faint">Registered now</Label>
@@ -632,7 +657,7 @@ export const RegistryHeader = ({
           <QuietButton type="button" onClick={onOpenPolicy}>
             <CurateIcon name="policy" size={14} />
             Listing policy
-            <PolicyUpdatedBadge registryAddress={address} />
+            {policyUpdated && <PolicyUpdatedBadge registryAddress={address} />}
           </QuietButton>
         )}
         {explorer && (

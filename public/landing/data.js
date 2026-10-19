@@ -1,10 +1,12 @@
-// Public Curate data (on-chain, Ethereum and Gnosis mainnets), the same snapshot
-// as docs/design/dashboard-variants/snapshot.json. Every figure on the landing
-// page is read from this object; the page prints `snapshotAt` next to them.
+// A frozen snapshot of public Curate data (on-chain, Ethereum and Gnosis
+// mainnets), the same one as docs/design/dashboard-variants/snapshot.json.
+// Every figure on the landing page is read from this object, and the page
+// labels each one with `snapshotAt` or the series' window, never "now".
 // series30d: one row per UTC day; requests = submissions + removal requests
 // made that day; challenges = challenges made that day against requests from
 // this 30-day window (each one opened a dispute in Kleros Court).
-// Refresh by replacing this object; nothing else needs to change.
+// Refresh by replacing the whole object with a new query result; never edit
+// single figures by hand.
 window.CURATE_LANDING_DATA = {
   snapshotAt: '2026-10-18T19:58:56.470Z',
   scope: 'Ethereum and Gnosis',

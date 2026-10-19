@@ -418,22 +418,10 @@ export const Lifecycle = ({
             other.x0 < box.x1 + GAP,
         ),
     )
-  /**
-   * Places the candidate at its first option that fits. `reserved` boxes
-   * are kept free for a label placed later, except by the last option.
-   */
-  const place = (
-    candidate: Candidate,
-    options = candidate.options,
-    reserved: Box[] = [],
-  ) => {
+  /** Places the candidate at its first option that fits, if any does. */
+  const place = (candidate: Candidate, options = candidate.options) => {
     if (width <= 0) return false
-    const option = options.find((o, index) =>
-      fits(
-        boxesOf(candidate, o),
-        index < options.length - 1 ? [...placed, ...reserved] : placed,
-      ),
-    )
+    const option = options.find((o) => fits(boxesOf(candidate, o), placed))
     if (!option) return false
     placed.push(...boxesOf(candidate, option))
     labels.push({ ...candidate, option })
@@ -482,8 +470,10 @@ export const Lifecycle = ({
     style: timing(release, 2),
   })
 
-  // 3. The end state under its node, else above it once the notes are in;
-  // a note shortens to leave it room, and only gives way on a phone.
+  // 3. The end state under its node, else above it. It outranks the notes:
+  // a note shortens to leave it room and drops out where even its shortest
+  // wording does not fit (the dotted line and hollow node still mark the
+  // phase as optional, and the aria-label tells it).
   const end: Candidate | undefined = spec.endLabel
     ? {
         key: 'end',
@@ -506,28 +496,22 @@ export const Lifecycle = ({
         style: timing(axisEnd, 0),
       }
     : undefined
-  const endPlaced = end ? place(end, end.options.slice(0, 1)) : true
-  const endAbove = end && !endPlaced ? boxesOf(end, end.options[1]) : []
+  if (end) place(end)
   spans.forEach((span, index) => {
     if (!span.optional || !span.note?.length) return
-    place(
-      {
-        key: `note-${index}`,
-        className: 'note fade',
-        font: 'note',
-        options: span.note.map((text) => ({
-          y: ROW_A,
-          x: x(span.from) - 4,
-          anchor: 'start' as const,
-          lines: [text],
-        })),
-        style: timing(span.from, 0),
-      },
-      undefined,
-      endAbove,
-    )
+    place({
+      key: `note-${index}`,
+      className: 'note fade',
+      font: 'note',
+      options: span.note.map((text) => ({
+        y: ROW_A,
+        x: x(span.from) - 4,
+        anchor: 'start' as const,
+        lines: [text],
+      })),
+      style: timing(span.from, 0),
+    })
   })
-  if (end && !endPlaced) place(end, end.options.slice(1))
 
   /* ---------- Status segments, with each timed window's duration ---------- */
 

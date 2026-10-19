@@ -51,6 +51,7 @@ import {
   chainName,
   entryCount,
   filterRegistries,
+  hasAddressTitle,
   kindLabel,
   mediaUrl,
   parseChains,
@@ -59,6 +60,7 @@ import {
   parseSort,
   parseTrust,
   pendingLabel,
+  registryBlurb,
   registryHref,
   scopeText,
   shareCaption,
@@ -169,8 +171,10 @@ const LivePill = styled.span`
   font-weight: 500;
   white-space: nowrap;
 
+  /* The hover tone: --color-primary sits just under 4.5:1 on this raised
+     fill in dark; the hover tone clears it in every theme. */
   b {
-    color: var(--color-primary);
+    color: var(--color-primary-hover);
     font-weight: 500;
   }
 `
@@ -601,12 +605,24 @@ const Created = styled.span`
   white-space: nowrap;
 `
 
-/** Rows: the chips, then the description (or the address) on the same line. */
+/**
+ * Rows: the chips, then the description (or the address) on the same line.
+ * At phone width the chips alone fill the line, so the description leaves
+ * (cards still show it) and a long chip line wraps instead of overflowing.
+ */
 const RowMeta = styled(Meta)`
   flex-wrap: nowrap;
 
   > :not(${Blurb}) {
     flex: 0 0 auto;
+  }
+
+  @media (max-width: 760px) {
+    flex-wrap: wrap;
+
+    ${Blurb} {
+      display: none;
+    }
   }
 `
 
@@ -769,6 +785,11 @@ const CardDescription = styled.span`
   color: var(--color-muted);
   font-size: var(--fs-small);
   line-height: var(--lh-small);
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
 `
 
 const CardStats = styled.span`
@@ -1024,7 +1045,13 @@ const FeedItem = styled.li`
   }
 `
 
-/** The item's first field; CAIP-10 values read as "0x94bA…8a2f · Robinhood Chain". */
+/** A bare address or transaction hash, set in mono and shortened. */
+const HEX_ID = /^0x(?:[0-9a-f]{40}|[0-9a-f]{64})$/i
+
+/**
+ * The item's first field; CAIP-10 values read as "0x94bA…8a2f · Robinhood
+ * Chain", bare addresses as "0x4790…a1B2".
+ */
 const Identifier = ({ label, value }: { label: string; value: string }) => {
   const rich = parseRichAddress(value)
   return (
@@ -1033,6 +1060,8 @@ const Identifier = ({ label, value }: { label: string; value: string }) => {
         <>
           <code>{truncateMiddle(rich.address)}</code> · {rich.reference.name}
         </>
+      ) : HEX_ID.test(value.trim()) ? (
+        <code>{truncateMiddle(value.trim())}</code>
       ) : (
         value
       )}
@@ -1091,6 +1120,45 @@ const STAKE_PENDING_TITLE =
 const pendingTitle = (registry: DashboardRegistry) =>
   registry.kind === 'permanent' ? STAKE_PENDING_TITLE : undefined
 
+/** The table's Open requests cell: Stake lists have none, so a dash. */
+const OpenRequestsCell = ({ registry }: { registry: DashboardRegistry }) =>
+  registry.kind === 'permanent' ? (
+    <Small $faint title="Stake lists have no requests">
+      <span aria-hidden>—</span>
+      <VisuallyHidden>None, Stake lists have no requests</VisuallyHidden>
+    </Small>
+  ) : (
+    <>{formatInt(registry.pendingCount)}</>
+  )
+
+const trustName = (mode: TrustMode): string =>
+  mode === 'verified' ? 'Verified' : 'Discovery'
+
+/**
+ * Below this width the table cannot fit its columns (the shared Table is at
+ * least 640px wide), so rows stand in for it without changing the stored
+ * choice, and the switch stops offering it.
+ */
+const NARROW_QUERY = '(max-width: 720px)'
+
+/** True while the viewport is too narrow for the table; follows resizes. */
+const useNarrow = (): boolean => {
+  const [narrow, setNarrow] = useState(
+    () =>
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia(NARROW_QUERY).matches,
+  )
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return undefined
+    const media = window.matchMedia(NARROW_QUERY)
+    const onChange = () => setNarrow(media.matches)
+    onChange()
+    media.addEventListener('change', onChange)
+    return () => media.removeEventListener('change', onChange)
+  }, [])
+  return narrow
+}
+
 /** "In court" with an amber haloed dot when something is in court. */
 const CourtValue = ({ count }: { count: number }) => (
   <>
@@ -1135,22 +1203,27 @@ const ArrowIcon = ({ size = 16 }: { size?: number }) => (
   </svg>
 )
 
-/** Table, cards or rows as icon buttons with a sliding pill. */
+/**
+ * Table, cards or rows as icon buttons with a sliding pill; `options` leaves
+ * the table out where it cannot fit.
+ */
 const LayoutSwitch = ({
   value,
+  options,
   onChange,
 }: {
   value: ListLayout
+  options: typeof LAYOUT_OPTIONS
   onChange: (layout: ListLayout) => void
 }) => {
   const buttons = useRef<Array<HTMLButtonElement | null>>([])
   const index = Math.max(
     0,
-    LAYOUT_OPTIONS.findIndex((option) => option.value === value),
+    options.findIndex((option) => option.value === value),
   )
   // Radio group keyboard model: one tab stop, arrows move and select.
   const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    const last = LAYOUT_OPTIONS.length - 1
+    const last = options.length - 1
     const next =
       event.key === 'ArrowRight' || event.key === 'ArrowDown'
         ? index === last
@@ -1167,7 +1240,7 @@ const LayoutSwitch = ({
               : -1
     if (next < 0) return
     event.preventDefault()
-    onChange(LAYOUT_OPTIONS[next].value)
+    onChange(options[next].value)
     buttons.current[next]?.focus()
   }
   return (
@@ -1176,7 +1249,7 @@ const LayoutSwitch = ({
         aria-hidden
         style={{ transform: `translateX(${index * 36}px)` }}
       />
-      {LAYOUT_OPTIONS.map((option, position) => {
+      {options.map((option, position) => {
         const checked = option.value === value
         return (
           <LayoutButton
@@ -1262,6 +1335,16 @@ const BrowsePage = () => {
   const search = searchParams.get('q') || ''
   const requestedPage = parsePage(searchParams.get('page'))
   const [layout, setLayout] = useStoredLayout('browse', 'rows')
+  // A phone shows rows for a stored table choice and keeps the choice.
+  const narrow = useNarrow()
+  const shown = narrow && layout === 'table' ? 'rows' : layout
+  const layoutOptions = useMemo(
+    () =>
+      narrow
+        ? LAYOUT_OPTIONS.filter((option) => option.value !== 'table')
+        : LAYOUT_OPTIONS,
+    [narrow],
+  )
   const now = useNow(30_000)
 
   const query = useQuery({
@@ -1328,6 +1411,21 @@ const BrowsePage = () => {
           )
         : [],
     [data, creation.data, chains, trust, kinds, search, sort],
+  )
+  // With nothing on this trust tab, how many match on the other one: a search
+  // for a Discovery list from the Verified tab should say where it is.
+  const otherTrust: TrustMode = trust === 'verified' ? 'unverified' : 'verified'
+  const otherMatches = useMemo(
+    () =>
+      data && registries.length === 0
+        ? filterRegistries(data.registries, {
+            chains,
+            trust: otherTrust,
+            kinds,
+            search,
+          }).length
+        : 0,
+    [data, registries.length, chains, otherTrust, kinds, search],
   )
   const pageCount = Math.max(1, Math.ceil(registries.length / PAGE_SIZE))
   const currentPage = Math.min(requestedPage, pageCount)
@@ -1545,7 +1643,11 @@ const BrowsePage = () => {
               </select>
               <CurateIcon name="chevron-down" size={14} />
             </SortField>
-            <LayoutSwitch value={layout} onChange={setLayout} />
+            <LayoutSwitch
+              value={shown}
+              options={layoutOptions}
+              onChange={setLayout}
+            />
           </Toolbar>
 
           {trust === 'unverified' && (
@@ -1586,6 +1688,27 @@ const BrowsePage = () => {
                 again.
               </EmptyState>
             </Surface>
+          ) : registries.length === 0 && otherMatches > 0 ? (
+            <Surface $padding="none">
+              <EmptyState
+                icon="filter"
+                title={`None in ${trustName(trust)}`}
+                action={
+                  <Button
+                    type="button"
+                    $size="sm"
+                    onClick={() =>
+                      setParam({
+                        trust: otherTrust === 'verified' ? null : otherTrust,
+                        page: null,
+                      })
+                    }
+                  >
+                    Show {formatInt(otherMatches)} in {trustName(otherTrust)}
+                  </Button>
+                }
+              />
+            </Surface>
           ) : registries.length === 0 ? (
             <Surface $padding="none">
               <EmptyState
@@ -1605,7 +1728,7 @@ const BrowsePage = () => {
                 Change the search, chain, type or trust filter.
               </EmptyState>
             </Surface>
-          ) : layout === 'table' ? (
+          ) : shown === 'table' ? (
             <TableScroller>
               <Table>
                 <thead>
@@ -1669,15 +1792,8 @@ const BrowsePage = () => {
                         <td className="num">
                           {formatInt(entryCount(registry))}
                         </td>
-                        <td
-                          className="num"
-                          title={pendingTitle(registry)}
-                          style={{ whiteSpace: 'nowrap' }}
-                        >
-                          {formatInt(registry.pendingCount)}
-                          {registry.kind === 'permanent' && (
-                            <Small $faint> listed</Small>
-                          )}
+                        <td className="num">
+                          <OpenRequestsCell registry={registry} />
                         </td>
                         <td className="num">
                           <CourtCell>
@@ -1690,10 +1806,11 @@ const BrowsePage = () => {
                 </tbody>
               </Table>
             </TableScroller>
-          ) : layout === 'cards' ? (
+          ) : shown === 'cards' ? (
             <CardGrid>
               {visible.map((registry, index) => {
                 const created = shownCreation(registry, sort)
+                const blurb = registryBlurb(registry)
                 return (
                   <CardLink
                     key={registry.id}
@@ -1715,10 +1832,16 @@ const BrowsePage = () => {
                         </SubLine>
                       </span>
                     </CardTop>
-                    <CardDescription>
-                      {registry.description ||
-                        `${kindLabel(registry.kind)} registry at ${truncateMiddle(registry.address)}`}
-                    </CardDescription>
+                    {blurb ? (
+                      <CardDescription>{blurb}</CardDescription>
+                    ) : (
+                      !hasAddressTitle(registry) && (
+                        <CardDescription>
+                          {kindLabel(registry.kind)} registry at{' '}
+                          <code>{truncateMiddle(registry.address)}</code>
+                        </CardDescription>
+                      )
+                    )}
                     <Meta style={{ marginTop: 0 }}>
                       <ChainChip chainId={registry.chainId} size="sm" />
                     </Meta>
@@ -1752,6 +1875,7 @@ const BrowsePage = () => {
             <List>
               {visible.map((registry, index) => {
                 const created = shownCreation(registry, sort)
+                const blurb = registryBlurb(registry)
                 return (
                   <RowLink
                     key={registry.id}
@@ -1766,11 +1890,16 @@ const BrowsePage = () => {
                         <Chip>{kindLabel(registry.kind)}</Chip>
                         <ChainChip chainId={registry.chainId} size="sm" />
                         {created && <CreatedOn timestamp={created} />}
-                        <Blurb>
-                          {registry.description || (
-                            <code>{truncateMiddle(registry.address)}</code>
-                          )}
-                        </Blurb>
+                        {/* No blurb when the title already is the address. */}
+                        {blurb ? (
+                          <Blurb>{blurb}</Blurb>
+                        ) : (
+                          !hasAddressTitle(registry) && (
+                            <Blurb>
+                              <code>{truncateMiddle(registry.address)}</code>
+                            </Blurb>
+                          )
+                        )}
                       </RowMeta>
                     </RowId>
                     <RowStat $area="entries">

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react'
 import { ethers, type BigNumber } from 'ethers'
+import { ItemTypes } from '@kleros/gtcr-encoder'
 import styled from 'styled-components'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -370,6 +371,26 @@ export const PolicyLink: React.FC<{ href: string }> = ({ href }) => {
 const titleSize = (text: string): 'lg' | 'md' | 'sm' =>
   text.length > 90 ? 'sm' : text.length > 44 ? 'md' : 'lg'
 
+/*
+ * Identifiers the hero shows in full, so the Details panel can leave them
+ * out. Links are set untruncated in the hero; long text and files keep
+ * their compact form there, so they stay in the panel too.
+ */
+const HERO_FULL_TYPES = new Set(
+  [
+    ItemTypes.TEXT,
+    ItemTypes.ADDRESS,
+    ItemTypes.RICH_ADDRESS,
+    ItemTypes.GTCR_ADDRESS,
+    ItemTypes.NUMBER,
+    ItemTypes.BOOLEAN,
+    ItemTypes.LINK,
+  ].map((type) => String(type).toLowerCase()),
+)
+const isLinkField = (field: EntryField) =>
+  String(field.type || '').toLowerCase() ===
+  String(ItemTypes.LINK).toLowerCase()
+
 /** A logo or picture among the fields, shown next to the title. */
 const logoOf = (fields: EntryField[]): string | undefined => {
   const image = fields.find((field) => isImageField(field) && hasValue(field))
@@ -529,6 +550,15 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
     () => identifierFields(fields).filter((field) => field !== primaryField),
     [fields, primaryField],
   )
+  const heroFields = useMemo(
+    () => [
+      ...(primaryField ? [primaryField] : []),
+      ...otherIdentifiers.filter((field) =>
+        HERO_FULL_TYPES.has(String(field.type || '').toLowerCase()),
+      ),
+    ],
+    [primaryField, otherIdentifiers],
+  )
 
   const capitalizeFirst = (s: string | undefined) =>
     s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
@@ -680,7 +710,7 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
                 <div key={`${field.label}-${index}`}>
                   <dt>{field.label}</dt>
                   <dd>
-                    <FieldValue field={field} />
+                    <FieldValue field={field} detailed={isLinkField(field)} />
                   </dd>
                 </div>
               ))}
@@ -688,7 +718,15 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
           )}
           <StatusRow>
             {view ? (
-              <EntryStatus status={view} now={now} />
+              <EntryStatus
+                status={
+                  // The ring beside it already draws this window.
+                  facts?.inWindow || facts?.isPending || facts?.appealable
+                    ? { ...view, windowStart: undefined }
+                    : view
+                }
+                now={now}
+              />
             ) : (
               <SkeletonBlock $height="18px" $width="220px" />
             )}
@@ -777,9 +815,10 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
           <ItemDetailsCard
             columns={decodedItem?.columns}
             item={decodedItem}
-            title="Fields"
+            title="Details"
             loading={loading}
             itemMetaEvidence={itemMetaEvidence}
+            exclude={heroFields}
           />
           {/* Spread the `requests` parameter to convert elements from array to an object */}
           <RequestTimelines
@@ -790,6 +829,7 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
             }
             kind="light"
             metaEvidence={metaEvidence}
+            caseInHero={!!facts?.inCourt && !!facts.disputeID}
           />
           <Explainer
             id="item-light-how-entries-are-judged"

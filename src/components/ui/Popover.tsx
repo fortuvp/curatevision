@@ -129,6 +129,7 @@ const Popover: React.FC<PopoverProps> = ({
   const isControlled = controlledVisible !== undefined
   const visible = isControlled ? controlledVisible : internalVisible
   const wrapperRef = useRef<HTMLSpanElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
   const enterTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -141,21 +142,36 @@ const Popover: React.FC<PopoverProps> = ({
     [isControlled, onVisibleChange],
   )
 
-  // Click outside and Escape close a click popover
+  // Click outside and Escape close a click popover. Escape is handled in the
+  // capture phase and stopped, so a dialog around the popover stays open.
   useEffect(() => {
     if (!visible || trigger !== 'click') return undefined
     const handleClickOutside = (e: MouseEvent) => {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node))
         setVisible(false)
     }
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setVisible(false)
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      e.stopPropagation()
+      const wrapper = wrapperRef.current
+      const hadFocus = wrapper?.contains(document.activeElement)
+      setVisible(false)
+      // Focus inside the panel goes back to the trigger before it unmounts.
+      if (hadFocus)
+        [
+          ...(wrapper?.querySelectorAll<HTMLElement>(
+            'button, [href], input, [tabindex]:not([tabindex="-1"])',
+          ) ?? []),
+        ]
+          .find((node) => !contentRef.current?.contains(node))
+          ?.focus()
     }
     document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('keydown', handleKeyDown)
+    document.addEventListener('keydown', handleEscape, true)
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('keydown', handleEscape, true)
     }
   }, [visible, trigger, setVisible])
 
@@ -167,9 +183,14 @@ const Popover: React.FC<PopoverProps> = ({
     [],
   )
 
-  const handleClick = useCallback(() => {
-    if (trigger === 'click') setVisible(!visible)
-  }, [trigger, visible, setVisible])
+  // The trigger toggles; clicks inside the panel (a field, a label) do not.
+  const handleClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (contentRef.current?.contains(e.target as Node)) return
+      if (trigger === 'click') setVisible(!visible)
+    },
+    [trigger, visible, setVisible],
+  )
 
   const handleMouseEnter = useCallback(() => {
     if (trigger === 'hover') {
@@ -196,6 +217,7 @@ const Popover: React.FC<PopoverProps> = ({
       {children}
       {visible && (
         <PopoverContent
+          ref={contentRef}
           $placement={placement}
           style={style}
           className={joinClassNames('ui-popover-content', className)}

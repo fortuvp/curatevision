@@ -253,9 +253,11 @@ const Blocker = styled.p`
   text-align: center;
 `
 
+/* Full on-primary ink: any fade drops the amount under AA on the blue
+   fill. The lighter weight is what sets it apart from the label. */
 const Amount = styled.span`
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
-  opacity: 0.85;
 `
 
 export interface ReceiptLine {

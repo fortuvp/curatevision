@@ -365,6 +365,11 @@ const Deploy = ({
   else if (phase === 'done') blocker = 'This list is deployed'
   else if (problems.length > 0) blocker = deployBlocker(problems)
   else if (gate.blocker) blocker = gate.blocker
+  // Only the wallet stands in the way: its fix becomes the primary action.
+  const walletFix =
+    !busy && !configError && problems.length === 0 && gate.blocker
+      ? gate.fix
+      : undefined
 
   const onDeploy = async () => {
     if (
@@ -526,13 +531,18 @@ const Deploy = ({
       ? groupAmount(formatToken(shareOf(stake, percent), decimals))
       : null
   const logo = tcrState.tcrLogo ? parseIpfs(tcrState.tcrLogo) : ''
-  const hours = (value: number | string) => ({
-    value: formatHours(value),
-    title: (() => {
-      const seconds = hoursToSeconds(value)
-      return seconds === null ? undefined : formatDurationLong(seconds)
-    })(),
-  })
+  // Days and hours, as the Standard review and the preview read them; the
+  // hours typed in the wizard on hover.
+  const hours = (value: number | string) => {
+    const seconds = hoursToSeconds(value)
+    return {
+      value:
+        seconds === null || seconds === 0
+          ? formatHours(value)
+          : formatDurationLong(seconds),
+      title: formatHours(value),
+    }
+  }
 
   const reviewRows: ReviewItem[] = [
     {
@@ -848,29 +858,35 @@ const Deploy = ({
       {phase !== 'done' ? (
         <ActionArea>
           <Row $gap={10} $wrap>
-            <Button
-              type="button"
-              $variant="primary"
-              disabled={!!blocker || busy}
-              aria-disabled={!!blocker || busy}
-              title={blocker || undefined}
-              onClick={onDeploy}
-            >
-              {phase === 'uploading'
-                ? 'Uploading…'
-                : phase === 'wallet'
-                  ? 'Waiting for your signature…'
-                  : phase === 'mining'
-                    ? 'Confirming…'
-                    : failedAt
-                      ? 'Deploy again'
-                      : 'Deploy the list'}
-            </Button>
-            {!busy &&
-              !configError &&
-              problems.length === 0 &&
-              gate.blocker &&
-              gate.control}
+            {walletFix ? (
+              <Button
+                type="button"
+                $variant="primary"
+                disabled={walletFix.loading}
+                onClick={walletFix.onClick}
+              >
+                {walletFix.loading ? 'Waiting…' : walletFix.label}
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                $variant="primary"
+                disabled={!!blocker || busy}
+                aria-disabled={!!blocker || busy}
+                title={blocker || undefined}
+                onClick={onDeploy}
+              >
+                {phase === 'uploading'
+                  ? 'Uploading…'
+                  : phase === 'wallet'
+                    ? 'Waiting for your signature…'
+                    : phase === 'mining'
+                      ? 'Confirming…'
+                      : failedAt
+                        ? 'Deploy again'
+                        : 'Deploy the list'}
+              </Button>
+            )}
           </Row>
           <div role="status">
             {busy ? (
@@ -892,7 +908,7 @@ const Deploy = ({
                   {failure ? ` · ${failure}` : ''}
                 </Small>
               </Row>
-            ) : blocker ? (
+            ) : blocker && !walletFix ? (
               <Row $gap={8}>
                 <StatusDot $tone="neutral" aria-hidden />
                 <Small $muted>{blocker}</Small>
@@ -906,7 +922,7 @@ const Deploy = ({
             <StatusDot $tone="registered" aria-hidden />
             <Small>Deployed</Small>
             {deployedAddress && (
-              <Data $muted $weight={400} title={deployedAddress}>
+              <Data $mono $muted $weight={400} title={deployedAddress}>
                 {truncateMiddle(deployedAddress, 10, 8)}
               </Data>
             )}

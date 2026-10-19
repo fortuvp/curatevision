@@ -143,18 +143,30 @@ const FieldList = styled.dl`
   margin: 0;
 `
 
+/* Labels sit on the first line of their value (a wrapped link, an image or
+   a paragraph alike), so rows align on the top and the label takes the
+   value's line height. The hairline is drawn inside the padding, straight
+   and level with the text, so the rounded hover fill never bends it. */
 const FieldRow = styled.div`
+  position: relative;
   display: grid;
   grid-template-columns: minmax(120px, 30%) minmax(0, 1fr);
   gap: 4px 24px;
-  align-items: baseline;
+  align-items: start;
   margin: 0 -12px;
   padding: 14px 12px;
   border-radius: var(--radius);
   transition: background var(--motion);
 
-  & + & {
-    box-shadow: inset 0 1px 0 var(--glass-border);
+  & + &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 12px;
+    left: 12px;
+    height: 1px;
+    background: var(--glass-border);
+    pointer-events: none;
   }
 
   &:hover {
@@ -164,7 +176,7 @@ const FieldRow = styled.div`
   dt {
     color: var(--color-muted);
     font-size: var(--fs-small);
-    line-height: var(--lh-small);
+    line-height: 22px;
   }
 
   dd {
@@ -178,6 +190,10 @@ const FieldRow = styled.div`
 
   @media (max-width: 560px) {
     grid-template-columns: 1fr;
+
+    dt {
+      line-height: var(--lh-small);
+    }
   }
 `
 

@@ -295,10 +295,19 @@ export interface ActionGate {
   /** True when the wallet is connected, on the right chain and signed in if needed. */
   ready: boolean
   account?: `0x${string}`
-  /** "Connect wallet to challenge": shown on the disabled confirm button. */
+  /** "Connect a wallet to challenge": shown on the disabled confirm button. */
   blocker?: string
-  /** The one button that clears the blocker. */
-  helper?: { label: string; onClick: () => void; loading?: boolean }
+  /**
+   * The one button that clears the blocker. Connect and Sign in are the next
+   * step, so primary; a network switch is secondary (as in the Classic and
+   * Light dialogs).
+   */
+  helper?: {
+    label: string
+    onClick: () => void
+    loading?: boolean
+    variant?: 'primary' | 'secondary'
+  }
 }
 
 const chainName = (chainId: number): string =>
@@ -332,10 +341,11 @@ export const useActionGate = (
   if (!isConnected || !address)
     return {
       ready: false,
-      blocker: `Connect wallet to ${verb}`,
+      blocker: `Connect a wallet to ${verb}`,
       helper: {
-        label: 'Connect wallet',
+        label: 'Connect',
         onClick: () => appKitModal?.open({ view: 'Connect' }),
+        variant: 'primary',
       },
     }
 
@@ -356,31 +366,48 @@ export const useActionGate = (
       ready: false,
       account: address,
       blocker: `Sign in to ${verb}`,
-      helper: { label: 'Sign in', onClick: signIn, loading: isSigningIn },
+      helper: {
+        label: 'Sign in',
+        onClick: signIn,
+        loading: isSigningIn,
+        variant: 'primary',
+      },
     }
 
   return { ready: true, account: address }
 }
 
-const HelperRow = styled.div`
+const HelperRow = styled.div<{ $captioned: boolean }>`
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: ${({ $captioned }) =>
+    $captioned ? 'space-between' : 'flex-end'};
   flex-wrap: wrap;
   gap: 8px 16px;
 `
 
-/** The button that clears the gate's blocker, with the blocker as its caption. */
-export const GateHelper = ({ gate }: { gate: ActionGate }) =>
+/**
+ * The button that clears the gate's blocker, with the blocker as its
+ * caption. Pass `caption={false}` where the disabled confirm above already
+ * names the blocker (WhatHappensNext prints it under its button).
+ */
+export const GateHelper = ({
+  gate,
+  caption = true,
+}: {
+  gate: ActionGate
+  caption?: boolean
+}) =>
   gate.helper ? (
-    <HelperRow>
-      <Small $muted role="status">
-        {gate.blocker}
-      </Small>
+    <HelperRow $captioned={caption}>
+      {caption && (
+        <Small $muted role="status">
+          {gate.blocker}
+        </Small>
+      )}
       <Button
         type="button"
-        $variant="secondary"
-        $size="sm"
+        $variant={gate.helper.variant ?? 'secondary'}
         disabled={gate.helper.loading}
         onClick={gate.helper.onClick}
       >

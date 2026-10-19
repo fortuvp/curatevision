@@ -10,7 +10,7 @@ import { uploadEvidence } from 'utils/upload-evidence'
 import useNativeCurrency from 'hooks/native-currency'
 import { useAttachment } from 'hooks/use-attachment'
 import { parseIpfs } from 'utils/ipfs-parse'
-import { formatDurationLong } from 'utils/time'
+import { formatDuration, formatDurationLong } from 'utils/time'
 import { wrapWithToast, errorToast } from 'utils/wrap-with-toast'
 import { parseWagmiError } from 'utils/parse-wagmi-error'
 import { wagmiConfig } from 'config/wagmi'
@@ -175,9 +175,12 @@ const RemoveModal = ({
   }
 
   const total = formatAmount(removalDeposit, nativeCurrency)
-  const period = challengePeriodDuration
-    ? formatDurationLong(challengePeriodDuration.toNumber())
-    : 'the challenge period'
+  const periodSeconds = challengePeriodDuration?.toNumber()
+  const windowSpan = periodSeconds ? (
+    <span title={formatDurationLong(periodSeconds)}>
+      {formatDuration(periodSeconds)}
+    </span>
+  ) : undefined
   const receipt: ReceiptLine[] =
     removalBaseDeposit && arbitrationCost
       ? [
@@ -193,19 +196,23 @@ const RemoveModal = ({
       : [{ label: 'Removal deposit (base + arbitration cost)', value: total }]
   const steps: OutcomeStep[] = [
     {
-      title: `You deposit ${total} now`,
-      body: `The removal request is published${
-        needsEvidence ? ' with your justification' : ''
-      } and a challenge window of ${period} opens. The ${name} stays listed until the request is executed.`,
+      title: 'Challenge window opens',
+      body: windowSpan ? (
+        <>
+          {windowSpan}, while the {name} stays listed
+        </>
+      ) : (
+        `While the ${name} stays listed`
+      ),
     },
     {
       title: 'Nobody challenges',
-      body: `After ${period} anyone can execute the request: the ${name} is removed and your deposit comes back in full.`,
+      body: `The ${name} is removed; your deposit comes back in full`,
     },
     {
       title: 'Someone challenges',
       branch: true,
-      body: 'Kleros jurors decide on the listing policy. The winner takes both deposits minus one arbitration cost; the loser loses the deposit.',
+      body: 'Jurors decide; the winner takes both deposits minus one arbitration cost',
     },
   ]
 
@@ -220,11 +227,11 @@ const RemoveModal = ({
       {removalDeposit ? (
         <DialogColumns>
           <Stack $gap={16}>
-            <Body>
-              {needsEvidence
-                ? `This list asks for a justification. Tell the jurors why this ${name} no longer meets the listing policy.`
-                : `Ask for this ${name} to be taken off the list. Anyone can challenge the request during the challenge window; then Kleros jurors decide.`}
-            </Body>
+            {/* The justification form asks for itself; without one, a
+                single line says what the request does. */}
+            {!needsEvidence && (
+              <Body>Ask for this {name} to be taken off the list.</Body>
+            )}
             <div>
               <Button
                 type="button"
@@ -253,7 +260,6 @@ const RemoveModal = ({
               confirmDisabled={!gate.ready || isSubmitting}
               confirmBlocker={gate.blocker}
               loading={isSubmitting}
-              policy={`This is a deposit, not a fee: it is returned if the removal is accepted. The challenge window lasts ${period}.`}
             />
             {gate.controls && (
               <Row $justify="flex-end" $wrap>

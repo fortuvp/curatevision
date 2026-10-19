@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react'
 import styled from 'styled-components'
+import { useFormItemControl } from './form-item-context'
 import { joinClassNames } from './kit-styles'
 
 /*
@@ -121,6 +122,11 @@ interface SwitchProps {
   style?: React.CSSProperties
   className?: string
   defaultChecked?: boolean
+  id?: string
+  'aria-label'?: string
+  'aria-labelledby'?: string
+  'aria-describedby'?: string
+  'aria-invalid'?: React.AriaAttributes['aria-invalid']
 }
 
 const Switch: React.FC<SwitchProps> = ({
@@ -134,7 +140,19 @@ const Switch: React.FC<SwitchProps> = ({
   style,
   className,
   defaultChecked = false,
+  id,
+  'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledby,
+  'aria-describedby': ariaDescribedby,
+  'aria-invalid': ariaInvalid,
 }) => {
+  const a11y = useFormItemControl({
+    id,
+    'aria-label': ariaLabel,
+    'aria-labelledby': ariaLabelledby,
+    'aria-describedby': ariaDescribedby,
+    'aria-invalid': ariaInvalid,
+  })
   const [internalChecked, setInternalChecked] = useState(defaultChecked)
   const isControlled = controlledChecked !== undefined
   const checked = isControlled ? controlledChecked : internalChecked
@@ -158,6 +176,7 @@ const Switch: React.FC<SwitchProps> = ({
   return (
     <SwitchButton
       type="button"
+      {...a11y}
       role="switch"
       aria-checked={checked}
       $checked={checked}

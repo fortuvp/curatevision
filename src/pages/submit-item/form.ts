@@ -4,8 +4,8 @@ import { namespaces, parseRichAddress } from 'utils/rich-address'
 /*
  * Form plumbing shared by the three registry kinds: the value shape the
  * encoders and `resolveStashedFiles` expect, the defaults the submit modals
- * use, and the validation rules (format checks plus the "deployed with a
- * list creator" check for GTCR address columns).
+ * use, and the validation rules (format checks for addresses and links,
+ * plus the "deployed with a list creator" check for GTCR address columns).
  */
 
 /** A field holds a string, or a File while an upload is stashed. */
@@ -94,6 +94,34 @@ export const normaliseValues = (
 
 const isEvmAddress = (value: string): boolean => namespaces[0].test(value)
 
+/** An http(s) link to a named host: "https://example.org/path". */
+const isWebLink = (value: string): boolean => {
+  try {
+    const { protocol, hostname } = new URL(value)
+    return (
+      (protocol === 'https:' || protocol === 'http:') && hostname.includes('.')
+    )
+  } catch {
+    return false
+  }
+}
+
+/**
+ * A link typed without its scheme ("example.org/app") gets "https://"; any
+ * other value is returned unchanged for validation to judge.
+ */
+export const withWebScheme = (value: string): string => {
+  const text = value.trim()
+  if (
+    !text ||
+    /\s/.test(text) ||
+    !text.includes('.') ||
+    /^[a-z][a-z\d+.-]*:/i.test(text)
+  )
+    return value
+  return `https://${text.replace(/^\/+/, '')}`
+}
+
 export const validateSubmission = async (
   columns: Column[],
   values: SubmissionValues,
@@ -120,6 +148,8 @@ export const validateSubmission = async (
       !parseRichAddress(value)?.passedTest
     )
       errors[column.label] = 'Enter a valid address for the selected chain.'
+    if (column.type === ItemTypes.LINK && !isWebLink(value.trim()))
+      errors[column.label] = 'Enter a full link starting with https://'
   }
 
   // A list address must have been deployed by one of the list creators

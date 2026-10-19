@@ -28,7 +28,7 @@ import {
   type ReceiptLine,
 } from 'components/curate/what-happens-next'
 import { Dialog, DialogColumns } from 'components/curate/item-light-dialog'
-import { useActionGate } from 'components/curate/item-light-gate'
+import { gatedConfirm, useActionGate } from 'components/curate/item-light-gate'
 import { formatAmount } from 'components/curate/item-light-format'
 
 /*
@@ -80,6 +80,7 @@ const RemoveModal = ({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const gate = useActionGate({
     verb: 'request the removal',
+    shortVerb: 'remove',
     amount: removalDeposit,
     needsAuth: needsEvidence,
     pending: removalDeposit ? undefined : 'Loading the deposit',
@@ -248,14 +249,16 @@ const RemoveModal = ({
               receipt={receipt}
               total={total}
               steps={steps}
-              confirmLabel={`Remove ${name}`}
-              onConfirm={confirm}
-              confirmDisabled={!gate.ready || isSubmitting}
-              confirmBlocker={gate.blocker}
-              loading={isSubmitting}
+              {...gatedConfirm(gate, {
+                label: `Remove ${name}`,
+                onConfirm: confirm,
+                disabled: !gate.ready || isSubmitting,
+                blocker: gate.blocker,
+                loading: isSubmitting,
+              })}
               policy={`This is a deposit, not a fee: it is returned if the removal is accepted. The challenge window lasts ${period}.`}
             />
-            {gate.controls && (
+            {!gate.fix && gate.controls && (
               <Row $justify="flex-end" $wrap>
                 {gate.controls}
               </Row>

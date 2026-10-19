@@ -61,11 +61,18 @@ const Total = styled.span`
   font-variant-numeric: tabular-nums;
 `
 
+/* Kept inside the ring's hole: at most ~62% of the figure, two lines. */
 const Caption = styled.span`
-  color: var(--color-faint);
+  display: -webkit-box;
+  max-width: 62%;
+  overflow: hidden;
+  color: var(--color-muted);
   font-size: 12px;
   line-height: 15px;
   font-weight: 400;
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 `
 
 export interface OrbitSegment {

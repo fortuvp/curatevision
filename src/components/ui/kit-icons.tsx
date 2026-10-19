@@ -11,15 +11,10 @@ export type KitIconName =
   | 'chevron-down'
   | 'chevron-left'
   | 'chevron-right'
-  | 'chevron-up'
   | 'close'
-  | 'copy'
   | 'error-circle'
   | 'file'
-  | 'inbox'
   | 'info-circle'
-  | 'minus'
-  | 'plus'
   | 'upload'
   | 'warning-triangle'
 
@@ -34,14 +29,7 @@ const PATHS: Record<KitIconName, React.ReactNode> = {
   'chevron-down': <path d="M6 9l6 6 6-6" />,
   'chevron-left': <path d="M15 6l-6 6 6 6" />,
   'chevron-right': <path d="M9 6l6 6-6 6" />,
-  'chevron-up': <path d="M6 15l6-6 6 6" />,
   close: <path d="M6 6l12 12M18 6L6 18" />,
-  copy: (
-    <>
-      <rect x="9" y="9" width="11" height="11" rx="2" />
-      <path d="M5 15V6a2 2 0 0 1 2-2h9" />
-    </>
-  ),
   'error-circle': (
     <>
       <circle cx="12" cy="12" r="9" />
@@ -54,20 +42,12 @@ const PATHS: Record<KitIconName, React.ReactNode> = {
       <path d="M14 3v5h5" />
     </>
   ),
-  inbox: (
-    <>
-      <path d="M4 13l2.5-8h11L20 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" />
-      <path d="M4 13h5l1.5 2h3L15 13h5" />
-    </>
-  ),
   'info-circle': (
     <>
       <circle cx="12" cy="12" r="9" />
       <path d="M12 11v5M12 8h.01" />
     </>
   ),
-  minus: <path d="M6 12h12" />,
-  plus: <path d="M12 6v12M6 12h12" />,
   upload: (
     <>
       <path d="M12 16V5M7 10l5-5 5 5" />

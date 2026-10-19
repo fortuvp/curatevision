@@ -88,6 +88,10 @@ const splitColumns = (columns: V2Field[]) => {
   return { title, meta: textual.filter((column) => column !== title) }
 }
 
+/** A column's name as a heading: the form's "(optional)" hint dropped. */
+const columnLabel = (column: V2Field): string =>
+  (column.label ?? '').replace(/\s*\(optional\)\s*$/i, '')
+
 const textOf = (field?: V2Field): string | undefined =>
   field && hasValue(field) && typeof field.value !== 'object'
     ? String(field.value)
@@ -499,6 +503,14 @@ const EntryTableEl = styled(Table)`
     width: ${LEAD_IMAGE_WIDTH}px;
   }
 
+  /* One identifying column and nothing else: it takes the spare room, so
+     the status sits at the right beside the open chevron, as in Rows. */
+  @media (min-width: 721px) {
+    th.lead.solo {
+      width: auto;
+    }
+  }
+
   /* Phones: a narrower identifying column (the chain label gives way first)
      so the status and its countdown start inside the screen. */
   @media (max-width: 720px) {
@@ -515,8 +527,17 @@ const EntryTableEl = styled(Table)`
     width: 100%;
   }
 
+  /* A hidden entry's notice reads on one line: text, then the button. */
   td [data-hidden-notice] {
-    padding: 10px 0;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    white-space: nowrap;
+  }
+
+  td [data-hidden-notice] > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   th.open {
@@ -595,8 +616,19 @@ const EntryTable = ({
     STATUS_WIDTH +
     others.length * FIELD_WIDTH +
     OPEN_WIDTH
-  // A hidden entry's notice takes the widest field cell it can.
-  const noticeInLead = !!lead && (!leadIsImage || others.length === 0)
+  // A hidden entry's notice goes in the field cells it blanks out; only a
+  // list with no other field puts it in the identifying cell.
+  const noticeInLead = !!lead && others.length === 0
+  // Each row's open link carries its entry's name, so a links list tells
+  // the rows apart (a hidden entry stays generic).
+  const { title } = splitColumns(columns)
+  const leadClass = [
+    'lead',
+    leadIsImage ? 'image' : '',
+    others.length === 0 ? 'solo' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
   const cell = (entry: EntryRow, column: V2Field) => (
     <td key={column.label}>
       <CellValue>
@@ -610,56 +642,67 @@ const EntryTable = ({
         <thead>
           <tr>
             {lead && (
-              <th
-                className={leadIsImage ? 'lead image' : 'lead'}
-                title={lead.label}
-              >
-                {lead.label}
+              <th className={leadClass} title={columnLabel(lead)}>
+                {columnLabel(lead)}
               </th>
             )}
             <th className="status">Status</th>
             {others.map((column) => (
-              <th key={column.label} title={column.label}>
-                {column.label}
+              <th key={column.label} title={columnLabel(column)}>
+                {columnLabel(column)}
               </th>
             ))}
             <th className="open" aria-label="Open" />
           </tr>
         </thead>
         <tbody>
-          {entries.map((entry, index) => (
-            <tr
-              key={entry.id}
-              data-href={entry.href}
-              style={{ ['--i' as string]: Math.min(index, 12) }}
-              onClick={(event) => {
-                if ((event.target as HTMLElement).closest('a, button')) return
-                navigate(entry.href)
-              }}
-            >
-              {lead &&
-                (entry.hidden ? (
-                  <td>{noticeInLead && <HiddenNotice entry={entry} />}</td>
-                ) : (
-                  cell(entry, lead)
-                ))}
-              <td className="status">
-                <StatusSlot entry={entry} now={now} />
-              </td>
-              {entry.hidden
-                ? others.length > 0 && (
-                    <td colSpan={others.length}>
-                      {!noticeInLead && <HiddenNotice entry={entry} />}
+          {entries.map((entry, index) => {
+            const name = title ? textOf(fieldFor(entry, title)) : undefined
+            return (
+              <tr
+                key={entry.id}
+                data-href={entry.href}
+                style={{ ['--i' as string]: Math.min(index, 12) }}
+                onClick={(event) => {
+                  if ((event.target as HTMLElement).closest('a, button')) return
+                  navigate(entry.href)
+                }}
+              >
+                {lead &&
+                  (entry.hidden ? (
+                    <td>
+                      {noticeInLead ? (
+                        <HiddenNotice entry={entry} />
+                      ) : (
+                        <Small $faint aria-hidden>
+                          —
+                        </Small>
+                      )}
                     </td>
-                  )
-                : others.map((column) => cell(entry, column))}
-              <td className="open">
-                <Link to={entry.href} aria-label={`Open ${itemName}`}>
-                  <CurateIcon name="chevron-down" size={14} />
-                </Link>
-              </td>
-            </tr>
-          ))}
+                  ) : (
+                    cell(entry, lead)
+                  ))}
+                <td className="status">
+                  <StatusSlot entry={entry} now={now} />
+                </td>
+                {entry.hidden
+                  ? others.length > 0 && (
+                      <td colSpan={others.length}>
+                        {!noticeInLead && <HiddenNotice entry={entry} />}
+                      </td>
+                    )
+                  : others.map((column) => cell(entry, column))}
+                <td className="open">
+                  <Link
+                    to={entry.href}
+                    aria-label={openLabel(entry, itemName, name)}
+                  >
+                    <CurateIcon name="chevron-down" size={14} />
+                  </Link>
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
       </EntryTableEl>
     </TableScroller>
@@ -862,8 +905,8 @@ const EntryCards = ({
                     <CardFields>
                       {meta.slice(0, 3).map((column) => (
                         <div key={column.label}>
-                          <dt title={column.label}>
-                            <Label $tone="faint">{column.label}</Label>
+                          <dt title={columnLabel(column)}>
+                            <Label $tone="faint">{columnLabel(column)}</Label>
                           </dt>
                           <dd>
                             <FieldValue field={fieldFor(entry, column)} />

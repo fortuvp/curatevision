@@ -1,13 +1,15 @@
 import React from 'react'
 import styled from 'styled-components'
 import { CurateIcon } from 'components/curate/icons'
-import { Label, Small, Status, Surface } from 'components/curate/primitives'
+import { Label, Small, StatusDot, Surface } from 'components/curate/primitives'
 import {
   SECTIONS,
   sectionNumber,
   type GuideStep,
+  type LegendItem,
   type OutcomeKind,
 } from './content'
+import { useJump } from './table-of-contents'
 
 /*
  * The guide's reading pieces: section heads in display type, prose at a 68ch
@@ -86,7 +88,7 @@ export const SectionTitle = styled.h2`
   max-width: 30ch;
   color: var(--color-text);
   font-family: var(--font-display);
-  font-size: clamp(26px, 1.1vw + 17px, 32px);
+  font-size: clamp(24px, 0.8vw + 18px, 30px);
   line-height: 1.12;
   font-weight: 500;
   letter-spacing: -0.03em;
@@ -422,24 +424,39 @@ const LegendRows = styled.ul`
   }
 `
 
-/** The status primitive is nowrap; the legend lets long details wrap. */
-const LegendStatus = styled(Status)`
-  flex-wrap: wrap;
-  white-space: normal;
+/* Set like the entry rows (components/curate/entry-status): dot, sans label,
+   muted detail. Long details wrap under the label, not under the dot. */
+const LegendStatus = styled.span`
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr);
+  column-gap: 8px;
+  align-items: start;
+  min-width: 0;
+
+  > span:first-child {
+    margin-top: calc((var(--lh-small) - 8px) / 2);
+  }
+
+  b {
+    color: var(--color-text);
+    font-size: var(--fs-small);
+    line-height: var(--lh-small);
+    font-weight: 500;
+  }
+
+  i {
+    color: var(--color-muted);
+    font-size: var(--fs-small);
+    line-height: var(--lh-small);
+    font-style: normal;
+    font-variant-numeric: tabular-nums;
+  }
 `
 
 export const StatusLegend = ({
   groups,
 }: {
-  groups: {
-    group: string
-    items: {
-      tone: React.ComponentProps<typeof Status>['tone']
-      label: string
-      detail?: string
-      meaning: string
-    }[]
-  }[]
+  groups: { group: string; items: LegendItem[] }[]
 }) => (
   <div>
     {groups.map((group) => (
@@ -451,11 +468,13 @@ export const StatusLegend = ({
         <LegendRows>
           {group.items.map((item) => (
             <li key={item.label}>
-              <LegendStatus
-                tone={item.tone}
-                label={item.label}
-                detail={item.detail}
-              />
+              <LegendStatus>
+                <StatusDot $tone={item.tone} aria-hidden />
+                <span>
+                  <b>{item.label}</b>
+                  {item.detail && <i> · {item.detail}</i>}
+                </span>
+              </LegendStatus>
               <span>{item.meaning}</span>
             </li>
           ))}
@@ -605,7 +624,8 @@ const Mark = styled.i<{ $tone: string }>`
   background: color-mix(in srgb, ${({ $tone }) => $tone} 16%, transparent);
   box-shadow: inset 0 0 0 1px
     color-mix(in srgb, ${({ $tone }) => $tone} 30%, transparent);
-  color: ${({ $tone }) => $tone};
+  /* Pulled toward the text color so the glyph clears 4.5:1 on its tint. */
+  color: color-mix(in srgb, ${({ $tone }) => $tone} 80%, var(--color-text));
   font-size: 14px;
   font-style: normal;
   font-weight: 600;
@@ -700,6 +720,16 @@ export const Definitions = styled.dl`
     text-wrap: pretty;
   }
 
+  dd a {
+    color: var(--color-primary);
+    font-variant-numeric: tabular-nums;
+    text-decoration: none;
+  }
+
+  dd a:hover {
+    text-decoration: underline;
+  }
+
   @media (max-width: 760px) {
     grid-template-columns: 1fr;
 
@@ -714,24 +744,50 @@ export const DefinitionGrid = ({
   items,
 }: {
   label?: string
-  items: { term: string; definition: string }[]
-}) => (
-  <div>
-    {label && (
-      <div style={{ marginBottom: 10 }}>
-        <Label $tone="faint">{label}</Label>
-      </div>
-    )}
-    <Definitions>
-      {items.map((item) => (
-        <div key={item.term}>
-          <dt>{item.term}</dt>
-          <dd>{item.definition}</dd>
+  items: { term: string; definition: string; see?: string[] }[]
+}) => {
+  const jump = useJump()
+  return (
+    <div>
+      {label && (
+        <div style={{ marginBottom: 10 }}>
+          <Label $tone="faint">{label}</Label>
         </div>
-      ))}
-    </Definitions>
-  </div>
-)
+      )}
+      <Definitions>
+        {items.map((item) => (
+          <div key={item.term}>
+            <dt>{item.term}</dt>
+            <dd>
+              {item.definition}
+              {item.see && (
+                <>
+                  {' '}
+                  See{' '}
+                  {item.see.map((id, index) => (
+                    <React.Fragment key={id}>
+                      {index > 0 && ', '}
+                      <a
+                        href={`#${id}`}
+                        onClick={(event) => jump(event, id)}
+                        aria-label={`Section ${sectionNumber(id)}: ${
+                          SECTIONS.find((section) => section.id === id)?.label
+                        }`}
+                      >
+                        {sectionNumber(id)}
+                      </a>
+                    </React.Fragment>
+                  ))}
+                  .
+                </>
+              )}
+            </dd>
+          </div>
+        ))}
+      </Definitions>
+    </div>
+  )
+}
 
 /* ---------- Links ---------- */
 

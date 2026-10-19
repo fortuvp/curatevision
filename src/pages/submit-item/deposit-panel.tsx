@@ -214,16 +214,25 @@ const Legend = styled.dl`
   }
 `
 
+/**
+ * Two labels on one baseline, the duration and the end date on the next:
+ * filled column by column, so each label is read before its value.
+ */
 const WindowTop = styled.div`
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 8px 16px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  grid-auto-flow: column;
+  align-items: baseline;
+  gap: 6px 16px;
+
+  > :nth-child(n + 3) {
+    justify-self: end;
+    text-align: right;
+  }
 `
 
 const WindowFigure = styled.div`
-  margin-top: 6px;
   color: var(--color-text);
   font-family: var(--font-figure);
   font-size: 28px;
@@ -234,21 +243,13 @@ const WindowFigure = styled.div`
   white-space: nowrap;
 `
 
-const WindowEnd = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-  text-align: right;
-
-  strong {
-    color: var(--color-text);
-    font-size: var(--fs-body);
-    line-height: var(--lh-body);
-    font-weight: 500;
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-  }
+const WindowEnd = styled.strong`
+  color: var(--color-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  text-wrap: balance;
 `
 
 const NoWindow = styled.p`
@@ -567,21 +568,19 @@ export const DepositPanel = ({
       {terms && (
         <Block>
           <WindowTop>
-            <div>
-              <Label $tone="faint">{terms.label}</Label>
-              <WindowFigure>
-                {terms.seconds > 0 ? formatDuration(terms.seconds) : 'None'}
-              </WindowFigure>
-            </div>
+            <Label $tone="faint">{terms.label}</Label>
+            <WindowFigure>
+              {terms.seconds > 0 ? formatDuration(terms.seconds) : 'None'}
+            </WindowFigure>
             {terms.seconds > 0 && (
-              <WindowEnd>
+              <>
                 <Label $tone="faint">{terms.endLabel}</Label>
-                <strong
+                <WindowEnd
                   title={`If the transaction is mined now: ${formatAbsolute(end)}`}
                 >
                   ≈ {endText}
-                </strong>
-              </WindowEnd>
+                </WindowEnd>
+              </>
             )}
           </WindowTop>
           {terms.seconds > 0 ? (

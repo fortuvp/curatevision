@@ -30,6 +30,8 @@ import useUrlChainId from 'hooks/use-url-chain-id'
 import { preloadFactory } from 'bootstrap/app-router'
 import { CurateIcon } from 'components/curate/icons'
 import ChainLogo from 'components/chain-logo'
+import { validChain } from 'pages/dashboard/view'
+import { useLaunchChainId } from './launch-chain'
 
 /*
  * App bar (DESIGN.md, Layout): 56px, sticky, surface at 92% over the bloom with a
@@ -138,7 +140,7 @@ const MobileMenuLink = styled(Link)<{ $active?: boolean }>`
   padding: 0 10px;
   border-radius: var(--radius-sm);
   color: ${({ $active }) =>
-    $active ? 'var(--color-primary)' : 'var(--color-text)'};
+    $active ? 'var(--color-primary-on-soft)' : 'var(--color-text)'};
   background: ${({ $active }) =>
     $active ? 'var(--color-primary-soft)' : 'transparent'};
   text-decoration: none;
@@ -149,7 +151,7 @@ const MobileMenuLink = styled(Link)<{ $active?: boolean }>`
 
   &:hover {
     color: ${({ $active }) =>
-      $active ? 'var(--color-primary)' : 'var(--color-text)'};
+      $active ? 'var(--color-primary-on-soft)' : 'var(--color-text)'};
     background: ${({ $active }) =>
       $active ? 'var(--color-primary-soft)' : 'var(--color-raised)'};
   }
@@ -246,7 +248,7 @@ const ChainMenuItem = styled.button<{ $active?: boolean }>`
   background: ${({ $active }) =>
     $active ? 'var(--color-primary-soft)' : 'transparent'};
   color: ${({ $active }) =>
-    $active ? 'var(--color-primary)' : 'var(--color-text)'};
+    $active ? 'var(--color-primary-on-soft)' : 'var(--color-text)'};
   font-size: var(--fs-body);
   font-weight: 500;
   white-space: nowrap;
@@ -296,13 +298,18 @@ const AppBar = () => {
   }, [urlChainId])
 
   const savedChainId = useMemo(() => {
-    const saved = localStorage.getItem(SAVED_NETWORK_KEY)
-    return saved ? Number(saved) : null
-    // Re-read on every navigation so it stays current
+    try {
+      const saved = localStorage.getItem(SAVED_NETWORK_KEY)
+      return saved ? Number(saved) : null
+    } catch {
+      return null
+    }
+    // Re-read on every navigation (location.key) so it stays current
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname])
+  }, [location.key])
 
   const displayedChainId = urlChainId ?? savedChainId ?? networkId
+  const launchChainId = useLaunchChainId()
   const [floating, setFloating] = useState(false)
   useEffect(() => {
     const onScroll = () => setFloating(window.scrollY > 24)
@@ -314,49 +321,63 @@ const AppBar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [helpDropdownOpen, setHelpDropdownOpen] = useState(false)
 
+  /*
+   * The dashboard and Browse are scoped pages: the chip shows and sets their
+   * `?chain=` scope (the dashboard takes one chain or "Mainnets", Browse
+   * any set or "All chains"), so the bar and the page never disagree.
+   */
+  const isDashboard = location.pathname === '/'
   const isBrowse = location.pathname === '/browse'
-  const browseChainIds = useMemo(
-    () =>
-      new URLSearchParams(location.search)
-        .get('chain')
+  const isScoped = isDashboard || isBrowse
+  const scopeChainIds = useMemo(() => {
+    const param = new URLSearchParams(location.search).get('chain')
+    if (isDashboard) {
+      const scope = validChain(param)
+      return scope === 'all' ? [] : [scope]
+    }
+    return (
+      param
         ?.split(',')
         .map(Number)
         .filter((chainId) =>
           SUPPORTED_CHAINS.some((chain) => Number(chain.id) === chainId),
-        ) ?? [],
-    [location.search],
-  )
-  const browseChainId = browseChainIds.length === 1 ? browseChainIds[0] : null
+        ) ?? []
+    )
+  }, [location.search, isDashboard])
+  const scopeChainId = scopeChainIds.length === 1 ? scopeChainIds[0] : null
   const currentChainInfo =
     NETWORKS_INFO[
-      (isBrowse
-        ? browseChainId
-        : displayedChainId) as keyof typeof NETWORKS_INFO
+      (isScoped ? scopeChainId : displayedChainId) as keyof typeof NETWORKS_INFO
     ]
-  const browseChainLabel =
-    browseChainIds.length === 0
-      ? 'All chains'
-      : browseChainIds.length === 1
+  const allLabel = isDashboard ? 'Mainnets' : 'All chains'
+  const scopeLabel =
+    scopeChainIds.length === 0
+      ? allLabel
+      : scopeChainIds.length === 1
         ? currentChainInfo?.name || 'Select chain'
-        : `${browseChainIds.length} chains`
+        : `${scopeChainIds.length} chains`
 
-  const handleBrowseChainSelect = useCallback(
+  const handleScopeSelect = useCallback(
     (chainId: number | null) => {
       const next = new URLSearchParams(location.search)
       if (chainId) next.set('chain', String(chainId))
       else next.delete('chain')
       next.delete('page')
       const search = next.toString()
-      navigate(`/browse${search ? `?${search}` : ''}`)
+      // The dashboard's scope replaces its history entry, like its own
+      // segmented control; Browse keeps each filter step.
+      navigate(`${location.pathname}${search ? `?${search}` : ''}`, {
+        replace: isDashboard,
+      })
       setChainDropdownOpen(false)
     },
-    [location.search, navigate],
+    [location.search, location.pathname, isDashboard, navigate],
   )
 
   const handleChainSelect = useCallback(
     (chainId: number) => {
-      if (isBrowse) {
-        handleBrowseChainSelect(chainId)
+      if (isScoped) {
+        handleScopeSelect(chainId)
         return
       }
       if (chainId === displayedChainId) {
@@ -373,7 +394,6 @@ const AppBar = () => {
         /^\/(factory(?:-permanent)?|launch)\//,
       )
       if (factoryMatch) navigate(`/${factoryMatch[1]}/${chainId}`)
-      else if (location.pathname === '/') navigate(`/?chain=${chainId}`)
       else navigate(`/tcr/${chainId}/${nextTcr}`)
 
       setChainDropdownOpen(false)
@@ -381,8 +401,8 @@ const AppBar = () => {
     [
       navigate,
       displayedChainId,
-      handleBrowseChainSelect,
-      isBrowse,
+      handleScopeSelect,
+      isScoped,
       location.pathname,
     ],
   )
@@ -407,7 +427,7 @@ const AppBar = () => {
         Browse
       </MobileMenuLink>
       <MobileMenuLink
-        to={`/launch/${displayedChainId}`}
+        to={`/launch/${launchChainId}`}
         $active={
           location.pathname.startsWith('/launch') ||
           location.pathname.startsWith('/factory')
@@ -470,24 +490,24 @@ const AppBar = () => {
               placement="bottomRight"
               overlay={
                 <ChainMenu role="menu" aria-label="Chain">
-                  {isBrowse && (
+                  {isScoped && (
                     <ChainMenuItem
                       type="button"
                       role="menuitemradio"
-                      aria-checked={browseChainIds.length === 0}
-                      $active={browseChainIds.length === 0}
-                      onClick={() => handleBrowseChainSelect(null)}
+                      aria-checked={scopeChainIds.length === 0}
+                      $active={scopeChainIds.length === 0}
+                      onClick={() => handleScopeSelect(null)}
                     >
                       <CurateIcon name="chain" size={16} />
-                      All chains
+                      {allLabel}
                     </ChainMenuItem>
                   )}
                   {SUPPORTED_CHAINS.map((chain) => {
                     const info =
                       NETWORKS_INFO[chain.id as keyof typeof NETWORKS_INFO]
                     if (!info) return null
-                    const active = isBrowse
-                      ? Number(chain.id) === browseChainId
+                    const active = isScoped
+                      ? Number(chain.id) === scopeChainId
                       : chain.id === displayedChainId
                     return (
                       <ChainMenuItem
@@ -510,11 +530,19 @@ const AppBar = () => {
                 type="button"
                 aria-haspopup="menu"
                 aria-expanded={chainDropdownOpen}
-                title={isBrowse ? 'Filter registries by chain' : 'Chain'}
+                title={
+                  isBrowse
+                    ? 'Filter registries by chain'
+                    : isDashboard
+                      ? 'Chains the figures cover'
+                      : 'Chain'
+                }
                 aria-label={
                   isBrowse
-                    ? `Filter registries by chain: ${browseChainLabel}`
-                    : `Chain: ${currentChainInfo?.name || 'Select chain'}`
+                    ? `Filter registries by chain: ${scopeLabel}`
+                    : isDashboard
+                      ? `Chains the figures cover: ${scopeLabel}`
+                      : `Chain: ${currentChainInfo?.name || 'Select chain'}`
                 }
               >
                 {currentChainInfo ? (
@@ -526,8 +554,8 @@ const AppBar = () => {
                   <CurateIcon name="chain" size={16} />
                 )}
                 <ChainLabel>
-                  {isBrowse
-                    ? browseChainLabel
+                  {isScoped
+                    ? scopeLabel
                     : currentChainInfo?.name || 'Select chain'}
                 </ChainLabel>
                 <CurateIcon name="chevron-down" size={13} />

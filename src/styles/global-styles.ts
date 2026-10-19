@@ -111,8 +111,15 @@ const GlobalStyle = createGlobalStyle`
     --color-primary: ${({ theme }) => theme.primaryColor};
     --color-primary-hover: ${({ theme }) => theme.primaryColorHover};
     --color-primary-fill: ${({ theme }) => theme.primaryFill};
+    --color-primary-fill-hover: ${({ theme }) => theme.primaryFillHover};
     --color-on-primary: ${({ theme }) => theme.textOnPrimary};
     --color-primary-soft: ${({ theme }) => theme.curateLiveSoft};
+    /* Primary text on a primary-soft fill or a featured tint (4.5:1+ in every theme). */
+    --color-primary-on-soft: color-mix(
+      in srgb,
+      var(--color-primary) 70%,
+      var(--color-text)
+    );
     --color-indigo: ${({ theme }) => theme.secondaryColor};
     --color-indigo-soft: ${({ theme }) => theme.curateVioletSoft};
     --color-success: ${({ theme }) => theme.successColor};
@@ -131,6 +138,11 @@ const GlobalStyle = createGlobalStyle`
     --aurora-a: ${({ theme }) => theme.auroraA};
     --aurora-b: ${({ theme }) => theme.auroraB};
     --aurora-c: ${({ theme }) => theme.auroraC};
+    /* Categorical data colours, in fixed order (rings and their legends). */
+    --viz-1: ${({ theme }) => theme.viz[0]};
+    --viz-2: ${({ theme }) => theme.viz[1]};
+    --viz-3: ${({ theme }) => theme.viz[2]};
+    --viz-4: ${({ theme }) => theme.viz[3]};
     --frame-gap: clamp(8px, 3.2vw, 52px);
     --frame-radius: clamp(20px, 2.8vw, 44px);
     --glass-border: ${({ theme }) => theme.glassBorder};

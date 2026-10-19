@@ -1,11 +1,9 @@
-import React, { useMemo } from 'react'
+import React from 'react'
 import styled, { css } from 'styled-components'
 import { smallScreenStyle } from 'styles/small-screen-style'
 import { Link, useLocation } from 'react-router-dom'
-import { useWeb3Context } from 'hooks/use-web3-context'
-import useUrlChainId from 'hooks/use-url-chain-id'
-import { SAVED_NETWORK_KEY } from 'utils/string'
 import { preloadFactory } from 'bootstrap/app-router'
+import { useLaunchChainId } from './launch-chain'
 
 const DesktopNav = styled.nav`
   display: flex;
@@ -57,14 +55,7 @@ const NavLink = styled(Link)<{ $active?: boolean }>`
 
 const AppMenu = () => {
   const { pathname } = useLocation()
-  const { networkId } = useWeb3Context()
-  const urlChainId = useUrlChainId()
-
-  const currentChainId = useMemo(() => {
-    if (urlChainId) return urlChainId
-    const saved = localStorage.getItem(SAVED_NETWORK_KEY)
-    return saved ? Number(saved) : networkId
-  }, [urlChainId, networkId])
+  const launchChainId = useLaunchChainId()
 
   return (
     <DesktopNav aria-label="Main">
@@ -78,7 +69,7 @@ const AppMenu = () => {
         Browse
       </NavLink>
       <NavLink
-        to={`/launch/${currentChainId}`}
+        to={`/launch/${launchChainId}`}
         $active={
           pathname.startsWith('/launch') || pathname.startsWith('/factory')
         }

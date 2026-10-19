@@ -42,17 +42,25 @@ import { formatAmount } from 'components/curate/item-light-format'
 
 /*
  * The entry's fields: every field as a label/value row rendered by its
- * type, separated by hairlines. For a list of lists it also shows the linked registry's identity.
+ * type, separated by hairlines, less any the page already shows in full.
+ * For a list of lists it also shows the linked registry's identity, its
+ * policy and a link to it.
  * Classic lists keep the fee-reward withdrawal here. Shared by the Light,
  * Classic and Stake item pages and by the factory previews.
  */
 
-const RegistryBlock = styled.div`
+/* A divider under it only when fields follow; when only the actions do,
+   their own top border is the one line. */
+const RegistryBlock = styled.div<{ $divided: boolean }>`
   display: grid;
   grid-template-columns: 64px minmax(0, 1fr);
   gap: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--color-border);
+  ${({ $divided }) =>
+    $divided &&
+    `
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--color-border);
+  `}
 
   @media (max-width: 520px) {
     grid-template-columns: 1fr;
@@ -120,7 +128,9 @@ const CopyId = ({ id }: { id: string }) => {
   return (
     <Row $gap={4} title={id}>
       <Small $muted>ID</Small>
-      <Data $muted>{truncateMiddle(id, 8, 6)}</Data>
+      <Data $mono $muted>
+        {truncateMiddle(id, 8, 6)}
+      </Data>
       <IconButton
         type="button"
         aria-label="Copy item ID"
@@ -155,6 +165,11 @@ interface ItemDetailsCardProps {
   item?: SubgraphItem
   itemMetaEvidence?: ItemMetaEvidenceState | false | null
   disabled?: boolean
+  /**
+   * Fields the page already shows in full elsewhere (the item hero's
+   * identifiers), left out of the list so no row repeats them.
+   */
+  exclude?: EntryField[]
 }
 
 const ItemDetailsCard = ({
@@ -163,6 +178,7 @@ const ItemDetailsCard = ({
   loading,
   item,
   itemMetaEvidence,
+  exclude,
 }: ItemDetailsCardProps) => {
   const { address: account } = useAccount()
   const chainId = useChainId()
@@ -249,12 +265,20 @@ const ItemDetailsCard = ({
     itemMetaData && item?.decodedData?.[0]
       ? String(item.decodedData[0])
       : undefined
+  const excluded = new Set(
+    (exclude ?? []).map((field) => `${field.label}\u0000${field.type}`),
+  )
   const detailFields: EntryField[] =
     columns
       ?.map((column, index) => ({
         ...column,
         value: item && item.decodedData?.[index],
       }))
+      .filter(
+        (field) =>
+          excluded.size === 0 ||
+          !excluded.has(`${field.label}\u0000${field.type}`),
+      )
       .filter((field) => {
         if (!itemMetaData) return true
         const type = String(field.type || '').toLowerCase()
@@ -323,7 +347,7 @@ const ItemDetailsCard = ({
           </Notice>
         ) : null}
         {itemMetaData && (
-          <RegistryBlock>
+          <RegistryBlock $divided={detailFields.length > 0}>
             <LogoButton
               type="button"
               $image={logo}
@@ -336,48 +360,51 @@ const ItemDetailsCard = ({
             <Stack $gap={6}>
               <Subheading>{tcrTitle}</Subheading>
               {tcrDescription && <Body $muted>{tcrDescription}</Body>}
-              {fileURI && (
-                <div>
-                  <Button
-                    type="button"
-                    $variant="ghost"
-                    $size="sm"
-                    onClick={() => openAttachment(parseIpfs(fileURI), true)}
-                  >
-                    <CurateIcon name="policy" size={14} />
-                    Listing policy
-                  </Button>
-                </div>
+              {(fileURI || (childRegistryAddress && urlChainId)) && (
+                <Row $gap={8} $wrap>
+                  {fileURI && (
+                    <Button
+                      type="button"
+                      $variant="ghost"
+                      $size="sm"
+                      aria-label={`${tcrTitle || 'Linked list'} listing policy`}
+                      onClick={() => openAttachment(parseIpfs(fileURI), true)}
+                    >
+                      <CurateIcon name="policy" size={14} />
+                      Its policy
+                    </Button>
+                  )}
+                  {childRegistryAddress && urlChainId && (
+                    <ButtonLink
+                      to={`/tcr/${urlChainId}/${childRegistryAddress}`}
+                      $variant="secondary"
+                      $size="sm"
+                    >
+                      Open registry
+                      <CurateIcon name="external" size={14} />
+                    </ButtonLink>
+                  )}
+                </Row>
               )}
             </Stack>
           </RegistryBlock>
         )}
-        {columns && <EntryFields fields={detailFields} />}
-        {(childRegistryAddress && urlChainId) || withdrawable ? (
+        {columns && detailFields.length > 0 && (
+          <EntryFields fields={detailFields} />
+        )}
+        {withdrawable && (
           <Actions>
-            {childRegistryAddress && urlChainId && (
-              <ButtonLink
-                to={`/tcr/${urlChainId}/${childRegistryAddress}`}
-                $variant="secondary"
-                $size="sm"
-              >
-                Open registry
-                <CurateIcon name="external" size={14} />
-              </ButtonLink>
-            )}
-            {withdrawable && (
-              <Button
-                type="button"
-                $variant="primary"
-                $size="sm"
-                onClick={batchWithdrawClick}
-              >
-                Withdraw rewards ·{' '}
-                {formatAmount(availableRewards, nativeCurrency)}
-              </Button>
-            )}
+            <Button
+              type="button"
+              $variant="primary"
+              $size="sm"
+              onClick={batchWithdrawClick}
+            >
+              Withdraw rewards ·{' '}
+              {formatAmount(availableRewards, nativeCurrency)}
+            </Button>
           </Actions>
-        ) : null}
+        )}
         {tcrAddress !== undefined &&
           urlChainId !== null &&
           isSeerRegistry(tcrAddress, urlChainId) &&

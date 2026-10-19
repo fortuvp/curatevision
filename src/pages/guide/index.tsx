@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
-import { Link } from 'react-router-dom'
 import useDocumentHead from 'hooks/use-document-head'
 import { NETWORKS } from 'config/networks'
+import useDisplayedChainId from './use-displayed-chain-id'
 import { CurateIcon } from 'components/curate/icons'
 import {
   Button,
@@ -315,7 +315,7 @@ const Guide = () => {
   const [run, setRun] = useState(0)
   const panelRef = useRef<HTMLDivElement>(null)
   const panelInView = useInView(panelRef, 0.25)
-  const launchHref = `/launch/${NETWORKS.gnosis}`
+  const launchHref = `/launch/${useDisplayedChainId()}`
 
   // A deep link (/guide#glossary) lands after the lazy route renders.
   useEffect(() => {
@@ -386,7 +386,7 @@ const Guide = () => {
               <div>
                 <Eyebrow id="lifecycle" />
                 <PanelHeading id="lifecycle-title">
-                  One deposit, one window, and a court only if someone objects.
+                  A court only if someone objects.
                 </PanelHeading>
               </div>
               {!reduced && (
@@ -463,17 +463,11 @@ const Guide = () => {
             </Facts>
           </LifecyclePanel>
 
-          <GuideSection
-            id="statuses"
-            heading="A dot and a plain label on every entry, with the time left where it applies."
-          >
+          <GuideSection id="statuses" heading="One dot, one label">
             <StatusLegend groups={LEGEND} />
           </GuideSection>
 
-          <GuideSection
-            id="submitting"
-            heading="Read the policy first. The deposit is your pledge that the entry complies."
-          >
+          <GuideSection id="submitting" heading="Read the policy, then deposit">
             <Steps steps={SUBMIT_STEPS} />
             <Costs label="What you send, per action" rows={COSTS} />
             <Aside>
@@ -481,10 +475,7 @@ const Guide = () => {
             </Aside>
           </GuideSection>
 
-          <GuideSection
-            id="challenging"
-            heading="Find an entry that breaks the policy, show why, and put a deposit behind it."
-          >
+          <GuideSection id="challenging" heading="Show why, then pay a deposit">
             <Prose>
               Anyone can challenge a request, new entries and removal requests
               alike, while its challenge period runs.
@@ -492,10 +483,7 @@ const Guide = () => {
             <Steps steps={CHALLENGE_STEPS} />
           </GuideSection>
 
-          <GuideSection
-            id="disputes"
-            heading="Jurors vote on the policy. Anyone who thinks they got it wrong can pay for another round."
-          >
+          <GuideSection id="disputes" heading="Jurors rule, anyone can appeal">
             <Prose>
               A challenge opens a dispute in the Kleros court the list chose
               when it was created.
@@ -503,51 +491,36 @@ const Guide = () => {
             <Steps steps={DISPUTE_STEPS} />
             <AppealWindow />
             <Prose $quiet>
-              Funding an appeal costs the next round’s arbitration cost plus a
-              stake set by the list: one multiplier for the side the current
-              ruling favours, another for the side it went against, and a shared
-              one after a tie or a refusal to arbitrate. Several people can fund
-              the same side together, and the app shows an open appeal with the
-              time left for each side.
+              Funding costs the next round’s arbitration cost plus a stake the
+              list sets for each side; several people can fund one side.
             </Prose>
           </GuideSection>
 
-          <GuideSection
-            id="rewards"
-            heading="Curators are paid by the side that was wrong: its deposit after the jurors are paid, and what it staked on an appeal."
-          >
+          <GuideSection id="rewards" heading="The wrong side pays">
             <Prose>There is no reward pool.</Prose>
             <OutcomeTable
               title="What happens to what you put in"
               roles={OUTCOMES}
             />
             <Prose $quiet>
-              In Light and Classic Curate, winnings and appeal contributions are
-              withdrawn from the registry once the ruling is final: open the
-              entry to claim them.
+              In Light and Classic Curate, claim winnings and appeal returns on
+              the entry once the ruling is final.
             </Prose>
           </GuideSection>
 
-          <GuideSection
-            id="launching"
-            heading="A list is a policy, a schema and a few economic parameters, deployed as a contract you govern."
-          >
+          <GuideSection id="launching" heading="Policy, schema, parameters">
             <Prose>
               Anyone can deploy a list on Light Curate, which the app calls
-              Standard, or on Stake Curate. Classic Curate is deprecated and
-              takes no new lists.
+              Standard, or on Stake Curate. Classic Curate is being deprecated.
             </Prose>
             <DefinitionGrid label="What you decide" items={DECISIONS} />
             <Prose $quiet>
-              A Stake Curate list also sets the stake token and minimum stake,
-              the challenger’s stake as a share of the entry’s, the withdrawal
-              waiting period and the number of jurors.
+              Stake Curate also sets the stake token and minimum, the
+              challenger’s share, the withdrawal wait and the juror count.
             </Prose>
             <Aside>
-              Deploying a list does not put it on the Curate home page. Submit
-              it to the Kleros Verified list of lists, a Light Curate list with
-              its own deposit and challenge period; it appears once that request
-              is executed.
+              To reach the home page, submit the new list to the Kleros Verified
+              list of lists; it appears once that request is executed.
             </Aside>
             <Actions>
               <ButtonLink to={launchHref} $variant="primary">
@@ -557,17 +530,8 @@ const Guide = () => {
             </Actions>
           </GuideSection>
 
-          <GuideSection
-            id="agents"
-            heading="Agents get the same rules as people, in files they can read."
-          >
-            <Prose>
-              If an agent drives Curate for you, give it the Curate skill and
-              the agent context below. They tell it to read deposits, challenge
-              periods, schemas and policies live from the chain instead of
-              guessing, to copy a list’s schema verbatim, and to treat the
-              policy as authoritative.
-            </Prose>
+          <GuideSection id="agents" heading="Same rules for agents">
+            <Prose>Give your agent the skill and context below.</Prose>
             <PromptCard>
               <div>
                 <Label $tone="faint">Prompt for your agent</Label>
@@ -615,14 +579,11 @@ const Guide = () => {
             </FileRows>
           </GuideSection>
 
-          <GuideSection id="glossary" heading="The words used across the app.">
+          <GuideSection id="glossary" heading="Words used here">
             <DefinitionGrid items={GLOSSARY} />
           </GuideSection>
 
-          <GuideSection
-            id="sources"
-            heading="Everything here follows the public Kleros documentation."
-          >
+          <GuideSection id="sources" heading="Straight from the Kleros docs">
             <Prose>
               Mechanisms, not numbers: the app reads live values before every
               action.
@@ -646,11 +607,6 @@ const Guide = () => {
                 Dashboard
               </ButtonLink>
             </Actions>
-            <Small $faint>
-              Looking for a specific entry or address? Use{' '}
-              <Link to="/browse">Browse</Link> or open an address profile from
-              any list.
-            </Small>
           </GuideSection>
         </Doc>
       </Layout>

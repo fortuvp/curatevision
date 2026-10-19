@@ -7,6 +7,13 @@ import { overlayPanel } from './kit-styles'
  * fades and rises 4px from the side it opens on, and fades out before it
  * hides. The panel is always the wrapper's last child div, which callers
  * rely on for placement.
+ *
+ * A click on a link, a button or a menu item inside the panel closes it; a
+ * click on a heading or the padding does not. When the panel holds menu
+ * items ([role^=menuitem]) the keyboard works as in a menu: ArrowDown,
+ * ArrowUp, Enter or Space on the trigger open it on the checked item (or
+ * the first), the arrows, Home and End move between items, Escape closes it
+ * and returns focus to the trigger, and Tab out of it closes it.
  */
 const Wrapper = styled.div`
   display: inline-block;
@@ -91,6 +98,12 @@ interface DropdownProps {
   disabled?: boolean
 }
 
+const MENU_ITEM = '[role^="menuitem"]'
+const FOCUSABLE =
+  'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+const ACTION = 'a, button, [role^="menuitem"]'
+const TEXT_ENTRY = 'input, textarea, select, [contenteditable]'
+
 const Dropdown: React.FC<DropdownProps> = ({
   overlay,
   trigger = ['hover'],
@@ -104,7 +117,10 @@ const Dropdown: React.FC<DropdownProps> = ({
   const isControlled = controlledVisible !== undefined
   const isVisible = isControlled ? controlledVisible : internalVisible
   const wrapperRef = useRef<HTMLDivElement>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Set when the menu opens from the keyboard: focus its item once shown.
+  const focusItemOnOpen = useRef(false)
 
   const setVisible = useCallback(
     (val: boolean) => {
@@ -115,9 +131,96 @@ const Dropdown: React.FC<DropdownProps> = ({
     [disabled, isControlled, onVisibleChange],
   )
 
-  const handleClick = useCallback(() => {
-    if (trigger.includes('click')) setVisible(!isVisible)
-  }, [trigger, isVisible, setVisible])
+  const menuItems = useCallback(
+    () =>
+      [
+        ...(overlayRef.current?.querySelectorAll<HTMLElement>(MENU_ITEM) ?? []),
+      ].filter((item) => !item.matches(':disabled')),
+    [],
+  )
+
+  /** The trigger: the wrapper's first focusable element outside the panel. */
+  const triggerElement = useCallback(
+    () =>
+      [
+        ...(wrapperRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []),
+      ].find((node) => !overlayRef.current?.contains(node)),
+    [],
+  )
+
+  const focusCurrentItem = useCallback(() => {
+    const items = menuItems()
+    const checked = items.find(
+      (item) => item.getAttribute('aria-checked') === 'true',
+    )
+    const target = checked ?? items[0]
+    target?.focus()
+  }, [menuItems])
+
+  const handleClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (!trigger.includes('click')) return
+      const panel = overlayRef.current
+      const target = e.target as Element
+      if (panel && panel.contains(target)) {
+        const action = target.closest(ACTION)
+        if (action && panel.contains(action)) setVisible(false)
+        return
+      }
+      // A click from Enter or Space (detail 0) opens on the current item.
+      if (!isVisible && e.detail === 0 && menuItems().length > 0)
+        focusItemOnOpen.current = true
+      setVisible(!isVisible)
+    },
+    [trigger, isVisible, setVisible, menuItems],
+  )
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      const panel = overlayRef.current
+      const items = menuItems()
+      if (!panel || items.length === 0) return
+      const inPanel = panel.contains(e.target as Node)
+      if (!inPanel) {
+        if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+        e.preventDefault()
+        if (isVisible) focusCurrentItem()
+        else {
+          focusItemOnOpen.current = true
+          setVisible(true)
+        }
+        return
+      }
+      const index = items.indexOf(document.activeElement as HTMLElement)
+      let next = -1
+      if (e.key === 'ArrowDown') next = (index + 1) % items.length
+      else if (e.key === 'ArrowUp')
+        next = (index - 1 + items.length) % items.length
+      else if (e.key === 'Home') next = 0
+      else if (e.key === 'End') next = items.length - 1
+      if (next === -1) return
+      e.preventDefault()
+      items[next].focus()
+    },
+    [isVisible, menuItems, focusCurrentItem, setVisible],
+  )
+
+  // Focus leaving the trigger and the panel (Tab out of the menu, say)
+  // closes it.
+  const handleBlur = useCallback(
+    (e: React.FocusEvent) => {
+      if (!isVisible) return
+      const next = e.relatedTarget as Node | null
+      if (!next || !wrapperRef.current?.contains(next)) setVisible(false)
+    },
+    [isVisible, setVisible],
+  )
+
+  // A press inside the panel keeps focus where it is, so clicking a heading
+  // or a row never blurs the menu shut before the click lands.
+  const handlePanelMouseDown = useCallback((e: React.MouseEvent) => {
+    if (!(e.target as Element).closest(TEXT_ENTRY)) e.preventDefault()
+  }, [])
 
   const handleMouseEnter = useCallback(() => {
     if (trigger.includes('hover')) {
@@ -144,17 +247,36 @@ const Dropdown: React.FC<DropdownProps> = ({
       if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node))
         setVisible(false)
     }
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setVisible(false)
+    // Escape belongs to the open menu alone: handled in the capture phase
+    // and stopped, so a dialog listening on the document keeps its state.
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      e.stopPropagation()
+      setVisible(false)
+      // Only a menu used from the keyboard takes focus back to its trigger.
+      if (wrapperRef.current?.contains(document.activeElement))
+        triggerElement()?.focus()
     }
 
     document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('keydown', handleKeyDown)
+    document.addEventListener('keydown', handleEscape, true)
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('keydown', handleEscape, true)
     }
-  }, [isVisible, setVisible])
+  }, [isVisible, setVisible, triggerElement])
+
+  // Opened from the keyboard: focus the checked item, or the first. Closed
+  // while focus is on an item (one was picked): back to the trigger, so
+  // focus never stays on a hidden row.
+  useEffect(() => {
+    if (isVisible) {
+      if (focusItemOnOpen.current) focusCurrentItem()
+      focusItemOnOpen.current = false
+    } else if (overlayRef.current?.contains(document.activeElement))
+      triggerElement()?.focus()
+  }, [isVisible, focusCurrentItem, triggerElement])
 
   // Cleanup timeout on unmount
   useEffect(
@@ -168,16 +290,20 @@ const Dropdown: React.FC<DropdownProps> = ({
     <Wrapper
       ref={wrapperRef}
       onClick={handleClick}
+      onKeyDown={handleKeyDown}
+      onBlur={handleBlur}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       className="ui-dropdown"
     >
       {children}
       <Overlay
+        ref={overlayRef}
         className="ui-dropdown-overlay"
         $visible={isVisible}
         $placement={placement}
         aria-hidden={!isVisible}
+        onMouseDown={handlePanelMouseDown}
       >
         {overlay}
       </Overlay>

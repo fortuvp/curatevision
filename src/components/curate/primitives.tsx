@@ -271,14 +271,19 @@ export const Label = styled.span<{
   text-transform: uppercase;
 `
 
-/** Mono data: addresses, amounts, timers, counts (13/18, tabular). */
+/**
+ * Data: figures, amounts and short values (13/18, tabular figures).
+ * `$mono` sets Geist Mono, for addresses, hashes and IDs only.
+ */
 export const Data = styled.span<{
   $muted?: boolean
   $weight?: 400 | 500 | 600
+  $mono?: boolean
 }>`
   color: ${({ $muted }) =>
     $muted ? 'var(--color-muted)' : 'var(--color-text)'};
-  font-family: var(--font-mono);
+  font-family: ${({ $mono }) =>
+    $mono ? 'var(--font-mono)' : 'var(--font-figure)'};
   font-size: var(--fs-data);
   line-height: var(--lh-data);
   font-weight: ${({ $weight }) => $weight ?? 500};
@@ -301,6 +306,19 @@ export const Figure = styled.span<{ $size?: 'md' | 'lg' }>`
 export const Mono = styled.span`
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+`
+
+/** Text for screen readers only (e.g. the final value of an animated figure). */
+export const VisuallyHidden = styled.span`
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 `
 
 /* ---------- Controls ---------- */
@@ -380,7 +398,7 @@ const buttonStyles = css<{
                 0 10px 30px -12px var(--color-primary);
 
               &:hover:not(:disabled) {
-                background: var(--color-primary-hover);
+                background: var(--color-primary-fill-hover);
                 color: var(--color-on-primary);
                 box-shadow:
                   inset 0 1px 0 color-mix(in srgb, white 32%, transparent),
@@ -388,11 +406,16 @@ const buttonStyles = css<{
               }
             `}
 
-  &:disabled,
-  &[aria-disabled='true'] {
+  /* Disabled keeps its label legible: muted text on the raised fill, no fade. */
+  &&:disabled,
+  &&[aria-disabled='true'] {
     cursor: not-allowed;
-    opacity: 0.5;
+    background: var(--color-raised);
+    border-color: var(--glass-border);
+    color: var(--color-muted);
     box-shadow: none;
+    filter: none;
+    transform: none;
   }
 `
 
@@ -444,7 +467,7 @@ export const IconButton = styled.button<{ $active?: boolean }>`
   }
 `
 
-/** 24px pill chip, mono label; selected = primary-soft fill and primary text. */
+/** 24px pill chip, sans label; selected = primary-soft fill and primary-on-soft text. */
 const chipStyles = css<{ $selected?: boolean }>`
   display: inline-flex;
   align-items: center;
@@ -460,7 +483,7 @@ const chipStyles = css<{ $selected?: boolean }>`
   background: ${({ $selected }) =>
     $selected ? 'var(--color-primary-soft)' : 'var(--glass)'};
   color: ${({ $selected }) =>
-    $selected ? 'var(--color-primary)' : 'var(--color-muted)'};
+    $selected ? 'var(--color-primary-on-soft)' : 'var(--color-muted)'};
   font-family: var(--font-label);
   font-size: 11px;
   line-height: var(--lh-label);
@@ -483,7 +506,7 @@ export const ChipButton = styled.button<{ $selected?: boolean }>`
 
   &:hover {
     color: ${({ $selected }) =>
-      $selected ? 'var(--color-primary)' : 'var(--color-text)'};
+      $selected ? 'var(--color-primary-on-soft)' : 'var(--color-text)'};
   }
 `
 
@@ -596,26 +619,69 @@ export function SegmentedControl<T extends string>({
 }) {
   const track = React.useRef<HTMLDivElement>(null)
   const [pill, setPill] = React.useState<{ left: number; width: number }>()
-  React.useLayoutEffect(() => {
+  const measure = React.useCallback(() => {
     const node = track.current?.querySelector<HTMLButtonElement>(
       '[aria-checked="true"]',
     )
     if (node) setPill({ left: node.offsetLeft, width: node.offsetWidth })
-  }, [value, options.length])
+  }, [])
+  React.useLayoutEffect(measure, [measure, value, options.length])
+  // Re-measure when the track resizes (layout changes, late web fonts).
+  React.useEffect(() => {
+    const node = track.current
+    if (!node || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => measure())
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [measure])
+  // Radio group keys: arrows and Home/End move the selection and the focus.
+  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const index = options.findIndex((option) => option.value === value)
+    const last = options.length - 1
+    const next =
+      event.key === 'ArrowRight' || event.key === 'ArrowDown'
+        ? index >= last
+          ? 0
+          : index + 1
+        : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+          ? index <= 0
+            ? last
+            : index - 1
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? last
+              : -1
+    if (next < 0 || !options[next]) return
+    event.preventDefault()
+    onChange(options[next].value)
+    track.current
+      ?.querySelectorAll<HTMLButtonElement>('[role="radio"]')
+      [next]?.focus()
+  }
+  const selected = options.some((option) => option.value === value)
   return (
-    <SlidingTrack ref={track} role="radiogroup" aria-label={ariaLabel}>
+    <SlidingTrack
+      ref={track}
+      role="radiogroup"
+      aria-label={ariaLabel}
+      onKeyDown={onKeyDown}
+    >
       {pill && (
         <SlidingPill
           aria-hidden
           style={{ transform: `translateX(${pill.left}px)`, width: pill.width }}
         />
       )}
-      {options.map((option) => (
+      {options.map((option, index) => (
         <Segment
           key={option.value}
           type="button"
           role="radio"
           aria-checked={option.value === value}
+          tabIndex={
+            option.value === value || (!selected && index === 0) ? 0 : -1
+          }
           $active={option.value === value}
           $sliding
           onClick={() => onChange(option.value)}
@@ -727,7 +793,7 @@ const StatusWrap = styled.span<{ $wrap?: boolean }>`
 `
 
 /**
- * Dot + mono label, optional detail: "Submitted · 2d 4h to challenge".
+ * Dot + label, optional detail: "Submitted · 2d 4h to challenge".
  * The dot carries the role color; the text stays in the text roles.
  */
 export const Status = ({

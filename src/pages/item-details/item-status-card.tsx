@@ -23,7 +23,9 @@ import {
   formatDuration,
   formatDurationLong,
 } from 'utils/time'
-import ItemActionButton from 'components/item-action-button'
+import ItemActionButton, {
+  itemActionLabel,
+} from 'components/item-action-button'
 import { scrollToEvidenceComposer } from 'components/request-timelines'
 import { CurateIcon } from 'components/curate/icons'
 import {
@@ -53,7 +55,10 @@ import {
  * deposit and arbitration cost, then what a successful challenge wins and
  * the court case. While jurors decide, it asks for evidence instead of
  * showing a dead button. Pending requests are executed from here
- * (executeRequest on the list contract).
+ * (executeRequest on the list contract). On phones the shared sticky bar
+ * repeats the one action while this card is off screen and steps aside
+ * while it is on screen, so each control shows once; the bar's copy has
+ * its own id.
  */
 
 const Card = styled(Surface)`
@@ -446,6 +451,7 @@ const ItemStatusCard = ({
             : `The ${loserName} funded the appeal. The ${winnerName} has ${formatDuration(appealEnd - now)} to fund too, or loses.`
         : undefined
 
+  const blocked = isPending && !executeGate.ready
   const action = hasRequestAction ? (
     <ItemActionButton
       statusCode={statusCode}
@@ -454,11 +460,13 @@ const ItemStatusCard = ({
       onClick={onClick}
       amount={amountLabel}
       block
-      disabled={isPending && !executeGate.ready}
+      disabled={blocked}
       blocker={executeGate.blocker}
     />
   ) : null
 
+  // The bar's copy of the same action (label and amount as on the card),
+  // with its own id so the page never holds two #item-action-button.
   const barAction =
     statusCode === STATUS_CODE.CHALLENGED ? (
       <Button
@@ -470,16 +478,19 @@ const ItemStatusCard = ({
         Add evidence
       </Button>
     ) : hasRequestAction ? (
-      <ItemActionButton
-        statusCode={statusCode}
-        itemName={itemName}
-        itemID={item.itemID}
+      <Button
+        id="item-action-button-mobile"
+        type="button"
+        $variant="primary"
+        $block
         onClick={onClick}
-        amount={amountLabel}
-        block
-        disabled={isPending && !executeGate.ready}
-        blocker={executeGate.blocker}
-      />
+        disabled={blocked}
+        aria-disabled={blocked}
+        title={blocked ? executeGate.blocker : undefined}
+      >
+        {itemActionLabel(statusCode, itemName)}
+        {amountLabel ? <span>· {amountLabel}</span> : null}
+      </Button>
     ) : null
 
   // The subgraph stores the request's base deposit: what a successful

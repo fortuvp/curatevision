@@ -79,6 +79,9 @@ interface Palette {
   primary: string
   /** Button fill: may be deeper than `primary` so white text clears 4.5:1. */
   primaryFill: string
+  /** Button fill on hover: keeps its on-primary label at 4.5:1 or more. */
+  primaryFillHover: string
+  /** Link and text hover. */
   primaryHover: string
   onPrimary: string
   primarySoft: string
@@ -105,6 +108,11 @@ interface Palette {
   auroraA: string
   auroraB: string
   auroraC: string
+  /**
+   * Categorical data colours (rings, legends): four distinct hues in a fixed
+   * order, none of them a status colour, each 3:1 or more on the surface.
+   */
+  viz: [string, string, string, string]
 }
 
 const light: Palette = {
@@ -120,6 +128,7 @@ const light: Palette = {
   borderStrong: 'rgba(16, 24, 40, 0.16)',
   primary: '#2a63f0',
   primaryFill: '#2a63f0',
+  primaryFillHover: '#2459e0',
   primaryHover: '#2459e0',
   onPrimary: '#ffffff',
   primarySoft: 'rgba(42, 99, 240, 0.1)',
@@ -144,6 +153,7 @@ const light: Palette = {
   auroraA: '#9db7ff',
   auroraB: '#b8e3ff',
   auroraC: '#c9b8ff',
+  viz: ['#2a63f0', '#0a87ad', '#7b4fd6', '#c43c84'],
 }
 
 const dark: Palette = {
@@ -159,6 +169,7 @@ const dark: Palette = {
   borderStrong: 'rgba(255, 255, 255, 0.16)',
   primary: '#3d7bff',
   primaryFill: '#2962ff',
+  primaryFillHover: '#1f56f5',
   primaryHover: '#5a8fff',
   onPrimary: '#ffffff',
   primarySoft: 'rgba(61, 123, 255, 0.16)',
@@ -182,6 +193,7 @@ const dark: Palette = {
   auroraA: '#1b2fff',
   auroraB: '#0a7cff',
   auroraC: '#5b2bff',
+  viz: ['#3d7bff', '#1aa3c4', '#a274ff', '#d9558f'],
 }
 
 // Values from @kleros/ui-components-library theme.css (dark set), see DESIGN.md.
@@ -198,6 +210,7 @@ const kleros: Palette = {
   borderStrong: 'rgba(255, 255, 255, 0.2)',
   primary: '#6cc5ff',
   primaryFill: '#6cc5ff',
+  primaryFillHover: '#a5dbff',
   primaryHover: '#a5dbff',
   onPrimary: '#14002f',
   primarySoft: 'rgba(108, 197, 255, 0.16)',
@@ -221,6 +234,7 @@ const kleros: Palette = {
   auroraA: '#7e1bd4',
   auroraB: '#4d00b4',
   auroraC: '#27cdfe',
+  viz: ['#3d7bff', '#1aa3c4', '#a274ff', '#d9558f'],
 }
 
 /** Expands a palette into the full set of keys the app's styled components read. */
@@ -266,7 +280,8 @@ const buildTheme = (p: Palette) => ({
   buttonPrimaryBg: p.primaryFill,
   primaryFill: p.primaryFill,
   buttonPrimaryText: p.onPrimary,
-  buttonPrimaryHoverBg: p.primaryHover,
+  buttonPrimaryHoverBg: p.primaryFillHover,
+  primaryFillHover: p.primaryFillHover,
   buttonSecondaryBg: p.surface,
   buttonSecondaryText: p.text,
   switchOffBg: p.borderStrong,
@@ -352,6 +367,7 @@ const buildTheme = (p: Palette) => ({
   auroraA: p.auroraA,
   auroraB: p.auroraB,
   auroraC: p.auroraC,
+  viz: p.viz,
 })
 
 export const lightTheme = buildTheme(light)

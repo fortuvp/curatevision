@@ -1,10 +1,10 @@
-import React, { useState } from 'react'
+import React, { useId, useState } from 'react'
 import styled from 'styled-components'
 import { Link } from 'react-router-dom'
 import {
   ChainChip,
-  Data,
   Label,
+  Mono,
   Small,
   StatusDot,
   Surface,
@@ -14,9 +14,10 @@ import { CurateIcon } from './icons'
 import { parseRichAddress } from 'utils/rich-address'
 
 /*
- * Status columns board (DESIGN.md, Components): three columns with mono headers
- * and counts; cards show registry, identifiers, chain, actor and time; a footer
- * "+n more" reveals the rest in place.
+ * Status columns board (DESIGN.md, Components): three columns, each with a
+ * label, the measure and window it covers, and its count; cards show
+ * registry, identifier, chain and time. A footer "+n more" reveals the rest
+ * in place, or links on when the column counts more than it loaded.
  */
 
 export interface BoardCard {
@@ -30,18 +31,27 @@ export interface BoardCard {
   actor?: string
   /** "submitted 3h ago", "challenged 2d ago" */
   when: string
-  /** "window open", "Dispute #1040", "Kept by ruling" */
+  /** "Dispute", "Kept by ruling"; empty for none. */
   detail: string
+  /** An identifier set in mono after the detail, e.g. "#1040". */
+  detailId?: string
   tone: StatusTone
 }
 
 export interface BoardColumn {
   id: string
   title: string
+  /** What the column counts and over what window, under the title. */
   hint: string
   tone: StatusTone
   cards: BoardCard[]
   empty: string
+  /** The column's true count when it is more than the cards loaded. */
+  count?: number
+  /** The count hit the query's cap: shown as "n+". */
+  capped?: boolean
+  /** Where "+n more" leads when the column counts more than it loaded. */
+  moreHref?: string
 }
 
 const Columns = styled.div`
@@ -62,11 +72,18 @@ const Column = styled(Surface)`
 
 const ColumnHeader = styled.div`
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
   padding: 2px 2px 12px;
   margin-bottom: 2px;
+`
+
+const ColumnHeading = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 `
 
 const Count = styled.span`
@@ -96,6 +113,7 @@ const ColumnTitle = styled.div`
   gap: 8px;
 `
 
+/* Rows on a raised fill, no border of their own (no panel in a panel). */
 const Card = styled(Link)`
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr);
@@ -103,18 +121,30 @@ const Card = styled(Link)`
   row-gap: 4px;
   align-items: center;
   padding: 12px 14px;
-  border: 1px solid var(--glass-border);
   border-radius: var(--radius);
   background: var(--color-raised);
   color: inherit;
   text-decoration: none;
   transition:
-    border-color var(--motion),
-    background var(--motion);
+    background var(--motion),
+    box-shadow var(--motion),
+    transform var(--motion);
 
   &:hover {
-    border-color: var(--color-border-strong);
-    background: var(--color-raised);
+    background: color-mix(in srgb, var(--color-raised), var(--color-text) 5%);
+    box-shadow: inset 0 0 0 1px var(--glass-border);
+    transform: translateY(-1px);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &:hover {
+      transform: none;
+    }
   }
 `
 
@@ -149,15 +179,25 @@ const Registry = styled.span`
   white-space: nowrap;
 `
 
+/* The time and the detail never break mid-phrase: the detail moves to its own line instead. */
 const Meta = styled.div`
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 2px 12px;
   min-width: 0;
+
+  > * {
+    white-space: nowrap;
+  }
+
+  > :last-child:not(:first-child) {
+    margin-left: auto;
+  }
 `
 
-const More = styled.button`
+const moreStyles = `
   align-self: flex-start;
   padding: 4px 0;
   border: 0;
@@ -166,6 +206,7 @@ const More = styled.button`
   font-size: var(--fs-small);
   line-height: var(--lh-small);
   font-weight: 500;
+  text-decoration: none;
   cursor: pointer;
 
   &:hover {
@@ -173,9 +214,17 @@ const More = styled.button`
   }
 `
 
+const More = styled.button`
+  ${moreStyles}
+`
+
+const MoreLink = styled(Link)`
+  ${moreStyles}
+`
+
 const Empty = styled.div`
   padding: 20px 8px;
-  color: var(--color-faint);
+  color: var(--color-muted);
   font-size: var(--fs-small);
   line-height: var(--lh-small);
   text-align: center;
@@ -192,6 +241,8 @@ const readableIdentifier = (value: string): string => {
   return `${short} · ${rich.reference.name}`
 }
 
+const integer = new Intl.NumberFormat('en-US')
+
 const BoardColumnView = ({
   column,
   limit,
@@ -199,17 +250,34 @@ const BoardColumnView = ({
   column: BoardColumn
   limit: number
 }) => {
+  const hintId = useId()
   const [expanded, setExpanded] = useState(false)
-  const cards = expanded ? column.cards : column.cards.slice(0, limit)
-  const hidden = column.cards.length - cards.length
+  const total = Math.max(column.count ?? 0, column.cards.length)
+  // A column that counts more than it loaded links on instead of expanding.
+  const linksOn = !!column.moreHref && total > column.cards.length
+  const cards =
+    expanded && !linksOn ? column.cards : column.cards.slice(0, limit)
+  const hidden = total - cards.length
   return (
-    <Column $padding="compact" aria-label={column.title}>
+    <Column
+      $padding="compact"
+      aria-label={column.title}
+      aria-describedby={hintId}
+    >
       <ColumnHeader>
-        <ColumnTitle>
-          <StatusDot $tone={column.tone} aria-hidden />
-          <Label $tone="text">{column.title}</Label>
-        </ColumnTitle>
-        <Count>{column.cards.length}</Count>
+        <ColumnHeading>
+          <ColumnTitle>
+            <StatusDot $tone={column.tone} aria-hidden />
+            <Label $tone="text">{column.title}</Label>
+          </ColumnTitle>
+          <Small $faint id={hintId}>
+            {column.hint}
+          </Small>
+        </ColumnHeading>
+        <Count>
+          {integer.format(total)}
+          {column.capped ? '+' : ''}
+        </Count>
       </ColumnHeader>
       {cards.length === 0 && <Empty>{column.empty}</Empty>}
       {cards.map((card) => (
@@ -231,19 +299,33 @@ const BoardColumnView = ({
             </IdValue>
           )}
           <Meta>
-            <Small $faint>{card.when}</Small>
-            <Data $muted $weight={400}>
-              {card.detail}
-            </Data>
+            <Small $muted>{card.when}</Small>
+            {(card.detail || card.detailId) && (
+              <Small $muted>
+                {card.detail}
+                {card.detailId && (
+                  <>
+                    {card.detail ? ' ' : ''}
+                    <Mono>{card.detailId}</Mono>
+                  </>
+                )}
+              </Small>
+            )}
           </Meta>
         </Card>
       ))}
-      {hidden > 0 && (
-        <More type="button" onClick={() => setExpanded(true)}>
-          +{hidden} more
-        </More>
-      )}
-      {expanded && column.cards.length > limit && (
+      {hidden > 0 &&
+        (linksOn && column.moreHref ? (
+          <MoreLink to={column.moreHref}>
+            +{integer.format(hidden)}
+            {column.capped ? '+' : ''} more
+          </MoreLink>
+        ) : (
+          <More type="button" onClick={() => setExpanded(true)}>
+            +{integer.format(hidden)} more
+          </More>
+        ))}
+      {expanded && !linksOn && column.cards.length > limit && (
         <More type="button" onClick={() => setExpanded(false)}>
           Show fewer
         </More>

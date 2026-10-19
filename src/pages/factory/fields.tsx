@@ -767,7 +767,12 @@ export const SwitchField = ({
 export interface WalletGate {
   /** The first blocker, if any: connect, switch chain, sign in. */
   blocker?: string
-  /** The control that clears the blocker, or null. */
+  /**
+   * The action that clears the blocker, for a page's primary button: its
+   * label names the action it unblocks ("Connect wallet to deploy").
+   */
+  fix?: { label: string; onClick: () => void; loading?: boolean }
+  /** A small secondary control that clears the blocker, or null. */
   control: React.ReactNode
 }
 
@@ -806,16 +811,18 @@ export const useWalletGate = ({
   const wrongChain =
     needsChain && isConnected && !!urlChainId && walletChainId !== urlChainId
 
+  const connect = () => appKitModal?.open({ view: 'Connect' })
+  const switchToUrlChain = () => {
+    if (urlChainId) switchChain({ chainId: urlChainId })
+  }
+  const startSignIn = () => signIn(authoriseUser)
+
   if (!isConnected)
     return {
       blocker: `Connect wallet to ${verb}`,
+      fix: { label: `Connect wallet to ${verb}`, onClick: connect },
       control: (
-        <Button
-          type="button"
-          $variant="secondary"
-          $size="sm"
-          onClick={() => appKitModal?.open({ view: 'Connect' })}
-        >
+        <Button type="button" $variant="secondary" $size="sm" onClick={connect}>
           <CurateIcon name="wallet" size={14} />
           Connect wallet
         </Button>
@@ -824,13 +831,18 @@ export const useWalletGate = ({
   if (wrongChain && urlChainId)
     return {
       blocker: `Switch to ${chainName} to ${verb}`,
+      fix: {
+        label: `Switch to ${chainName} to ${verb}`,
+        onClick: switchToUrlChain,
+        loading: switching,
+      },
       control: (
         <Button
           type="button"
           $variant="secondary"
           $size="sm"
           disabled={switching}
-          onClick={() => switchChain({ chainId: urlChainId })}
+          onClick={switchToUrlChain}
         >
           {switching ? 'Waiting…' : `Switch to ${chainName}`}
         </Button>
@@ -839,13 +851,18 @@ export const useWalletGate = ({
   if (!isVerified)
     return {
       blocker: `Sign in to ${verb}`,
+      fix: {
+        label: `Sign in to ${verb}`,
+        onClick: startSignIn,
+        loading: isSigningIn,
+      },
       control: (
         <Button
           type="button"
           $variant="secondary"
           $size="sm"
           disabled={isSigningIn}
-          onClick={() => signIn(authoriseUser)}
+          onClick={startSignIn}
         >
           {isSigningIn ? 'Waiting…' : 'Sign in'}
         </Button>
@@ -991,10 +1008,12 @@ export const UploadField = ({
                     title={value}
                     aria-label={`Open the uploaded ${noun} (PDF)`}
                   >
-                    <Data style={{ color: 'inherit' }}>{shortPath(value)}</Data>
+                    <Data $mono style={{ color: 'inherit' }}>
+                      {shortPath(value)}
+                    </Data>
                   </TextLink>
                 ) : (
-                  <Data $muted title={value}>
+                  <Data $mono $muted title={value}>
                     {shortPath(value)}
                   </Data>
                 )

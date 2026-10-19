@@ -1,6 +1,7 @@
-import React, { useContext } from 'react'
+import React, { useContext, useEffect } from 'react'
 import styled, { keyframes } from 'styled-components'
 import { ErrorBoundaryContext } from 'react-error-boundary'
+import useDocumentHead from 'hooks/use-document-head'
 import { CurateIcon } from 'components/curate/icons'
 import {
   ButtonLink,
@@ -19,6 +20,9 @@ import { reveal } from 'components/curate/motion/reveal'
  * As the app's crash screen (an error boundary's fallback) the way home
  * also clears the boundary: otherwise the URL would change while the same
  * error stayed on screen.
+ *
+ * The page names itself in the document title, and a 4xx page (nothing to
+ * find at this URL) asks search engines not to index it while it is shown.
  */
 
 const rise = keyframes`
@@ -90,6 +94,26 @@ const Dawn = styled.span`
   transform-origin: 50% 100%;
   pointer-events: none;
   animation: ${dawn} 1400ms var(--ease-out) 200ms both;
+
+  /* Narrow: the light keeps to the content and fades out at its sides, so it
+     never runs into the frame or ends in a hard cut along the horizon. */
+  @media (max-width: 720px) {
+    width: 100%;
+    -webkit-mask-image: linear-gradient(
+      90deg,
+      transparent,
+      #000 22%,
+      #000 78%,
+      transparent
+    );
+    mask-image: linear-gradient(
+      90deg,
+      transparent,
+      #000 22%,
+      #000 78%,
+      transparent
+    );
+  }
 
   @media (prefers-reduced-motion: reduce) {
     animation: none;
@@ -271,6 +295,26 @@ interface ErrorPageProps {
   onHome?: () => void
 }
 
+/** "noindex" while a 4xx page is shown; the previous value comes back after. */
+const useNoIndex = (active: boolean) => {
+  useEffect(() => {
+    if (!active) return
+    let meta = document.querySelector<HTMLMetaElement>('meta[name="robots"]')
+    const previous = meta?.getAttribute('content') ?? null
+    if (!meta) {
+      meta = document.createElement('meta')
+      meta.setAttribute('name', 'robots')
+      document.head.append(meta)
+    }
+    meta.setAttribute('content', 'noindex')
+    const node = meta
+    return () => {
+      if (previous === null) node.remove()
+      else node.setAttribute('content', previous)
+    }
+  }, [active])
+}
+
 const ErrorPage = ({ code, title, message, tip, onHome }: ErrorPageProps) => {
   // Set only when this page is an error boundary's fallback.
   const boundary = useContext(ErrorBoundaryContext)
@@ -299,6 +343,9 @@ const ErrorPage = ({ code, title, message, tip, onHome }: ErrorPageProps) => {
   const body = message || null
   const path =
     notFound && typeof window !== 'undefined' ? window.location.pathname : null
+
+  useDocumentHead(`${heading} · Kleros Curate`)
+  useNoIndex(/^4\d\d$/.test(shownCode))
 
   // Under a numeric code the words follow the digits as they rise.
   let index = numeric ? 4 : 0

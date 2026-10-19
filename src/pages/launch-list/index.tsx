@@ -531,7 +531,8 @@ const formatNative = (wei: BigNumber) =>
 /**
  * A decimal string that counts up to its exact value once `armed` (in
  * view). The digits are set in the figure face with tabular numbers, so
- * they do not jitter; the accessible name is always the final value.
+ * they do not jitter; screen readers get the final value as text, in
+ * browse mode too, and never the rolling digits.
  */
 const Count = ({ exact, armed }: { exact: string; armed: boolean }) => {
   const value = Number(exact)
@@ -539,9 +540,10 @@ const Count = ({ exact, armed }: { exact: string; armed: boolean }) => {
   const current = useCountUp(armed ? value : 0)
   const shown = current === value ? exact : current.toFixed(decimals)
   return (
-    <span aria-label={exact}>
+    <>
+      <VisuallyHidden>{exact}</VisuallyHidden>
       <span aria-hidden>{shown}</span>
-    </span>
+    </>
   )
 }
 
@@ -612,6 +614,7 @@ const LaunchListPage = () => {
         </Lede>
         <Stats
           ref={statsRef}
+          role="group"
           aria-label={`The default court on ${chainName}, shared by both kinds`}
           style={{ ['--i' as string]: 3 }}
         >
@@ -624,11 +627,9 @@ const LaunchListPage = () => {
                   <small>{symbol}</small>
                 </>
               ) : costLoading ? (
-                <SkeletonBlock
-                  $width="7ch"
-                  $height="34px"
-                  aria-label="Reading the arbitration cost"
-                />
+                <SkeletonBlock $width="7ch" $height="34px" role="status">
+                  <VisuallyHidden>Reading the arbitration cost</VisuallyHidden>
+                </SkeletonBlock>
               ) : (
                 '—'
               )}
@@ -675,11 +676,11 @@ const LaunchListPage = () => {
                 {submitTotal ? (
                   <Count exact={submitTotal} armed={standardSeen} />
                 ) : costLoading ? (
-                  <SkeletonBlock
-                    $width="5ch"
-                    $height="44px"
-                    aria-label="Reading the arbitration cost"
-                  />
+                  <SkeletonBlock $width="5ch" $height="44px">
+                    <VisuallyHidden>
+                      Reading the arbitration cost
+                    </VisuallyHidden>
+                  </SkeletonBlock>
                 ) : (
                   STANDARD_DEFAULTS.submissionBaseDeposit
                 )}

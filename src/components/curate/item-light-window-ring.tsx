@@ -144,12 +144,14 @@ const Figure = styled.span<{ $long?: boolean }>`
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 
+  /* A text token, not opacity: over the ring's glow an opacity fade drops
+     under 4.5:1 in the light theme. */
   small {
     margin-left: 0.04em;
+    color: var(--color-muted);
     font-size: 0.55em;
     font-weight: 400;
     letter-spacing: 0;
-    opacity: 0.55;
   }
 `
 

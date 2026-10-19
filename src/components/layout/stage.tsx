@@ -29,14 +29,17 @@ const Root = styled.div`
   pointer-events: none;
   background: var(--stage);
 
-  > * {
+  /* The layers and the aurora's own pools and band (its children). */
+  > *,
+  > * > * {
     position: absolute;
     will-change: transform;
     transition: opacity 900ms var(--ease-in-out);
   }
 
   @media (prefers-reduced-motion: reduce) {
-    > * {
+    > *,
+    > * > * {
       animation: none !important;
     }
   }
@@ -128,7 +131,6 @@ const Grain = styled.div`
 `
 
 const Aurora = styled.div`
-  position: absolute;
   inset: 0;
 
   [data-light='underglow'] & {

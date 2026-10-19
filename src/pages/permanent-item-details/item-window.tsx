@@ -1,16 +1,12 @@
 import React, { useEffect, useState } from 'react'
 import styled, { keyframes } from 'styled-components'
 import { STATUS_CODE } from 'utils/permanent-item-status'
-import {
-  formatAbsolute,
-  formatAgo,
-  formatDate,
-  formatDuration,
-} from 'utils/time'
+import { formatAbsolute, formatDate } from 'utils/time'
 import { CurateIcon } from 'components/curate/icons'
 import { Chip, Label } from 'components/curate/primitives'
 import { AnimatedNumber } from 'components/curate/motion/animated-number'
 import { WindowRing } from 'components/curate/item-light-window-ring'
+import { formatSince } from 'pages/item-details/format-since'
 import {
   capitalize,
   otherSide,
@@ -59,6 +55,21 @@ const Line = styled.p`
   color: var(--color-muted);
   font-size: var(--fs-small);
   line-height: var(--lh-small);
+`
+
+/* The court case in a calm line, as a link to it. */
+const CaseLink = styled.a`
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--color-primary);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+
+  &:hover {
+    text-decoration: underline;
+  }
 `
 
 const Court = styled.div`
@@ -312,7 +323,7 @@ const CourtEvidence = ({
             <>
               <br />
               <span title={formatAbsolute(last)}>
-                last filed {formatAgo(last, now)}
+                last filed {formatSince(last, now)}
               </span>
             </>
           ) : null}
@@ -380,12 +391,6 @@ const CourtEvidence = ({
       )}
     </>
   )
-}
-
-const sinceLine = (since: number, now: number) => {
-  const seconds = Math.max(0, now - since)
-  const days = Math.floor(seconds / 86400)
-  return days >= 2 ? `${days} days ago` : `${formatDuration(seconds)} ago`
 }
 
 export const StakeWindowPanel = ({
@@ -539,9 +544,25 @@ export const StakeWindowPanel = ({
   }
 
   // Nothing runs: accepted, ready to execute, or off the list.
+  const caseRef =
+    facts.hasDispute && facts.disputeID ? (
+      facts.courtHref ? (
+        <CaseLink
+          href={facts.courtHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={`Open case ${facts.disputeID}${facts.courtHost ? ` on ${facts.courtHost}` : ''}`}
+        >
+          case {facts.disputeID}
+          <CurateIcon name="external" size={11} />
+        </CaseLink>
+      ) : (
+        <>case {facts.disputeID}</>
+      )
+    ) : null
   let title: string
   let since = 0
-  let line: string
+  let line: React.ReactNode
   switch (statusCode) {
     case STATUS_CODE.PENDING_WITHDRAWAL:
       title = 'Executable since'
@@ -557,12 +578,23 @@ export const StakeWindowPanel = ({
     case STATUS_CODE.REJECTED: {
       title = statusCode === STATUS_CODE.REMOVED ? 'Removed on' : 'Rejected on'
       since = toNum(challenge?.resolutionTime) || facts.endedAt
-      const decided = facts.hasDispute && !!challenge?.disputeOutcome
-      line = decided
-        ? challenge?.disputeOutcome === 'None'
-          ? `jurors refused to rule in case ${facts.disputeID}`
-          : `${statusCode === STATUS_CODE.REMOVED ? 'removed' : 'rejected'} by jurors in case ${facts.disputeID}`
-        : 'off the list'
+      const verb = statusCode === STATUS_CODE.REMOVED ? 'removed' : 'rejected'
+      const outcome = challenge?.disputeOutcome
+      line = caseRef ? (
+        outcome === 'None' ? (
+          <>jurors refused to rule in {caseRef}</>
+        ) : outcome ? (
+          <>
+            {verb} by jurors in {caseRef}
+          </>
+        ) : (
+          <>
+            {verb} after {caseRef}
+          </>
+        )
+      ) : (
+        'off the list'
+      )
       break
     }
     default: {
@@ -571,13 +603,16 @@ export const StakeWindowPanel = ({
       since = acceptedAt
       const kept =
         reincluded && challenge?.disputeOutcome === 'Accept' && facts.hasDispute
-      line = kept
-        ? `kept by jurors in case ${facts.disputeID}`
-        : reincluded
-          ? 'reincluded after a ruling'
-          : period > 0
-            ? 'accepted with no challenge'
-            : 'this list accepts entries at once'
+      line =
+        kept && caseRef ? (
+          <>kept by jurors in {caseRef}</>
+        ) : reincluded ? (
+          'reincluded after a ruling'
+        ) : period > 0 ? (
+          'accepted with no challenge'
+        ) : (
+          'this list accepts entries at once'
+        )
     }
   }
 
@@ -588,7 +623,7 @@ export const StakeWindowPanel = ({
         {since ? formatDate(since) : '—'}
       </Big>
       <Line>
-        {since ? `${sinceLine(since, now)} · ` : ''}
+        {since ? `${formatSince(since, now)} · ` : ''}
         {line}
       </Line>
     </Calm>

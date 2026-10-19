@@ -10,7 +10,6 @@ import { formatAbsolute, formatDuration, formatDurationLong } from 'utils/time'
 import { CurateIcon } from 'components/curate/icons'
 import { AnimatedNumber } from 'components/curate/motion/animated-number'
 import {
-  Chip,
   Label,
   SegmentedControl,
   SkeletonBlock,
@@ -135,11 +134,17 @@ const Description = styled.span<{ $empty?: boolean }>`
   -webkit-line-clamp: 2;
 `
 
-const Chips = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 10px;
+/** One quiet line under the description: fields, then the submit label. */
+const Meta = styled.span`
+  display: block;
+  margin-top: 8px;
+  overflow: hidden;
+  color: var(--color-faint);
+  font-size: 13px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 `
 
 /* ---------- Deposits ---------- */
@@ -623,9 +628,6 @@ export const LivePreview = ({
     : tcrState.tcrDescription
   const logo = !badges && tcrState.tcrLogo ? parseIpfs(tcrState.tcrLogo) : ''
   const itemName = badges ? tcrState.relItemName : tcrState.itemName
-  const itemNamePlural = badges
-    ? tcrState.relItemNamePlural
-    : tcrState.itemNamePlural
   const fieldCount = badges
     ? tcrState.relColumns.length
     : tcrState.isTCRofTCRs
@@ -700,22 +702,15 @@ export const LivePreview = ({
           <Description $empty={!description}>
             {description || 'No description yet'}
           </Description>
-          <Chips>
-            {itemName && (
-              <Chip title="The button people press to add an entry">
-                Submit {article} {itemName.toLowerCase()}
-              </Chip>
-            )}
-            <Chip>
-              {fieldCount} {fieldCount === 1 ? 'field' : 'fields'}
-              {!badges && tcrState.isTCRofTCRs ? ' · list of lists' : ''}
-            </Chip>
-            {itemNamePlural && (
-              <Chip title="Plural used in the list">
-                {itemNamePlural.toLowerCase()}
-              </Chip>
-            )}
-          </Chips>
+          <Meta>
+            {[
+              `${fieldCount} ${fieldCount === 1 ? 'field' : 'fields'}`,
+              !badges && tcrState.isTCRofTCRs ? 'list of lists' : '',
+              itemName ? `Submit ${article} ${itemName.toLowerCase()}` : '',
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </Meta>
         </div>
       </Identity>
 

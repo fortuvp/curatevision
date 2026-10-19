@@ -1,12 +1,5 @@
-import React, {
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
-import styled, { css } from 'styled-components'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import styled from 'styled-components'
 import { Link, useNavigate } from 'react-router-dom'
 import { useDebounce } from 'use-debounce'
 import { ethers } from 'ethers'
@@ -29,7 +22,6 @@ import {
 import { CurateIcon } from 'components/curate/icons'
 import { Explainer } from 'components/curate/explainer'
 import {
-  Button,
   ChainChip,
   Chip,
   Data,
@@ -47,16 +39,16 @@ import {
   truncateMiddle,
 } from 'components/curate/primitives'
 import {
-  FactoryActionGroup,
-  FactoryActions,
+  type FactoryWizardStep,
   FactoryAside,
   FactorySplit,
+  FactoryStepPanel,
+  FactoryStepTimeline,
   FactoryWizardGrid,
+  factoryDocumentTitle,
+  useFactoryWizard,
 } from 'components/curate/v2-factory-shell'
 import {
-  type StakeGroupStatus,
-  type SubTabState,
-  StakeConfirmRow,
   StakeDeploymentLink,
   StakeDeploymentLogo,
   StakeDeploymentRows,
@@ -65,21 +57,20 @@ import {
   StakeLede,
   StakeLift,
   StakeOpenHint,
-  StakePanelLift,
-  StakePanelTop,
   StakeSectionHead,
-  StakeStepContent,
-  StakeStepTimeline,
-  StakeSubTab,
-  StakeSubTabs,
 } from 'components/curate/stake-factory-shell'
 import TCRParams from './tcr-params'
-import ItemParams, { type ItemSection } from './item-params'
+import ItemParams from './item-params'
 import Deploy from './deploy'
 import { StakePreview } from './preview'
 import { SafeImage } from './controls'
 import { DEFAULT_COLUMN, WIZARD_DEFAULTS, defaultStakeToken } from './defaults'
-import type { FactorySection } from './schemas'
+import {
+  type FactorySection,
+  itemColumnsProblem,
+  itemSchema,
+  tcrSchemaFor,
+} from './schemas'
 
 /*
  * Stake Curate factory (route /factory-permanent/:chainId): the page's
@@ -87,11 +78,13 @@ import type { FactorySection } from './schemas'
  * sub-steps, the current step in one panel with its action bar (Next submits
  * the step's form, so its schema runs) beside a live preview of what a
  * submitter and a challenger lock, then the lists deployed from this
- * browser. Every step up to the furthest one reached stays open from the
- * stepper and the tabs; an Edit from the review offers "Back to review"
- * once the step validates. The wizard state lives in localStorage per chain
- * and app version, so a half-finished list (the step it was on and how far
- * it got) survives a reload.
+ * browser. The wizard itself is shared with the Standard factory
+ * (useFactoryWizard): every step up to the furthest one reached stays open
+ * from the stepper and the tabs until an earlier step stops validating, and
+ * an Edit from the review offers "Back to review" once the step validates.
+ * The draft lives in localStorage per chain and app version, so a
+ * half-finished list (the step it was on and how far it got) survives a
+ * reload.
  */
 
 interface TransactionInfo {
@@ -174,7 +167,7 @@ const STAKE_FACTORY_STEPS = [
   {
     title: 'Item',
     description: 'Fields and item name',
-    subitems: ['Fields', 'Preview', 'Item name'],
+    subitems: ['Fields', 'Item name'],
   },
   {
     title: 'Deploy',
@@ -182,14 +175,10 @@ const STAKE_FACTORY_STEPS = [
   },
 ]
 
-type StakeVisualStep = {
-  title: string
+type StakeVisualStep = FactoryWizardStep & {
   /** The form step it renders: 1 list, 2 item, 3 deploy (stored as currStep). */
-  componentStep: number
-  groupStep: number
   kind: 'tcr' | 'item' | 'deploy'
   section?: FactorySection
-  itemSection?: ItemSection
 }
 
 const VISUAL_STEPS: StakeVisualStep[] = [
@@ -235,20 +224,7 @@ const VISUAL_STEPS: StakeVisualStep[] = [
     kind: 'tcr',
     section: 'stake',
   },
-  {
-    title: 'Fields',
-    componentStep: 2,
-    groupStep: 3,
-    kind: 'item',
-    itemSection: 'fields',
-  },
-  {
-    title: 'Preview',
-    componentStep: 2,
-    groupStep: 3,
-    kind: 'item',
-    itemSection: 'preview',
-  },
+  { title: 'Fields', componentStep: 2, groupStep: 3, kind: 'item' },
   {
     title: 'Item name',
     componentStep: 1,
@@ -259,41 +235,16 @@ const VISUAL_STEPS: StakeVisualStep[] = [
   { title: 'Deploy', componentStep: 3, groupStep: 4, kind: 'deploy' },
 ]
 
-const LAST_STEP = VISUAL_STEPS.length - 1
-
-const clampStep = (index: number) =>
-  Math.max(0, Math.min(LAST_STEP, Math.round(index)))
-
-/** Where a stored draft reopens: its sub-step, or the first of its form step. */
-const restoredStep = (state?: TcrState): number => {
-  if (!state) return 0
-  if (typeof state.visualStep === 'number' && Number.isFinite(state.visualStep))
-    return clampStep(state.visualStep)
-  const index = VISUAL_STEPS.findIndex(
-    (step) => step.componentStep === state.currStep,
-  )
-  return index < 0 ? 0 : index
+/** Whether a step's stored values still pass its own Next. */
+const stepValid = (step: StakeVisualStep, state: TcrState): boolean => {
+  if (step.kind === 'tcr') return tcrSchemaFor(step.section).isValidSync(state)
+  if (step.kind === 'item')
+    return (
+      itemSchema.isValidSync(state) &&
+      itemColumnsProblem(state.columns) === null
+    )
+  return true
 }
-
-/** How far a stored draft got: at least the step it reopens on. */
-const restoredMax = (state?: TcrState): number => {
-  const step = restoredStep(state)
-  if (
-    !state ||
-    typeof state.maxVisualStep !== 'number' ||
-    !Number.isFinite(state.maxVisualStep)
-  )
-    return step
-  return Math.max(step, clampStep(state.maxVisualStep))
-}
-
-/** The first and last sub-step of each group (1-based group numbers). */
-const GROUP_RANGES = STAKE_FACTORY_STEPS.map((_, index) => {
-  const indices = VISUAL_STEPS.map((step, at) => ({ step, at }))
-    .filter(({ step }) => step.groupStep === index + 1)
-    .map(({ at }) => at)
-  return { first: Math.min(...indices), last: Math.max(...indices) }
-})
 
 const SUPPORTED_CHAINS: number[] = [
   NETWORKS.gnosis,
@@ -443,31 +394,6 @@ const useCachedFactory = (
 
 /* ---------- Layout ---------- */
 
-const StepPanel = styled(Surface)`
-  display: flex;
-  flex-direction: column;
-  padding: 28px 32px 24px;
-  scroll-margin-top: calc(var(--app-bar-height) + 24px);
-
-  @media (max-width: 720px) {
-    padding: 20px;
-  }
-`
-
-/**
- * Previous; while an Edit from the review is open, phones drop it so
- * "Back to review" keeps the action bar on one row (the tabs still go back).
- */
-const StakePreviousButton = styled(Button)<{ $wideOnly?: boolean }>`
-  ${({ $wideOnly }) =>
-    $wideOnly &&
-    css`
-      @media (max-width: 720px) {
-        display: none;
-      }
-    `}
-`
-
 const ChainLinks = styled.div`
   display: flex;
   flex-wrap: wrap;
@@ -515,7 +441,7 @@ const DeploymentRow = ({
         ) : (
           <strong>{title || 'Untitled list'}</strong>
         )}
-        <Data $muted $weight={400} title={address}>
+        <Data $mono $muted $weight={400} title={address}>
           {truncateMiddle(address, 10, 8)}
         </Data>
       </span>
@@ -533,7 +459,6 @@ const DeploymentRow = ({
 }
 
 /* ---------- Page ---------- */
-
 const FactoryPermanentPage = () => {
   const urlChainId = useUrlChainId()
   const navigate = useNavigate()
@@ -548,128 +473,37 @@ const FactoryPermanentPage = () => {
   const provider = useEthersProvider({ chainId: factoryChainId })
   const [previousDeployments, setPreviousDeployments] = useState<string[]>([])
   const [deploymentsFailed, setDeploymentsFailed] = useState(false)
-  const [confirmingReset, setConfirmingReset] = useState(false)
   const tcrState = cachedFactory?.tcrState
-  const setTcrState = cachedFactory?.setTcrState
-  const resetTcrState = cachedFactory?.resetTcrState
-  const [visualStepIndex, setVisualStepIndex] = useState(() =>
-    restoredStep(tcrState),
-  )
-  const [maxVisualStep, setMaxVisualStep] = useState(() =>
-    restoredMax(tcrState),
-  )
-  // Set by an Edit in the review: the action bar offers "Back to review".
-  const [returnToReview, setReturnToReview] = useState(false)
-  const [stepChain, setStepChain] = useState(factoryChainId)
-  // Bumped by Start over so the open step remounts with the cleared values.
-  const [resets, setResets] = useState(0)
   // Set by an Edit in the review that points at an advanced field.
   const [openAdvanced, setOpenAdvanced] = useState(false)
-  const panelRef = useRef<HTMLDivElement>(null)
-  const firstStep = useRef(true)
-  const resetTriggerRef = useRef<HTMLButtonElement>(null)
-  const keepEditingRef = useRef<HTMLButtonElement>(null)
-  const returnFocus = useRef(false)
-  const confirmQuestionId = useId()
-
-  // A new chain in the URL starts a new draft at the first step.
-  if (factoryChainId !== stepChain) {
-    setStepChain(factoryChainId)
-    setVisualStepIndex(0)
-    setMaxVisualStep(0)
-    setReturnToReview(false)
-  }
+  const closeAdvanced = useCallback(() => setOpenAdvanced(false), [])
+  const isStepValid = useCallback(
+    (step: FactoryWizardStep, index: number) =>
+      !tcrState || stepValid(VISUAL_STEPS[index] ?? step, tcrState),
+    [tcrState],
+  )
+  const wizard = useFactoryWizard({
+    steps: VISUAL_STEPS,
+    draft: tcrState,
+    setDraft: cachedFactory?.setTcrState,
+    resetDraft: cachedFactory?.resetTcrState,
+    chainId: factoryChainId,
+    isStepValid,
+    onNavigate: closeAdvanced,
+  })
 
   const transactions = tcrState?.transactions
-  const currentVisualStep = VISUAL_STEPS[visualStepIndex]
+  const currentVisualStep = VISUAL_STEPS[wizard.index]
 
   useDocumentHead(
-    'Create a Stake list · CurateVision',
-    'Launch a Stake Curate list: name it, set the stake token and deposit, choose the court and the fields, then deploy.',
+    factoryDocumentTitle('Stake'),
+    'Create a Stake Curate list: name it, set the stake token and deposit, choose the court and the fields, then deploy it with one transaction.',
   )
 
   const factoryInterface = useMemo(
     () => new ethers.utils.Interface(_GTCRFactory),
     [],
   )
-
-  const goToVisualStep = useCallback((nextIndex: number) => {
-    const index = clampStep(nextIndex)
-    setVisualStepIndex(index)
-    setMaxVisualStep((max) => Math.max(max, index))
-    if (index === LAST_STEP) setReturnToReview(false)
-    setOpenAdvanced(false)
-    setConfirmingReset(false)
-  }, [])
-
-  /** A complete or reached group in the stepper opens at its first sub-step. */
-  const goToGroup = useCallback(
-    (groupStep: number) =>
-      goToVisualStep(
-        VISUAL_STEPS.findIndex((step) => step.groupStep === groupStep),
-      ),
-    [goToVisualStep],
-  )
-
-  const startOver = useCallback(() => {
-    resetTcrState?.()
-    setVisualStepIndex(0)
-    setMaxVisualStep(0)
-    setReturnToReview(false)
-    setOpenAdvanced(false)
-    setResets((count) => count + 1)
-    returnFocus.current = true
-    setConfirmingReset(false)
-  }, [resetTcrState])
-
-  const keepEditing = useCallback(() => {
-    returnFocus.current = true
-    setConfirmingReset(false)
-  }, [])
-
-  // The confirmation replaces the action bar: move focus into it, and back
-  // to the trigger when it closes, so keyboard users keep their place.
-  useEffect(() => {
-    if (confirmingReset) {
-      keepEditingRef.current?.focus()
-      return
-    }
-    if (!returnFocus.current) return
-    returnFocus.current = false
-    resetTriggerRef.current?.focus()
-  }, [confirmingReset])
-
-  // A new step starts at its top: bring the panel back if it scrolled away.
-  useEffect(() => {
-    if (firstStep.current) {
-      firstStep.current = false
-      return
-    }
-    const panel = panelRef.current
-    // 72px: below the floating app bar.
-    if (!panel || panel.getBoundingClientRect().top >= 72) return
-    const reduced = window.matchMedia?.(
-      '(prefers-reduced-motion: reduce)',
-    ).matches
-    panel.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth' })
-  }, [visualStepIndex])
-
-  // The stored draft remembers the form step, the sub-step and how far it got.
-  useEffect(() => {
-    if (!setTcrState || !currentVisualStep) return
-    setTcrState((prev) =>
-      prev.currStep === currentVisualStep.componentStep &&
-      prev.visualStep === visualStepIndex &&
-      prev.maxVisualStep === maxVisualStep
-        ? prev
-        : {
-            ...prev,
-            currStep: currentVisualStep.componentStep,
-            visualStep: visualStepIndex,
-            maxVisualStep,
-          },
-    )
-  }, [currentVisualStep, maxVisualStep, setTcrState, visualStepIndex])
 
   // Lists deployed from this browser on this chain: the address stored with
   // the transaction, or read from its receipt's NewGTCR log.
@@ -722,10 +556,10 @@ const FactoryPermanentPage = () => {
               <ChainChip chainId={factoryChainId} size="sm" />
             )}
           </Row>
-          <Statement>Create a Stake list.</Statement>
+          <Statement>Create a Stake list</Statement>
           <StakeLede>
             Entries keep a token stake locked while listed and can be challenged
-            at any time; the draft saves in this browser as you type.
+            at any time; the draft is saved in this browser as you type.
           </StakeLede>
         </StakeHeadCopy>
         <div style={{ ['--i' as string]: 1 }}>
@@ -751,7 +585,7 @@ const FactoryPermanentPage = () => {
             steps={[
               {
                 title: 'A description and a policy',
-                body: 'A name, a one-line description, a logo and the listing policy: the PDF jurors and challengers apply to every entry.',
+                body: 'A name, a one-line description, a logo and the listing policy: the PDF jurors and challengers use to judge every entry.',
               },
               {
                 title: 'A stake token, a stake and a court',
@@ -816,37 +650,7 @@ const FactoryPermanentPage = () => {
   const chainId = tcrState.chainId ?? urlChainId
   const chainName = chainNameOf(chainId)
   const currentFormId = formIds[currentVisualStep.componentStep - 1]
-  const isLast = visualStepIndex === LAST_STEP
-  const group = STAKE_FACTORY_STEPS[currentVisualStep.groupStep - 1]
-  const groupSteps = VISUAL_STEPS.map((step, index) => ({
-    ...step,
-    index,
-  })).filter((step) => step.groupStep === currentVisualStep.groupStep)
-  const upcoming = VISUAL_STEPS[visualStepIndex + 1]
-  const stepKey = `${chainId}-${visualStepIndex}-${resets}`
-  const reviewing = returnToReview && !isLast
-  // Next, or straight back to the review after an Edit from it.
-  const advance = () =>
-    goToVisualStep(reviewing ? LAST_STEP : visualStepIndex + 1)
-  const furthest = VISUAL_STEPS[maxVisualStep] ?? currentVisualStep
-  const groupStatuses: StakeGroupStatus[] = GROUP_RANGES.map(
-    ({ first, last }, index) =>
-      index + 1 === currentVisualStep.groupStep
-        ? 'active'
-        : last < maxVisualStep
-          ? 'complete'
-          : first <= maxVisualStep
-            ? 'reached'
-            : 'upcoming',
-  )
-  const subTabState = (index: number): SubTabState =>
-    index === visualStepIndex
-      ? 'current'
-      : index < maxVisualStep
-        ? 'done'
-        : index === maxVisualStep
-          ? 'reached'
-          : 'next'
+  const stepKey = `${chainId}-${wizard.index}-${wizard.resets}`
 
   const renderVisualStep = () => {
     switch (currentVisualStep.kind) {
@@ -857,7 +661,7 @@ const FactoryPermanentPage = () => {
             formId={currentFormId}
             factorySection={currentVisualStep.section}
             startAdvanced={openAdvanced}
-            postSubmit={advance}
+            postSubmit={wizard.advance}
             {...cachedFactory}
           />
         )
@@ -866,8 +670,7 @@ const FactoryPermanentPage = () => {
           <ItemParams
             key={stepKey}
             formId={currentFormId}
-            section={currentVisualStep.itemSection}
-            postSubmit={advance}
+            postSubmit={wizard.advance}
             {...cachedFactory}
           />
         )
@@ -876,13 +679,10 @@ const FactoryPermanentPage = () => {
           <Deploy
             key={stepKey}
             formId={currentFormId}
-            postSubmit={advance}
+            postSubmit={wizard.advance}
             onEditStep={(title, options) => {
-              goToVisualStep(
-                VISUAL_STEPS.findIndex((step) => step.title === title),
-              )
+              wizard.editStep(title)
               setOpenAdvanced(!!options?.advanced)
-              setReturnToReview(true)
             }}
             {...cachedFactory}
           />
@@ -899,141 +699,17 @@ const FactoryPermanentPage = () => {
       <Section $gap="lg">
         <FactoryWizardGrid>
           <StakeLift style={{ ['--i' as string]: 3 }}>
-            <StakeStepTimeline
-              steps={STAKE_FACTORY_STEPS}
-              statuses={groupStatuses}
-              current={{
-                group: currentVisualStep.groupStep,
-                subitem: currentVisualStep.title,
-              }}
-              reached={{ group: furthest.groupStep, subitem: furthest.title }}
-              onSelectStep={goToGroup}
-            />
+            <FactoryStepTimeline groups={STAKE_FACTORY_STEPS} wizard={wizard} />
           </StakeLift>
           <FactorySplit>
-            <StakePanelLift style={{ ['--i' as string]: 4 }}>
-              <StepPanel $padding="none" ref={panelRef}>
-                <StakePanelTop data-tabs={groupSteps.length > 1}>
-                  <Label $tone="primary">
-                    {groupSteps.length > 1
-                      ? group.title
-                      : `${group.title} · ${group.description}`}
-                  </Label>
-                  {groupSteps.length > 1 && (
-                    <StakeSubTabs aria-label={`${group.title} steps`}>
-                      {groupSteps.map((step) => {
-                        const state = subTabState(step.index)
-                        return (
-                          <li key={step.title}>
-                            <StakeSubTab
-                              type="button"
-                              $state={state}
-                              disabled={state === 'current' || state === 'next'}
-                              aria-current={
-                                state === 'current' ? 'step' : undefined
-                              }
-                              onClick={() => goToVisualStep(step.index)}
-                            >
-                              {state === 'done' && (
-                                <CurateIcon name="check" size={12} />
-                              )}
-                              {step.title}
-                            </StakeSubTab>
-                          </li>
-                        )
-                      })}
-                    </StakeSubTabs>
-                  )}
-                </StakePanelTop>
-
-                <StakeStepContent>{renderVisualStep()}</StakeStepContent>
-
-                <FactoryActions $inPanel>
-                  {confirmingReset ? (
-                    <StakeConfirmRow
-                      role="alertdialog"
-                      aria-label="Start over?"
-                      aria-describedby={confirmQuestionId}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Escape') keepEditing()
-                      }}
-                    >
-                      <Small $muted id={confirmQuestionId}>
-                        Clear every field and go back to the first step?
-                        Previous deployments are kept.
-                      </Small>
-                      <Row $gap={8} $wrap>
-                        <Button
-                          ref={keepEditingRef}
-                          type="button"
-                          $variant="ghost"
-                          $size="sm"
-                          onClick={keepEditing}
-                        >
-                          Keep editing
-                        </Button>
-                        <Button
-                          type="button"
-                          $variant="danger"
-                          $size="sm"
-                          onClick={startOver}
-                        >
-                          Yes, start over
-                        </Button>
-                      </Row>
-                    </StakeConfirmRow>
-                  ) : (
-                    <>
-                      <Button
-                        ref={resetTriggerRef}
-                        type="button"
-                        $variant="ghost"
-                        $size="sm"
-                        onClick={() => setConfirmingReset(true)}
-                      >
-                        Start over
-                      </Button>
-                      <FactoryActionGroup>
-                        <StakePreviousButton
-                          type="button"
-                          $variant="secondary"
-                          $wideOnly={reviewing}
-                          disabled={visualStepIndex === 0}
-                          onClick={() => goToVisualStep(visualStepIndex - 1)}
-                        >
-                          Previous
-                        </StakePreviousButton>
-                        {reviewing ? (
-                          <Button
-                            type="submit"
-                            form={currentFormId}
-                            $variant="primary"
-                            title="Check this step, then return to the review"
-                          >
-                            Back to review
-                            <CurateIcon name="submit" size={14} />
-                          </Button>
-                        ) : (
-                          !isLast && (
-                            <Button
-                              type="submit"
-                              form={currentFormId}
-                              $variant="primary"
-                              title={
-                                upcoming ? `Next: ${upcoming.title}` : undefined
-                              }
-                            >
-                              Next
-                              <CurateIcon name="submit" size={14} />
-                            </Button>
-                          )
-                        )}
-                      </FactoryActionGroup>
-                    </>
-                  )}
-                </FactoryActions>
-              </StepPanel>
-            </StakePanelLift>
+            <FactoryStepPanel
+              wizard={wizard}
+              groups={STAKE_FACTORY_STEPS}
+              formId={currentFormId}
+              style={{ ['--i' as string]: 4 }}
+            >
+              {renderVisualStep()}
+            </FactoryStepPanel>
             <FactoryAside aria-label="Preview">
               <StakeLift style={{ ['--i' as string]: 5 }}>
                 <StakePreview

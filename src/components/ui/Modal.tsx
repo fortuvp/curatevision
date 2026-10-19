@@ -27,13 +27,18 @@ import { ghostIconButton, joinClassNames } from './kit-styles'
  * trigger's size to the full panel (SPEC 5.6), so the text never scales.
  * The shadow and glow live on a sibling layer that fades in near the end,
  * because a clip-path would cut them off. Closing reverses the morph into
- * the trigger, or fades and dips to 97% when the trigger is gone. Under
- * 640px it is a bottom sheet that rises into place; with reduced motion it
- * only cross-fades.
+ * the trigger, or fades and dips to 97% when the trigger is gone. On a
+ * phone it is a card anchored near the top with 8px gutters that rises
+ * into place, like the item dialogs; with reduced motion it only
+ * cross-fades. The chrome (30px display title, borderless round close)
+ * matches the item dialogs too.
+ *
+ * While a dialog is open the app root is inert, Tab wraps inside the
+ * panel, and Escape closes the newest dialog only.
  */
 const ThemeProvider = SCThemeProvider as any
 
-const SHEET_QUERY = '(max-width: 639px)'
+const PHONE_QUERY = '(max-width: 720px)'
 const REDUCED_QUERY = '(prefers-reduced-motion: reduce)'
 /* WAAPI cannot read custom properties: these mirror --ease-* in global-styles. */
 const EASE_OUT = 'cubic-bezier(0.16, 1, 0.3, 1)'
@@ -42,7 +47,7 @@ const EASE_EXIT = 'cubic-bezier(0.4, 0, 1, 1)'
 const MORPH_MS = 480
 const MORPH_CLOSE_MS = 360
 
-type MotionMode = 'morph' | 'fade' | 'sheet' | 'reduced'
+type MotionMode = 'morph' | 'fade' | 'rise' | 'reduced'
 
 interface MotionParts {
   scrim: HTMLElement
@@ -73,7 +78,7 @@ const visibleRect = (element: HTMLElement | null): DOMRect | null => {
 
 const pickMode = (trigger: HTMLElement | null): MotionMode => {
   if (matches(REDUCED_QUERY)) return 'reduced'
-  if (matches(SHEET_QUERY)) return 'sheet'
+  if (matches(PHONE_QUERY)) return 'rise'
   return visibleRect(trigger) ? 'morph' : 'fade'
 }
 
@@ -94,6 +99,43 @@ const morphFrames = (from: DOMRect, to: DOMRect): Keyframe[] => {
     },
   ]
 }
+
+/*
+ * Open dialogs, oldest first. While any is open the app root is inert, so
+ * neither Tab nor a screen reader reaches the page behind; only the newest
+ * dialog answers Escape. Portals (this dialog, Modal.confirm, the wallet
+ * modal) sit beside the root and stay live.
+ */
+const openDialogs: object[] = []
+
+const appRoot = () => document.querySelector('#root')
+
+const holdPage = (dialog: object) => {
+  openDialogs.push(dialog)
+  if (openDialogs.length === 1) appRoot()?.setAttribute('inert', '')
+}
+
+const releasePage = (dialog: object) => {
+  const index = openDialogs.indexOf(dialog)
+  if (index !== -1) openDialogs.splice(index, 1)
+  if (openDialogs.length === 0) appRoot()?.removeAttribute('inert')
+}
+
+const isNewest = (dialog: object) =>
+  openDialogs[openDialogs.length - 1] === dialog
+
+const TABBABLE =
+  'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+
+/** The panel's tabbable controls, in order: enabled, shown and not inert. */
+const tabbables = (panel: HTMLElement) =>
+  [...panel.querySelectorAll<HTMLElement>(TABBABLE)].filter(
+    (node) =>
+      !node.matches(':disabled') &&
+      node.getAttribute('tabindex') !== '-1' &&
+      !node.closest('[inert]') &&
+      node.getClientRects().length > 0,
+  )
 
 const FADE_IN: Keyframe[] = [{ opacity: 0 }, { opacity: 1 }]
 const FADE_OUT: Keyframe[] = [{ opacity: 1 }, { opacity: 0 }]
@@ -120,11 +162,14 @@ const animateIn = (
     easing: EASE_OUT,
     fill,
   })
-  if (mode === 'sheet')
+  if (mode === 'rise')
     return [
       scrimIn,
       panel.animate(
-        [{ transform: 'translateY(100%)' }, { transform: 'translateY(0)' }],
+        [
+          { opacity: 0, transform: 'translateY(12px) scale(0.96)' },
+          { opacity: 1, transform: 'translateY(0) scale(1)' },
+        ],
         { duration: 420, easing: EASE_OUT, fill },
       ),
       glow.animate(FADE_IN, { duration: 200, delay: 240, fill }),
@@ -179,16 +224,7 @@ const animateOut = (
       panel.animate(FADE_OUT, { duration: 120, easing: 'linear', fill }),
       glow.animate(FADE_OUT, { duration: 120, easing: 'linear', fill }),
     ]
-  if (mode === 'sheet')
-    return [
-      scrim.animate(FADE_OUT, { duration: 280, easing: EASE_EXIT, fill }),
-      glow.animate(FADE_OUT, { duration: 120, easing: EASE_EXIT, fill }),
-      panel.animate(
-        [{ transform: 'translateY(0)' }, { transform: 'translateY(100%)' }],
-        { duration: 280, easing: EASE_EXIT, fill },
-      ),
-    ]
-  if (mode === 'fade')
+  if (mode === 'fade' || mode === 'rise')
     return [
       scrim.animate(FADE_OUT, { duration: 200, easing: EASE_EXIT, fill }),
       glow.animate(FADE_OUT, { duration: 160, easing: EASE_EXIT, fill }),
@@ -235,9 +271,8 @@ const Overlay = styled.div<{ $leaving?: boolean }>`
   -webkit-backdrop-filter: blur(8px);
   pointer-events: ${({ $leaving }) => ($leaving ? 'none' : 'auto')};
 
-  @media ${SHEET_QUERY} {
-    padding: 24px 0 0;
-    overflow: hidden;
+  @media ${PHONE_QUERY} {
+    padding: 12px 8px 24px;
   }
 `
 
@@ -252,9 +287,12 @@ const Shell = styled.div<{ $width?: string | number; $centered?: boolean }>`
   );
   margin-block: ${({ $centered }) => ($centered ? 'auto' : '0')};
 
-  @media ${SHEET_QUERY} {
-    max-width: none;
-    margin-block: auto 0;
+  @media ${PHONE_QUERY} {
+    max-width: min(
+      ${({ $width }) =>
+        typeof $width === 'number' ? `${$width}px` : $width || '520px'},
+      100%
+    );
   }
 `
 
@@ -269,8 +307,8 @@ const Glow = styled.div`
     0 40px 100px -48px color-mix(in srgb, var(--color-primary) 50%, transparent);
   pointer-events: none;
 
-  @media ${SHEET_QUERY} {
-    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  @media ${PHONE_QUERY} {
+    border-radius: var(--radius-lg);
   }
 `
 
@@ -328,11 +366,8 @@ const ModalContent = styled.div`
     pointer-events: none;
   }
 
-  /* A bottom sheet: as tall as its content, never taller than the screen. */
-  @media ${SHEET_QUERY} {
-    max-height: calc(100dvh - 24px);
-    border-bottom: 0;
-    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  @media ${PHONE_QUERY} {
+    border-radius: var(--radius-lg);
   }
 `
 
@@ -344,38 +379,41 @@ const Inner = styled.div`
   min-height: 0;
 `
 
-const ModalHeader = styled.div`
-  padding: 22px 64px 6px 24px;
+/* The dialog title: display type at the section-title size, as in the item dialogs. */
+const ModalHeader = styled.h2`
+  margin: 0;
+  padding: 26px 68px 4px 28px;
   color: var(--color-text);
   font-family: var(--font-display);
-  font-size: var(--fs-heading);
-  line-height: var(--lh-heading);
+  font-size: clamp(24px, 1vw + 18px, 30px);
+  line-height: 1.1;
   font-weight: 500;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
   overflow-wrap: anywhere;
 
-  @media ${SHEET_QUERY} {
-    padding: 18px 60px 6px 18px;
+  @media ${PHONE_QUERY} {
+    padding: 20px 60px 4px 18px;
   }
 `
 
 const ModalBody = styled.div`
-  padding: 16px 24px 24px;
+  padding: 18px 28px 26px;
   color: var(--color-text);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
 
   &:first-child,
   .ui-modal-close + & {
-    padding-top: 24px;
+    padding-top: 26px;
   }
 
-  @media ${SHEET_QUERY} {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow: auto;
-    overscroll-behavior: contain;
+  @media ${PHONE_QUERY} {
     padding: 14px 18px 20px;
+
+    &:first-child,
+    .ui-modal-close + & {
+      padding-top: 20px;
+    }
   }
 `
 
@@ -385,28 +423,27 @@ const ModalFooter = styled.div`
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
-  padding: 16px 24px 20px;
+  padding: 16px 28px 22px;
   border-top: 1px solid var(--glass-border);
 
-  @media ${SHEET_QUERY} {
-    flex: 0 0 auto;
-    padding: 14px 18px calc(14px + env(safe-area-inset-bottom));
+  @media ${PHONE_QUERY} {
+    padding: 14px 18px 18px;
   }
 `
 
+/* Borderless at rest; the hairline and fill come in on hover. */
 const CloseButton = styled.button`
   ${ghostIconButton}
   position: absolute;
-  top: 16px;
-  right: 16px;
+  top: 22px;
+  right: 22px;
   z-index: 1;
-  width: 36px;
-  height: 36px;
-  border-color: var(--glass-border);
+  width: 34px;
+  height: 34px;
 
-  @media ${SHEET_QUERY} {
-    top: 12px;
-    right: 12px;
+  @media ${PHONE_QUERY} {
+    top: 16px;
+    right: 14px;
   }
 `
 
@@ -464,6 +501,7 @@ const Modal: ModalComponent = ({
   const innerRef = useRef<HTMLDivElement>(null)
   const openerRef = useRef<HTMLElement | null>(null)
   const titleId = useId()
+  const dialogKey = useRef({}).current
 
   // Callers pass inline handlers; reading the latest one through a ref keeps
   // the open/close effect tied to `visible` alone, so a parent re-render
@@ -508,24 +546,72 @@ const Modal: ModalComponent = ({
     }
   }, [visible])
 
-  // Focus and Escape. This is a passive effect on purpose: React restores
-  // the focus it saw before a commit once the DOM is updated, so focus moved
-  // during a layout cleanup would snap back into the closing dialog.
+  // Focus, the inert page and the Escape fallback. This is a passive effect
+  // on purpose: React restores the focus it saw before a commit once the DOM
+  // is updated, so focus moved during a layout cleanup would snap back into
+  // the closing dialog.
   useEffect(() => {
     if (!visible) return undefined
     const opener = openerRef.current
+    // Escape from inside the panel is handled (and stopped) on the panel.
+    // This catches it when focus has dropped to <body> or the scrim; keys
+    // from another layer, such as the wallet modal, are left to that layer.
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') cancelRef.current?.()
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      if (!isNewest(dialogKey)) return
+      const { target } = event
+      const fromPage =
+        target === document.body ||
+        target === document.documentElement ||
+        (target instanceof Node && overlayRef.current?.contains(target))
+      if (!fromPage) return
+      event.preventDefault()
+      cancelRef.current?.()
     }
+    holdPage(dialogKey)
     document.addEventListener('keydown', onKeyDown)
     contentRef.current?.focus({ preventScroll: true })
     return () => {
       document.removeEventListener('keydown', onKeyDown)
+      // The page must be live again before focus can go back into it.
+      releasePage(dialogKey)
       // Hand focus back to whatever opened the dialog.
       if (opener && document.contains(opener))
         opener.focus({ preventScroll: true })
     }
-  }, [visible])
+  }, [visible, dialogKey])
+
+  // Escape closes this dialog only; Tab and Shift+Tab wrap inside the panel.
+  // Both stop here, so a dialog underneath (or its own trap) never acts on
+  // them. Keys from elsewhere, such as a wallet modal on top, pass through.
+  const handlePanelKeyDown = useCallback((event: React.KeyboardEvent) => {
+    const panel = contentRef.current
+    if (!panel || event.defaultPrevented) return
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      event.stopPropagation()
+      cancelRef.current?.()
+      return
+    }
+    if (event.key !== 'Tab') return
+    const active = document.activeElement
+    if (!active || !panel.contains(active)) return
+    event.stopPropagation()
+    const nodes = tabbables(panel)
+    if (nodes.length === 0) {
+      event.preventDefault()
+      return
+    }
+    const first = nodes[0]
+    const last = nodes[nodes.length - 1]
+    if (event.shiftKey && (active === first || active === panel)) {
+      event.preventDefault()
+      last.focus()
+    } else if (!event.shiftKey && active === last) {
+      event.preventDefault()
+      first.focus()
+    }
+  }, [])
 
   // Exit: reverse into the trigger (or fade), then unmount.
   useLayoutEffect(() => {
@@ -593,6 +679,7 @@ const Modal: ModalComponent = ({
           aria-modal="true"
           aria-labelledby={title ? titleId : undefined}
           tabIndex={-1}
+          onKeyDown={handlePanelKeyDown}
           style={style}
           className={joinClassNames('ui-modal-content', className)}
         >

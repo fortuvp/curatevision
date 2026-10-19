@@ -29,7 +29,7 @@ import {
   type ReceiptLine,
 } from 'components/curate/what-happens-next'
 import { Dialog, DialogColumns } from 'components/curate/item-light-dialog'
-import { useActionGate } from 'components/curate/item-light-gate'
+import { gatedConfirm, useActionGate } from 'components/curate/item-light-gate'
 import { formatAmount, sumAmounts } from 'components/curate/item-light-format'
 
 /*
@@ -131,6 +131,7 @@ const ChallengeModal = ({
 
   const gate = useActionGate({
     verb,
+    shortVerb: 'challenge',
     amount: challengeDeposit,
     pending: challengeDeposit ? undefined : 'Loading the deposit',
   })
@@ -204,7 +205,11 @@ const ChallengeModal = ({
   }
 
   const total = formatAmount(challengeDeposit, nativeCurrency)
+  // The indexer stores only the requester's base deposit, so pool = the
+  // challenger's full deposit + the requester's base deposit = the payout
+  // to a challenger who wins.
   const pool = sumAmounts(requesterDeposit, challengeDeposit)
+  const requesterName = isRemoval ? 'requester' : 'submitter'
   const receipt: ReceiptLine[] =
     baseDeposit && arbitrationCost
       ? [
@@ -233,20 +238,18 @@ const ChallengeModal = ({
         isRemoval
           ? `The ${name} stays on the list.`
           : `The ${name} is rejected.`
-      } You get your deposit back and the winner's share: both deposits${
-        pool ? ` (${formatAmount(pool, nativeCurrency)})` : ''
-      } minus one arbitration cost${
-        arbitrationCost
-          ? ` (${formatAmount(arbitrationCost, nativeCurrency)})`
-          : ''
-      }.`,
+      } ${
+        pool && requesterDeposit
+          ? `You get ${formatAmount(pool, nativeCurrency)} in total: your ${total} back plus the ${requesterName}'s ${formatAmount(requesterDeposit, nativeCurrency)} base deposit.`
+          : `You get your deposit back plus the ${requesterName}'s base deposit.`
+      }`,
     },
     {
-      title: 'Jurors side with the requester',
+      title: `Jurors side with the ${requesterName}`,
       branch: true,
       body: `${
         isRemoval ? `The ${name} is removed.` : `The ${name} is registered.`
-      } You lose your deposit: it goes to the requester minus the arbitration cost.`,
+      } You lose your ${total}: it goes to the ${requesterName} minus the arbitration cost.`,
     },
   ]
 
@@ -291,16 +294,16 @@ const ChallengeModal = ({
               receipt={receipt}
               total={total}
               steps={steps}
-              confirmLabel={
-                isRemoval ? 'Challenge removal' : 'Challenge submission'
-              }
-              onConfirm={confirm}
-              confirmDisabled={!gate.ready || isSubmitting}
-              confirmBlocker={gate.blocker}
-              loading={isSubmitting}
+              {...gatedConfirm(gate, {
+                label: isRemoval ? 'Challenge removal' : 'Challenge submission',
+                onConfirm: confirm,
+                disabled: !gate.ready || isSubmitting,
+                blocker: gate.blocker,
+                loading: isSubmitting,
+              })}
               policy={`Deposits are in ${nativeCurrency}. The ruling can be appealed by funding appeal fees during the appeal period.`}
             />
-            {gate.controls && (
+            {!gate.fix && gate.controls && (
               <Row $justify="flex-end" $wrap>
                 {gate.controls}
               </Row>

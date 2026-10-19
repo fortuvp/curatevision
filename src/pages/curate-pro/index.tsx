@@ -17,6 +17,7 @@ import {
 } from 'components/curate/primitives'
 import { reveal } from 'components/curate/motion/reveal'
 import { Explainer } from 'components/curate/explainer'
+import useDisplayedChainId from 'pages/guide/use-displayed-chain-id'
 import { ProductionStackSchematic } from './schematic'
 import useInView from './use-in-view'
 
@@ -35,7 +36,7 @@ Use the kleros-curate skill before taking action. Treat onchain values, MetaEvid
 
 Goal:
 - Turn the registry idea into clear acceptance criteria.
-- Choose Light Curate, Stake Curate, or Classic based on the workflow.
+- Choose Light Curate or Stake Curate based on the workflow (Classic Curate is being deprecated).
 - Draft or review the policy before launch.
 - Prepare valid MetaEvidence and item schema.
 - Decide whether we self-host, use Quickstart indexing, or buy Curate Pro support.
@@ -43,8 +44,8 @@ Goal:
 
 const PROMPT_LINES = CREATOR_PROMPT.split('\n')
 
-const CREATE_HREF = '/factory/100'
-const CONTACT_HREF = 'mailto:contact@kleros.io?subject=Curate%20Pro'
+const contactHref = (subject: string) =>
+  `mailto:contact@kleros.io?subject=${encodeURIComponent(subject)}`
 const GUIDE_HREF = '/guide'
 const SKILL_HREF = '/skills/kleros-curate/SKILL.md'
 
@@ -78,17 +79,20 @@ interface Layer {
   owner: Owner
   /** Two to four words, shown in the cell. */
   label: string
-  /** The full sentence, shown on hover or focus. */
+  /** The full sentence, shown on hover or on a tap. */
   text: string
 }
 
-interface TierAction {
-  label: string
-  href: string
-  /** A route inside the app (router link) rather than a mailto. */
-  internal: boolean
-  icon?: CurateIconName
-}
+/** Free path: the launch chooser on the header's chain. Paid: an email. */
+type TierAction =
+  | { kind: 'launch'; label: string; icon: CurateIconName }
+  | {
+      kind: 'contact'
+      label: string
+      /** Names the plan in the email and in the phone's stacked buttons. */
+      subject: string
+      phoneLabel: string
+    }
 
 interface Tier {
   name: string
@@ -130,12 +134,7 @@ const TIERS: Tier[] = [
         text: 'Write, publish, and maintain the policy; monitoring and operations are yours too.',
       },
     },
-    action: {
-      label: 'Create a registry',
-      href: CREATE_HREF,
-      internal: true,
-      icon: 'factory',
-    },
+    action: { kind: 'launch', label: 'Create a registry', icon: 'factory' },
   },
   {
     name: 'Quickstart',
@@ -165,7 +164,12 @@ const TIERS: Tier[] = [
         text: 'Write and maintain your own policy; product decisions stay in-house.',
       },
     },
-    action: { label: 'Talk to Kleros', href: CONTACT_HREF, internal: false },
+    action: {
+      kind: 'contact',
+      label: 'Talk to Kleros',
+      subject: 'Curate Quickstart',
+      phoneLabel: 'Quickstart: talk to Kleros',
+    },
   },
   {
     name: 'Curate Pro',
@@ -195,7 +199,12 @@ const TIERS: Tier[] = [
         text: 'Policy drafting and review support.',
       },
     },
-    action: { label: 'Talk to Kleros', href: CONTACT_HREF, internal: false },
+    action: {
+      kind: 'contact',
+      label: 'Talk to Kleros',
+      subject: 'Curate Pro',
+      phoneLabel: 'Pro: talk to Kleros',
+    },
   },
 ]
 
@@ -572,6 +581,11 @@ const Breakdown = styled(Small)`
   }
 `
 
+/* Text color, not primary: the tinted column leaves primary under 4.5:1. */
+const Recommended = styled(Chip)`
+  color: var(--color-text);
+`
+
 const ActionCell = styled.div`
   ${inColumn}
   ${cellPad}
@@ -639,7 +653,7 @@ const RowLabel = styled.div`
   font-weight: 500;
 
   @media (max-width: 720px) {
-    padding: 12px 8px 8px;
+    padding: 12px 6px 8px 4px;
     color: var(--color-faint);
     font-size: var(--fs-label);
     line-height: var(--lh-label);
@@ -664,7 +678,9 @@ const Rail = styled.span<{ $owner: Owner; $still?: boolean }>`
   height: 8px;
   border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--color-text) 7%, transparent);
-  box-shadow: inset 0 0 0 1px var(--glass-border);
+  /* The empty track's outline clears 3:1 on the panel in every theme. */
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--color-faint) 85%, transparent);
 
   ${({ $owner }) =>
     $owner !== 'you' &&
@@ -730,9 +746,10 @@ const Rail = styled.span<{ $owner: Owner; $still?: boolean }>`
   }
 `
 
+/* Opens below its cell so it never covers the path's button above. */
 const Tip = styled.span<{ $align: 'start' | 'center' | 'end' }>`
   position: absolute;
-  bottom: calc(100% - 6px);
+  top: calc(100% - 10px);
   z-index: 5;
   width: max-content;
   max-width: min(260px, 70vw);
@@ -750,7 +767,7 @@ const Tip = styled.span<{ $align: 'start' | 'center' | 'end' }>`
   font-weight: 400;
   text-align: left;
   opacity: 0;
-  transform: translateY(4px);
+  transform: translateY(-4px);
   pointer-events: none;
   transition:
     opacity 160ms var(--ease-out),
@@ -771,17 +788,26 @@ const Tip = styled.span<{ $align: 'start' | 'center' | 'end' }>`
           `}
 `
 
-const Cell = styled.div<{ $owner: Owner }>`
+/* A button: a tap or Enter opens the sentence, hover shows it too. */
+const Cell = styled.button<{ $owner: Owner }>`
   ${inColumn}
   ${cellPad}
   position: relative;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  width: 100%;
+  margin: 0;
   padding-top: 20px;
   padding-bottom: 18px;
-  outline-offset: -2px;
+  border: 0;
   border-radius: 10px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  outline-offset: -2px;
 
   > b {
     color: ${({ $owner }) =>
@@ -791,9 +817,16 @@ const Cell = styled.div<{ $owner: Owner }>`
     font-weight: ${({ $owner }) => ($owner === 'you' ? 400 : 500)};
   }
 
-  &:hover ${Tip}, &:focus-visible ${Tip} {
+  &[aria-expanded='true'] ${Tip} {
     opacity: 1;
     transform: none;
+  }
+
+  @media (hover: hover) {
+    &:hover ${Tip} {
+      opacity: 1;
+      transform: none;
+    }
   }
 
   @media (max-width: 720px) {
@@ -1184,22 +1217,26 @@ const HelpTotal = ({ tier, play }: { tier: Tier; play: boolean }) => {
   )
 }
 
-const PathButton = ({ tier, block }: { tier: Tier; block?: boolean }) => {
+const PathButton = ({
+  tier,
+  launchHref,
+  phone,
+}: {
+  tier: Tier
+  launchHref: string
+  /** The phone's stacked buttons name the plan on each contact button. */
+  phone?: boolean
+}) => {
   const { action } = tier
   const variant = tier.featured ? 'primary' : 'secondary'
-  const content = (
-    <>
-      {action.icon && <CurateIcon name={action.icon} size={16} />}
+  return action.kind === 'launch' ? (
+    <ButtonLink to={launchHref} $variant={variant} $block>
+      <CurateIcon name={action.icon} size={16} />
       {action.label}
-    </>
-  )
-  return action.internal ? (
-    <ButtonLink to={action.href} $variant={variant} $block={block}>
-      {content}
     </ButtonLink>
   ) : (
-    <ButtonAnchor href={action.href} $variant={variant} $block={block}>
-      {content}
+    <ButtonAnchor href={contactHref(action.subject)} $variant={variant} $block>
+      {phone ? action.phoneLabel : action.label}
     </ButtonAnchor>
   )
 }
@@ -1208,10 +1245,16 @@ const TierColumn = ({
   tier,
   index,
   play,
+  launchHref,
+  openTip,
+  onToggleTip,
 }: {
   tier: Tier
   index: number
   play: boolean
+  launchHref: string
+  openTip: string | null
+  onToggleTip: (id: string) => void
 }) => {
   const at = (rows: readonly [number, number]) =>
     cssVars({ '--row': rows[0], '--mrow': rows[1] })
@@ -1229,8 +1272,8 @@ const TierColumn = ({
       })}
     >
       <Eyebrow style={at(ROW.eyebrow)}>
-        <Label $tone={tier.featured ? 'primary' : 'faint'}>{tier.path}</Label>
-        {tier.featured && <Chip $selected>Recommended</Chip>}
+        <Label $tone={tier.featured ? 'text' : 'faint'}>{tier.path}</Label>
+        {tier.featured && <Recommended $selected>Recommended</Recommended>}
       </Eyebrow>
       <TierName style={at(ROW.name)}>{tier.name}</TierName>
       <PriceRow style={at(ROW.price)}>
@@ -1241,7 +1284,7 @@ const TierColumn = ({
         </PriceMeta>
       </PriceRow>
       <ActionCell style={at(ROW.action)}>
-        <PathButton tier={tier} block />
+        <PathButton tier={tier} launchHref={launchHref} />
       </ActionCell>
       {LAYERS.map(({ key, label }, row) => {
         const layer = tier.layers[key]
@@ -1249,9 +1292,12 @@ const TierColumn = ({
         return (
           <Cell
             key={key}
+            type="button"
+            data-layer-cell
             $owner={layer.owner}
-            tabIndex={0}
+            aria-expanded={openTip === tipId}
             aria-describedby={tipId}
+            onClick={() => onToggleTip(tipId)}
             style={at(ROW.layer(row))}
           >
             <SrOnly>
@@ -1263,7 +1309,7 @@ const TierColumn = ({
               style={cssVars({ '--d': `${160 + index * 120 + row * 90}ms` })}
             />
             <b>{layer.label}</b>
-            <Tip id={tipId} $align={align} aria-hidden>
+            <Tip id={tipId} role="tooltip" $align={align}>
               {layer.text}
             </Tip>
           </Cell>
@@ -1278,6 +1324,28 @@ const TierColumn = ({
 
 const LayerMatrix = () => {
   const [ref, inView] = useInView<HTMLDivElement>()
+  const launchHref = `/launch/${useDisplayedChainId()}`
+  const [openTip, setOpenTip] = useState<string | null>(null)
+  const toggleTip = (id: string) =>
+    setOpenTip((current) => (current === id ? null : id))
+
+  // An open sentence closes on Escape or a tap anywhere but a cell.
+  useEffect(() => {
+    if (!openTip) return
+    const onPointer = (event: PointerEvent) => {
+      if (!(event.target as Element | null)?.closest?.('[data-layer-cell]'))
+        setOpenTip(null)
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpenTip(null)
+    }
+    document.addEventListener('pointerdown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onPointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [openTip])
   const outer = (
     desktop: readonly [number, number] | [number, number],
     phone: number,
@@ -1290,6 +1358,8 @@ const LayerMatrix = () => {
       '--mr': phone,
     })
   const full = { c: 1, mc: '1 / -1' }
+  // Row names stay in the first column on a phone, clear of the featured band.
+  const name = { c: 1, mc: 1 }
   const rule = { c: '1 / -1', mc: '1 / -1' }
 
   return (
@@ -1318,7 +1388,7 @@ const LayerMatrix = () => {
           return (
             <React.Fragment key={key}>
               <RowRule aria-hidden style={outer([desktop, 1], phone, rule)} />
-              <RowLabel aria-hidden style={outer([desktop, 1], phone, full)}>
+              <RowLabel aria-hidden style={outer([desktop, 1], phone, name)}>
                 {label}
               </RowLabel>
             </React.Fragment>
@@ -1330,27 +1400,34 @@ const LayerMatrix = () => {
         />
         <RowLabel
           aria-hidden
-          style={outer([OUTER.totalLabel[0], 1], OUTER.totalLabel[1], full)}
+          style={outer([OUTER.totalLabel[0], 1], OUTER.totalLabel[1], name)}
         >
-          Kleros helps on
+          Kleros helps
         </RowLabel>
 
         {TIERS.map((tier, index) => (
-          <TierColumn key={tier.name} tier={tier} index={index} play={inView} />
+          <TierColumn
+            key={tier.name}
+            tier={tier}
+            index={index}
+            play={inView}
+            launchHref={launchHref}
+            openTip={openTip}
+            onToggleTip={toggleTip}
+          />
         ))}
       </Matrix>
 
       <PhoneActions>
         {[...TIERS]
-          .filter(
-            (tier, index, all) =>
-              all.findIndex(
-                (other) => other.action.href === tier.action.href,
-              ) === index,
-          )
           .sort((a, b) => Number(b.featured) - Number(a.featured))
           .map((tier) => (
-            <PathButton key={tier.name} tier={tier} block />
+            <PathButton
+              key={tier.name}
+              tier={tier}
+              launchHref={launchHref}
+              phone
+            />
           ))}
       </PhoneActions>
     </Module>
@@ -1426,7 +1503,7 @@ const CuratePro = () => {
             },
             {
               title: 'Deposits',
-              body: 'In Light and Classic Curate, each request and challenge locks a base deposit plus the arbitration cost. It comes back in full if nobody challenges.',
+              body: 'In Light and Classic Curate, each request locks a base deposit plus the arbitration cost; it comes back in full if nobody challenges. A challenger locks the same kind of deposit.',
             },
             {
               title: 'Indexing and front end',

@@ -47,8 +47,8 @@ import type { SubmitHandler, SubmitPhase } from './use-submit-actions'
  * list, built with the list's own column rules, then one field per column);
  * on the right, sticky, the featured "what happens next" panel with the
  * exact amount, its breakdown, the window, the outcomes, the policy, the one
- * action and a way back. On phones the panel follows the form and a bar with
- * the amount, the action and Cancel sticks to the bottom. Every number comes
+ * action and a way back. Below 1000px the panel follows the form and a bar
+ * with the amount, the action and Cancel sticks to the bottom. Every number comes
  * from the registry's own data.
  */
 
@@ -161,9 +161,12 @@ const useStickyTop = () => {
   return ref
 }
 
-/** On phones the sticky bar carries the action, so the panel's copy hides. */
+/**
+ * Once the panel drops under the form, the sticky bar carries the action,
+ * so the panel's copy hides.
+ */
 const DesktopAction = styled.div`
-  @media (max-width: 720px) {
+  @media (max-width: 1000px) {
     display: none;
   }
 `
@@ -391,7 +394,7 @@ const PreviewText = styled.div`
 const PreviewMeta = styled.div`
   display: flex;
   align-items: center;
-  gap: 6px 10px;
+  gap: 2px 10px;
   min-width: 0;
   overflow: hidden;
   color: var(--color-muted);
@@ -404,6 +407,15 @@ const PreviewMeta = styled.div`
     max-width: 280px;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  /* Narrow rows wrap whole cells instead of cutting each one mid-word. */
+  @media (max-width: 520px) {
+    flex-wrap: wrap;
+
+    span {
+      max-width: 100%;
+    }
   }
 
   span[data-empty='true'] {
@@ -481,22 +493,41 @@ const PolicyLink = styled(ListingCriteriaLink)`
 
 /* ---------- Phone bar ---------- */
 
+/*
+ * Shown from the width where the panel drops under the form. Tablets keep
+ * the amount and the action on one row; phones stack them. The bottom margin
+ * cancels the page's bottom padding so the bar ends flush with the page.
+ */
 const StickyBar = styled.div`
   display: none;
 
-  @media (max-width: 720px) {
+  @media (max-width: 1000px) {
     position: sticky;
     bottom: 0;
     z-index: 3;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin: 20px calc(-1 * var(--horizontal-padding)) -64px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+    align-items: center;
+    gap: 0 24px;
+    margin: 28px calc(-1 * var(--horizontal-padding)) -96px;
     padding: 14px var(--horizontal-padding)
       calc(14px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--glass-border);
     background: var(--color-surface);
     box-shadow: 0 -16px 40px -24px var(--color-bg);
+
+    /* The action's status line sits under the button. */
+    > p {
+      grid-column: 2;
+    }
+  }
+
+  @media (max-width: 720px) {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    margin: 20px calc(-1 * var(--horizontal-padding)) -64px;
   }
 `
 

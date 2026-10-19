@@ -471,7 +471,7 @@ const CrowdfundModal = ({
               ) : undefined
             }
           />
-          <GateHelper gate={gate} />
+          <GateHelper gate={gate} caption={false} />
         </Stack>
       </DialogColumns>
     </ModalShell>

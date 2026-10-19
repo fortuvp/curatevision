@@ -90,6 +90,6 @@ export const BarPrimaryButton = styled.button`
   transition: background var(--motion);
 
   &:hover {
-    background: var(--color-primary-hover);
+    background: var(--color-primary-fill-hover);
   }
 `

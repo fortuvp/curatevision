@@ -17,7 +17,6 @@ import LightEvidenceModal from 'pages/light-item-details/modals/evidence'
 import { klerosAddresses } from 'config/tcr-addresses'
 import { CurateIcon } from 'components/curate/icons'
 import {
-  Button,
   Chip,
   SkeletonBlock,
   Small,
@@ -32,13 +31,19 @@ import {
 } from 'components/curate/item-light-timeline'
 import { AddressLink } from 'components/curate/item-light-fields'
 import { toSeconds } from 'components/curate/item-light-format'
+import { linkify } from 'components/curate/item-light-linkify'
+import {
+  EvidenceComposerCollapse,
+  openEvidenceComposer,
+} from 'components/inline-evidence-composer'
 
 /*
  * An entry's history: one panel, one group per request (newest first), each
  * a glowing vertical timeline of its submission, evidence, rulings, appeals
  * and resolution with absolute UTC dates and the court case linked; then the
- * inline evidence composer while a request is open. Shared by the Light and
- * Classic item pages.
+ * inline evidence composer, folded to one row, while a request is open.
+ * Shared by the Light and Classic item pages. The case link sits on the
+ * event that opened the dispute (the challenge), never on the submission.
  */
 
 /** Round fields the subgraph returns beyond the shared SubgraphRound. */
@@ -72,6 +77,9 @@ export interface TimelineRequest extends SubgraphRequest {
   rounds: TimelineRound[]
   disputeID?: string
   arbitrator?: string
+  /** Light only: when the request was challenged, and the transaction. */
+  challengeTime?: string | null
+  txHashChallenge?: string | null
 }
 
 interface AppealPossibleLog {
@@ -99,6 +107,14 @@ interface EvidenceLog {
   party: string
 }
 
+interface ChallengeLog {
+  name: 'Challenge'
+  timestamp: string
+  transactionHash: string
+  /** The justification filed in the same transaction, shown as its quote. */
+  evidence?: EvidenceLog
+}
+
 interface ResolutionLog {
   name: 'Resolution'
   timestamp?: string | null
@@ -107,6 +123,7 @@ interface ResolutionLog {
 }
 
 type TimelineLog =
+  | ChallengeLog
   | AppealPossibleLog
   | AppealDecisionLog
   | EvidenceLog
@@ -172,13 +189,24 @@ const MoreButton = styled.button`
   }
 `
 
-/** Long evidence opens at six lines; the rest is one click away. */
+/**
+ * Long evidence opens at six lines; the rest is one click away. URLs are
+ * links; tabbing onto one hidden by the clamp opens the text first.
+ */
 const EvidenceText = ({ text }: { text: string }) => {
   const long = text.length > 420 || text.split('\n').length > 6
   const [expanded, setExpanded] = useState(false)
+  const content = useMemo(() => linkify(text), [text])
   return (
     <>
-      <Clamp $clamped={long && !expanded}>{text}</Clamp>
+      <Clamp
+        $clamped={long && !expanded}
+        onFocus={() => {
+          if (long) setExpanded(true)
+        }}
+      >
+        {content}
+      </Clamp>
       {long && (
         <MoreButton
           type="button"
@@ -191,6 +219,14 @@ const EvidenceText = ({ text }: { text: string }) => {
     </>
   )
 }
+
+/** A justification's own title, when the challenger gave one. */
+const QuoteTitle = styled.span`
+  color: var(--color-text);
+  font-size: var(--fs-body);
+  line-height: 22px;
+  font-weight: 500;
+`
 
 const rulingSentence = (ruling: string, isRegistration: boolean): string => {
   if (ruling === SUBGRAPH_RULING.NONE) return 'Jurors refused to rule'
@@ -205,12 +241,20 @@ interface TimelineProps {
   request: TimelineRequest
   item: SubgraphItem
   metaEvidence?: MetaEvidence
+  /** The page already links this request's case (the hero's chip). */
+  hideCase?: boolean
 }
 
-const RequestTimeline = ({ request, item, metaEvidence }: TimelineProps) => {
+const RequestTimeline = ({
+  request,
+  item,
+  metaEvidence,
+  hideCase = false,
+}: TimelineProps) => {
   const networkId = useUrlChainId()
   const [evidenceMap, setEvidenceMap] = useState<Record<string, EvidenceFile>>()
-  const caseLink = useCaseLink(request)
+  const disputeCase = useCaseLink(request)
+  const caseLink = hideCase ? undefined : disputeCase
 
   const logs = useMemo(() => {
     if (!request) return null
@@ -232,7 +276,7 @@ const RequestTimeline = ({ request, item, metaEvidence }: TimelineProps) => {
       }))
       .filter((appeal): appeal is AppealDecisionLog => !!appeal.transactionHash)
 
-    const evidences = request.evidenceGroup.evidences.map(
+    const allEvidences = request.evidenceGroup.evidences.map(
       (e): EvidenceLog => ({
         name: 'Evidence',
         timestamp: e.timestamp,
@@ -245,6 +289,29 @@ const RequestTimeline = ({ request, item, metaEvidence }: TimelineProps) => {
         party: e.party,
       }),
     )
+
+    // The challenge itself (Light only). Its justification is the evidence
+    // filed in the same transaction: matched on the hash, never the time,
+    // so a separate evidence mined in the same block stays its own row.
+    const challengeTx = request.txHashChallenge?.toLowerCase()
+    const justification =
+      challengeTx && request.challengeTime
+        ? allEvidences.find(
+            (e) => e.transactionHash?.toLowerCase() === challengeTx,
+          )
+        : undefined
+    const evidences = justification
+      ? allEvidences.filter((e) => e !== justification)
+      : allEvidences
+    const challenge: ChallengeLog | undefined =
+      request.challengeTime && request.txHashChallenge
+        ? {
+            name: 'Challenge',
+            timestamp: request.challengeTime,
+            transactionHash: request.txHashChallenge,
+            evidence: justification,
+          }
+        : undefined
 
     const resolution: ResolutionLog = {
       name: 'Resolution',
@@ -261,6 +328,8 @@ const RequestTimeline = ({ request, item, metaEvidence }: TimelineProps) => {
       ...evidences,
     ]
 
+    if (challenge) logArray.push(challenge)
+
     if (resolution.transactionHash) logArray.push(resolution)
 
     return logArray.sort((a, b) => Number(a.timestamp) - Number(b.timestamp))
@@ -274,7 +343,13 @@ const RequestTimeline = ({ request, item, metaEvidence }: TimelineProps) => {
     if (!logs || evidenceMap) return
     const evidenceManualFetch = async () => {
       const unindexedEvidenceURIs = logs
-        .filter((e): e is EvidenceLog => e.name === 'Evidence')
+        .flatMap((e): EvidenceLog[] =>
+          e.name === 'Evidence'
+            ? [e]
+            : e.name === 'Challenge' && e.evidence
+              ? [e.evidence]
+              : [],
+        )
         .filter(
           (e) =>
             e.title === null &&
@@ -318,6 +393,29 @@ const RequestTimeline = ({ request, item, metaEvidence }: TimelineProps) => {
     if (address === request.challenger?.toLowerCase()) return 'challenger'
     return undefined
   }
+  // Where the case link goes: the challenge event when the indexer has it;
+  // otherwise (Classic) the challenger's first evidence, which is filed with
+  // the challenge; the submission row only when neither exists.
+  const hasChallengeEvent = logs.some((event) => event.name === 'Challenge')
+  const caseEvidenceIndex = hasChallengeEvent
+    ? -1
+    : logs.findIndex(
+        (event) =>
+          event.name === 'Evidence' && roleOf(event.party) === 'challenger',
+      )
+  const caseOnSubmission = !hasChallengeEvent && caseEvidenceIndex < 0
+  const evidenceQuote = (evidence: EvidenceLog, heading?: string | null) => {
+    const { description, fileURI } = evidenceMap?.[evidence.URI]
+      ? evidenceMap[evidence.URI]
+      : evidence
+    return heading || description || fileURI ? (
+      <TimelineQuote>
+        {heading && <QuoteTitle>{heading}</QuoteTitle>}
+        {description && <EvidenceText text={description} />}
+        {fileURI && <EvidenceFileLink fileURI={fileURI} />}
+      </TimelineQuote>
+    ) : null
+  }
 
   return (
     <Timeline>
@@ -333,7 +431,9 @@ const RequestTimeline = ({ request, item, metaEvidence }: TimelineProps) => {
               <span>
                 by <AddressLink address={request.requester} />
               </span>
-              {caseLink && <CaseLink id={caseLink.id} href={caseLink.href} />}
+              {caseLink && caseOnSubmission && (
+                <CaseLink id={caseLink.id} href={caseLink.href} />
+              )}
             </>
           ) : undefined
         }
@@ -344,8 +444,46 @@ const RequestTimeline = ({ request, item, metaEvidence }: TimelineProps) => {
         const current = open && i === logs.length - 1
         const index = i + 1
 
+        if (event.name === 'Challenge') {
+          const justification = event.evidence
+          const customTitle =
+            justification &&
+            (evidenceMap?.[justification.URI]?.title ?? justification.title)
+          return (
+            <TimelineEvent
+              key={i}
+              index={index}
+              current={current}
+              tone="contested"
+              title="Challenged"
+              timestamp={timestamp}
+              href={href}
+              detail={
+                <>
+                  {request.challenger && (
+                    <span>
+                      by <AddressLink address={request.challenger} />
+                    </span>
+                  )}
+                  {caseLink && (
+                    <CaseLink id={caseLink.id} href={caseLink.href} />
+                  )}
+                </>
+              }
+            >
+              {justification &&
+                evidenceQuote(
+                  justification,
+                  customTitle !== 'Challenge Justification'
+                    ? customTitle
+                    : undefined,
+                )}
+            </TimelineEvent>
+          )
+        }
+
         if (event.name === 'Evidence') {
-          const { title, description, fileURI } = evidenceMap?.[event.URI]
+          const { title } = evidenceMap?.[event.URI]
             ? evidenceMap[event.URI]
             : event
           return (
@@ -364,18 +502,18 @@ const RequestTimeline = ({ request, item, metaEvidence }: TimelineProps) => {
               timestamp={timestamp}
               href={href}
               detail={
-                <span>
-                  by <AddressLink address={event.party} />
-                  {roleOf(event.party) ? ` · ${roleOf(event.party)}` : ''}
-                </span>
+                <>
+                  <span>
+                    by <AddressLink address={event.party} />
+                    {roleOf(event.party) ? ` · ${roleOf(event.party)}` : ''}
+                  </span>
+                  {caseLink && i === caseEvidenceIndex && (
+                    <CaseLink id={caseLink.id} href={caseLink.href} />
+                  )}
+                </>
               }
             >
-              {(description || fileURI) && (
-                <TimelineQuote>
-                  {description && <EvidenceText text={description} />}
-                  {fileURI && <EvidenceFileLink fileURI={fileURI} />}
-                </TimelineQuote>
-              )}
+              {evidenceQuote(event)}
             </TimelineEvent>
           )
         }
@@ -578,6 +716,7 @@ const RequestGroup = ({
   onToggle,
   item,
   metaEvidence,
+  hideCase,
 }: {
   request: TimelineRequest
   ordinal: number
@@ -585,6 +724,7 @@ const RequestGroup = ({
   onToggle: () => void
   item: SubgraphItem
   metaEvidence?: MetaEvidence
+  hideCase?: boolean
 }) => {
   const state = requestState(request)
   const panelId = `request-${ordinal}-timeline`
@@ -615,6 +755,7 @@ const RequestGroup = ({
             item={item}
             request={{ ...request }}
             metaEvidence={metaEvidence}
+            hideCase={hideCase}
           />
         </GroupBody>
       )}
@@ -624,22 +765,22 @@ const RequestGroup = ({
 
 export const EVIDENCE_COMPOSER_ID = 'evidence-composer'
 
-export const scrollToEvidenceComposer = () => {
-  const composer = document.querySelector(`#${EVIDENCE_COMPOSER_ID}`)
-  composer?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  window.setTimeout(() => {
-    const input = composer?.querySelector('textarea, input') as
-      | HTMLElement
-      | undefined
-    input?.focus()
-  }, 260)
-}
+/**
+ * Opens the evidence composer under the history, then scrolls to it and
+ * focuses its first field (the action card, the phone bar, deep links).
+ */
+export const scrollToEvidenceComposer = () => openEvidenceComposer()
 
 interface RequestTimelinesProps {
   item: SubgraphItem
   requests?: TimelineRequest[]
   kind: 'classic' | 'light'
   metaEvidence?: MetaEvidence
+  /**
+   * The page already links the latest request's court case (the hero's
+   * chip), so its rows leave the link out. Past requests keep theirs.
+   */
+  caseInHero?: boolean
 }
 
 const RequestTimelines = ({
@@ -647,6 +788,7 @@ const RequestTimelines = ({
   requests,
   kind,
   metaEvidence,
+  caseInHero = false,
 }: RequestTimelinesProps) => {
   const EvidenceComposer =
     kind === 'classic' ? ClassicEvidenceModal : LightEvidenceModal
@@ -679,17 +821,6 @@ const RequestTimelines = ({
               Every request on this {itemName}, newest first. Times in UTC.
             </Small>
           </div>
-          {pending && (
-            <Button
-              type="button"
-              $variant="secondary"
-              $size="sm"
-              onClick={scrollToEvidenceComposer}
-            >
-              <CurateIcon name="policy" size={14} />
-              Add evidence
-            </Button>
-          )}
         </HistoryHead>
         <Panel $padding="none">
           {requests?.map((request, i) => (
@@ -703,16 +834,19 @@ const RequestTimelines = ({
               }
               item={item}
               metaEvidence={metaEvidence}
+              hideCase={caseInHero && i === 0}
             />
           ))}
         </Panel>
       </div>
       {pending && (
-        <EvidenceComposer
-          item={item}
-          inline
-          composerId={EVIDENCE_COMPOSER_ID}
-        />
+        <EvidenceComposerCollapse.Provider value>
+          <EvidenceComposer
+            item={item}
+            inline
+            composerId={EVIDENCE_COMPOSER_ID}
+          />
+        </EvidenceComposerCollapse.Provider>
       )}
     </>
   )

@@ -20,14 +20,12 @@ import { STALE_TIME } from 'consts'
 import { Pagination } from 'components/ui'
 import useUrlChainId from 'hooks/use-url-chain-id'
 import useNow from 'hooks/use-now'
-import useStoredLayout from 'hooks/use-stored-layout'
 import useDocumentHead from 'hooks/use-document-head'
 import useNativeCurrency from 'hooks/native-currency'
 import { useAttachment } from 'hooks/use-attachment'
 import { WalletContext } from 'contexts/wallet-context'
 import { TCRViewContext } from 'contexts/tcr-view-context'
 import { subgraphUrl } from 'config/tcr-addresses'
-import { getListOfListsAddresses } from 'config/list-of-lists'
 import { CLASSIC_REGISTRY_ITEMS_QUERY } from 'utils/graphql'
 import { CONTRACT_STATUS, DISPUTE_STATUS, STATUS_CODE } from 'utils/item-status'
 import {
@@ -77,6 +75,12 @@ import type { ExplainerStep } from 'components/curate/explainer'
 import type { V2Field } from 'components/curate/v2'
 import { reveal } from 'components/curate/motion/reveal'
 import { ClassicLifetime } from 'components/curate/registry-classic-lifetime'
+import { useRegistryLayout } from 'components/curate/registry-shared-layout'
+import { useRegistryVerified } from 'components/curate/registry-shared-verified'
+import {
+  readActionLink,
+  submitPathFor,
+} from 'components/curate/registry-shared-action-link'
 import ErrorPage from '../error-page'
 
 // The submission forms load on first use: they are heavy and most visits to
@@ -120,9 +124,12 @@ const HIDDEN_STATUS_CODES = new Set([
   STATUS_CODE.CROWDFUNDING_WINNER,
 ])
 
-/** URL filter keys shown as chips, in plain language with their status role. */
+/**
+ * URL filter keys shown as chips, in plain language with their status role,
+ * in the Light page's order: listed first, then the open requests, then the
+ * challenged ones; the rejected and removed close the rail.
+ */
 const FILTER_CHIPS: { key: string; label: string; tone: StatusTone }[] = [
-  { key: FILTER_KEYS.ABSENT, label: 'Rejected or removed', tone: 'off' },
   { key: FILTER_KEYS.REGISTERED, label: 'Registered', tone: 'registered' },
   { key: FILTER_KEYS.SUBMITTED, label: 'Submitted', tone: 'window' },
   {
@@ -140,13 +147,8 @@ const FILTER_CHIPS: { key: string; label: string; tone: StatusTone }[] = [
     label: 'Challenged removals',
     tone: 'contested',
   },
+  { key: FILTER_KEYS.ABSENT, label: 'Rejected or removed', tone: 'off' },
 ]
-
-/** URL parameters that are list state, not field values of a ?action= link. */
-const LIST_STATE_KEYS = new Set<string>([
-  ...Object.values(FILTER_KEYS),
-  'cv-theme',
-])
 
 /** A dispute round exactly as the subgraph returns it (numbers as strings). */
 interface RawRound {
@@ -393,7 +395,7 @@ const Legacy = styled.div`
   ${reveal}
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px 32px;
   margin-top: 20px;
@@ -470,7 +472,8 @@ const Items = () => {
   const nativeCurrency = useNativeCurrency()
   const openAttachment = useAttachment()
   const now = useNow()
-  const [layout, setLayout] = useStoredLayout('entries', 'table')
+  const [layout, setLayout] = useRegistryLayout('entries')
+  const trust = useRegistryVerified(chainId, tcrAddress)
   const [submissionFormOpen, setSubmissionFormOpen] = useState<
     boolean | undefined
   >()
@@ -716,24 +719,33 @@ const Items = () => {
       : ordered.slice(pageStart, pageStart + ITEMS_PER_PAGE)
   }, [matchingItems, searching, pageStart])
 
-  // A ?action= link opens the submission form. Every other parameter is a
-  // field value, in column order, except list state (filters, sort, page)
-  // and the app-wide theme preview (?cv-theme=). The form opens when the
-  // link itself changes, not when a chip, the sort or the page does.
+  // A ?action= link opens the full-page submit form with the link's values
+  // in its URL, so it still fills the form after a reload; a connected list
+  // keeps its own dialog. Every other parameter is a field value, in column
+  // order, except list state (filters, sort, page) and the theme preview.
+  // It acts when the link itself changes, not when a chip, the sort or the
+  // page does, once the metadata says which kind of list this is.
   const actionLink = useMemo(() => {
-    const params = new URLSearchParams(search)
-    if (!params.get('action')) return undefined
-    const values: string[] = []
-    params.forEach((value, key) => {
-      if (key !== 'action' && !LIST_STATE_KEYS.has(key)) values.push(value)
-    })
-    return JSON.stringify(values)
+    const link = readActionLink(search)
+    return link ? JSON.stringify(link) : undefined
   }, [search])
+  const connectedList =
+    metaEvidence?.metadata && metaEvidence.address === tcrAddress
+      ? Boolean(metaEvidence.metadata.isConnectedTCR)
+      : undefined
+  const handledLink = useRef<string | undefined>(undefined)
   useEffect(() => {
-    if (actionLink === undefined) return
-    setQueryItemParams(JSON.parse(actionLink) as string[])
+    if (actionLink === undefined || connectedList === undefined) return
+    if (handledLink.current === actionLink) return
+    handledLink.current = actionLink
+    const link = JSON.parse(actionLink) as ReturnType<typeof readActionLink>
+    if (!connectedList && chainId && tcrAddress) {
+      navigate(submitPathFor(chainId, tcrAddress, link), { replace: true })
+      return
+    }
+    setQueryItemParams(link?.values)
     setSubmissionFormOpen(true)
-  }, [actionLink])
+  }, [actionLink, connectedList, chainId, tcrAddress, navigate])
 
   const { metadata, fileURI } = metaEvidence || {}
   const { tcrTitle, tcrDescription, logoURI } = metadata || {}
@@ -895,24 +907,25 @@ const Items = () => {
     )
   }
 
+  // The Light page's labels; the hints add each deposit's breakdown.
   const parameters: RegistryParameter[] = [
     {
-      label: 'Submit',
+      label: 'Submission deposit',
       value: submitTotal,
       hint: breakdown(submissionBaseDeposit),
     },
     {
-      label: 'Challenge a submission',
+      label: 'Challenge deposit',
       value: challengeTotal,
       hint: breakdown(submissionChallengeBaseDeposit),
     },
     {
-      label: 'Remove',
+      label: 'Removal deposit',
       value: formatAmount(removalDeposit, nativeCurrency),
       hint: breakdown(removalBaseDeposit),
     },
     {
-      label: 'Challenge a removal',
+      label: 'Removal challenge deposit',
       value: formatAmount(removalChallengeDeposit, nativeCurrency),
       hint: breakdown(removalChallengeBaseDeposit),
     },
@@ -974,9 +987,6 @@ const Items = () => {
     },
   ]
 
-  const verified =
-    !!chainId &&
-    getListOfListsAddresses(chainId).includes(tcrAddress.toLowerCase())
   const badgesListTo =
     chainId &&
     connectedTCRAddr &&
@@ -986,7 +996,7 @@ const Items = () => {
       : undefined
 
   const openSubmit = () => {
-    if (chainId && tcrAddress) navigate(`/tcr/${chainId}/${tcrAddress}/submit`)
+    if (chainId && tcrAddress) navigate(submitPathFor(chainId, tcrAddress))
     else setSubmissionFormOpen(true)
   }
 
@@ -1047,10 +1057,11 @@ const Items = () => {
         logoURI={logoURI}
         chainId={chainId ?? undefined}
         address={tcrAddress}
-        verified={verified}
+        verified={trust.verified}
+        listOfLists={trust.listOfLists}
         kindLabel={KIND_LABEL}
         itemName={itemWord}
-        primaryLabel={`Submit ${article} ${itemWord}`}
+        primaryLabel={`Submit ${itemWord}`}
         primaryAmount={
           submitTotal ? (
             <span title={breakdown(submissionBaseDeposit)}>{submitTotal}</span>

@@ -662,6 +662,11 @@ const Deploy = ({
     : incomplete.length > 0
       ? `Complete ${listInProse(incomplete)} before deploying`
       : gate.blocker
+  // Only the wallet stands in the way: its fix becomes the primary action.
+  const walletFix =
+    !busy && configured && incomplete.length === 0 && gate.blocker
+      ? gate.fix
+      : undefined
 
   const listOfListsTitle = metaEvidence?.metadata?.tcrTitle || 'Curated Lists'
   const listOfListsDeposit = formatNative(submissionDeposit)
@@ -1158,27 +1163,37 @@ const Deploy = ({
         {phase !== 'mined' && (
           <ActionArea>
             <Row $gap={10} $wrap>
-              <Button
-                type="button"
-                $variant="primary"
-                disabled={!!blocker || busy}
-                aria-disabled={!!blocker || busy}
-                title={blocker || undefined}
-                onClick={onDeploy}
-              >
-                {phase === 'uploading'
-                  ? 'Uploading…'
-                  : phase === 'wallet'
-                    ? 'Waiting for your signature…'
-                    : phase === 'mining'
-                      ? 'Confirming…'
-                      : failedAt
-                        ? 'Deploy again'
-                        : 'Deploy the list'}
-              </Button>
-              {!busy && configured && incomplete.length === 0 && gate.control}
+              {walletFix ? (
+                <Button
+                  type="button"
+                  $variant="primary"
+                  disabled={walletFix.loading}
+                  onClick={walletFix.onClick}
+                >
+                  {walletFix.loading ? 'Waiting…' : walletFix.label}
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  $variant="primary"
+                  disabled={!!blocker || busy}
+                  aria-disabled={!!blocker || busy}
+                  title={blocker || undefined}
+                  onClick={onDeploy}
+                >
+                  {phase === 'uploading'
+                    ? 'Uploading…'
+                    : phase === 'wallet'
+                      ? 'Waiting for your signature…'
+                      : phase === 'mining'
+                        ? 'Confirming…'
+                        : failedAt
+                          ? 'Deploy again'
+                          : 'Deploy the list'}
+                </Button>
+              )}
             </Row>
-            {blocker && !busy && (
+            {blocker && !busy && !walletFix && (
               <Row $gap={8} role="status">
                 <StatusDot $tone="neutral" aria-hidden />
                 <Small $muted>{blocker}</Small>
@@ -1204,7 +1219,7 @@ const Deploy = ({
             <Row $gap={8} role="status">
               <StatusDot $tone="registered" aria-hidden />
               <Small>Deployed</Small>
-              <Data $muted $weight={400} title={deployedTCRAddress}>
+              <Data $mono $muted $weight={400} title={deployedTCRAddress}>
                 {truncateMiddle(deployedTCRAddress, 10, 8)}
               </Data>
             </Row>

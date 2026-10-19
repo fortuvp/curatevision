@@ -22,6 +22,7 @@ import {
   StatusDot,
   truncateMiddle,
 } from 'components/curate/primitives'
+import { FACTORY_COPY } from 'components/curate/v2-factory-shell'
 import KlerosParams from './kleros-params'
 import {
   AmountInput,
@@ -78,24 +79,10 @@ type TCRParamsOuterProps = StepProps & {
 }
 type TCRParamsProps = TCRParamsOuterProps & FormikProps<TCRFormValues>
 
+/** The list sections both factories share read the same in each. */
 const SECTION_COPY: Record<FactorySection, { heading: string; lede: string }> =
   {
-    title: {
-      heading: 'Name the list',
-      lede: 'Short and plain: it shows on cards, in notifications and on the list of lists.',
-    },
-    description: {
-      heading: 'Describe what belongs on it',
-      lede: 'One sentence on the entries the list holds and what makes them eligible.',
-    },
-    logo: {
-      heading: 'Add a logo',
-      lede: 'It identifies the list wherever the list appears.',
-    },
-    policy: {
-      heading: 'Attach the listing policy',
-      lede: 'The document jurors and challengers apply to every entry.',
-    },
+    ...FACTORY_COPY.sections,
     token: {
       heading: 'Choose the stake token',
       lede: 'The ERC-20 every submitter locks while an entry is listed. It cannot be changed after deployment.',
@@ -103,10 +90,6 @@ const SECTION_COPY: Record<FactorySection, { heading: string; lede: string }> =
     stake: {
       heading: 'Set the stake and the court',
       lede: 'The stake stays locked while an entry is listed; a successful challenger takes it.',
-    },
-    custom: {
-      heading: 'Name the entries',
-      lede: 'The word that replaces “item” across the interface, as in “Submit a sock”.',
     },
   }
 
@@ -248,7 +231,7 @@ const TokenReadout = ({
               Contract
             </Label>
             <dd>
-              <Data $muted $weight={400} title={trimmed}>
+              <Data $mono $muted $weight={400} title={trimmed}>
                 {truncateMiddle(trimmed, 6, 4)}
               </Data>
             </dd>
@@ -424,18 +407,13 @@ const TCRParams = (props: TCRParamsProps) => {
         />
 
         {show('title') && (
-          <TextField
-            name="tcrTitle"
-            label="Name"
-            help="At most 40 characters."
-          />
+          <TextField name="tcrTitle" {...FACTORY_COPY.fields.title} />
         )}
 
         {show('description') && (
           <TextField
             name="tcrDescription"
-            label="Description"
-            help="At most 255 characters; shown under the name."
+            {...FACTORY_COPY.fields.description}
           />
         )}
 
@@ -705,15 +683,10 @@ const TCRParams = (props: TCRParamsProps) => {
 
         {show('custom') && (
           <FieldGrid>
-            <TextField
-              name="itemName"
-              label="Item name"
-              help="One entry, at most 20 characters."
-            />
+            <TextField name="itemName" {...FACTORY_COPY.fields.itemName} />
             <TextField
               name="itemNamePlural"
-              label="Plural"
-              help="Several entries, at most 20 characters."
+              {...FACTORY_COPY.fields.itemNamePlural}
             />
           </FieldGrid>
         )}

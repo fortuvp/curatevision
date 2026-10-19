@@ -10,6 +10,7 @@ import useNativeCurrency from 'hooks/native-currency'
 import useUrlChainId from 'hooks/use-url-chain-id'
 import { klerosAddresses } from 'config/tcr-addresses'
 import { Row, Small, Stack } from 'components/curate/primitives'
+import { FACTORY_COPY } from 'components/curate/v2-factory-shell'
 import KlerosParams from './kleros-params'
 import {
   Divider,
@@ -45,41 +46,15 @@ export type { FactorySection } from './schemas'
 export const POLICY_EXAMPLE_URL =
   'https://cdn.kleros.link/ipfs/QmUPsjDcKxNv6z6ktnmxkSb4LpqmQ7DT12yG5B73z9uLEy/curated-lists-primary-document.pdf'
 
-const SECTION_COPY: Record<
-  FactorySection,
-  { title: string; heading: string; lede: string }
-> = {
-  title: {
-    title: 'Name',
-    heading: 'Name the list',
-    lede: 'Short and plain: it shows on phones, in notifications and on the list of lists.',
-  },
-  description: {
-    title: 'Description',
-    heading: 'Describe what belongs on it',
-    lede: 'One sentence on the entries the list holds and what makes them eligible.',
-  },
-  logo: {
-    title: 'Logo',
-    heading: 'Add a logo',
-    lede: 'It identifies the list wherever the list appears.',
-  },
-  policy: {
-    title: 'Policy',
-    heading: 'Attach the listing policy',
-    lede: 'The document jurors and challengers use to decide whether an entry belongs.',
-  },
-  deposit: {
-    title: 'Deposit',
-    heading: 'Set the deposits and the court',
-    lede: 'A submitter locks a deposit during the challenge period; it comes back in full if nobody challenges.',
-  },
-  custom: {
-    title: 'Item name',
-    heading: 'Name the entries',
-    lede: 'The word that replaces “item” across the interface, as in “Submit a sock”.',
-  },
-}
+/** The list sections both factories share read the same in each. */
+const SECTION_COPY: Record<FactorySection, { heading: string; lede: string }> =
+  {
+    ...FACTORY_COPY.sections,
+    deposit: {
+      heading: 'Set the deposits and the court',
+      lede: 'A submitter locks a deposit during the challenge period; it comes back in full if nobody challenges.',
+    },
+  }
 
 export const AmountInput = styled(Input)`
   flex: 0 0 auto;
@@ -248,10 +223,17 @@ const TCRParams = ({
     isKlerosArbitrator = false
   }
 
+  // The page owns where the wizard is: the step fields are not synced back.
   useEffect(() => {
+    const {
+      currStep: _currStep,
+      visualStep: _visualStep,
+      maxVisualStep: _maxVisualStep,
+      ...fields
+    } = values
     setTcrState((previousState) => ({
       ...previousState,
-      ...values,
+      ...fields,
     }))
   }, [values, setTcrState])
 
@@ -281,20 +263,13 @@ const TCRParams = ({
         />
 
         {show('title') && (
-          <TextField
-            name="tcrTitle"
-            label="Name"
-            placeholder="Red socks"
-            help="Up to 40 characters."
-          />
+          <TextField name="tcrTitle" {...FACTORY_COPY.fields.title} />
         )}
 
         {show('description') && (
           <TextField
             name="tcrDescription"
-            label="Description"
-            placeholder="Images of red socks from various manufacturers"
-            help="Up to 255 characters; shown under the name."
+            {...FACTORY_COPY.fields.description}
           />
         )}
 
@@ -521,17 +496,10 @@ const TCRParams = ({
 
         {show('custom') && (
           <FieldGrid>
-            <TextField
-              name="itemName"
-              label="Item name"
-              placeholder="sock"
-              help="One entry, up to 20 characters."
-            />
+            <TextField name="itemName" {...FACTORY_COPY.fields.itemName} />
             <TextField
               name="itemNamePlural"
-              label="Plural"
-              placeholder="socks"
-              help="Several entries, up to 20 characters."
+              {...FACTORY_COPY.fields.itemNamePlural}
             />
           </FieldGrid>
         )}

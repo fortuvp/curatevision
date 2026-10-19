@@ -165,10 +165,32 @@ export const entryCount = (registry: DashboardRegistry): number =>
 export const pendingLabel = (kind: RegistryKind): string =>
   kind === 'permanent' ? 'Listed' : 'Open requests'
 
+/**
+ * Open requests, the same measure the dashboard ranks by: Stake lists have no
+ * requests, so their `pendingCount` (entries listed) counts as none.
+ */
+export const openRequests = (registry: DashboardRegistry): number =>
+  registry.kind === 'permanent' ? 0 : registry.pendingCount
+
+/** A list whose title is only its address (the indexer had no name for it). */
+export const hasAddressTitle = (registry: DashboardRegistry): boolean =>
+  /^(Permanent registry|Registry) 0x[0-9a-f]{4}(\.\.\.|…)[0-9a-f]{4}$/i.test(
+    registry.title,
+  )
+
+/**
+ * The description a row or card may show, or null: placeholders such as "-"
+ * or "..." are not descriptions.
+ */
+export const registryBlurb = (registry: DashboardRegistry): string | null => {
+  const description = registry.description?.trim()
+  return description && !/^[\s.\-–—]*$/.test(description) ? description : null
+}
+
 export const SORT_OPTIONS: { value: BrowseSort; label: string }[] = [
   { value: 'recent-submission', label: 'Latest activity' },
   { value: 'recent-creation', label: 'Newest lists' },
-  { value: 'activity', label: 'Most active' },
+  { value: 'activity', label: 'Most open requests' },
   { value: 'items', label: 'Most entries' },
   { value: 'disputes', label: 'Most in court' },
   { value: 'name', label: 'Name A to Z' },
@@ -225,14 +247,18 @@ export const sortRegistries = (
   sort: BrowseSort,
 ): DashboardRegistry[] =>
   [...registries].sort((a, b) => {
+    // 'activity' keeps its URL value; it ranks by open requests right now.
     if (sort === 'activity')
       return (
-        b.activeCount - a.activeCount ||
+        openRequests(b) - openRequests(a) ||
+        b.disputeCount - a.disputeCount ||
         (b.lastActivityAt || 0) - (a.lastActivityAt || 0)
       )
     if (sort === 'items') return entryCount(b) - entryCount(a)
     if (sort === 'disputes')
-      return b.disputeCount - a.disputeCount || b.activeCount - a.activeCount
+      return (
+        b.disputeCount - a.disputeCount || openRequests(b) - openRequests(a)
+      )
     if (sort === 'name') return a.title.localeCompare(b.title)
     if (sort === 'recent-creation')
       return (
@@ -242,7 +268,7 @@ export const sortRegistries = (
       )
     return (
       (b.lastActivityAt || 0) - (a.lastActivityAt || 0) ||
-      b.activeCount - a.activeCount ||
+      openRequests(b) - openRequests(a) ||
       entryCount(b) - entryCount(a)
     )
   })
@@ -267,8 +293,7 @@ export const summarize = (
       .length,
     entries: scoped.reduce((sum, registry) => sum + entryCount(registry), 0),
     openRequests: scoped.reduce(
-      (sum, registry) =>
-        registry.kind === 'permanent' ? sum : sum + registry.pendingCount,
+      (sum, registry) => sum + openRequests(registry),
       0,
     ),
   }

@@ -517,13 +517,22 @@ export const WindowPanel = ({
           submissionTime={submissionTime}
           now={now}
         />
-        <Line>
-          {challenged
-            ? 'Jurors are deciding. Anyone can add evidence until the request is resolved.'
-            : statusCode === STATUS_CODE.WAITING_ARBITRATOR
-              ? `${rulingLine(currentRuling, requesterName)}. The appeal period ended ${formatAbsolute(appealEnd)}.`
-              : `${rulingLine(currentRuling, requesterName)}. The ${loserName} did not fund the appeal; the ruling waits to be enforced.`}
-        </Line>
+        {/* The hero states the fact; the action card asks for the action. */}
+        {!challenged && (
+          <Line>
+            {rulingLine(currentRuling, requesterName)}
+            {statusCode === STATUS_CODE.WAITING_ARBITRATOR ? (
+              <>
+                {' · '}
+                <span title={formatAbsolute(appealEnd)}>
+                  appeal closed {formatDate(appealEnd)}
+                </span>
+              </>
+            ) : (
+              ' · not appealed'
+            )}
+          </Line>
+        )}
       </Court>
     )
   }

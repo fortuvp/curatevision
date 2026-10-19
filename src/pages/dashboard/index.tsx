@@ -6,12 +6,13 @@ import useDocumentHead from 'hooks/use-document-head'
 import useNow from 'hooks/use-now'
 import { parseIpfs } from 'utils/ipfs-parse'
 import { formatAgo } from 'utils/time'
-import { NETWORKS, NETWORKS_INFO } from 'config/networks'
+import { NETWORKS } from 'config/networks'
 import { CurateIcon } from 'components/curate/icons'
+import { useLaunchChainId } from 'components/layout/launch-chain'
+import ChainLogo from 'components/chain-logo'
 import {
   ButtonLink,
   ChainChip,
-  Data,
   HeroStatement,
   Label,
   Page,
@@ -22,6 +23,7 @@ import {
   Surface,
   Table,
   TableScroller,
+  VisuallyHidden,
   truncateMiddle,
 } from 'components/curate/primitives'
 import { StatusBoard } from 'components/curate/status-board'
@@ -39,6 +41,7 @@ import {
   buildBoard,
   scopeChains,
   chainInfo,
+  entryCount,
   kindLabel,
   registryHref,
   sortRegistries,
@@ -54,6 +57,25 @@ import {
 
 const integer = new Intl.NumberFormat('en-US')
 const formatInt = (value: number) => integer.format(Math.round(value))
+const plural = (value: number, one: string, many: string) =>
+  `${formatInt(value)} ${value === 1 ? one : many}`
+
+/*
+ * Categorical colours, fixed per entity: chains always wear the same hue,
+ * lists take them in rank order. None is a status colour (amber stays
+ * "contested", green "registered").
+ */
+const CHAIN_COLOR: Record<number, string> = {
+  [NETWORKS.gnosis]: 'var(--viz-1)',
+  [NETWORKS.ethereum]: 'var(--viz-2)',
+  [NETWORKS.sepolia]: 'var(--viz-3)',
+}
+const LIST_PALETTE = [
+  'var(--viz-1)',
+  'var(--viz-2)',
+  'var(--viz-3)',
+  'var(--viz-4)',
+]
 
 const mediaUrl = (uri?: string | null): string | null => {
   if (!uri) return null
@@ -135,32 +157,6 @@ const Actions = styled.div`
   margin-top: 6px;
 `
 
-const Checks = styled.ul`
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px 28px;
-  margin: 18px 0 0;
-  padding: 0;
-  list-style: none;
-
-  li {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--color-muted);
-    font-size: 14px;
-  }
-
-  svg {
-    color: var(--color-primary);
-  }
-
-  @media (max-width: 720px) {
-    justify-content: flex-start;
-  }
-`
-
 const Featured = styled(Surface)`
   margin-top: 64px;
   padding: 28px 28px 20px;
@@ -174,7 +170,7 @@ const Featured = styled(Surface)`
 const ScopeBar = styled.div`
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 22px;
@@ -267,12 +263,20 @@ const Gauges = styled.div`
   }
 `
 
-const GaugeCard = styled(Surface)`
+const GaugeCard = styled(Surface)<{ $stack?: boolean }>`
   display: flex;
   align-items: center;
   gap: 20px;
   padding: 20px 22px;
   ${reveal}
+
+  /* On phones the breakdown's legend gets the full width under its ring. */
+  @media (max-width: 520px) {
+    ${({ $stack }) =>
+      $stack
+        ? 'flex-direction: column; align-items: stretch; > figure { align-self: center; }'
+        : ''}
+  }
 
   h3 {
     margin: 0 0 6px;
@@ -288,23 +292,44 @@ const GaugeCard = styled(Surface)`
 const Legend = styled.ul`
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   margin: 10px 0 0;
   padding: 0;
   list-style: none;
 
   li {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
+    display: grid;
+    grid-template-columns: 8px minmax(0, 1fr) auto;
+    align-items: baseline;
+    column-gap: 8px;
     color: var(--color-muted);
     font-size: var(--fs-small);
+    line-height: var(--lh-small);
   }
 
   i {
+    flex: 0 0 8px;
     width: 8px;
     height: 8px;
     border-radius: var(--radius-pill);
+    transform: translateY(-1px);
+  }
+
+  /* Two lines before the cut, so endings that tell lists apart stay. */
+  span {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow-wrap: anywhere;
+  }
+
+  b {
+    color: var(--color-muted);
+    font-family: var(--font-figure);
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
   }
 `
 
@@ -340,6 +365,57 @@ const Split = styled.div`
 
   @media (max-width: 1100px) {
     grid-template-columns: 1fr;
+  }
+`
+
+/*
+ * Phones: identity on the left, Entries and Open on the right in tabular
+ * figures; Chain moves under the name and In court gives way, so nothing
+ * hides behind a sideways scroll.
+ */
+const ActiveTable = styled(Table)`
+  .phone-only {
+    display: none;
+  }
+
+  @media (max-width: 720px) {
+    min-width: 0;
+    table-layout: fixed;
+
+    th:nth-child(2),
+    td:nth-child(2),
+    th:nth-child(5),
+    td:nth-child(5) {
+      display: none;
+    }
+
+    th.num,
+    td.num {
+      width: 76px;
+      padding: 0 12px;
+    }
+
+    th:first-child,
+    td:first-child {
+      padding-right: 4px;
+    }
+
+    .phone-only {
+      display: inline-flex;
+    }
+  }
+`
+
+const RowMeta = styled.span`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+
+  > span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 `
 
@@ -420,9 +496,10 @@ const CuratorRow = styled(Link)`
 `
 
 const Rank = styled.span`
-  color: var(--color-faint);
-  font-family: var(--font-mono);
+  color: var(--color-muted);
+  font-family: var(--font-figure);
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
 `
 
 const Won = styled.span`
@@ -430,8 +507,27 @@ const Won = styled.span`
   align-items: center;
   gap: 8px;
   color: var(--color-muted);
-  font-family: var(--font-mono);
+  font-family: var(--font-figure);
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+`
+
+const EmptyNote = styled.p`
+  margin: 12px 0 0;
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+`
+
+const ChartEmpty = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  border-top: 1px solid var(--glass-border);
+  color: var(--color-muted);
+  font-size: var(--fs-small);
 `
 
 const RegistryLogo = ({ registry }: { registry: DashboardRegistry }) => (
@@ -449,6 +545,7 @@ const Dashboard = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const chain: ChainFilter = validChain(searchParams.get('chain'))
   const now = useNow(30_000)
+  const launchChain = useLaunchChainId()
 
   const query = useQuery({
     queryKey: ['curateDashboard'],
@@ -467,20 +564,22 @@ const Dashboard = () => {
   }
 
   const chains = useMemo(() => scopeChains(chain), [chain])
+  // Links to Browse keep the page's scope ("Mainnets" is Ethereum + Gnosis).
+  const browseScope = `chain=${chains.join(',')}`
   const scoped = useMemo(
     () => (data?.registries ?? []).filter((r) => chains.includes(r.chainId)),
     [data, chains],
   )
 
   const board = useMemo(() => {
-    if (!data) return { windowOpen: [], inCourt: [], decided: [] }
+    if (!data) return { open: [], inCourt: [], decided: [] }
     const logos = new Map(
       data.registries.map((registry) => [
         `${registry.chainId}:${registry.address}`,
         mediaUrl(registry.logoURI),
       ]),
     )
-    const withLogo = (cards: ReturnType<typeof buildBoard>['windowOpen']) =>
+    const withLogo = (cards: ReturnType<typeof buildBoard>['open']) =>
       cards.map((card) => ({
         ...card,
         logo: logos.get(
@@ -488,14 +587,14 @@ const Dashboard = () => {
         ),
       }))
     const built = buildBoard(
-      data.activities,
-      data.disputes,
+      data.unchallenged,
+      data.decided,
       data.openDisputes,
       now,
       chains,
     )
     return {
-      windowOpen: withLogo(built.windowOpen),
+      open: withLogo(built.open),
       inCourt: withLogo(built.inCourt),
       decided: withLogo(built.decided),
     }
@@ -504,29 +603,43 @@ const Dashboard = () => {
   /** Every figure on the page describes the same scope. */
   const figures = useMemo(() => {
     if (!data) return undefined
-    const users = data.users.filter((user) =>
-      Object.keys(user.chains).some((id) => chains.includes(Number(id))),
-    )
+    let curators = 0
     let challenges = 0
+    let decided = 0
     let won = 0
-    for (const user of data.users)
+    for (const user of data.users) {
+      let active = false
       for (const [id, stats] of Object.entries(user.chains))
         if (chains.includes(Number(id))) {
+          active = true
           challenges += stats.challenges
+          decided += stats.decidedChallenges
           won += stats.successfulChallenges
         }
+      if (active) curators += 1
+    }
+    let unchallenged = 0
+    let unchallengedCapped = false
+    for (const chainId of chains) {
+      unchallenged += data.unchallengedCount[chainId]?.count ?? 0
+      unchallengedCapped ||= !!data.unchallengedCount[chainId]?.capped
+    }
     return {
       registries: scoped.length,
       verified: scoped.filter((r) => r.trustStatus === 'verified').length,
-      entries: scoped.reduce((sum, r) => sum + r.itemCount, 0),
+      entries: scoped.reduce((sum, r) => sum + entryCount(r), 0),
       // Stake Curate has no requests (its counter is listed items).
       requestsOpen: scoped
         .filter((r) => r.kind !== 'permanent')
         .reduce((sum, r) => sum + r.pendingCount, 0),
       inCourt: data.openDisputes.filter((a) => chains.includes(a.chainId))
         .length,
-      curators: users.length,
+      unchallenged,
+      unchallengedCapped,
+      decidedCapped: chains.some((chainId) => data.decidedCapped[chainId]),
+      curators,
       challenges,
+      decided,
       won,
     }
   }, [data, scoped, chains])
@@ -545,6 +658,11 @@ const Dashboard = () => {
       return sum
     })
   }, [data, chains])
+  const seriesRequests = series.reduce(
+    (sum, d) => sum + d.submissions + d.removals,
+    0,
+  )
+  const seriesChallenges = series.reduce((sum, d) => sum + d.challenges, 0)
 
   /**
    * The breakdown ring: across several chains it splits entries by chain;
@@ -554,37 +672,34 @@ const Dashboard = () => {
     if (chains.length > 1)
       return {
         title: 'Entries by chain',
-        segments: chains.map((chainId) => {
-          const info = NETWORKS_INFO[chainId as keyof typeof NETWORKS_INFO]
-          return {
-            key: String(chainId),
-            label: info?.name ?? String(chainId),
-            color: info?.color ?? 'var(--color-primary)',
-            value: scoped
-              .filter((r) => r.chainId === chainId)
-              .reduce((sum, r) => sum + r.itemCount, 0),
-          }
-        }),
+        segments: chains.map((chainId) => ({
+          key: String(chainId),
+          label: chainInfo(chainId)?.name ?? String(chainId),
+          color: CHAIN_COLOR[chainId] ?? 'var(--viz-4)',
+          value: scoped
+            .filter((r) => r.chainId === chainId)
+            .reduce((sum, r) => sum + entryCount(r), 0),
+        })),
       }
-    const ranked = [...scoped].sort((a, b) => b.itemCount - a.itemCount)
-    const palette = [
-      'var(--color-primary)',
-      'var(--aurora-b)',
-      'var(--status-registered)',
-      'var(--status-contested)',
-    ]
-    const top = ranked.slice(0, 4).map((r, index) => ({
+    const ranked = [...scoped].sort((a, b) => entryCount(b) - entryCount(a))
+    const top = ranked.slice(0, 4)
+    // Two lists with one name are told apart by their address.
+    const named = (title: string) =>
+      top.filter((other) => other.title === title).length > 1
+    const segments = top.map((r, index) => ({
       key: r.id,
-      label: r.title,
-      color: palette[index],
-      value: r.itemCount,
+      label: named(r.title)
+        ? `${r.title} · ${truncateMiddle(r.address)}`
+        : r.title,
+      color: LIST_PALETTE[index],
+      value: entryCount(r),
     }))
-    const rest = ranked.slice(4).reduce((sum, r) => sum + r.itemCount, 0)
+    const rest = ranked.slice(4).reduce((sum, r) => sum + entryCount(r), 0)
     return {
       title: 'Entries by list',
       segments: rest
         ? [
-            ...top,
+            ...segments,
             {
               key: 'rest',
               label: `${ranked.length - 4} other lists`,
@@ -592,7 +707,7 @@ const Dashboard = () => {
               value: rest,
             },
           ]
-        : top,
+        : segments,
     }
   }, [chains, scoped])
 
@@ -601,11 +716,38 @@ const Dashboard = () => {
     [scoped],
   )
 
+  /*
+   * Top curators in scope, ranked by what their row shows: requests made
+   * plus challenges made (a won challenge is already one challenge).
+   */
   const curators = useMemo(
     () =>
       (data?.users ?? [])
-        .filter((user) =>
-          Object.keys(user.chains).some((id) => chains.includes(Number(id))),
+        .map((user) => {
+          let requests = 0
+          let challenges = 0
+          let won = 0
+          let lastActiveAt = 0
+          for (const [id, stats] of Object.entries(user.chains)) {
+            if (!chains.includes(Number(id))) continue
+            requests += stats.submissions + stats.removals
+            challenges += stats.challenges
+            won += stats.successfulChallenges
+            lastActiveAt = Math.max(lastActiveAt, stats.lastActiveAt)
+          }
+          return {
+            address: user.address,
+            requests,
+            challenges,
+            won,
+            lastActiveAt,
+          }
+        })
+        .filter((row) => row.requests + row.challenges > 0)
+        .sort(
+          (a, b) =>
+            b.requests + b.challenges - (a.requests + a.challenges) ||
+            b.lastActiveAt - a.lastActiveAt,
         )
         .slice(0, 6),
     [data, chains],
@@ -623,71 +765,61 @@ const Dashboard = () => {
     [series],
   )
 
-  const launchChain = chain === 'all' ? NETWORKS.gnosis : chain
   const breakdownTotal = breakdown.segments.reduce(
     (sum, seg) => sum + seg.value,
     0,
   )
-  // The ring's arcs are shares, so the centre names the biggest one.
-  const leading = breakdownTotal
-    ? [...breakdown.segments]
-        .sort((a, b) => b.value - a.value)
-        .map((seg) => ({
-          label: seg.label,
-          share: seg.value / breakdownTotal,
-        }))[0]
-    : undefined
+  // The centre names the biggest list by name ("other lists" is not one).
+  const leader = [...breakdown.segments]
+    .filter((seg) => seg.key !== 'rest' && seg.value > 0)
+    .sort((a, b) => b.value - a.value)[0]
+  const leading =
+    breakdownTotal && leader
+      ? { label: leader.label, share: leader.value / breakdownTotal }
+      : undefined
+
+  const testnet = chain !== 'all' && TESTNET_CHAIN_IDS.includes(chain)
+  const inCourtNow = figures ? figures.challenges - figures.decided : 0
 
   return (
     <Page>
       <Hero>
-        <LivePill>
+        <LivePill style={{ ['--i' as string]: 0 }}>
           <i aria-hidden />
           <b>Live</b>
           {data
             ? `Updated ${formatAgo(Math.floor(data.generatedAt / 1000), now)}`
             : 'Connecting to the indexers'}
         </LivePill>
-        <Headline>
+        <Headline style={{ ['--i' as string]: 1 }}>
           Lists anyone can challenge. <em>Settled by jurors.</em>
         </Headline>
-        <Lede>
-          Every entry is backed by a deposit. Challenge one that breaks the
-          list’s policy and, if jurors agree, you win its deposit.
+        <Lede style={{ ['--i' as string]: 2 }}>
+          Challenge a submission that breaks its list’s policy and win its
+          deposit if jurors agree.
         </Lede>
-        <Actions>
-          <ButtonLink to="/browse" $variant="primary">
+        <Actions style={{ ['--i' as string]: 3 }}>
+          <ButtonLink to={`/browse?${browseScope}`} $variant="primary">
             Explore registries
           </ButtonLink>
           <ButtonLink to={`/launch/${launchChain}`} $variant="secondary">
             Launch a list
           </ButtonLink>
         </Actions>
-        <Checks>
-          <li>
-            <CurateIcon name="check" size={16} /> Open to anyone
-          </li>
-          <li>
-            <CurateIcon name="check" size={16} /> Deposits back if unchallenged
-          </li>
-          <li>
-            <CurateIcon name="check" size={16} /> Disputes settled by Kleros
-          </li>
-        </Checks>
       </Hero>
 
       <Featured
         $featured
         $padding="none"
         aria-label="Live figures"
-        style={{ ['--i' as string]: 5 }}
+        style={{ ['--i' as string]: 4 }}
       >
         <ScopeBar>
-          <Label $tone="faint">
-            {chain === 'all'
-              ? 'Ethereum and Gnosis'
-              : `${chainInfo(chain)?.name ?? chain}${TESTNET_CHAIN_IDS.includes(chain) ? ' · test network' : ''}`}
-          </Label>
+          {testnet && (
+            <Label $tone="faint" style={{ marginRight: 'auto' }}>
+              Test network
+            </Label>
+          )}
           <SegmentedControl
             ariaLabel="Scope"
             value={chain === 'all' ? 'all' : String(chain)}
@@ -703,7 +835,7 @@ const Dashboard = () => {
         </ScopeBar>
         <FeaturedTop>
           <HeadlineFigure>
-            <Label $tone="faint">Entries curated</Label>
+            <Label $tone="faint">Entries</Label>
             <Big $hero>
               <Odometer value={figures?.entries} />
             </Big>
@@ -711,7 +843,7 @@ const Dashboard = () => {
           <InlineStats>
             {[
               { label: 'Registries', value: figures?.registries },
-              { label: 'Requests open', value: figures?.requestsOpen },
+              { label: 'Open requests', value: figures?.requestsOpen },
               { label: 'In court now', value: figures?.inCourt },
               { label: 'Curators · 30 days', value: figures?.curators },
             ].map((figure) => (
@@ -742,6 +874,8 @@ const Dashboard = () => {
         </FeaturedTop>
         {loading ? (
           <SkeletonBlock $height="240px" />
+        ) : seriesRequests + seriesChallenges === 0 ? (
+          <ChartEmpty>No requests in the last 30 days</ChartEmpty>
         ) : (
           <ActivityWave
             key={chains.join('-')}
@@ -751,11 +885,10 @@ const Dashboard = () => {
             down={series.map((d) => d.challenges)}
             upLabel="Requests"
             downLabel="Challenges"
-            ariaLabel={`Requests and challenges per day over the last 30 days: ${formatInt(
-              series.reduce((sum, d) => sum + d.submissions + d.removals, 0),
-            )} requests, ${formatInt(
-              series.reduce((sum, d) => sum + d.challenges, 0),
-            )} challenges`}
+            partialLast
+            ariaLabel={`Requests and challenges per day over the last 30 days, today so far included: ${formatInt(
+              seriesRequests,
+            )} requests, ${formatInt(seriesChallenges)} challenges`}
           />
         )}
         {data?.seriesTruncated && (
@@ -767,7 +900,7 @@ const Dashboard = () => {
       </Featured>
 
       <Gauges>
-        <GaugeCard $padding="none" style={{ ['--i' as string]: 6 }}>
+        <GaugeCard $padding="none" $stack style={{ ['--i' as string]: 5 }}>
           {loading ? (
             <SkeletonBlock
               $width="148px"
@@ -789,31 +922,20 @@ const Dashboard = () => {
               size={168}
             />
           )}
-          <div style={{ minWidth: 0 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
             <h3>{breakdown.title}</h3>
             <Legend aria-label={breakdown.title}>
               {breakdown.segments.map((seg) => (
                 <li key={seg.key}>
                   <i style={{ background: seg.color }} aria-hidden />
-                  <span
-                    style={{
-                      minWidth: 0,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {seg.label}
-                  </span>
-                  <Data $muted $weight={400}>
-                    {loading ? '—' : formatInt(seg.value)}
-                  </Data>
+                  <span title={seg.label}>{seg.label}</span>
+                  <b>{loading ? '—' : formatInt(seg.value)}</b>
                 </li>
               ))}
             </Legend>
           </div>
         </GaugeCard>
-        <GaugeCard $padding="none" style={{ ['--i' as string]: 7 }}>
+        <GaugeCard $padding="none" style={{ ['--i' as string]: 6 }}>
           <RingGauge
             key={`v-${chains.join('-')}`}
             size={168}
@@ -829,28 +951,35 @@ const Dashboard = () => {
             <h3>Verified registries</h3>
             <Small $muted>
               {figures
-                ? `${formatInt(figures.verified)} of ${formatInt(figures.registries)} are on the Kleros Verified list of lists.`
+                ? `${formatInt(figures.verified)} of ${formatInt(figures.registries)} are Kleros lists of lists or listed on one.`
                 : '—'}
             </Small>
           </div>
         </GaugeCard>
-        <GaugeCard $padding="none" style={{ ['--i' as string]: 8 }}>
+        <GaugeCard $padding="none" style={{ ['--i' as string]: 7 }}>
           <RingGauge
             key={`c-${chains.join('-')}`}
             size={168}
-            ratio={figures?.challenges ? figures.won / figures.challenges : 0}
+            ratio={figures?.decided ? figures.won / figures.decided : 0}
+            value={figures?.decided ? undefined : '—'}
             from="var(--status-contested)"
             to="var(--color-danger)"
-            label={`Challenges won in 30 days: ${figures?.won ?? 0} of ${figures?.challenges ?? 0}`}
-            caption="of challenges won"
+            label={
+              figures
+                ? `Challenges won in the last 30 days: ${figures.won} of ${figures.decided} decided; jurors sided with the challenger. ${inCourtNow} still in court.`
+                : 'Challenges won in the last 30 days'
+            }
+            caption={figures?.decided ? 'of decided won' : 'none decided'}
           />
           <div>
             <h3>Challenges that won</h3>
             <Small $muted>
               {figures
-                ? figures.challenges
-                  ? `${formatInt(figures.won)} of ${formatInt(figures.challenges)} challenges in the last 30 days took the entry off the list.`
-                  : 'No challenges in the last 30 days.'
+                ? figures.challenges === 0
+                  ? 'No challenges in the last 30 days.'
+                  : figures.decided === 0
+                    ? `${plural(inCourtNow, 'challenge', 'challenges')} in the last 30 days, all still in court.`
+                    : `${formatInt(figures.won)} of ${formatInt(figures.decided)} decided · ${formatInt(inCourtNow)} still in court · last 30 days.`
                 : '—'}
             </Small>
           </div>
@@ -871,17 +1000,20 @@ const Dashboard = () => {
           limit={4}
           columns={[
             {
-              id: 'window',
-              title: 'Open to challenge',
-              hint: 'Challenge window open',
+              id: 'open',
+              title: 'Unchallenged',
+              hint: 'Open requests, not in court',
               tone: 'window',
-              cards: board.windowOpen,
-              empty: 'Nothing open right now',
+              cards: board.open,
+              count: figures?.unchallenged,
+              capped: figures?.unchallengedCapped,
+              moreHref: `/browse?sort=activity&${browseScope}`,
+              empty: 'No open requests',
             },
             {
               id: 'court',
               title: 'In court',
-              hint: 'Jurors deciding',
+              hint: 'Disputes open now',
               tone: 'contested',
               cards: board.inCourt,
               empty: 'No disputes open',
@@ -889,10 +1021,11 @@ const Dashboard = () => {
             {
               id: 'decided',
               title: 'Decided',
-              hint: 'Recent rulings',
+              hint: 'Rulings · last 30 days',
               tone: 'registered',
               cards: board.decided,
-              empty: 'No recent rulings',
+              capped: figures?.decidedCapped,
+              empty: 'No rulings in the last 30 days',
             },
           ]}
         />
@@ -900,7 +1033,7 @@ const Dashboard = () => {
 
       <SectionHead>
         <SectionTitle>Most active</SectionTitle>
-        <SeeAll to="/browse">
+        <SeeAll to={`/browse?sort=activity&${browseScope}`}>
           All registries <CurateIcon name="submit" size={13} />
         </SeeAll>
       </SectionHead>
@@ -909,7 +1042,7 @@ const Dashboard = () => {
           <SkeletonBlock $height="420px" />
         ) : (
           <TableScroller>
-            <Table>
+            <ActiveTable>
               <thead>
                 <tr>
                   <th>Registry</th>
@@ -930,21 +1063,35 @@ const Dashboard = () => {
                       <RegistryCell>
                         <RegistryLogo registry={registry} />
                         <div style={{ minWidth: 0 }}>
-                          <RegistryName to={registryHref(registry)}>
+                          <RegistryName
+                            to={registryHref(registry)}
+                            title={registry.title}
+                          >
                             {registry.title}
                           </RegistryName>
-                          <Small $faint>
-                            {kindLabel(registry.kind)}
-                            {registry.trustStatus === 'verified' &&
-                              ' · Verified'}
-                          </Small>
+                          <RowMeta>
+                            <span
+                              className="phone-only"
+                              title={chainInfo(registry.chainId)?.name}
+                            >
+                              <ChainLogo chainId={registry.chainId} size={14} />
+                              <VisuallyHidden>
+                                {chainInfo(registry.chainId)?.name}
+                              </VisuallyHidden>
+                            </span>
+                            <Small $muted>
+                              {kindLabel(registry.kind)}
+                              {registry.trustStatus === 'verified' &&
+                                ' · Verified'}
+                            </Small>
+                          </RowMeta>
                         </div>
                       </RegistryCell>
                     </td>
                     <td>
                       <ChainChip chainId={registry.chainId} size="sm" />
                     </td>
-                    <td className="num">{formatInt(registry.itemCount)}</td>
+                    <td className="num">{formatInt(entryCount(registry))}</td>
                     <td className="num">
                       {registry.kind === 'permanent'
                         ? '—'
@@ -954,7 +1101,7 @@ const Dashboard = () => {
                   </tr>
                 ))}
               </tbody>
-            </Table>
+            </ActiveTable>
           </TableScroller>
         )}
 
@@ -963,27 +1110,25 @@ const Dashboard = () => {
           {loading ? (
             <SkeletonBlock $height="260px" style={{ marginTop: 16 }} />
           ) : curators.length === 0 ? (
-            <Small $faint>No curator activity in the last 30 days.</Small>
+            <EmptyNote>No curator activity in the last 30 days.</EmptyNote>
           ) : (
             <div style={{ marginTop: 8 }}>
-              {curators.map((user, index) => (
-                <CuratorRow key={user.address} to={`/address/${user.address}`}>
+              {curators.map((row, index) => (
+                <CuratorRow key={row.address} to={`/address/${row.address}`}>
                   <Rank>{String(index + 1).padStart(2, '0')}</Rank>
                   <span style={{ minWidth: 0 }}>
-                    <strong>{truncateMiddle(user.address)}</strong>
-                    <Small $faint>
-                      {formatInt(user.submissions)} submitted ·{' '}
-                      {formatInt(user.challenges)} challenged
+                    <strong>{truncateMiddle(row.address)}</strong>
+                    <Small $muted>
+                      {plural(row.requests, 'request', 'requests')} ·{' '}
+                      {plural(row.challenges, 'challenge', 'challenges')}
                     </Small>
                   </span>
                   <Won title="Challenges won">
                     <StatusDot
-                      $tone={
-                        user.successfulChallenges > 0 ? 'registered' : 'neutral'
-                      }
+                      $tone={row.won > 0 ? 'registered' : 'neutral'}
                       aria-hidden
                     />
-                    {formatInt(user.successfulChallenges)} won
+                    {formatInt(row.won)} won
                   </Won>
                 </CuratorRow>
               ))}

@@ -137,11 +137,17 @@ const Description = styled.span<{ $empty?: boolean }>`
   -webkit-line-clamp: 2;
 `
 
-const Chips = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 10px;
+/** One quiet line under the description: fields, then the submit label. */
+const Meta = styled.span`
+  display: block;
+  margin-top: 8px;
+  overflow: hidden;
+  color: var(--color-faint);
+  font-size: 13px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 `
 
 /* ---------- What each side locks ---------- */
@@ -730,7 +736,7 @@ export const StakePreview = ({
   const title = tcrState.tcrTitle
   const description = tcrState.tcrDescription
   const logo = tcrState.tcrLogo ? parseIpfs(tcrState.tcrLogo) : ''
-  const { itemName, itemNamePlural } = tcrState
+  const { itemName } = tcrState
   const fieldCount = tcrState.columns.length
   const article = itemName && isVowel(itemName[0]) ? 'an' : 'a'
 
@@ -766,21 +772,10 @@ export const StakePreview = ({
           <Description $empty={!description}>
             {description || 'No description yet'}
           </Description>
-          <Chips>
-            {itemName && (
-              <Chip title="The button people press to add an entry">
-                Submit {article} {itemName.toLowerCase()}
-              </Chip>
-            )}
-            <Chip>
-              {fieldCount} {fieldCount === 1 ? 'field' : 'fields'}
-            </Chip>
-            {itemNamePlural && (
-              <Chip title="Plural used in the list">
-                {itemNamePlural.toLowerCase()}
-              </Chip>
-            )}
-          </Chips>
+          <Meta>
+            {fieldCount} {fieldCount === 1 ? 'field' : 'fields'}
+            {itemName ? ` · Submit ${article} ${itemName.toLowerCase()}` : ''}
+          </Meta>
         </div>
       </Identity>
 
@@ -903,7 +898,7 @@ export const StakePreview = ({
             </span>
           </li>
           <li>
-            <StatusDot $tone="contested" aria-hidden />
+            <StatusDot $tone="off" aria-hidden />
             <span>
               <b>Challenge wins:</b> the challenger takes the stake and the
               deposit

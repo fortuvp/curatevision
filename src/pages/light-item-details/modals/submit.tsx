@@ -39,7 +39,7 @@ import {
   type ReceiptLine,
 } from 'components/curate/what-happens-next'
 import { Dialog } from 'components/curate/item-light-dialog'
-import { useActionGate } from 'components/curate/item-light-gate'
+import { gatedConfirm, useActionGate } from 'components/curate/item-light-gate'
 import { formatAmount, formatEther } from 'components/curate/item-light-format'
 
 /*
@@ -650,6 +650,7 @@ const SubmitModal: React.FC<{
 
   const gate = useActionGate({
     verb: `submit the ${name}`,
+    shortVerb: 'submit',
     amount: submissionDeposit,
     pending:
       !metaEvidence || !submissionDeposit ? 'Loading the list' : undefined,
@@ -829,18 +830,20 @@ const SubmitModal: React.FC<{
           receipt={receipt}
           total={total}
           steps={steps}
-          confirmLabel="Submit"
-          onConfirm={confirm}
-          confirmDisabled={!!confirmBlocker || isSubmitting}
-          confirmBlocker={confirmBlocker}
-          loading={isSubmitting}
+          {...gatedConfirm(gate, {
+            label: 'Submit',
+            onConfirm: confirm,
+            disabled: !!confirmBlocker || isSubmitting,
+            blocker: confirmBlocker,
+            loading: isSubmitting,
+          })}
           policy={`This is a deposit, not a fee. Amounts are in ${nativeCurrency}.`}
         />
         <SubmissionNavigation>
           <Button type="button" $variant="secondary" onClick={goBack}>
             Back
           </Button>
-          {gate.controls && <Row $gap={8}>{gate.controls}</Row>}
+          {!gate.fix && gate.controls && <Row $gap={8}>{gate.controls}</Row>}
         </SubmissionNavigation>
       </Stack>
     ) : (

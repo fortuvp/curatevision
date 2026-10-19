@@ -41,7 +41,6 @@ import {
   RegistryLink,
   RegistryLogo,
   SectionHead,
-  SectionNote,
   SectionTitle,
   When,
 } from './parts'
@@ -126,7 +125,7 @@ const Tab = styled.button`
     border-radius: 6px;
     background: var(--glass);
     color: var(--color-muted);
-    font-family: var(--font-mono);
+    font-family: var(--font-figure);
     font-size: 11px;
     font-weight: 500;
     font-variant-numeric: tabular-nums;
@@ -139,7 +138,7 @@ const Tab = styled.button`
   &[aria-checked='true'] b {
     border-color: color-mix(in srgb, var(--color-primary) 45%, transparent);
     background: var(--color-primary-soft);
-    color: var(--color-primary);
+    color: var(--color-primary-on-soft);
   }
 `
 
@@ -158,7 +157,17 @@ const FilterTabs = ({
     const node = track.current?.querySelector<HTMLButtonElement>(
       '[aria-checked="true"]',
     )
-    if (node) setPill({ left: node.offsetLeft, width: node.offsetWidth })
+    if (!node) return
+    setPill({ left: node.offsetLeft, width: node.offsetWidth })
+    // On a narrow screen the track scrolls: keep the chosen tab in view
+    // (a link to ?show=challenge lands with it off to the right).
+    const box = track.current
+    if (
+      box &&
+      (node.offsetLeft < box.scrollLeft ||
+        node.offsetLeft + node.offsetWidth > box.scrollLeft + box.clientWidth)
+    )
+      box.scrollLeft = node.offsetLeft - 4
   }, [value, counts])
   // One tab stop for the group; arrows, Home and End move the selection.
   const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -308,14 +317,51 @@ const RowItem = styled.li`
     transform: translateX(2px);
   }
 
+  /* Narrow: the time moves up beside the registry name, the status and the
+     other party (when there is one) follow under the name. */
   @media (max-width: 860px) {
-    grid-template-columns: 40px minmax(0, 1fr);
-    gap: 10px 14px;
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    grid-template-areas:
+      'logo name when'
+      'logo meta meta'
+      '. status status';
+    align-items: start;
+    gap: 4px 14px;
     padding: 14px;
 
-    > [data-status],
+    > [data-text],
     > [data-side] {
+      display: contents;
+    }
+
+    > [data-logo] {
+      grid-area: logo;
+      align-self: center;
+    }
+
+    > [data-text] > :first-child {
+      grid-area: name;
+    }
+
+    > [data-text] > [data-meta] {
+      grid-area: meta;
+    }
+
+    > [data-status] {
+      grid-area: status;
+      margin-top: 8px;
+    }
+
+    > [data-side] > :first-child {
+      grid-area: when;
+      align-self: center;
+    }
+
+    /* Its own row only when it renders. */
+    > [data-side] > [data-party] {
       grid-column: 2 / -1;
+      grid-row: 4;
+      margin-top: 2px;
     }
 
     > [data-chevron] {
@@ -367,13 +413,11 @@ const RowSide = styled.div`
   }
 
   @media (max-width: 860px) {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    text-align: left;
-
-    time {
+    time,
+    > span:first-child {
+      color: var(--color-muted);
       font-size: var(--fs-small);
+      line-height: 22px;
     }
   }
 `
@@ -555,6 +599,16 @@ const BadgeFigure = styled.span`
   }
 `
 
+const Earned = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  font-weight: 500;
+`
+
 const ShareRow = styled.div`
   display: grid;
   grid-template-columns: 24px minmax(0, 1fr) auto;
@@ -593,7 +647,7 @@ const PartyLine = ({
   const party = otherParty(activity, address)
   if (!party) return null
   return (
-    <Party>
+    <Party data-party>
       {activity.kind === 'challenge' ? 'Requester' : 'Challenger'}
       <PartyLink to={`/address/${party}`} title={party}>
         {truncateMiddle(party)}
@@ -680,6 +734,10 @@ export const ActivitySection = ({
   const shares = registryShares(activities)
   const showRail = !loading && activities.length > 0
   const filterLabel = FILTER_NOUN[filter]
+  // A chain chip on every row only helps when the rows span chains; on one
+  // chain the identity bar (or the scope control) already names it.
+  const oneChain =
+    new Set(activities.map((activity) => activity.chainId)).size <= 1
 
   const list = loading ? (
     <RowList aria-busy="true">
@@ -730,7 +788,7 @@ export const ActivitySection = ({
             <th>Action</th>
             <th>Registry</th>
             <th>Entry</th>
-            <th>Chain</th>
+            {!oneChain && <th>Chain</th>}
             <th>Other party</th>
             <th className="num">When</th>
             <th aria-label="Open" />
@@ -760,16 +818,18 @@ export const ActivitySection = ({
                 </td>
                 <td style={{ whiteSpace: 'nowrap' }}>
                   {activity.itemID ? (
-                    <Data $weight={400} title={activity.itemID}>
+                    <Data $mono $weight={400} title={activity.itemID}>
                       {truncateMiddle(activity.itemID, 8, 6)}
                     </Data>
                   ) : (
                     <Small $faint>—</Small>
                   )}
                 </td>
-                <td>
-                  <ChainChip chainId={activity.chainId} size="sm" />
-                </td>
+                {!oneChain && (
+                  <td>
+                    <ChainChip chainId={activity.chainId} size="sm" />
+                  </td>
+                )}
                 <td>
                   {party ? (
                     <PartyLink to={`/address/${party}`} title={party}>
@@ -817,9 +877,11 @@ export const ActivitySection = ({
             </RowText>
           </CardTop>
           <EntryStatus status={activityStatus(activity)} now={now} />
-          <div>
-            <ChainChip chainId={activity.chainId} size="sm" />
-          </div>
+          {!oneChain && (
+            <div>
+              <ChainChip chainId={activity.chainId} size="sm" />
+            </div>
+          )}
           <CardFoot>
             <When timestamp={activity.timestamp} now={now} />
             <PartyLine activity={activity} address={address} />
@@ -839,14 +901,14 @@ export const ActivitySection = ({
             data-overlay
             aria-label={entryLabel(activity)}
           />
-          <RegistryLogo uri={activity.registryLogo} />
-          <RowText>
+          <RegistryLogo uri={activity.registryLogo} data-logo />
+          <RowText data-text>
             <RegistryLink to={registryHref(activity)}>
               {activity.registryTitle}
             </RegistryLink>
-            <RowMeta>
+            <RowMeta data-meta>
               <EntryId itemID={activity.itemID} />
-              <ChainChip chainId={activity.chainId} size="sm" />
+              {!oneChain && <ChainChip chainId={activity.chainId} size="sm" />}
             </RowMeta>
           </RowText>
           <div data-status>
@@ -879,12 +941,6 @@ export const ActivitySection = ({
           onChange={onLayout}
           options={LAYOUT_OPTIONS}
         />
-        {!loading && truncated && (
-          <SectionNote>
-            The most recent actions; older ones count in the figures above but
-            are not listed.
-          </SectionNote>
-        )}
       </SectionHead>
 
       <Split $rail={showRail} $stack={layout === 'table'}>
@@ -896,10 +952,14 @@ export const ActivitySection = ({
           <div key={`${filter}-${page}-${layout}`}>{list}</div>
           {!loading && shown.length > 0 && (
             <ListFoot>
+              {/* The list is cut by time, so a cut list holds exactly the
+                  most recent ones of every kind. */}
               <Small $muted>
                 {formatInt((page - 1) * PAGE_SIZE + 1)}–
                 {formatInt(Math.min(page * PAGE_SIZE, shown.length))} of{' '}
-                {formatInt(shown.length)} {filterLabel}
+                {truncated ? 'the ' : ''}
+                {formatInt(shown.length)}{' '}
+                {truncated ? `most recent ${filterLabel}` : filterLabel}
               </Small>
               {shown.length > PAGE_SIZE && (
                 <Pagination
@@ -928,29 +988,41 @@ export const ActivitySection = ({
                 {badges.map((badge) => (
                   <BadgeRow key={badge.id}>
                     <div style={{ minWidth: 0 }}>
-                      <strong>
-                        {badge.label}
-                        {badge.earned && (
-                          <Small $muted>
-                            <StatusDot $tone="registered" aria-hidden /> Earned
-                          </Small>
-                        )}
-                      </strong>
+                      <strong>{badge.label}</strong>
                       <Small $faint style={{ display: 'block' }}>
                         {badge.description}
                       </Small>
                     </div>
-                    <BadgeFigure
-                      aria-label={`${badge.progress} of ${badge.goal}`}
-                    >
-                      {formatInt(badge.progress)}
-                      <small> / {formatInt(badge.goal)}</small>
-                    </BadgeFigure>
+                    {/* Progress only while unearned: a capped "100 / 100"
+                        would read as a count and contradict the figures. */}
+                    {badge.earned ? (
+                      <Earned>
+                        <StatusDot $tone="registered" aria-hidden />
+                        Earned
+                      </Earned>
+                    ) : (
+                      <BadgeFigure
+                        aria-label={`${badge.progress} of ${badge.goal}`}
+                      >
+                        {formatInt(badge.progress)}
+                        <small> / {formatInt(badge.goal)}</small>
+                      </BadgeFigure>
+                    )}
                     <Rail
-                      $value={badge.goal ? badge.progress / badge.goal : 0}
+                      $value={
+                        badge.earned
+                          ? 1
+                          : badge.goal
+                            ? badge.progress / badge.goal
+                            : 0
+                      }
                       $tone={badge.earned ? 'registered' : 'window'}
                       role="img"
-                      aria-label={`${badge.label}: ${badge.progress} of ${badge.goal}`}
+                      aria-label={
+                        badge.earned
+                          ? `${badge.label}: earned`
+                          : `${badge.label}: ${badge.progress} of ${badge.goal}`
+                      }
                     />
                   </BadgeRow>
                 ))}

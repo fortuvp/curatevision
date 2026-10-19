@@ -14,8 +14,6 @@ import { css, keyframes } from 'styled-components'
  * picks the token up as soon as it lands there.
  */
 export const kitRadius = {
-  /** 6px: checkbox boxes, stepper handles. */
-  xs: 'var(--radius-xs, 6px)',
   /** 10px: buttons and tooltips. */
   control: 'var(--radius-control, 10px)',
   /** 14px: wells, list and alert surfaces, drop zones. */
@@ -28,15 +26,9 @@ export const kitType = {
   /** 12/16: field labels, help lines, tags, tips. */
   meta: 'var(--fs-meta, 12px)',
   metaLine: 'var(--lh-meta, 16px)',
-  /** 20/26: card, panel and dialog titles. */
-  titleSm: 'var(--fs-title-sm, 20px)',
-  titleSmLine: 'var(--lh-title-sm, 26px)',
   /** 24/30: result titles. */
   titleMd: 'var(--fs-title-md, 24px)',
   titleMdLine: 'var(--lh-title-md, 30px)',
-  /** 26/32: level-2 headings. */
-  titleLg: 'var(--fs-title-lg, 26px)',
-  titleLgLine: 'var(--lh-title-lg, 32px)',
 } as const
 
 /*
@@ -51,16 +43,6 @@ export const motionOk = (rules: ReturnType<typeof css>) => css`
 `
 
 export type Tone = 'registered' | 'window' | 'contested' | 'off' | 'neutral'
-
-/** Small uppercase sans label: 11/16 at 500, tracked (eyebrows, column heads). */
-export const kitLabel = css`
-  font-family: var(--font-label);
-  font-size: var(--fs-label);
-  line-height: var(--lh-label);
-  font-weight: 500;
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
-`
 
 /** Figures: Geist at 13/18 and 500 with tabular numbers (counts, pages, units). */
 export const figureData = css`
@@ -151,14 +133,6 @@ export const fieldFocus = css`
   background: color-mix(in srgb, var(--color-primary) 5%, var(--color-raised));
   box-shadow: ${fieldFocusRing};
   outline: none;
-`
-
-/** 2px action-color ring at 2px offset for elements the global rule does not cover. */
-export const focusRing = css`
-  &:focus-visible {
-    outline: 2px solid var(--color-primary);
-    outline-offset: 2px;
-  }
 `
 
 /** Round ghost icon button (close, clear, remove). Size is set by the caller. */
@@ -284,8 +258,6 @@ export const toneFor = (value?: string): Tone | undefined =>
   value ? TONE_WORDS[value.toLowerCase()] : undefined
 
 export const toneColor = (tone: Tone): string => `var(--status-${tone})`
-
-export const toneSoft = (tone: Tone): string => `var(--status-${tone}-soft)`
 
 export const joinClassNames = (
   ...parts: (string | false | null | undefined)[]
