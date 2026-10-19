@@ -20,6 +20,7 @@ import { reveal } from './motion/reveal'
 import type { V2Field } from './v2'
 import { V2FieldDisplay } from './v2'
 import { EntryStatus, type EntryStatusView } from './entry-status'
+import { VerifiedBadge } from './verified-badge'
 
 /*
  * Entries of a registry in the user's chosen layout: rows (YMax suggestion
@@ -39,6 +40,11 @@ export interface EntryRow {
   status?: EntryStatusView
   /** For lists of lists: the registry this entry points to. */
   openListTo?: string
+  /**
+   * On the Kleros list of lists: the registry this entry points to is
+   * Kleros Verified, so its name carries the seal.
+   */
+  verified?: boolean
   /** Potentially offensive content hidden behind a reveal. */
   hidden?: boolean
   onReveal?: () => void
@@ -133,6 +139,43 @@ const FieldValue = ({ field }: { field: V2Field }) => {
       truncateLinks
       linkImage
     />
+  )
+}
+
+/* A Kleros Verified entry's name, then the seal on its first line (a list's
+   name sits over its address); the name is the part that truncates. */
+const Sealed = styled.span`
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+
+  > span:first-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+`
+
+/* As tall as the name's first line, with the seal centred in it. */
+const SealLine = styled.span`
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  height: 1lh;
+`
+
+const TitleValue = ({ entry, field }: { entry: EntryRow; field?: V2Field }) => {
+  const value = field ? <FieldValue field={field} /> : '—'
+  return entry.verified ? (
+    <Sealed>
+      <span>{value}</span>
+      <SealLine>
+        <VerifiedBadge size={16} />
+      </SealLine>
+    </Sealed>
+  ) : (
+    <>{value}</>
   )
 }
 
@@ -441,7 +484,7 @@ const EntryRows = ({
             ) : (
               <RowText>
                 <RowTitle>
-                  {titleField ? <FieldValue field={titleField} /> : '—'}
+                  <TitleValue entry={entry} field={titleField} />
                 </RowTitle>
                 {meta.length > 0 && (
                   <RowMeta>
@@ -629,10 +672,15 @@ const EntryTable = ({
   ]
     .filter(Boolean)
     .join(' ')
+  // The identifying column carries a Kleros Verified entry's seal.
   const cell = (entry: EntryRow, column: V2Field) => (
     <td key={column.label}>
       <CellValue>
-        <FieldValue field={fieldFor(entry, column)} />
+        {column === lead ? (
+          <TitleValue entry={entry} field={fieldFor(entry, column)} />
+        ) : (
+          <FieldValue field={fieldFor(entry, column)} />
+        )}
       </CellValue>
     </td>
   )
@@ -899,7 +947,7 @@ const EntryCards = ({
               ) : (
                 <>
                   <CardTitle>
-                    {titleField ? <FieldValue field={titleField} /> : '—'}
+                    <TitleValue entry={entry} field={titleField} />
                   </CardTitle>
                   {meta.length > 0 && (
                     <CardFields>

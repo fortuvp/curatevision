@@ -31,11 +31,13 @@ import {
   TableScroller,
   ToggleGroup,
   truncateMiddle,
+  type SegmentOption,
   type StatusTone,
 } from 'components/curate/primitives'
 import { AnimatedNumber } from 'components/curate/motion/animated-number'
 import { reveal } from 'components/curate/motion/reveal'
 import { Pagination } from 'components/ui'
+import Tooltip from 'components/ui/Tooltip'
 import { fetchDashboardData } from 'pages/dashboard/data'
 import {
   applyCreationTimes,
@@ -43,7 +45,19 @@ import {
 } from 'utils/registry-creation'
 import type { DashboardRegistry, RegistryKind } from 'pages/dashboard/types'
 import { TESTNET_CHAIN_IDS } from 'pages/dashboard/view'
-import { VerifiedRing } from 'pages/dashboard/verified-ring'
+import {
+  COMMUNITY_EXPLANATION,
+  COMMUNITY_LABEL,
+  COMMUNITY_LISTS_LABEL,
+  VERIFIED_EXPLANATION,
+  VERIFIED_LABEL,
+  VERIFIED_LISTS_LABEL,
+  VerifiedBadge,
+} from 'components/curate/verified-badge'
+import {
+  useVerifiedSets,
+  withVerified,
+} from 'components/curate/registry-shared-verified'
 import { Avatar } from './avatar'
 import { entryKey, fetchEntryImages, type EntryRef } from './entry-images'
 import { useCompletedRegistries, useNamedRegistries } from './metadata'
@@ -60,6 +74,7 @@ import {
   hasAddressTitle,
   inScope,
   kindLabel,
+  openRequests,
   parseChains,
   parseKinds,
   parsePage,
@@ -73,7 +88,9 @@ import {
   shownCreation,
   sortRegistries,
   summarize,
+  trustParam,
   verificationHref,
+  verifiedShowcase,
   type BrowseSort,
   type TrustMode,
 } from './view'
@@ -81,10 +98,12 @@ import {
 /*
  * Browse (/browse): every registry the indexers know, across chains. A
  * compact title, one panel of figures for the chosen chain scope, then the
- * explorer: one toolbar row (search, trust, type, sort, layout), the
- * registries as rows, cards or a table, and pagination. The rail holds the
- * way to get a registry verified and the latest requests. The chain is
- * chosen in the app bar through ?chain. Every figure is read from the data.
+ * explorer: which lists (Kleros Verified, Community or all) with what that
+ * means, one toolbar row (search, type, sort, layout), the registries as
+ * rows, cards or a table, and pagination. Kleros Verified lists carry the
+ * seal wherever they appear; Community lists carry no mark. The rail holds
+ * the way to earn the badge and the latest requests. The chain is chosen in
+ * the app bar through ?chain. Every figure is read from the data.
  */
 
 const integer = new Intl.NumberFormat('en-US')
@@ -202,102 +221,171 @@ const Pulse = styled.i`
 /* ---------- Figures ---------- */
 
 /*
- * One panel: verified lists against every list in scope, drawn by the same
- * dial the dashboard uses (one tick per list, the verified run lit), with
- * its legend; then a strip of the other counts. Every figure appears once
- * outside the dial.
+ * One panel of figures for the chain scope. Kleros Verified leads, as a
+ * count with the logos of its largest lists: most lists are Community lists
+ * and always will be, so the verified ones are shown as the set that earned
+ * the badge, never as a share of every list. The other counts follow as a
+ * strip split by hairlines. Every figure appears once.
  */
 const FiguresPanel = styled(Surface)`
   display: grid;
-  grid-template-columns: auto minmax(180px, auto) minmax(0, 1fr);
-  align-items: center;
-  gap: 24px 36px;
+  grid-template-columns: minmax(300px, auto) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 24px 40px;
   margin-top: 28px;
-  padding: 22px 28px;
+  padding: 24px 28px;
   ${reveal}
 
   @media (max-width: 1100px) {
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
   }
 
   @media (max-width: 720px) {
-    gap: 18px 16px;
+    gap: 18px;
     padding: 18px 16px;
   }
 `
 
-const RingSlot = styled.div`
-  display: flex;
-  width: 148px;
-
-  @media (max-width: 720px) {
-    width: 124px;
-  }
-`
-
-const ShareBlock = styled.div`
+/* Label on top, figure at the bottom, level with the strip beside it. */
+const VerifiedFigure = styled.div`
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
   min-width: 0;
 `
 
-const ShareTitle = styled.h3`
-  margin: 0;
-  color: var(--color-text);
-  font-family: var(--font-display);
-  font-size: 20px;
-  line-height: 24px;
-  font-weight: 500;
-  letter-spacing: -0.02em;
+const FigureHead = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 `
 
-/** Verified against Discovery, keyed to the dial: lit green, quiet grey. */
-const ShareLegend = styled.ul`
+/* The figure and the logos' caption share the panel's bottom line, level
+   with the other figures. */
+const FigureLine = styled.div`
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+`
+
+const BigFigure = styled.b`
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  ${displayFigure}
+  font-size: 44px;
+  line-height: 46px;
+
+  small {
+    color: var(--color-muted);
+    font-family: var(--font-sans);
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+    font-weight: 400;
+    letter-spacing: 0;
+  }
+
+  @media (max-width: 720px) {
+    font-size: 36px;
+    line-height: 40px;
+  }
+`
+
+/**
+ * The Kleros Verified lists in scope, in the dashboard's order: each logo
+ * leads to its list (its name and figure on hover and focus), then how many
+ * more, with the order said underneath.
+ */
+const Showcase = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin: 12px 0 0;
+  gap: 6px;
+  min-width: 0;
+`
+
+const LogoRow = styled.ul`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
   padding: 0;
   list-style: none;
 
-  li {
-    display: grid;
-    grid-template-columns: 8px minmax(0, 1fr) auto;
-    align-items: baseline;
-    column-gap: 10px;
-    color: var(--color-muted);
-    font-size: var(--fs-small);
-    line-height: var(--lh-small);
-  }
-
-  i {
-    width: 8px;
-    height: 8px;
-    border-radius: var(--radius-pill);
-    transform: translateY(-1px);
-  }
-
-  b {
-    ${displayFigure}
-    font-size: var(--fs-body);
-    text-align: right;
+  > li {
+    display: inline-flex;
   }
 `
 
-const ShareNote = styled.p`
-  margin: 10px 0 0;
+const LogoLink = styled(Link)`
+  display: inline-flex;
+  border-radius: 10px;
+  transition:
+    transform var(--motion),
+    filter var(--motion);
+
+  &:hover {
+    transform: translateY(-2px);
+    filter: drop-shadow(0 6px 10px rgb(0 0 0 / 0.22));
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+
+    &:hover {
+      transform: none;
+    }
+  }
+`
+
+const MoreLists = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  color: var(--color-muted);
+  font-family: var(--font-figure);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+`
+
+const ShowcaseNote = styled.span`
   color: var(--color-faint);
   font-size: 12px;
   line-height: 16px;
 `
 
+/* The tip on a logo: the list's name, then its figure. */
+const TipName = styled.span`
+  display: block;
+  font-weight: 500;
+`
+
+const TipFigure = styled.span`
+  display: block;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+`
+
 /** The other counts as a strip, split by hairlines; it takes the free width. */
 const InlineStats = styled.div`
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 
   @media (max-width: 1100px) {
-    grid-column: 1 / -1;
     padding-top: 18px;
     border-top: 1px solid var(--glass-border);
   }
@@ -369,7 +457,7 @@ const Toolbar = styled.div`
   margin-bottom: 14px;
 
   /* The search takes its own line when the column is too narrow for one row. */
-  @media (min-width: 1241px) and (max-width: 1400px), (max-width: 900px) {
+  @media (max-width: 780px) {
     > label:first-child {
       flex-basis: 100%;
     }
@@ -379,16 +467,46 @@ const Toolbar = styled.div`
     margin-left: auto;
   }
 
-  /* On a phone the layout switch rides next to the trust control. */
+  /* On a phone the type filter and the layout share a line; sort goes under. */
   @media (max-width: 600px) {
-    .browse-layout {
+    .browse-kind {
       order: 1;
     }
 
-    .browse-kind,
-    .browse-sort {
+    .browse-layout {
       order: 2;
     }
+
+    .browse-sort {
+      order: 3;
+    }
+  }
+`
+
+/* ---------- Which lists ---------- */
+
+/* Its own line above the toolbar, with a line saying what the choice means. */
+const StandingBar = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+  margin-bottom: 12px;
+`
+
+const StandingNote = styled.p`
+  flex: 1 1 280px;
+  min-width: 0;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  text-wrap: pretty;
+
+  > span[role='img'],
+  > span[aria-hidden] {
+    margin: 0 2px;
+    vertical-align: -3px;
   }
 `
 
@@ -430,24 +548,6 @@ const ClearButton = styled.button`
   }
 `
 
-const Notice = styled.p`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0 0 14px;
-  padding: 10px 14px;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius);
-  color: var(--color-muted);
-  font-size: var(--fs-small);
-  line-height: var(--lh-small);
-
-  svg {
-    flex: 0 0 auto;
-    color: var(--status-contested);
-  }
-`
-
 /* ---------- Registry identity ---------- */
 
 const Name = styled.span`
@@ -458,6 +558,19 @@ const Name = styled.span`
   font-weight: 500;
   letter-spacing: -0.005em;
   transition: color var(--motion);
+`
+
+/** A list's name, then its Kleros Verified seal; the name gives way first. */
+const NameLine = styled.span`
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+
+  > :first-child {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
 `
 
 const Meta = styled.span`
@@ -1003,6 +1116,12 @@ const FeedFoot = styled.span`
     margin-right: 6px;
     color: var(--color-faint);
   }
+
+  > span[role='img'] {
+    flex: 0 0 auto;
+    overflow: visible;
+    align-self: center;
+  }
 `
 
 /** Read by screen readers, not shown. */
@@ -1035,6 +1154,21 @@ const RegistryLogo = ({
     style={{ gridArea: 'logo' }}
   />
 )
+
+/** The Kleros Verified seal for a verified list; Community lists carry none. */
+const ListSeal = ({
+  registry,
+  size = 16,
+}: {
+  registry?: DashboardRegistry
+  size?: number
+}) =>
+  registry?.trustStatus === 'verified' ? <VerifiedBadge size={size} /> : null
+
+const TitleSeal = styled(VerifiedBadge)`
+  margin-right: 8px;
+  vertical-align: -2px;
+`
 
 /**
  * A list's name in the rail. A list known only by its address shows the
@@ -1094,8 +1228,52 @@ const listFormat = (names: string[]) => conjunction.format(names)
 const listKey = (chainId: number, address: string) =>
   `${chainId}:${address.toLowerCase()}`
 
-const trustName = (mode: TrustMode): string =>
-  mode === 'verified' ? 'Verified' : 'Discovery'
+/** "Kleros Verified lists", "Community list", "lists": the badge's words. */
+const listsLabel = (mode: TrustMode, count: number): string => {
+  const one = count === 1
+  if (mode === 'verified')
+    return one ? `${VERIFIED_LABEL} list` : VERIFIED_LISTS_LABEL
+  if (mode === 'community')
+    return one ? `${COMMUNITY_LABEL} list` : COMMUNITY_LISTS_LABEL
+  return one ? 'list' : 'lists'
+}
+
+/** The default first; the seal names what Kleros Verified lists earned. */
+const TRUST_OPTIONS: SegmentOption<TrustMode>[] = [
+  {
+    value: 'verified',
+    label: VERIFIED_LABEL,
+    icon: <VerifiedBadge size={15} decorative />,
+  },
+  { value: 'community', label: COMMUNITY_LABEL },
+  { value: 'all', label: 'All' },
+]
+
+/** What the chosen lists are, in one line. */
+const standingNote = (mode: TrustMode): React.ReactNode =>
+  mode === 'verified' ? (
+    VERIFIED_EXPLANATION
+  ) : mode === 'community' ? (
+    COMMUNITY_EXPLANATION
+  ) : (
+    <>
+      Every list, with <VerifiedBadge size={15} decorative />
+      <VisuallyHidden>the seal</VisuallyHidden> on the {VERIFIED_LABEL} ones.
+    </>
+  )
+
+/** How many verified lists' logos the figures panel shows. */
+const SHOWCASE_SIZE = 6
+
+/** A logo's figure: open requests, or the entries of a Stake list. */
+const showcaseFigure = (registry: DashboardRegistry): string => {
+  if (registry.kind === 'permanent') {
+    const entries = entryCount(registry)
+    return `Stake · ${formatInt(entries)} ${entries === 1 ? 'entry' : 'entries'}`
+  }
+  const open = openRequests(registry)
+  return `${formatInt(open)} open ${open === 1 ? 'request' : 'requests'}`
+}
 
 /**
  * Below this width the table cannot fit its columns (the shared Table is at
@@ -1198,7 +1376,7 @@ const FreshnessPill = ({
 const BrowsePage = () => {
   useDocumentHead(
     'Browse registries | Kleros Curate',
-    'Browse Kleros Verified and discovery Curate registries on Ethereum and Gnosis, and on the Sepolia testnet.',
+    'Browse Kleros Verified and Community Curate lists on Ethereum and Gnosis, and on the Sepolia testnet.',
   )
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -1286,36 +1464,50 @@ const BrowsePage = () => {
   // before filtering and sorting, so search and "Name A to Z" use the name
   // each row shows.
   const named = useNamedRegistries(dated)
+  // Kleros Verified by the shared rule (the chain's Kleros list of lists and
+  // the lists registered on it), read apart from the dashboard load: a list
+  // whose chain has not answered is neither Verified nor Community yet.
+  const verifiedSets = useVerifiedSets(SUPPORTED_CHAIN_IDS)
+  const trusted = useMemo(
+    () => withVerified(named, verifiedSets.sets),
+    [named, verifiedSets.sets],
+  )
   const registries = useMemo(
     () =>
       sortRegistries(
-        filterRegistries(named, { chains, trust, kinds, search }),
+        filterRegistries(trusted, { chains, trust, kinds, search }),
         sort,
       ),
-    [named, chains, trust, kinds, search, sort],
+    [trusted, chains, trust, kinds, search, sort],
   )
-  // With nothing on this trust tab, how many match on the other one: a search
-  // for a Discovery list from the Verified tab should say where it is.
-  const otherTrust: TrustMode = trust === 'verified' ? 'unverified' : 'verified'
+  // With nothing in this choice, how many match in the other one: a search
+  // for a Community list from Kleros Verified should say where it is. "All"
+  // has no other.
+  const otherTrust: TrustMode | null =
+    trust === 'verified'
+      ? 'community'
+      : trust === 'community'
+        ? 'verified'
+        : null
   const otherMatches = useMemo(
     () =>
-      registries.length === 0
-        ? filterRegistries(named, {
+      registries.length === 0 && otherTrust
+        ? filterRegistries(trusted, {
             chains,
             trust: otherTrust,
             kinds,
             search,
           }).length
         : 0,
-    [named, registries.length, chains, otherTrust, kinds, search],
+    [trusted, registries.length, chains, otherTrust, kinds, search],
   )
   // "All chains" leaves the testnet out: a search that matches only there
-  // says so and offers it, on this trust tab first, else on the other one.
+  // says so and offers it, in this choice first, else in the other one.
   const testnetHint = useMemo(() => {
     if (registries.length > 0 || otherMatches > 0 || chains.length > 0)
       return null
-    for (const mode of [trust, otherTrust]) {
-      const count = filterRegistries(named, {
+    for (const mode of otherTrust ? [trust, otherTrust] : [trust]) {
+      const count = filterRegistries(trusted, {
         chains: TESTNET_CHAIN_IDS,
         trust: mode,
         kinds,
@@ -1325,7 +1517,7 @@ const BrowsePage = () => {
     }
     return null
   }, [
-    named,
+    trusted,
     registries.length,
     otherMatches,
     chains.length,
@@ -1341,7 +1533,16 @@ const BrowsePage = () => {
     currentPage * PAGE_SIZE,
   )
 
-  const figures = useMemo(() => summarize(named, chains), [named, chains])
+  const figures = useMemo(() => summarize(trusted, chains), [trusted, chains])
+  const showcase = useMemo(
+    () => verifiedShowcase(trusted, chains, SHOWCASE_SIZE),
+    [trusted, chains],
+  )
+  // A chain in scope whose list of lists did not answer: its lists are in
+  // neither count, so neither count is given.
+  const trustUnknown = verifiedSets.failed.some((chainId) =>
+    inScope(chains, chainId),
+  )
 
   const latest = useMemo(
     () =>
@@ -1356,12 +1557,12 @@ const BrowsePage = () => {
   const registryByKey = useMemo(
     () =>
       new Map(
-        named.map((registry) => [
+        trusted.map((registry) => [
           listKey(registry.chainId, registry.address),
           registry,
         ]),
       ),
-    [named],
+    [trusted],
   )
   const onScreen = useMemo(() => {
     const rail = latest
@@ -1369,10 +1570,11 @@ const BrowsePage = () => {
         registryByKey.get(listKey(activity.chainId, activity.registryAddress)),
       )
       .filter((registry): registry is DashboardRegistry => !!registry)
-    return [...new Set([...visible, ...rail])]
-  }, [visible, latest, registryByKey])
+    return [...new Set([...visible, ...rail, ...showcase])]
+  }, [visible, latest, registryByKey, showcase])
   const complete = useCompletedRegistries(onScreen)
   const shownRows = visible.map(complete)
+  const shownShowcase = showcase.map(complete)
 
   // The entries in the rail with their own image field (Light and Stake).
   const entryRefs = useMemo(
@@ -1416,7 +1618,8 @@ const BrowsePage = () => {
   const scope = scopeText(chains)
   const showCreated = sort === 'recent-creation'
 
-  const loading = query.isLoading || (!data && !query.isError)
+  const loading =
+    query.isLoading || (!data && !query.isError) || verifiedSets.pending
   // fetchDashboardData swallows indexer errors and answers with empty lists,
   // so an answer without a single registry means the indexers did not answer
   // (every supported chain has registries, its list of lists at least).
@@ -1430,8 +1633,6 @@ const BrowsePage = () => {
       : failed
         ? 'down'
         : 'connecting'
-  const registryTotal = figures.verified + figures.discovery
-
   const clearFilters = () =>
     setParam({ q: null, trust: null, kind: null, chain: null, page: null })
 
@@ -1466,46 +1667,78 @@ const BrowsePage = () => {
           </Small>
         ) : (
           <>
-            <RingSlot>
-              {loading ? (
-                <SkeletonBlock
-                  $width="100%"
-                  $height="auto"
-                  style={{ aspectRatio: '1', borderRadius: '50%' }}
-                />
-              ) : (
-                <VerifiedRing
-                  key={chainParam ?? 'all'}
-                  size={narrow ? 124 : 148}
-                  verified={figures.verified}
-                  total={registryTotal}
-                  label={`Verified registries on ${scope}: ${formatInt(figures.verified)} of ${formatInt(registryTotal)} lists are a Kleros list of lists or listed on one; ${formatInt(figures.discovery)} are not.`}
-                />
-              )}
-            </RingSlot>
-            <ShareBlock>
-              <ShareTitle>Verified registries</ShareTitle>
-              <ShareLegend aria-label="Verified registries">
-                <li>
-                  <i
-                    style={{ background: 'var(--status-registered)' }}
-                    aria-hidden
+            <VerifiedFigure>
+              <FigureHead>
+                <VerifiedBadge size={18} decorative />
+                <Label $tone="faint">{VERIFIED_LABEL}</Label>
+              </FigureHead>
+              <FigureLine>
+                <BigFigure>
+                  <AnimatedNumber
+                    value={
+                      loading || trustUnknown ? undefined : figures.verified
+                    }
                   />
-                  <span>Verified</span>
-                  <b>{loading ? '—' : formatInt(figures.verified)}</b>
-                </li>
-                <li>
-                  <i style={{ background: 'var(--color-faint)' }} aria-hidden />
-                  <span>Discovery</span>
-                  <b>{loading ? '—' : formatInt(figures.discovery)}</b>
-                </li>
-              </ShareLegend>
-              <ShareNote>
-                Verified: a Kleros list of lists, or listed on one
-              </ShareNote>
-            </ShareBlock>
+                  {!loading && !trustUnknown && (
+                    <small>{figures.verified === 1 ? 'list' : 'lists'}</small>
+                  )}
+                </BigFigure>
+                {!loading && shownShowcase.length > 0 && (
+                  <Showcase>
+                    <LogoRow
+                      aria-label={`${VERIFIED_LISTS_LABEL}, most open requests first`}
+                    >
+                      {shownShowcase.map((registry) => (
+                        <li key={registry.id}>
+                          <Tooltip
+                            title={
+                              <>
+                                <TipName>{registry.title}</TipName>
+                                <TipFigure>
+                                  {showcaseFigure(registry)}
+                                </TipFigure>
+                              </>
+                            }
+                          >
+                            <LogoLink
+                              to={registryHref(registry)}
+                              aria-label={registry.title}
+                            >
+                              <Avatar
+                                uri={registry.logoURI}
+                                seed={registry.address}
+                                size={32}
+                              />
+                            </LogoLink>
+                          </Tooltip>
+                        </li>
+                      ))}
+                      {!trustUnknown &&
+                        figures.verified > shownShowcase.length && (
+                          <li>
+                            <MoreLists>
+                              +
+                              {formatInt(
+                                figures.verified - shownShowcase.length,
+                              )}
+                              <VisuallyHidden> more</VisuallyHidden>
+                            </MoreLists>
+                          </li>
+                        )}
+                    </LogoRow>
+                    <ShowcaseNote aria-hidden>
+                      Most open requests first
+                    </ShowcaseNote>
+                  </Showcase>
+                )}
+              </FigureLine>
+            </VerifiedFigure>
             <InlineStats>
               {[
+                {
+                  label: COMMUNITY_LISTS_LABEL,
+                  value: trustUnknown ? undefined : figures.community,
+                },
                 { label: 'Entries', value: figures.entries },
                 { label: 'Open requests', value: figures.openRequests },
               ].map((figure) => (
@@ -1531,6 +1764,19 @@ const BrowsePage = () => {
           <VisuallyHidden as="h2" id="browse-explorer-title">
             Registry list
           </VisuallyHidden>
+          <StandingBar>
+            <SegmentedControl<TrustMode>
+              ariaLabel="Which lists"
+              value={trust}
+              onChange={(value) =>
+                setParam({ trust: trustParam(value), page: null })
+              }
+              options={TRUST_OPTIONS}
+            />
+            <StandingNote aria-live="polite">
+              {standingNote(trust)}
+            </StandingNote>
+          </StandingBar>
           <Toolbar>
             <Search>
               <CurateIcon name="search" size={16} />
@@ -1555,20 +1801,6 @@ const BrowsePage = () => {
                 </ClearButton>
               )}
             </Search>
-            <SegmentedControl<TrustMode>
-              ariaLabel="Trust"
-              value={trust}
-              onChange={(value) =>
-                setParam({
-                  trust: value === 'verified' ? null : value,
-                  page: null,
-                })
-              }
-              options={[
-                { value: 'verified', label: 'Verified' },
-                { value: 'unverified', label: 'Discovery' },
-              ]}
-            />
             <ToggleGroup<RegistryKind>
               className="browse-kind"
               ariaLabel="Registry type"
@@ -1605,14 +1837,6 @@ const BrowsePage = () => {
             />
           </Toolbar>
 
-          {trust === 'unverified' && (
-            <Notice>
-              <CurateIcon name="shield" size={16} />
-              Discovery registries are not on the Kleros Verified list of lists.
-              Read a list&apos;s policy before you act on it.
-            </Notice>
-          )}
-
           {loading ? (
             <List aria-busy="true">
               {Array.from({ length: 6 }).map((_, index) => (
@@ -1643,23 +1867,21 @@ const BrowsePage = () => {
                 again.
               </EmptyState>
             </Surface>
-          ) : registries.length === 0 && otherMatches > 0 ? (
+          ) : registries.length === 0 && otherTrust && otherMatches > 0 ? (
             <Surface $padding="none">
               <EmptyState
                 icon="filter"
-                title={`None in ${trustName(trust)}`}
+                title={`No ${listsLabel(trust, 2)} match`}
                 action={
                   <Button
                     type="button"
                     $size="sm"
                     onClick={() =>
-                      setParam({
-                        trust: otherTrust === 'verified' ? null : otherTrust,
-                        page: null,
-                      })
+                      setParam({ trust: trustParam(otherTrust), page: null })
                     }
                   >
-                    Show {formatInt(otherMatches)} in {trustName(otherTrust)}
+                    Show {formatInt(otherMatches)}{' '}
+                    {listsLabel(otherTrust, otherMatches)}
                   </Button>
                 }
               />
@@ -1676,17 +1898,13 @@ const BrowsePage = () => {
                     onClick={() =>
                       setParam({
                         chain: TESTNET_CHAIN_IDS.join(','),
-                        trust:
-                          testnetHint.trust === 'verified'
-                            ? null
-                            : testnetHint.trust,
+                        trust: trustParam(testnetHint.trust),
                         page: null,
                       })
                     }
                   >
                     Show {formatInt(testnetHint.count)}{' '}
-                    {trustName(testnetHint.trust)}{' '}
-                    {testnetHint.count === 1 ? 'list' : 'lists'} on the{' '}
+                    {listsLabel(testnetHint.trust, testnetHint.count)} on the{' '}
                     {listFormat(TESTNET_CHAIN_IDS.map(chainName))} testnet
                   </Button>
                 }
@@ -1708,7 +1926,7 @@ const BrowsePage = () => {
                   </Button>
                 }
               >
-                Change the search, chain, type or trust filter.
+                Change the search, the chain or a filter.
               </EmptyState>
             </Surface>
           ) : shown === 'table' ? (
@@ -1736,12 +1954,15 @@ const BrowsePage = () => {
                           <IdentityCell>
                             <RegistryLogo registry={registry} size={34} />
                             <div style={{ minWidth: 0 }}>
-                              <TableName
-                                to={registryHref(registry)}
-                                onClick={(event) => event.stopPropagation()}
-                              >
-                                {registry.title}
-                              </TableName>
+                              <NameLine>
+                                <TableName
+                                  to={registryHref(registry)}
+                                  onClick={(event) => event.stopPropagation()}
+                                >
+                                  {registry.title}
+                                </TableName>
+                                <ListSeal registry={registry} />
+                              </NameLine>
                               <SubLine>
                                 {kindLabel(registry.kind)}
                                 {/* With the Created column the chain rides here. */}
@@ -1803,7 +2024,10 @@ const BrowsePage = () => {
                     <CardTop>
                       <RegistryLogo registry={registry} size={40} />
                       <span style={{ minWidth: 0 }}>
-                        <Name>{registry.title}</Name>
+                        <NameLine>
+                          <Name>{registry.title}</Name>
+                          <ListSeal registry={registry} />
+                        </NameLine>
                         <SubLine>
                           {kindLabel(registry.kind)}
                           {created && (
@@ -1868,7 +2092,10 @@ const BrowsePage = () => {
                   >
                     <RegistryLogo registry={registry} />
                     <RowId>
-                      <Name>{registry.title}</Name>
+                      <NameLine>
+                        <Name>{registry.title}</Name>
+                        <ListSeal registry={registry} />
+                      </NameLine>
                       <RowMeta>
                         <Chip>{kindLabel(registry.kind)}</Chip>
                         <ChainChip chainId={registry.chainId} size="sm" />
@@ -1920,7 +2147,7 @@ const BrowsePage = () => {
                   Math.min(currentPage * PAGE_SIZE, registries.length),
                 )}{' '}
                 of {formatInt(registries.length)}{' '}
-                {trust === 'verified' ? 'verified' : 'discovery'} registries
+                {listsLabel(trust, registries.length)}
               </Small>
               {registries.length > PAGE_SIZE && (
                 <Pagination
@@ -1944,10 +2171,11 @@ const BrowsePage = () => {
             style={{ ['--i' as string]: 4 }}
           >
             <RailTitle id="browse-verify-title">
-              Get a registry verified
+              <TitleSeal size={20} decorative />
+              Get {VERIFIED_LABEL}
             </RailTitle>
             <Small $muted as="p" style={{ margin: '6px 0 0' }}>
-              Submit it to the Kleros Verified list of lists for its chain.
+              Submit your list to the Kleros list of lists on its chain.
             </Small>
             <VerifyLinks>
               {verificationChains.map((chainId) => {
@@ -1956,7 +2184,7 @@ const BrowsePage = () => {
                   <VerifyLink
                     key={chainId}
                     to={href}
-                    aria-label={`Submit a registry on ${chainName(chainId)}`}
+                    aria-label={`Submit a list to the Kleros list of lists on ${chainName(chainId)}`}
                   >
                     <RailChain chainId={chainId} size={20} />
                     <span>{chainName(chainId)}</span>
@@ -2024,6 +2252,7 @@ const BrowsePage = () => {
                               title={registry?.title ?? activity.registryTitle}
                               address={activity.registryAddress}
                             />
+                            <ListSeal registry={registry} size={12} />
                             <time
                               dateTime={new Date(
                                 activity.timestamp * 1000,

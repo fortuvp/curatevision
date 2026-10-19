@@ -75,7 +75,10 @@ import type { V2Field } from 'components/curate/v2'
 import { reveal } from 'components/curate/motion/reveal'
 import { ClassicLifetime } from 'components/curate/registry-classic-lifetime'
 import { useRegistryLayout } from 'components/curate/registry-shared-layout'
-import { useRegistryVerified } from 'components/curate/registry-shared-verified'
+import {
+  extractRegistryAddress,
+  useRegistryVerified,
+} from 'components/curate/registry-shared-verified'
 import {
   readActionLink,
   submitPathFor,
@@ -784,6 +787,7 @@ const Items = () => {
     setRevealed((previous) => new Set(previous).add(id))
   }, [])
 
+  const verifiedEntries = trust.listOfLists ? trust.verifiedSet : undefined
   const entries = useMemo<EntryRow[]>(() => {
     if (!visibleItems || !tcrAddress) return []
     return visibleItems.map((entry) => {
@@ -806,6 +810,10 @@ const Items = () => {
           isTCRofTCRs && typeof firstValue === 'string'
             ? `/tcr/${chainId}/${firstValue}`
             : undefined,
+        // On the Kleros list of lists, the lists it vouches for carry the seal.
+        verified: !!verifiedEntries?.has(
+          extractRegistryAddress(null, entry.columns) ?? '',
+        ),
         hidden,
         onReveal: hidden
           ? (event?: React.SyntheticEvent) => reveal(id, event)
@@ -821,6 +829,7 @@ const Items = () => {
     nsfwFilterOn,
     revealed,
     isTCRofTCRs,
+    verifiedEntries,
     reveal,
   ])
 

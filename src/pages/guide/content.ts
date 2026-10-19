@@ -1,4 +1,10 @@
 import type { StatusTone } from 'components/curate/primitives'
+import {
+  COMMUNITY_EXPLANATION,
+  COMMUNITY_LABEL,
+  VERIFIED_EXPLANATION,
+  VERIFIED_LABEL,
+} from 'components/curate/verified-badge'
 import { STATUS_CODE as LIGHT_STATUS } from 'utils/item-status'
 import { STATUS_CODE as STAKE_STATUS } from 'utils/permanent-item-status'
 
@@ -499,7 +505,7 @@ export const AGENT_FILES: { href: string; name: string; about: string }[] = [
   {
     href: '/curate-agent-context.md',
     name: '/curate-agent-context.md',
-    about: 'Chains, verified list-of-lists addresses, rules and routes.',
+    about: 'Chains, the Kleros list-of-lists addresses, rules and routes.',
   },
   {
     href: '/llms.txt',
@@ -523,6 +529,8 @@ export const GLOSSARY: {
   definition: string
   /** Sections that say more, linked by number. */
   see?: string[]
+  /** Drawn before the term: the Kleros Verified seal. */
+  mark?: 'verified'
 }[] = [
   {
     term: 'Registry',
@@ -533,6 +541,17 @@ export const GLOSSARY: {
     term: 'Entry',
     definition:
       'One item in a registry; each list names its own: a tag, a token.',
+  },
+  {
+    term: `${VERIFIED_LABEL} list`,
+    definition: `${VERIFIED_EXPLANATION} It carries the seal.`,
+    see: ['launching'],
+    mark: 'verified',
+  },
+  {
+    term: `${COMMUNITY_LABEL} list`,
+    definition: COMMUNITY_EXPLANATION,
+    see: ['launching'],
   },
   {
     term: 'Deposit',

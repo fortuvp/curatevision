@@ -4,6 +4,7 @@ import useDocumentHead from 'hooks/use-document-head'
 import { NETWORKS } from 'config/networks'
 import useDisplayedChainId from './use-displayed-chain-id'
 import { CurateIcon } from 'components/curate/icons'
+import { VERIFIED_LABEL, VerifiedBadge } from 'components/curate/verified-badge'
 import {
   Button,
   ButtonLink,
@@ -614,9 +615,11 @@ const Guide = () => {
               stake share, and its submission, reinclusion and withdrawing
               periods.
             </Prose>
-            <Aside>
-              To reach the home page, submit the new list to the Kleros Verified
-              list of lists; it appears once that request is executed.
+            <Aside label={VERIFIED_LABEL}>
+              Every new list starts as a Community list. Submit it to the Kleros
+              list of lists on its chain: once it is registered there, it
+              carries the <VerifiedBadge size={16} decorative />{' '}
+              {VERIFIED_LABEL} seal.
             </Aside>
             <Actions>
               <ButtonLink to={launchHref} $variant="primary">

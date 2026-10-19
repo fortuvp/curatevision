@@ -36,9 +36,9 @@ import {
   type ActivityFilter,
 } from './view'
 import {
+  ListTitle,
   PartyLink,
   QuietState,
-  RegistryLink,
   RegistryLogo,
   SectionHead,
   SectionTitle,
@@ -267,7 +267,7 @@ const RowText = styled.div`
   gap: 4px;
   min-width: 0;
 
-  > a {
+  > [data-title] > a {
     font-size: 15px;
     line-height: 22px;
   }
@@ -701,9 +701,12 @@ export const ActivitySection = ({
                 </td>
                 <td>
                   <TableName>
-                    <RegistryLink to={registryHref(activity)}>
+                    <ListTitle
+                      to={registryHref(activity)}
+                      verified={activity.registryVerified}
+                    >
                       {activity.registryTitle}
-                    </RegistryLink>
+                    </ListTitle>
                     <small>{truncateMiddle(activity.registryAddress)}</small>
                   </TableName>
                 </td>
@@ -759,9 +762,12 @@ export const ActivitySection = ({
           <CardTop>
             <RegistryLogo uri={activity.registryLogo} size={36} />
             <RowText>
-              <RegistryLink to={registryHref(activity)}>
+              <ListTitle
+                to={registryHref(activity)}
+                verified={activity.registryVerified}
+              >
                 {activity.registryTitle}
-              </RegistryLink>
+              </ListTitle>
               <RowMeta>
                 <EntryId itemID={activity.itemID} />
               </RowMeta>
@@ -794,9 +800,12 @@ export const ActivitySection = ({
           />
           <RegistryLogo uri={activity.registryLogo} data-logo />
           <RowText data-text>
-            <RegistryLink to={registryHref(activity)}>
+            <ListTitle
+              to={registryHref(activity)}
+              verified={activity.registryVerified}
+            >
               {activity.registryTitle}
-            </RegistryLink>
+            </ListTitle>
             <RowMeta data-meta>
               <EntryId itemID={activity.itemID} />
               {!oneChain && <ChainChip chainId={activity.chainId} size="sm" />}
@@ -935,9 +944,14 @@ export const ActivitySection = ({
                 {shares.slice(0, 5).map((share) => (
                   <ShareRow key={share.key}>
                     <RegistryLogo uri={share.logo} size={24} />
-                    <RegistryLink to={share.href} title={share.title}>
+                    <ListTitle
+                      to={share.href}
+                      verified={share.verified}
+                      title={share.title}
+                      sealSize={14}
+                    >
                       {share.title}
-                    </RegistryLink>
+                    </ListTitle>
                     <Data $muted>{formatInt(share.count)}</Data>
                     <Rail
                       $value={share.count / activities.length}

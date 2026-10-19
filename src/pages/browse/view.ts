@@ -7,14 +7,24 @@ import type {
   RegistryKind,
 } from 'pages/dashboard/types'
 import type { StatusTone } from 'components/curate/primitives'
-import { MAINNET_CHAIN_IDS, TESTNET_CHAIN_IDS } from 'pages/dashboard/view'
+import {
+  MAINNET_CHAIN_IDS,
+  TESTNET_CHAIN_IDS,
+  sortRegistries as rankRegistries,
+} from 'pages/dashboard/view'
 
 /*
  * Pure view helpers for /browse: URL parameter parsing, filters, sorts and
  * the links a registry row needs. Nothing here fetches or invents data.
  */
 
-export type TrustMode = 'verified' | 'unverified'
+/**
+ * Which lists the explorer shows: the Kleros Verified ones (the default),
+ * the Community ones (every other list), or all of them. A list whose
+ * standing is not known yet ("unknown": its chain's list of lists did not
+ * answer) shows only under All.
+ */
+export type TrustMode = 'verified' | 'community' | 'all'
 export type BrowseSort =
   | 'recent-submission'
   | 'recent-creation'
@@ -116,8 +126,20 @@ export const parseChains = (value: string | null): number[] =>
     .map(Number)
     .filter((chainId) => SUPPORTED_CHAIN_IDS.includes(chainId))
 
+/**
+ * `trust` is absent for Kleros Verified, `community` or `all`. Links from
+ * before the Community name used `unverified`; they still open Community.
+ */
 export const parseTrust = (value: string | null): TrustMode =>
-  value === 'unverified' ? 'unverified' : 'verified'
+  value === 'community' || value === 'unverified'
+    ? 'community'
+    : value === 'all'
+      ? 'all'
+      : 'verified'
+
+/** The `trust` parameter for a mode: none for the default. */
+export const trustParam = (mode: TrustMode): string | null =>
+  mode === 'verified' ? null : mode
 
 const isKind = (value: string): value is RegistryKind =>
   value === 'classic' || value === 'light' || value === 'permanent'
@@ -228,7 +250,7 @@ export const filterRegistries = (
     if (!inScope(filters.chains, registry.chainId)) return false
     if (filters.trust === 'verified' && registry.trustStatus !== 'verified')
       return false
-    if (filters.trust === 'unverified' && registry.trustStatus === 'verified')
+    if (filters.trust === 'community' && registry.trustStatus !== 'unverified')
       return false
     if (filters.kinds.length > 0 && !filters.kinds.includes(registry.kind))
       return false
@@ -288,8 +310,9 @@ export const summarize = (
   return {
     verified: scoped.filter((registry) => registry.trustStatus === 'verified')
       .length,
-    discovery: scoped.filter((registry) => registry.trustStatus !== 'verified')
-      .length,
+    community: scoped.filter(
+      (registry) => registry.trustStatus === 'unverified',
+    ).length,
     entries: scoped.reduce((sum, registry) => sum + entryCount(registry), 0),
     openRequests: scoped.reduce(
       (sum, registry) => sum + openRequests(registry),
@@ -297,6 +320,25 @@ export const summarize = (
     ),
   }
 }
+
+/**
+ * The Kleros Verified lists in scope for the figures panel's logos, in the
+ * dashboard's order: most open requests first (then disputes, then the
+ * dashboard's own ranking), so both pages show them the same way.
+ */
+export const verifiedShowcase = (
+  registries: DashboardRegistry[],
+  chains: number[],
+  count: number,
+): DashboardRegistry[] =>
+  rankRegistries(
+    registries.filter(
+      (registry) =>
+        registry.trustStatus === 'verified' &&
+        inScope(chains, registry.chainId),
+    ),
+    'activity',
+  ).slice(0, count)
 
 export const activityTone = (activity: DashboardActivity): StatusTone =>
   activity.kind === 'challenge'

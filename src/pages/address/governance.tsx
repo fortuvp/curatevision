@@ -2,7 +2,7 @@ import React, { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import styled, { keyframes } from 'styled-components'
 import { Link } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getPublicClient, simulateContract } from '@wagmi/core'
 import { useAccount, useSwitchChain, useWalletClient } from 'wagmi'
 import { formatEther, isAddress, parseEther } from 'viem'
@@ -34,12 +34,15 @@ import { appKitModal, wagmiConfig } from 'config/wagmi'
 import { useEthersProvider } from 'hooks/ethers-adapters'
 import useCourtPolicies from 'hooks/use-court-policies'
 import { formatDate } from 'utils/time'
+import { fetchRegistryCreationTimes } from 'utils/registry-creation'
 import { parseIpfs } from 'utils/ipfs-parse'
 import { jurorsAndCourtIDFromExtraData } from 'utils/string'
 import { JSON_UPLOAD_ROLE } from 'utils/atlas-roles'
 import { errorToast, wrapWithToast } from 'utils/wrap-with-toast'
 import { normalizeAddress, shortAddress } from 'pages/dashboard/data'
+import { VerifiedBadge } from 'components/curate/verified-badge'
 import {
+  SUPPORTED_CHAIN_IDS,
   abiForKind,
   chainName,
   type GovernanceParams,
@@ -1131,6 +1134,19 @@ const GovName = styled.div`
   }
 `
 
+/** The list's name, then its Kleros Verified seal; the name gives way first. */
+const TitleLine = styled.span`
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+
+  > a {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+`
+
 const RegistryTitle = styled(Link)`
   display: block;
   overflow: hidden;
@@ -1260,6 +1276,22 @@ const logoUrl = (uri?: string | null): string | null => {
   return parseIpfs(uri)
 }
 
+/** The creation date, a placeholder while it is read, or a dash. */
+const CreatedValue = ({
+  time,
+  pending,
+}: {
+  time?: number
+  pending: boolean
+}) =>
+  time ? (
+    <>{formatDate(time)}</>
+  ) : pending ? (
+    <SkeletonBlock $width="84px" $height="16px" aria-hidden />
+  ) : (
+    <>—</>
+  )
+
 export const GovernancePanel = ({
   registries,
   profileAddress,
@@ -1278,6 +1310,21 @@ export const GovernancePanel = ({
   const isOwner = isConnected && connected === profileAddress
   const selectedEditable =
     isOwner && normalizeAddress(selected?.governor) === connected
+
+  // A list's creation is the factory's NewGTCR block time (cached once read;
+  // the same query as Browse), never its first request: until the time is
+  // known, the date waits. Stake lists carry their own creation time.
+  const creation = useQuery({
+    queryKey: ['registryCreationTimes'],
+    queryFn: () => fetchRegistryCreationTimes(SUPPORTED_CHAIN_IDS),
+    staleTime: 10 * 60_000,
+  })
+  const createdAt = (registry: GovernedRegistry): number | undefined =>
+    registry.kind === 'permanent'
+      ? registry.createdAt
+      : (creation.data?.get(
+          `${registry.chainId}:${registry.address.toLowerCase()}`,
+        ) ?? (registry.createdAtExact ? registry.createdAt : undefined))
 
   return (
     <section aria-label="Governed lists">
@@ -1315,7 +1362,12 @@ export const GovernancePanel = ({
                   {!image && <CurateIcon name="registry" size={17} />}
                 </GovLogo>
                 <GovName>
-                  <RegistryTitle to={href}>{registry.title}</RegistryTitle>
+                  <TitleLine>
+                    <RegistryTitle to={href}>{registry.title}</RegistryTitle>
+                    {registry.trustStatus === 'verified' && (
+                      <VerifiedBadge size={16} />
+                    )}
+                  </TitleLine>
                   <Row $gap={6} $wrap>
                     <ChainChip chainId={registry.chainId} size="sm" />
                     <small>
@@ -1350,9 +1402,10 @@ export const GovernancePanel = ({
                       Created
                     </Label>
                     <dd>
-                      {registry.createdAt
-                        ? formatDate(registry.createdAt)
-                        : '—'}
+                      <CreatedValue
+                        time={createdAt(registry)}
+                        pending={creation.isPending}
+                      />
                     </dd>
                   </div>
                 </Facts>

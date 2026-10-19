@@ -11,11 +11,12 @@ import {
   Chip,
   Label,
   SkeletonBlock,
-  StatusDot,
   Surface,
   truncateMiddle,
 } from './primitives'
 import { CurateIcon } from './icons'
+import { TrustTag } from './verified-badge'
+import { replacedListOfLists } from './registry-shared-verified'
 import { Explainer, type ExplainerStep } from './explainer'
 import { RingGauge } from './motion/ring-gauge'
 import { reveal } from './motion/reveal'
@@ -131,13 +132,14 @@ const Chips = styled.div`
   gap: 6px;
 `
 
-/* The trust chip arrives with its data: it fades in rather than popping. */
+/* The trust mark arrives with its data: it fades in rather than popping. */
 const fadeIn = keyframes`
   from { opacity: 0; }
   to { opacity: 1; }
 `
 
-const TrustChip = styled(Chip)`
+const TrustSlot = styled.span`
+  display: inline-flex;
   animation: ${fadeIn} 240ms var(--ease-out, ease-out) both;
 
   @media (prefers-reduced-motion: reduce) {
@@ -185,6 +187,39 @@ const Note = styled.span`
   font-size: 12px;
   line-height: 16px;
   text-align: center;
+`
+
+/* A Classic list of lists Kleros replaced: where Kleros Verified is now. */
+const Moved = styled.p`
+  margin: 2px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--glass-border);
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 16px;
+  text-align: center;
+
+  a {
+    color: var(--color-primary);
+    font-weight: 500;
+    text-decoration: underline;
+    text-decoration-color: color-mix(
+      in srgb,
+      var(--color-primary) 40%,
+      transparent
+    );
+    text-underline-offset: 2px;
+  }
+
+  a:hover {
+    text-decoration-color: currentColor;
+  }
+
+  a:focus-visible {
+    border-radius: 3px;
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
 `
 
 /* Every figure sits on the band's bottom line: the headline, the inline
@@ -480,12 +515,13 @@ export const RegistryHeader = ({
   chainId?: number
   address: string
   /**
-   * On a Kleros Verified list of lists (useRegistryVerified). Undefined
-   * while that is loading or could not be read: no trust chip then, so the
-   * header never claims Discovery without data.
+   * Kleros Verified: the chain's Kleros list of lists or registered on it
+   * (useRegistryVerified); false is a Community list. Undefined while that
+   * is loading or could not be read: no trust mark then, so the header
+   * never calls a list Community without data.
    */
   verified?: boolean
-  /** The registry is itself a list of lists. */
+  /** The registry is the chain's Kleros list of lists. */
   listOfLists?: boolean
   kindLabel: string
   itemName: string
@@ -515,6 +551,9 @@ export const RegistryHeader = ({
   totalCount?: number
 }) => {
   const [paramsOpen, setParamsOpen] = useState(false)
+  // A Classic list of lists Kleros replaced in August 2026: it still takes
+  // submissions, but the badge now comes from the current one.
+  const successor = replacedListOfLists(chainId, address)
   const explorer = chainId
     ? getAddressPage({ networkId: chainId, address })
     : null
@@ -559,21 +598,10 @@ export const RegistryHeader = ({
             <Chips>
               {chainId && <ChainChip chainId={chainId} />}
               <Chip>{kindLabel}</Chip>
-              {verified === true && (
-                <TrustChip
-                  title={
-                    listOfLists
-                      ? 'A Kleros Verified list of lists'
-                      : 'Listed on a Kleros Verified list of lists'
-                  }
-                >
-                  <StatusDot $tone="registered" aria-hidden /> Verified
-                </TrustChip>
-              )}
-              {verified === false && (
-                <TrustChip title="Not listed on a Kleros Verified list of lists">
-                  Discovery
-                </TrustChip>
+              {verified !== undefined && (
+                <TrustSlot>
+                  <TrustTag verified={verified} listOfLists={listOfLists} />
+                </TrustSlot>
               )}
               <Address title={address}>{truncateMiddle(address, 8, 6)}</Address>
             </Chips>
@@ -588,6 +616,13 @@ export const RegistryHeader = ({
             {primaryAmount && <Amount>· {primaryAmount}</Amount>}
           </Button>
           <Note>{depositNote ?? depositNoteFor(kindLabel, itemName)}</Note>
+          {successor && chainId && (
+            <Moved>
+              Since August 2026, Kleros Verified lists are registered on the{' '}
+              <Link to={`/tcr/${chainId}/${successor}`}>new list of lists</Link>
+              .
+            </Moved>
+          )}
         </Action>
       </Top>
 

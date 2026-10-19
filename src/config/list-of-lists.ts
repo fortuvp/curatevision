@@ -7,9 +7,9 @@ export const VERIFIED_LIST_OF_LISTS_ADDRESSES = {
 } as const
 
 /**
- * Older Curate deployments still receive traffic through these list-of-lists
- * addresses. They are queried as fallback verification sources so the local
- * dashboard remains useful while product confirms the canonical Gnosis source.
+ * The Classic lists of lists the ones above replaced. They still take
+ * submissions but no longer grant Kleros Verified: their pages point to the
+ * current one (components/curate/registry-shared-verified.ts).
  */
 export const FALLBACK_LIST_OF_LISTS_ADDRESSES = {
   [NETWORKS.ethereum]: ['0xba0304273a54dfec1fc7f4bccbf4b15519aecf15'],
@@ -18,18 +18,3 @@ export const FALLBACK_LIST_OF_LISTS_ADDRESSES = {
     '0xe456c79446c4de1a0ba4d06f294db42ba2fd4f7f',
   ],
 } as const
-
-export const getListOfListsAddresses = (chainId: number): string[] => {
-  const canonical =
-    VERIFIED_LIST_OF_LISTS_ADDRESSES[
-      chainId as keyof typeof VERIFIED_LIST_OF_LISTS_ADDRESSES
-    ]
-  const fallbacks =
-    FALLBACK_LIST_OF_LISTS_ADDRESSES[
-      chainId as keyof typeof FALLBACK_LIST_OF_LISTS_ADDRESSES
-    ] ?? []
-
-  return [...new Set([canonical, ...fallbacks].filter(Boolean))].map((addr) =>
-    addr.toLowerCase(),
-  )
-}

@@ -283,14 +283,51 @@ Focus everywhere is a 2px `primary` outline, 2px out (inset inside clipping trac
 - Easing `cubic-bezier(0.16, 1, 0.3, 1)` for entrances, `(0.2, 0.8, 0.2, 1)` for state changes,
   springs for indicators. All respect `prefers-reduced-motion`.
 
+# Naming
+
+## Verified and Community
+
+A list's standing has two names. The words come from `components/curate/verified-badge.tsx` and
+nowhere else; the rule lives in `components/curate/registry-shared-verified.ts`, and every page
+applies it the same way (registry pages, Browse, the profile).
+
+- **Kleros Verified**: the chain's Kleros list of lists (`VERIFIED_LIST_OF_LISTS_ADDRESSES`, the
+  registry behind the Curate homepage, on Light Curate since August 2026) or a list registered on
+  it. It carries the approval **seal**, the Kleros icosahedron cut as a gem in the edge hues with a
+  check on its front face. Its explanation names what that list's policy rejects (offensive,
+  malformed and obviously insecure lists) and claims no more: the seal is not a security review.
+- The Classic lists of lists it replaced still take submissions but grant nothing: a list
+  registered only there is a Community list, and their own pages point to the current one.
+- **Community**: every list not registered on a Kleros list of lists. Every Curate list, Verified
+  or not, is launched by anyone and kept by its own submitters and challengers; that registration
+  is the only difference. A plain name, never a warning (no amber, no shield, no "unverified").
+- "Discovery", "unverified" and "not verified" are not used. Old `?trust=unverified` links open
+  Community. A list whose chain has not answered yet is neither: it shows no mark and counts in
+  neither figure.
+- A list's own page shows the pill or the Community chip (`TrustTag`, explained on hover and
+  focus), and nothing while the standing is unknown. Rows, cards and tables put a 16px seal after
+  a verified list's name, small feeds and rails 12 to 14px, with no tooltip; Community rows carry
+  no mark. On the list of lists, the entries it vouches for carry the seal too. Browse picks Kleros
+  Verified (the default), Community or All above its toolbar, with the choice's meaning in one
+  line beside it.
+- Kleros Verified is shown as a count with its lists, most open requests first, each leading to
+  its list (the dashboard's tiles, Browse's logos with their names on hover and focus), never as a
+  share of every list: most lists are Community lists and always will be.
+
 # Data rules
 
 - "In court" counts disputes open right now (queried directly); "Open requests" counts unresolved
   requests. Per-list status counters drift on some deployments and are not trusted for these.
-- "Unchallenged" counts unresolved requests with no challenge (Open requests minus the disputed
-  ones). The indexer has no challenge period, so the dashboard never says a window is open.
+- "Open for verification" lists unresolved requests nobody has challenged whose challenge window is
+  still open: submission time plus the list's `challengePeriodDuration`, read from its contract (the
+  indexer has no challenge period). When the windows cannot be read, no window is claimed.
 - One 30-day window for every "30 days" figure: the chart's 30 UTC days (today so far included,
-  drawn dashed). Decided, curators and challenge totals use the same start.
+  drawn dashed). Active curators and their requests and challenges use the same start.
+- Disputes, rulings and bounties won are all time, never windowed: the rulings ledger pages through
+  every resolved dispute, and a figure reads "n+" if it stops at its page cap. A bounty is what a
+  challenger the court ruled for takes on top of their own deposit back: the requester's base
+  deposit (Light and Classic) or the entry's stake (Stake Curate). Amounts stay per coin, never
+  added across coins.
 - A count is never the length of a capped list: it comes from its own query, and reads "n+" when
   that query hits its cap.
 - "Entries" is every entry a list holds, the figure its registry page shows (Light: settled entries

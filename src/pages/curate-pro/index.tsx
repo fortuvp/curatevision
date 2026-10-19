@@ -40,6 +40,7 @@ Goal:
 - Draft or review the policy before launch.
 - Prepare valid MetaEvidence and item schema.
 - Decide whether we self-host, use Quickstart indexing, or buy Curate Pro support.
+- Plan the submission to the Kleros list of lists on its chain, so the list can earn the Kleros Verified badge.
 - Produce a launch checklist with risks, costs, dependencies, and next actions.`
 
 const PROMPT_LINES = CREATOR_PROMPT.split('\n')
@@ -116,7 +117,7 @@ const TIERS: Tier[] = [
       registry: {
         owner: 'you',
         label: 'Deploy yourself',
-        text: 'Deploy a registry without approval from Kleros.',
+        text: 'Deploy a registry yourself; no permission needed.',
       },
       frontend: {
         owner: 'you',
@@ -146,7 +147,7 @@ const TIERS: Tier[] = [
       registry: {
         owner: 'you',
         label: 'Deploy yourself',
-        text: 'Deploy a registry without approval from Kleros.',
+        text: 'Deploy a registry yourself; no permission needed.',
       },
       frontend: {
         owner: 'you',

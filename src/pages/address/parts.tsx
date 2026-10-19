@@ -5,6 +5,7 @@ import { parseIpfs } from 'utils/ipfs-parse'
 import { formatAbsolute, formatAgo } from 'utils/time'
 import { CurateIcon, type CurateIconName } from 'components/curate/icons'
 import { Small } from 'components/curate/primitives'
+import { VerifiedBadge } from 'components/curate/verified-badge'
 
 /*
  * Small pieces the curator profile shares between its panels: the registry
@@ -132,6 +133,45 @@ export const RegistryLink = styled(Link)`
   text-overflow: ellipsis;
   white-space: nowrap;
 `
+
+const TitleLine = styled.span`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+
+  > a {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+`
+
+/**
+ * A list's name as a link, then the Kleros Verified seal when the list
+ * carries it: 16px in rows, cards and the table, 14px in small feeds.
+ * Community lists carry no mark.
+ */
+export const ListTitle = ({
+  to,
+  verified,
+  title,
+  sealSize = 16,
+  children,
+}: {
+  to: string
+  verified?: boolean
+  /** The full name on hover, where the name may be cut short. */
+  title?: string
+  sealSize?: 14 | 16
+  children: React.ReactNode
+}) => (
+  <TitleLine data-title>
+    <RegistryLink to={to} title={title}>
+      {children}
+    </RegistryLink>
+    {verified && <VerifiedBadge size={sealSize} />}
+  </TitleLine>
+)
 
 export const PartyLink = styled(Link)`
   ${quietLink}

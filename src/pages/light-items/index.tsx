@@ -58,7 +58,10 @@ import {
   RegistryLightSkeleton,
 } from 'components/curate/registry-light-states'
 import { useRegistryLayout } from 'components/curate/registry-shared-layout'
-import { useRegistryVerified } from 'components/curate/registry-shared-verified'
+import {
+  extractRegistryAddress,
+  useRegistryVerified,
+} from 'components/curate/registry-shared-verified'
 import {
   readActionLink,
   submitPathFor,
@@ -955,6 +958,7 @@ const Items = () => {
     return hasSeerMarkets ? [...base, { label: 'Market', type: 'text' }] : base
   }, [metadata, hasSeerMarkets])
 
+  const verifiedEntries = trust.listOfLists ? trust.verifiedSet : undefined
   const entries: EntryRow[] = useMemo(() => {
     if (!visibleItems || !tcrAddress) return []
     return visibleItems.map((item) => {
@@ -980,6 +984,11 @@ const Items = () => {
         isTCRofTCRs && typeof firstColumnValue === 'string'
           ? `/tcr/${chainId}/${firstColumnValue}`
           : undefined
+      // On the Kleros list of lists, the lists it vouches for carry the seal.
+      const pointsTo = verifiedEntries
+        ? extractRegistryAddress(null, fields)
+        : null
+      const verified = !!pointsTo && !!verifiedEntries?.has(pointsTo)
       // An entry whose status is not known yet stays hidden too, so nothing
       // the filter covers shows before its status arrives.
       const hidden =
@@ -992,6 +1001,7 @@ const Items = () => {
         fields,
         status,
         openListTo,
+        verified,
         hidden,
         onReveal: hidden
           ? () => setRevealed((prev) => new Set(prev).add(id))
@@ -1005,6 +1015,7 @@ const Items = () => {
     timestamp,
     challengePeriodDuration,
     isTCRofTCRs,
+    verifiedEntries,
     nsfwFilterOn,
     revealed,
   ])

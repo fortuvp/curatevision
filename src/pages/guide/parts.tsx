@@ -2,6 +2,7 @@ import React from 'react'
 import styled from 'styled-components'
 import { CurateIcon } from 'components/curate/icons'
 import { Label, Small, StatusDot, Surface } from 'components/curate/primitives'
+import { VerifiedBadge } from 'components/curate/verified-badge'
 import {
   SECTIONS,
   sectionNumber,
@@ -1012,12 +1013,23 @@ export const Definitions = styled.dl`
   }
 `
 
+const TermSeal = styled(VerifiedBadge)`
+  margin-right: 8px;
+  vertical-align: -2px;
+`
+
 export const DefinitionGrid = ({
   label,
   items,
 }: {
   label?: string
-  items: { term: string; definition: string; see?: string[] }[]
+  items: {
+    term: string
+    definition: string
+    see?: string[]
+    /** Drawn before the term: the Kleros Verified seal. */
+    mark?: 'verified'
+  }[]
 }) => (
   <div>
     {label && (
@@ -1028,7 +1040,10 @@ export const DefinitionGrid = ({
     <Definitions>
       {items.map((item) => (
         <div key={item.term}>
-          <dt>{item.term}</dt>
+          <dt>
+            {item.mark === 'verified' && <TermSeal size={18} decorative />}
+            {item.term}
+          </dt>
           <dd>
             {item.definition}
             {item.see && (
