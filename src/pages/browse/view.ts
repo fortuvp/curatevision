@@ -7,7 +7,7 @@ import type {
   RegistryKind,
 } from 'pages/dashboard/types'
 import type { StatusTone } from 'components/curate/primitives'
-import { TESTNET_CHAIN_IDS } from 'pages/dashboard/view'
+import { MAINNET_CHAIN_IDS, TESTNET_CHAIN_IDS } from 'pages/dashboard/view'
 
 /*
  * Pure view helpers for /browse: URL parameter parsing, filters, sorts and
@@ -55,35 +55,32 @@ const listFormat = new Intl.ListFormat('en-GB', {
 
 const isTestnet = (chainId: number) => TESTNET_CHAIN_IDS.includes(chainId)
 
-/** The chains a `chain` filter covers: none chosen means every chain. */
+/**
+ * The chains a `chain` filter covers. None chosen is "All chains": Ethereum
+ * and Gnosis, as on the dashboard. Sepolia is a testnet, picked on its own
+ * (`?chain=11155111`) or next to others (`?chain=1,100,11155111`).
+ */
 export const scopeChainIds = (chains: number[]): number[] =>
-  chains.length === 0 ? SUPPORTED_CHAIN_IDS : chains
+  chains.length === 0 ? MAINNET_CHAIN_IDS : chains
 
-/** A chain's name, marked as a testnet where it is one ("Sepolia testnet"). */
-const scopeName = (chainId: number): string =>
-  isTestnet(chainId) ? `${chainName(chainId)} testnet` : chainName(chainId)
-
-/** "Ethereum, Gnosis and Sepolia testnet" for no chain filter, else the chosen chains. */
-export const scopeText = (chains: number[]): string =>
-  listFormat.format(scopeChainIds(chains).map(scopeName))
+/** Whether a chain is in the scope a `chain` filter covers. */
+export const inScope = (chains: number[], chainId: number): boolean =>
+  scopeChainIds(chains).includes(chainId)
 
 /**
- * What a share of registries is a share of: "of 390 registries · incl.
- * Sepolia testnet" when a testnet is in scope next to mainnets, so the figure
- * is not mistaken for the mainnet share the home page shows.
+ * A chain's name as it reads after "on", marked as a testnet where it is
+ * one: "Gnosis", "the Sepolia testnet".
  */
-export const shareCaption = (total: number, chains: number[]): string => {
-  const scoped = scopeChainIds(chains)
-  const testnets = scoped.filter(isTestnet)
-  const count = `of ${new Intl.NumberFormat('en-US').format(total)} ${
-    total === 1 ? 'registry' : 'registries'
-  }`
-  if (testnets.length === 0) return count
-  const names = listFormat.format(testnets.map(scopeName))
-  return testnets.length === scoped.length
-    ? `${count} on ${names}`
-    : `${count} · incl. ${names}`
-}
+const scopeName = (chainId: number): string =>
+  isTestnet(chainId) ? `the ${chainName(chainId)} testnet` : chainName(chainId)
+
+/**
+ * The chains in scope, to follow "on": "Ethereum and Gnosis" for no chain
+ * filter, else the chosen chains ("the Sepolia testnet", "Ethereum, Gnosis
+ * and the Sepolia testnet").
+ */
+export const scopeText = (chains: number[]): string =>
+  listFormat.format(scopeChainIds(chains).map(scopeName))
 
 /** Chains that have a Kleros Verified list of lists a registry can be submitted to. */
 export const VERIFICATION_CHAIN_IDS = Object.keys(
@@ -136,15 +133,6 @@ export const parseKinds = (value: string | null): RegistryKind[] => [
   ...new Set((value ?? '').split(',').filter(isKind)),
 ]
 
-/** The `kind` list with one type added or removed. */
-export const toggleKind = (
-  kinds: RegistryKind[],
-  kind: RegistryKind,
-): RegistryKind[] =>
-  kinds.includes(kind)
-    ? kinds.filter((value) => value !== kind)
-    : [...kinds, kind]
-
 /**
  * Every entry a registry holds, whatever its status, so the figure matches
  * the registry page's own "Entries". Light lists report registered and absent
@@ -187,12 +175,25 @@ export const registryBlurb = (registry: DashboardRegistry): string | null => {
   return description && !/^[\s.\-–—]*$/.test(description) ? description : null
 }
 
-export const SORT_OPTIONS: { value: BrowseSort; label: string }[] = [
-  { value: 'recent-submission', label: 'Latest activity' },
-  { value: 'recent-creation', label: 'Newest lists' },
-  { value: 'activity', label: 'Most open requests' },
-  { value: 'items', label: 'Most entries' },
-  { value: 'disputes', label: 'Most in court' },
+/** Sort orders, each with what it ranks by. */
+export const SORT_OPTIONS: {
+  value: BrowseSort
+  label: string
+  hint?: string
+}[] = [
+  {
+    value: 'recent-submission',
+    label: 'Latest activity',
+    hint: 'Most recent request first',
+  },
+  { value: 'recent-creation', label: 'Newest lists', hint: 'By creation date' },
+  {
+    value: 'activity',
+    label: 'Most open requests',
+    hint: 'Unresolved requests now',
+  },
+  { value: 'items', label: 'Most entries', hint: 'Entries of any status' },
+  { value: 'disputes', label: 'Most in court', hint: 'Disputes open now' },
   { value: 'name', label: 'Name A to Z' },
 ]
 
@@ -224,8 +225,7 @@ export const filterRegistries = (
 ): DashboardRegistry[] => {
   const needle = filters.search.trim().toLowerCase()
   return registries.filter((registry) => {
-    if (filters.chains.length > 0 && !filters.chains.includes(registry.chainId))
-      return false
+    if (!inScope(filters.chains, registry.chainId)) return false
     if (filters.trust === 'verified' && registry.trustStatus !== 'verified')
       return false
     if (filters.trust === 'unverified' && registry.trustStatus === 'verified')
@@ -282,10 +282,9 @@ export const summarize = (
   registries: DashboardRegistry[],
   chains: number[],
 ) => {
-  const scoped =
-    chains.length === 0
-      ? registries
-      : registries.filter((registry) => chains.includes(registry.chainId))
+  const scoped = registries.filter((registry) =>
+    inScope(chains, registry.chainId),
+  )
   return {
     verified: scoped.filter((registry) => registry.trustStatus === 'verified')
       .length,
