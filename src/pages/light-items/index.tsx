@@ -58,7 +58,10 @@ import {
   RegistryLightSkeleton,
 } from 'components/curate/registry-light-states'
 import { useRegistryLayout } from 'components/curate/registry-shared-layout'
-import { useRegistryVerified } from 'components/curate/registry-shared-verified'
+import {
+  extractRegistryAddress,
+  useRegistryVerified,
+} from 'components/curate/registry-shared-verified'
 import {
   readActionLink,
   submitPathFor,
@@ -831,36 +834,40 @@ const Items = () => {
     },
   ]
 
-  // One line per step: the header already says the deposit comes back in
-  // full if nobody challenges; the steps add the breakdown and the loss case.
+  // One line per step, both sides: the submitter's deposit comes back, the
+  // challenger who spots a mistake earns one; the jurors settle the rest.
   const explainerSteps: ExplainerStep[] = [
     {
-      title: 'Submit with a deposit',
+      title: 'Follow the policy, get your deposit back',
       body: `${
         submissionTotal && submissionBreakdown
           ? `You send ${submissionTotal} = ${submissionBreakdown}.`
           : 'You send the base deposit plus the arbitration cost.'
-      } If challenged and you lose, it goes to the challenger minus the arbitration cost.`,
+      } If your ${itemName} follows the listing policy, it is registered and the deposit comes back in full.`,
     },
     {
-      title: challengePeriod
-        ? `Anyone can challenge for ${challengePeriod}`
-        : 'Anyone can challenge during the window',
-      body: `A challenger locks ${
-        challengeTotal ?? 'a challenge deposit'
-      }. Unchallenged, the request can be executed when the period ends: the ${itemName} is registered and your deposit comes back.`,
+      // A successful challenger nets the submitter's base deposit (the
+      // round's pool, less the one arbitration cost) and gets their own back.
+      title: 'Spot a mistake, earn a bounty',
+      body: `Challenge a submission that breaks the policy ${
+        challengePeriod
+          ? `within ${challengePeriod}`
+          : 'during its challenge period'
+      }. If jurors agree, you earn the submitter's ${
+        submissionBase ? `${submissionBase} base deposit` : 'base deposit'
+      } and your ${challengeTotal ?? 'challenge deposit'} comes back.`,
     },
     {
       title: isKlerosArbitrator
-        ? 'Kleros jurors decide; the winner is paid'
-        : 'The arbitrator decides; the winner is paid',
+        ? 'Kleros jurors decide'
+        : 'The arbitrator decides',
       body: `${
         court
           ? `Kleros court ${court.courtId} draws ${court.jurors} jurors.`
           : isKlerosArbitrator
             ? 'A Kleros court rules on the listing policy.'
             : 'The list’s arbitrator rules on the listing policy.'
-      } The winner takes the pool minus one arbitration cost.`,
+      } The side they agree with gets its deposit back plus the other side's, less the arbitration cost.`,
     },
   ]
 
@@ -951,6 +958,7 @@ const Items = () => {
     return hasSeerMarkets ? [...base, { label: 'Market', type: 'text' }] : base
   }, [metadata, hasSeerMarkets])
 
+  const verifiedEntries = trust.listOfLists ? trust.verifiedSet : undefined
   const entries: EntryRow[] = useMemo(() => {
     if (!visibleItems || !tcrAddress) return []
     return visibleItems.map((item) => {
@@ -976,6 +984,11 @@ const Items = () => {
         isTCRofTCRs && typeof firstColumnValue === 'string'
           ? `/tcr/${chainId}/${firstColumnValue}`
           : undefined
+      // On the Kleros list of lists, the lists it vouches for carry the seal.
+      const pointsTo = verifiedEntries
+        ? extractRegistryAddress(null, fields)
+        : null
+      const verified = !!pointsTo && !!verifiedEntries?.has(pointsTo)
       // An entry whose status is not known yet stays hidden too, so nothing
       // the filter covers shows before its status arrives.
       const hidden =
@@ -988,6 +1001,7 @@ const Items = () => {
         fields,
         status,
         openListTo,
+        verified,
         hidden,
         onReveal: hidden
           ? () => setRevealed((prev) => new Set(prev).add(id))
@@ -1001,6 +1015,7 @@ const Items = () => {
     timestamp,
     challengePeriodDuration,
     isTCRofTCRs,
+    verifiedEntries,
     nsfwFilterOn,
     revealed,
   ])
@@ -1161,7 +1176,7 @@ const Items = () => {
         totalCount={counts?.total}
         parameters={parameters}
         explainerId={`registry-light-${tcrAddress.toLowerCase()}`}
-        explainerHeading="One deposit, one window, a court if needed."
+        explainerHeading="A deposit you get back, a bounty for spotting mistakes."
         explainerSteps={explainerSteps}
         loading={!metadata || (!counters && itemsQuery.isFetching)}
       />

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react'
 import styled, { css } from 'styled-components'
 import { CurateIcon } from 'components/curate/icons'
+import { ctaFill, litEdgeBackground, litThumb } from 'components/ui/kit-styles'
 import { reveal } from 'components/curate/motion/reveal'
 import {
   Button,
@@ -11,7 +12,7 @@ import {
 } from 'components/curate/primitives'
 
 /*
- * What both list factories (Standard and Stake) share: the wizard's state
+ * What both list factories (Light and Stake) share: the wizard's state
  * (`useFactoryWizard`: where it is, how far it got, Start over, the return to
  * the review), the copy of the steps they have in common, a horizontal
  * stepper whose progress slides as the wizard advances, and the step panel
@@ -96,7 +97,7 @@ export const FACTORY_COPY = {
 } as const
 
 /** The browser tab title of a factory: "Create a Stake list | Kleros Curate". */
-export const factoryDocumentTitle = (kind: 'Standard' | 'Stake') =>
+export const factoryDocumentTitle = (kind: 'Light' | 'Stake') =>
   `Create a ${kind} list | Kleros Curate`
 
 /* ---------- Wizard state ---------- */
@@ -309,7 +310,7 @@ export const useFactoryWizard = <D extends FactoryWizardDraft>({
       return
     }
     const panel = panelRef.current
-    // 72px: below the floating app bar.
+    // 72px: below the sticky app bar (64px) with a little air.
     if (!panel || panel.getBoundingClientRect().top >= 72) return
     const reduced = window.matchMedia?.(
       '(prefers-reduced-motion: reduce)',
@@ -581,13 +582,17 @@ const markerTone: Record<FactoryGroupStatus, ReturnType<typeof css>> = {
     background: var(--color-surface);
     color: var(--color-primary);
   `,
+  /* The step in hand: the primary glass and its lit edge, never a flat fill. */
   active: css`
-    border-color: color-mix(in srgb, var(--color-primary) 60%, transparent);
-    background: var(--color-primary-fill);
-    color: var(--color-on-primary);
+    --edge-angle: 210deg;
+    border-color: transparent;
+    border-width: var(--edge-width, 1px);
+    background: ${litEdgeBackground(ctaFill)};
+    color: var(--cta-ink);
     box-shadow:
+      inset 0 1px 0 var(--cta-highlight),
       0 0 0 6px var(--color-primary-soft),
-      0 10px 28px -8px var(--color-primary);
+      0 10px 28px -8px var(--cta-glow);
   `,
   complete: css`
     border-color: color-mix(in srgb, var(--color-primary) 45%, transparent);
@@ -835,12 +840,9 @@ const SubTab = styled.button<{ $state: SubTabState }>`
   ${({ $state }) =>
     $state === 'current'
       ? css`
-          border-color: color-mix(
-            in srgb,
-            var(--color-primary) 35%,
-            transparent
-          );
-          background: var(--color-primary-soft);
+          /* The current step sits on the selectors' lit thumb. */
+          position: relative;
+          ${litThumb}
           color: var(--color-text);
         `
       : $state === 'done' || $state === 'reached'

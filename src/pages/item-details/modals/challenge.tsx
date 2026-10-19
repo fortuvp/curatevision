@@ -190,7 +190,7 @@ const ChallengeModal = ({
       body: 'They rule on the listing policy. Anyone can add evidence until the request is resolved.',
     },
     {
-      title: 'Jurors agree with you',
+      title: 'Jurors agree: you earn the bounty',
       body: `${
         isSubmission
           ? `The ${name} is rejected.`
@@ -212,7 +212,7 @@ const ChallengeModal = ({
       branch: true,
       body: `${
         isSubmission ? `The ${name} is registered.` : `The ${name} is removed.`
-      } You lose your deposit: it goes to the requester minus the arbitration cost.`,
+      } Your deposit goes to the requester, less the arbitration cost.`,
     },
   ]
 

@@ -1,9 +1,10 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
 import styled, { css } from 'styled-components'
-import { overlayPanel } from './kit-styles'
+import { glassPopover } from './kit-styles'
 
 /*
- * Dropdown, v2: the trigger plus a glass panel (the app bar's menus). It
+ * Dropdown, v2: the trigger plus a glass panel (the app bar's menus:
+ * translucent, blurred, hairline, as SelectMenu's in primitives.tsx). It
  * fades and rises 4px from the side it opens on, and fades out before it
  * hides. The panel is always the wrapper's last child div, which callers
  * rely on for placement.
@@ -59,7 +60,7 @@ const Overlay = styled.div<{ $visible?: boolean; $placement?: string }>`
   position: absolute;
   z-index: 1050;
   min-width: 160px;
-  ${overlayPanel}
+  ${glassPopover}
   opacity: ${({ $visible }) => ($visible ? 1 : 0)};
   visibility: ${({ $visible }) => ($visible ? 'visible' : 'hidden')};
   scale: ${({ $visible }) => ($visible ? 1 : 0.97)};

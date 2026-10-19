@@ -15,8 +15,8 @@ import { FormBlock, GateHelper, ModalShell, useActionGate } from './shell'
 /*
  * Evidence on a Stake Curate item: a title, a description and an optional
  * file, uploaded through Atlas and published on-chain. Inline it is the
- * item pages' composer under the history (connect, sign in and switch
- * named on the button); as a modal it is the same form in a dialog.
+ * item page's always-open composer under the history (connect, sign in and
+ * switch named on its button); as a modal it is the same form in a dialog.
  */
 
 const EVIDENCE_FORM_ID = 'submitEvidenceForm'
@@ -106,10 +106,7 @@ const EvidenceModal = ({
       onClose={() => onCancel?.()}
     >
       <Stack $gap={14}>
-        <Body $muted>
-          Published on-chain with this item, for jurors and curators to read.
-          Publishing costs gas only.
-        </Body>
+        <Body $muted>Published on-chain with this item, for the jurors.</Body>
         <FormBlock>
           <EvidenceForm
             key={formKey}

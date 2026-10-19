@@ -17,16 +17,17 @@ import {
   fieldHover,
   fieldSurface,
   floatingEntrance,
+  glassPopover,
   joinClassNames,
   menuRow,
-  overlayPanel,
   ringSpinner,
 } from './kit-styles'
 
 /*
  * Select, v2: the same raised 44px field as Input with a chevron that turns
- * on open; the option panel is glass like the app bar menus (40px rows,
- * radius 12, the chosen row tinted and checked). Keyboard works throughout
+ * on open; the option panel is glass like SelectMenu's and the app bar
+ * menus (40px rows, radius 12, the row under the pointer or the keyboard
+ * lit, the chosen row in full text with a check). Keyboard works throughout
  * (arrows, Enter, Escape, Tab), and the panel flips above when there is no
  * room. Escape closes only the panel, never a dialog around it, and the
  * panel closes as soon as focus leaves the field.
@@ -127,7 +128,7 @@ const DropdownStyled = styled.div<{ $up?: boolean }>`
   padding: 6px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  ${overlayPanel}
+  ${glassPopover}
   transform-origin: ${({ $up }) => ($up ? '50% 100%' : '50% 0')};
   ${({ $up }) => floatingEntrance($up)}
 `
@@ -158,14 +159,10 @@ const OptionItem = styled.div<{
 }>`
   ${menuRow}
   justify-content: space-between;
-  color: ${({ $selected }) =>
-    $selected ? 'var(--color-primary-on-soft)' : 'var(--color-text)'};
-  background: ${({ $selected, $highlighted }) =>
-    $selected
-      ? 'var(--color-primary-soft)'
-      : $highlighted
-        ? 'var(--color-raised)'
-        : 'transparent'};
+  color: ${({ $selected, $highlighted }) =>
+    $selected || $highlighted ? 'var(--color-text)' : 'var(--color-muted)'};
+  background: ${({ $highlighted }) =>
+    $highlighted ? 'var(--hover-fill)' : 'transparent'};
   font-weight: ${({ $selected }) => ($selected ? 500 : 400)};
   cursor: pointer;
 
@@ -173,7 +170,7 @@ const OptionItem = styled.div<{
     margin-top: 2px;
   }
 
-  ${({ $disabled, $selected }) =>
+  ${({ $disabled }) =>
     $disabled
       ? css`
           color: var(--color-muted);
@@ -182,9 +179,8 @@ const OptionItem = styled.div<{
         `
       : css`
           &:hover {
-            background: ${$selected
-              ? 'var(--color-primary-soft)'
-              : 'var(--color-raised)'};
+            color: var(--color-text);
+            background: var(--hover-fill);
           }
         `}
 `
@@ -197,7 +193,7 @@ const OptionLabel = styled.span`
 const OptionCheck = styled.span`
   display: inline-flex;
   flex: 0 0 auto;
-  color: var(--color-primary-on-soft);
+  color: var(--color-primary);
 `
 
 const EmptyOption = styled.div`

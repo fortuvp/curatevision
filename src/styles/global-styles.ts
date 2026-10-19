@@ -20,8 +20,8 @@ const GlobalStyle = createGlobalStyle`
     -moz-osx-font-smoothing: grayscale;
     transition: background-color 0.2s ease, color 0.2s ease;
 
-    /* Type: one grotesk + its mono, switchable (data-type on body). Big figures
-       are set light and large; headings tight; labels mono. */
+    /* Type: Urbanist for display, Geist for text and every animated figure,
+       Geist Mono for addresses and hashes only (DESIGN.md, Typography). */
     --font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     --font-display: "Urbanist", "Geist", -apple-system, BlinkMacSystemFont, sans-serif;
@@ -81,7 +81,9 @@ const GlobalStyle = createGlobalStyle`
     --radius-xl: 24px;
     --radius-pill: 999px;
     --horizontal-padding: min(4.6875vw, 56px);
-    --page-max-width: 1360px;
+    /* With the frame gone the page runs edge to edge; this keeps the
+       content as wide as it was inside the frame at 1440. */
+    --page-max-width: 1344px;
     --app-bar-height: 64px;
     --motion: 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
     --blur: 18px;
@@ -143,10 +145,32 @@ const GlobalStyle = createGlobalStyle`
     --viz-2: ${({ theme }) => theme.viz[1]};
     --viz-3: ${({ theme }) => theme.viz[2]};
     --viz-4: ${({ theme }) => theme.viz[3]};
-    --frame-gap: clamp(8px, 3.2vw, 52px);
-    --frame-radius: clamp(20px, 2.8vw, 44px);
     --glass-border: ${({ theme }) => theme.glassBorder};
     --glass-highlight: ${({ theme }) => theme.glassHighlight};
+
+    /* Controls (DESIGN.md, Surfaces and controls): the lit edge, the
+       primary glass, recessed tracks with lit thumbs, glass popovers. */
+    --edge-1: ${({ theme }) => theme.edge[0]};
+    --edge-2: ${({ theme }) => theme.edge[1]};
+    --edge-3: ${({ theme }) => theme.edge[2]};
+    --edge-width: ${({ theme }) => theme.edgeWidth};
+    --cta-top: ${({ theme }) => theme.ctaTop};
+    --cta-bottom: ${({ theme }) => theme.ctaBottom};
+    --cta-ink: ${({ theme }) => theme.ctaInk};
+    --cta-glow: ${({ theme }) => theme.ctaGlow};
+    --cta-sheen: ${({ theme }) => theme.ctaSheen};
+    --cta-highlight: ${({ theme }) => theme.ctaHighlight};
+    --sweep-head: ${({ theme }) => theme.sweepHead};
+    --track-on-top: ${({ theme }) => theme.trackOnTop};
+    --track-on-bottom: ${({ theme }) => theme.trackOnBottom};
+    --bead-on: ${({ theme }) => theme.beadOn};
+    --recess: ${({ theme }) => theme.recess};
+    --recess-shadow: ${({ theme }) => theme.recessShadow};
+    --thumb: ${({ theme }) => theme.thumb};
+    --thumb-shadow: ${({ theme }) => theme.thumbShadow};
+    --bead-off: ${({ theme }) => theme.beadOff};
+    --popover: ${({ theme }) => theme.popover};
+    --hover-fill: ${({ theme }) => theme.hoverFill};
     --grid-line: ${({ theme }) =>
       theme.name === 'light'
         ? 'rgba(16, 24, 40, 0.045)'
@@ -246,9 +270,6 @@ const GlobalStyle = createGlobalStyle`
 
     @media (max-width: ${BREAKPOINT_LANDSCAPE}px) {
       --horizontal-padding: 16px;
-      --frame-gap: 0px;
-      --frame-radius: 0px;
-      background-attachment: scroll;
     }
 
     /* react-toastify */
@@ -268,6 +289,13 @@ const GlobalStyle = createGlobalStyle`
 
   body::after {
     content: none;
+  }
+
+  /* Glass popovers need the blur behind them; without it they turn solid. */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    body {
+      --popover: var(--color-surface);
+    }
   }
 
   @keyframes curate-sheen {
@@ -446,17 +474,6 @@ const GlobalStyle = createGlobalStyle`
 
   }
 
-  body[data-type='geist'] {
-    --font-display: "Geist", -apple-system, BlinkMacSystemFont, sans-serif;
-  }
-
-  body[data-type='plex'] {
-    --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-    --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    --font-display: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
-    --font-figure: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
-  }
-
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
@@ -477,6 +494,26 @@ const GlobalStyle = createGlobalStyle`
     10% { opacity: 1; }
     85% { opacity: 1; }
     100% { --cv-comet: 360deg; opacity: 0; }
+  }
+
+  /*
+   * The lit edge's angle (primary buttons, switches): registered so it can
+   * turn on hover. The connect button's travelling light uses --cv-sweep.
+   */
+  @property --edge-angle {
+    syntax: '<angle>';
+    inherits: false;
+    initial-value: 210deg;
+  }
+
+  @property --cv-sweep {
+    syntax: '<angle>';
+    inherits: false;
+    initial-value: 0deg;
+  }
+
+  @keyframes cv-sweep {
+    to { --cv-sweep: 360deg; }
   }
 
   /* Looping animations pause while the tab is hidden (set in bootstrap/app.tsx). */

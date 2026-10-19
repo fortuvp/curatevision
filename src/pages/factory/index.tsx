@@ -64,7 +64,7 @@ import {
 } from './schemas'
 
 /*
- * /factory/:chainId, the Standard (Light Curate) list wizard: the page's
+ * /factory/:chainId, the Light Curate list wizard: the page's
  * statement, one explainer, a horizontal stepper, the current step in one
  * panel with its action bar (Next submits the step's form, so its schema
  * runs) beside a live preview of what each side will pay, then the lists
@@ -683,8 +683,8 @@ const FactoryPage = () => {
     factoryChainId !== undefined && !!defaultArbitratorAddresses[factoryChainId]
 
   useDocumentHead(
-    factoryDocumentTitle('Standard'),
-    'Create a Standard Kleros Curate list: name it, set the deposits and the court, define the item fields and deploy it with one transaction.',
+    factoryDocumentTitle('Light'),
+    'Create a Light Kleros Curate list: name it, set the deposits and the court, define the item fields and deploy it with one transaction.',
   )
 
   const factoryInterface = useMemo(
@@ -745,7 +745,7 @@ const FactoryPage = () => {
               <ChainChip chainId={factoryChainId} size="sm" />
             )}
           </Row>
-          <Statement>Create a Standard list</Statement>
+          <Statement>Create a Light list</Statement>
           <Lede>
             A submitter’s deposit is locked only during the challenge period;
             the draft is saved in this browser as you type.
@@ -756,7 +756,7 @@ const FactoryPage = () => {
             ariaLabel="List type"
             value="light"
             options={[
-              { value: 'light', label: 'Standard' },
+              { value: 'light', label: 'Light' },
               { value: 'permanent', label: 'Stake' },
             ]}
             onChange={(value) => {

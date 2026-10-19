@@ -2,12 +2,13 @@ import React, { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import styled, { keyframes } from 'styled-components'
 import { Link } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getPublicClient, simulateContract } from '@wagmi/core'
 import { useAccount, useSwitchChain, useWalletClient } from 'wagmi'
 import { formatEther, isAddress, parseEther } from 'viem'
 import { useAtlasProvider } from '@kleros/kleros-app'
 import EnsureAuth from 'components/ensure-auth'
+import Select from 'components/ui/Select'
 import { CurateIcon } from 'components/curate/icons'
 import {
   Button,
@@ -27,18 +28,21 @@ import {
   TextInput,
   truncateMiddle,
 } from 'components/curate/primitives'
-import { NETWORKS_INFO } from 'config/networks'
+import { getNativeCurrency } from 'config/chains'
 import { klerosAddresses } from 'config/tcr-addresses'
 import { appKitModal, wagmiConfig } from 'config/wagmi'
 import { useEthersProvider } from 'hooks/ethers-adapters'
 import useCourtPolicies from 'hooks/use-court-policies'
 import { formatDate } from 'utils/time'
+import { fetchRegistryCreationTimes } from 'utils/registry-creation'
 import { parseIpfs } from 'utils/ipfs-parse'
 import { jurorsAndCourtIDFromExtraData } from 'utils/string'
 import { JSON_UPLOAD_ROLE } from 'utils/atlas-roles'
 import { errorToast, wrapWithToast } from 'utils/wrap-with-toast'
 import { normalizeAddress, shortAddress } from 'pages/dashboard/data'
+import { VerifiedBadge } from 'components/curate/verified-badge'
 import {
+  SUPPORTED_CHAIN_IDS,
   abiForKind,
   chainName,
   type GovernanceParams,
@@ -66,9 +70,8 @@ interface ParamConfig {
   hint?: string
 }
 
-const nativeSymbol = (chainId: number) =>
-  NETWORKS_INFO[chainId as keyof typeof NETWORKS_INFO]?.nativeCurrency.symbol ||
-  'ETH'
+// The shared helper, so Gnosis reads "xDAI" here like everywhere else.
+const nativeSymbol = (chainId: number) => getNativeCurrency(chainId).symbol
 
 const formatParamValue = (
   value: string | undefined,
@@ -502,31 +505,15 @@ const TwoUp = styled.div`
   }
 `
 
-const SelectInput = styled.select`
+/* The app's glass Select, at the field's full width. */
+const CourtSelect = styled(Select)`
+  display: block;
   width: 100%;
-  height: 44px;
-  padding: 0 12px;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius);
-  background: var(--color-raised);
-  color: var(--color-text);
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
-  transition: border-color var(--motion);
+  min-width: 0;
 
-  &:hover {
-    border-color: var(--color-border-strong);
-  }
-
-  &:focus {
-    outline: none;
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 4px var(--color-primary-soft);
-  }
-
-  &:disabled {
-    color: var(--color-muted);
-    cursor: not-allowed;
+  .ui-select-trigger {
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
   }
 `
 
@@ -717,26 +704,33 @@ const ArbitrationGovernanceField = ({
           )}
           <TwoUp>
             <Stack $gap={4}>
-              <Label as="label" htmlFor={`${ids}-court`}>
+              <Label
+                as="label"
+                id={`${ids}-court-label`}
+                htmlFor={`${ids}-court`}
+              >
                 Court
               </Label>
-              <SelectInput
+              <CourtSelect
                 id={`${ids}-court`}
+                aria-labelledby={`${ids}-court-label`}
                 value={courtID}
                 disabled={locked || courts.length === 0}
-                onChange={(event) => updateCourt(event.currentTarget.value)}
+                placeholder={
+                  courts.length > 0 ? 'Select court' : 'Court list unavailable'
+                }
+                onChange={(value) =>
+                  updateCourt(
+                    String(typeof value === 'object' ? value.key : value),
+                  )
+                }
               >
-                <option value="">
-                  {courts.length > 0
-                    ? 'Select court'
-                    : 'Court list unavailable'}
-                </option>
                 {courts.map((court) => (
-                  <option key={court.value} value={court.value}>
+                  <Select.Option key={court.value} value={String(court.value)}>
                     {court.label} · ID {court.courtID}
-                  </option>
+                  </Select.Option>
                 ))}
-              </SelectInput>
+              </CourtSelect>
             </Stack>
             <Stack $gap={4}>
               <Label as="label" htmlFor={`${ids}-jurors`}>
@@ -754,7 +748,7 @@ const ArbitrationGovernanceField = ({
           </TwoUp>
           {selectedCourt && (
             <Small $muted>
-              {selectedCourt.description ||
+              {selectedCourt.summary ||
                 `${selectedCourt.label} handles disputes sent to this court.`}{' '}
               Fee per juror:{' '}
               <Data $weight={500}>
@@ -1139,6 +1133,19 @@ const GovName = styled.div`
   }
 `
 
+/** The list's name, then its Kleros Verified seal; the name gives way first. */
+const TitleLine = styled.span`
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+
+  > a {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+`
+
 const RegistryTitle = styled(Link)`
   display: block;
   overflow: hidden;
@@ -1268,6 +1275,22 @@ const logoUrl = (uri?: string | null): string | null => {
   return parseIpfs(uri)
 }
 
+/** The creation date, a placeholder while it is read, or a dash. */
+const CreatedValue = ({
+  time,
+  pending,
+}: {
+  time?: number
+  pending: boolean
+}) =>
+  time ? (
+    <>{formatDate(time)}</>
+  ) : pending ? (
+    <SkeletonBlock $width="84px" $height="16px" aria-hidden />
+  ) : (
+    <>—</>
+  )
+
 export const GovernancePanel = ({
   registries,
   profileAddress,
@@ -1286,6 +1309,21 @@ export const GovernancePanel = ({
   const isOwner = isConnected && connected === profileAddress
   const selectedEditable =
     isOwner && normalizeAddress(selected?.governor) === connected
+
+  // A list's creation is the factory's NewGTCR block time (cached once read;
+  // the same query as Browse), never its first request: until the time is
+  // known, the date waits. Stake lists carry their own creation time.
+  const creation = useQuery({
+    queryKey: ['registryCreationTimes'],
+    queryFn: () => fetchRegistryCreationTimes(SUPPORTED_CHAIN_IDS),
+    staleTime: 10 * 60_000,
+  })
+  const createdAt = (registry: GovernedRegistry): number | undefined =>
+    registry.kind === 'permanent'
+      ? registry.createdAt
+      : (creation.data?.get(
+          `${registry.chainId}:${registry.address.toLowerCase()}`,
+        ) ?? (registry.createdAtExact ? registry.createdAt : undefined))
 
   return (
     <section aria-label="Governed lists">
@@ -1323,7 +1361,12 @@ export const GovernancePanel = ({
                   {!image && <CurateIcon name="registry" size={17} />}
                 </GovLogo>
                 <GovName>
-                  <RegistryTitle to={href}>{registry.title}</RegistryTitle>
+                  <TitleLine>
+                    <RegistryTitle to={href}>{registry.title}</RegistryTitle>
+                    {registry.trustStatus === 'verified' && (
+                      <VerifiedBadge size={16} />
+                    )}
+                  </TitleLine>
                   <Row $gap={6} $wrap>
                     <ChainChip chainId={registry.chainId} size="sm" />
                     <small>
@@ -1358,9 +1401,10 @@ export const GovernancePanel = ({
                       Created
                     </Label>
                     <dd>
-                      {registry.createdAt
-                        ? formatDate(registry.createdAt)
-                        : '—'}
+                      <CreatedValue
+                        time={createdAt(registry)}
+                        pending={creation.isPending}
+                      />
                     </dd>
                   </div>
                 </Facts>

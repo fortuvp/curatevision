@@ -76,6 +76,9 @@ export interface SubmitPageProps {
   chainId?: number
   /** The one line under the title; a skeleton until every word is known. */
   lede?: string
+  /** A quiet fact under it on narrow screens ("Challenge period · 3 days"),
+   *  where the panel that shows the window sits below the form. */
+  ledeMeta?: string
   columns?: Column[]
   initialValues?: unknown[]
   disabledFields?: boolean[]
@@ -258,6 +261,21 @@ const Lede = styled.p`
   color: var(--color-muted);
   font-size: 17px;
   line-height: 26px;
+`
+
+const LedeMeta = styled.p`
+  display: none;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  font-variant-numeric: tabular-nums;
+
+  @media (max-width: 1000px) {
+    display: inline-flex;
+  }
 `
 
 /* ---------- Form panel ---------- */
@@ -719,9 +737,10 @@ const PageHeader = ({
   registryTitle,
   itemName,
   lede,
+  ledeMeta,
 }: Pick<
   SubmitPageProps,
-  'registryPath' | 'registryTitle' | 'itemName' | 'lede'
+  'registryPath' | 'registryTitle' | 'itemName' | 'lede' | 'ledeMeta'
 >) => {
   const article = getArticleFor(itemName)
   return (
@@ -753,13 +772,19 @@ const PageHeader = ({
       ) : (
         <SkeletonBlock $height="26px" $width="min(100%, 600px)" />
       )}
+      {lede && ledeMeta && (
+        <LedeMeta style={{ ['--i' as string]: 2 }}>
+          <StatusDot $tone="window" aria-hidden />
+          {ledeMeta}
+        </LedeMeta>
+      )}
     </Header>
   )
 }
 
 type HeaderProps = Pick<
   SubmitPageProps,
-  'registryPath' | 'registryTitle' | 'itemName' | 'lede'
+  'registryPath' | 'registryTitle' | 'itemName' | 'lede' | 'ledeMeta'
 >
 
 const LoadingWorkspace = (props: HeaderProps) => (

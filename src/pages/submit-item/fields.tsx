@@ -6,6 +6,8 @@ import { parseIpfs } from 'utils/ipfs-parse'
 import { addPeriod } from 'utils/string'
 import { parseRichAddress, references } from 'utils/rich-address'
 import { Button } from 'components/curate/primitives'
+import Select from 'components/ui/Select'
+import Switch from 'components/ui/Switch'
 import { formatFileSize } from './amounts'
 import {
   isEmptyField,
@@ -376,68 +378,47 @@ const JoinedInput = styled.input`
   }
 `
 
+/*
+ * The chain half of Joined: the app's Select (glass listbox) with its own
+ * field chrome removed, since the wrapper draws the border and the ring.
+ */
 const SelectWrap = styled.div`
   position: relative;
   min-width: 0;
   border-right: 1px solid var(--glass-border);
 
-  svg {
-    position: absolute;
-    top: 50%;
-    right: 12px;
+  .ui-select {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  && .ui-select-trigger {
+    height: 100%;
+    min-height: 0;
+    padding: 0 12px 0 16px;
+    border: 0;
+    border-radius: var(--radius) 0 0 var(--radius);
+    background: transparent;
+    box-shadow: none;
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+    font-weight: 500;
+  }
+
+  && .ui-select-trigger:disabled {
     color: var(--color-muted);
-    transform: translateY(-50%);
-    pointer-events: none;
   }
 
   @media (max-width: 520px) {
     height: 46px;
     border-right: 0;
+
+    && .ui-select-trigger {
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
   }
 `
-
-const Select = styled.select`
-  appearance: none;
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  padding: 0 34px 0 16px;
-  border: 0;
-  border-radius: var(--radius) 0 0 var(--radius);
-  background: transparent;
-  color: var(--color-text);
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
-  font-weight: 500;
-  text-overflow: ellipsis;
-  cursor: pointer;
-
-  &:focus {
-    outline: none;
-  }
-
-  &:disabled {
-    color: var(--color-muted);
-    cursor: not-allowed;
-  }
-
-  option {
-    background: var(--color-surface);
-    color: var(--color-text);
-  }
-`
-
-const Caret = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
-    <path
-      d="M6 9l6 6 6-6"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-)
 
 const SwitchRow = styled.label`
   display: flex;
@@ -453,59 +434,6 @@ const SwitchRow = styled.label`
   font-size: var(--fs-body);
   line-height: var(--lh-body);
   cursor: pointer;
-`
-
-const SwitchInput = styled.input`
-  appearance: none;
-  position: relative;
-  flex: 0 0 auto;
-  width: 44px;
-  height: 26px;
-  margin: 0;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-pill);
-  background: var(--color-surface);
-  cursor: pointer;
-  transition:
-    background var(--motion),
-    border-color var(--motion),
-    box-shadow var(--motion);
-
-  &::after {
-    content: '';
-    position: absolute;
-    top: 3px;
-    left: 3px;
-    width: 18px;
-    height: 18px;
-    border-radius: var(--radius-pill);
-    background: var(--color-muted);
-    transition:
-      transform 320ms cubic-bezier(0.34, 1.4, 0.64, 1),
-      background var(--motion);
-  }
-
-  &:checked {
-    border-color: transparent;
-    background: var(--color-primary-fill);
-    box-shadow: 0 0 14px
-      color-mix(in srgb, var(--color-primary) 40%, transparent);
-  }
-
-  &:checked::after {
-    transform: translateX(18px);
-    background: var(--color-on-primary);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--color-primary);
-    outline-offset: 2px;
-  }
-
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.55;
-  }
 `
 
 const DropZone = styled.div<{ $invalid?: boolean; $over?: boolean }>`
@@ -848,14 +776,17 @@ export const ColumnField = ({
   let control: React.ReactNode
   if (isBoolean)
     control = (
-      <SwitchRow htmlFor={id}>
+      // The app's lit Switch (a button). The row's onBlur marks the field
+      // touched when focus leaves it, as the checkbox's own onBlur did.
+      <SwitchRow htmlFor={id} onBlur={onBlur}>
         <span aria-hidden>{text === 'true' ? 'Yes' : 'No'}</span>
-        <SwitchInput
-          {...shared}
-          type="checkbox"
-          role="switch"
+        <Switch
+          id={id}
+          disabled={disabled}
+          aria-invalid={shared['aria-invalid']}
+          aria-describedby={describedBy}
           checked={text === 'true'}
-          onChange={(event) => onChange(String(event.target.checked))}
+          onChange={(checked) => onChange(String(checked))}
         />
       </SwitchRow>
     )
@@ -889,24 +820,29 @@ export const ColumnField = ({
     const address = parsed ? parsed.address : ''
     control = (
       <Joined $invalid={invalid}>
-        <SelectWrap>
+        {/* The trigger keeps focus while its panel is open, so this blur
+            fires only when focus leaves the chain picker. */}
+        <SelectWrap onBlur={onBlur}>
           <Select
             aria-label={`${column.label} chain`}
             value={chainKey}
             disabled={disabled}
-            onBlur={onBlur}
-            onChange={(event) => onChange(`${event.target.value}:${address}`)}
+            dropdownStyle={{ minWidth: 220 }}
+            onChange={(next) =>
+              onChange(
+                `${typeof next === 'object' ? next.key : next}:${address}`,
+              )
+            }
           >
             {chainOptions.map((reference) => (
-              <option
+              <Select.Option
                 key={`${reference.namespaceId}:${reference.id}`}
                 value={`${reference.namespaceId}:${reference.id}`}
               >
                 {reference.name}
-              </option>
+              </Select.Option>
             ))}
           </Select>
-          <Caret />
         </SelectWrap>
         <JoinedInput
           {...shared}

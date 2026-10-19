@@ -29,6 +29,10 @@ import {
 } from './data'
 import { GovernancePanel } from './governance'
 import {
+  readVerifiedSets,
+  withVerified,
+} from 'components/curate/registry-shared-verified'
+import {
   PAGE_SIZE,
   activeChains,
   filterActivities,
@@ -84,19 +88,20 @@ const AddressPage = () => {
 
   // The registry index comes from the dashboard's own query, so the profile,
   // the governance scan and the dashboard and browse pages share one load
-  // and its cache.
+  // and its cache. Kleros Verified is stamped by the shared rule (the
+  // registry pages' and Browse's cached sets), never taken from the index.
   const queryClient = useQueryClient()
-  const readIndex = useCallback(
-    () =>
-      queryClient
-        .fetchQuery({
-          queryKey: ['curateDashboard'],
-          queryFn: fetchDashboardData,
-          staleTime: 60_000,
-        })
-        .then((dashboard) => dashboard.registries),
-    [queryClient],
-  )
+  const readIndex = useCallback(async () => {
+    const [dashboard, sets] = await Promise.all([
+      queryClient.fetchQuery({
+        queryKey: ['curateDashboard'],
+        queryFn: fetchDashboardData,
+        staleTime: 60_000,
+      }),
+      readVerifiedSets(SUPPORTED_CHAIN_IDS, queryClient),
+    ])
+    return withVerified(dashboard.registries, sets)
+  }, [queryClient])
 
   const query = useQuery({
     queryKey: ['addressProfile', address],

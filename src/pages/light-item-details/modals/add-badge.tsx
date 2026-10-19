@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react'
 import styled from 'styled-components'
+import { litEdgeBackground } from 'components/ui/kit-styles'
 import { BigNumber } from 'ethers'
 import useNativeCurrency from 'hooks/native-currency'
 import { useAttachment } from 'hooks/use-attachment'
@@ -32,30 +33,82 @@ const RadioList = styled.div`
   overflow-y: auto;
 `
 
+/*
+ * One badge list per row, in the selector language: the chosen row is
+ * encircled by the lit edge, and its radio is a ring whose centre lights.
+ * Nothing is chosen until someone picks; the native radio keeps the
+ * keyboard (arrows move and choose inside the group).
+ */
 const RadioRow = styled.label<{ $selected: boolean }>`
+  --edge-angle: 210deg;
+  position: relative;
   display: grid;
   grid-template-columns: 20px 48px minmax(0, 1fr);
   gap: 12px;
   align-items: center;
   padding: 10px 12px;
   border: 1px solid
-    ${({ $selected }) =>
-      $selected ? 'var(--color-primary)' : 'var(--color-border)'};
+    ${({ $selected }) => ($selected ? 'transparent' : 'var(--color-border)')};
   border-radius: var(--radius);
   background: ${({ $selected }) =>
-    $selected ? 'var(--color-primary-soft)' : 'var(--color-surface)'};
+    $selected
+      ? litEdgeBackground('var(--color-surface)')
+      : 'var(--color-surface)'};
+  box-shadow: ${({ $selected }) =>
+    $selected
+      ? '0 0 0 3px color-mix(in srgb, var(--edge-2) 12%, transparent), 0 10px 26px -16px var(--cta-glow)'
+      : 'none'};
   cursor: pointer;
   transition:
     border-color var(--motion),
-    background var(--motion);
+    box-shadow var(--motion);
 
   &:hover {
-    border-color: var(--color-border-strong);
+    border-color: ${({ $selected }) =>
+      $selected ? 'transparent' : 'var(--color-border-strong)'};
   }
 
   input {
+    appearance: none;
+    position: relative;
+    width: 16px;
+    height: 16px;
     margin: 0;
-    accent-color: var(--color-primary);
+    border: 1.5px solid var(--color-faint);
+    border-radius: 50%;
+    background: transparent;
+    cursor: pointer;
+    transition: border-color var(--motion);
+  }
+
+  input::after {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    border-radius: 50%;
+    background: var(--edge-2);
+    box-shadow: 0 0 10px var(--edge-2);
+    transform: scale(0);
+    transition: transform var(--dur-control) var(--ease-spring);
+  }
+
+  input:checked {
+    border-color: var(--edge-2);
+  }
+
+  input:checked::after {
+    transform: scale(1);
+  }
+
+  input:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    input::after {
+      transition: none;
+    }
   }
 `
 
@@ -240,8 +293,8 @@ const AddBadgeModal = ({
               <Label>Deposit</Label>
               <Small $muted>
                 {' '}
-                Returned after the challenge window or, if there is a dispute,
-                awarded to the winner.
+                Back after the challenge period; in a dispute, it goes to the
+                side the jurors agree with.
               </Small>
             </div>
             <Data>

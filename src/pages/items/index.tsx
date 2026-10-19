@@ -39,7 +39,6 @@ import { formatDurationLong } from 'utils/time'
 import {
   ZERO_ADDRESS,
   capitalizeFirstLetter,
-  getArticleFor,
   jurorsAndCourtIDFromExtraData,
 } from 'utils/string'
 import { truncateAtWord } from 'utils/truncate-at-word'
@@ -76,7 +75,10 @@ import type { V2Field } from 'components/curate/v2'
 import { reveal } from 'components/curate/motion/reveal'
 import { ClassicLifetime } from 'components/curate/registry-classic-lifetime'
 import { useRegistryLayout } from 'components/curate/registry-shared-layout'
-import { useRegistryVerified } from 'components/curate/registry-shared-verified'
+import {
+  extractRegistryAddress,
+  useRegistryVerified,
+} from 'components/curate/registry-shared-verified'
 import {
   readActionLink,
   submitPathFor,
@@ -785,6 +787,7 @@ const Items = () => {
     setRevealed((previous) => new Set(previous).add(id))
   }, [])
 
+  const verifiedEntries = trust.listOfLists ? trust.verifiedSet : undefined
   const entries = useMemo<EntryRow[]>(() => {
     if (!visibleItems || !tcrAddress) return []
     return visibleItems.map((entry) => {
@@ -807,6 +810,10 @@ const Items = () => {
           isTCRofTCRs && typeof firstValue === 'string'
             ? `/tcr/${chainId}/${firstValue}`
             : undefined,
+        // On the Kleros list of lists, the lists it vouches for carry the seal.
+        verified: !!verifiedEntries?.has(
+          extractRegistryAddress(null, entry.columns) ?? '',
+        ),
         hidden,
         onReveal: hidden
           ? (event?: React.SyntheticEvent) => reveal(id, event)
@@ -822,6 +829,7 @@ const Items = () => {
     nsfwFilterOn,
     revealed,
     isTCRofTCRs,
+    verifiedEntries,
     reveal,
   ])
 
@@ -963,27 +971,30 @@ const Items = () => {
     },
   ]
 
-  const article = getArticleFor(itemName)
   const itemWord = midSentence(itemName)
   const explainerSteps: ExplainerStep[] = [
     {
-      title: `Submit ${article} ${itemWord} with a deposit`,
+      title: 'Follow the policy, get your deposit back',
       body:
         submitTotal && submissionBaseDeposit && costText
-          ? `You send now ${submitTotal} = ${formatAmount(submissionBaseDeposit, nativeCurrency)} base deposit + ${costText} arbitration cost. It comes back in full if nobody challenges.`
-          : 'You lock the list’s base deposit plus the arbitration cost. It comes back in full if nobody challenges.',
+          ? `You send now ${submitTotal} = ${formatAmount(submissionBaseDeposit, nativeCurrency)} base deposit + ${costText} arbitration cost. If your ${itemWord} follows the listing policy, it comes back in full.`
+          : `You lock the list’s base deposit plus the arbitration cost. If your ${itemWord} follows the listing policy, it comes back in full.`,
     },
     {
-      title: periodText
-        ? `Anyone can challenge for ${periodText}`
-        : 'Anyone can challenge during the challenge period',
-      body: challengeTotal
-        ? `A challenger locks ${challengeTotal} and gives a reason. Kleros jurors then rule on the listing policy.`
-        : 'A challenger locks their own deposit and gives a reason. Kleros jurors then rule on the listing policy.',
+      // A successful challenger nets the submitter's base deposit (the
+      // round's pool, less the one arbitration cost) and gets their own back.
+      title: 'Spot a mistake, earn a bounty',
+      body: `Challenge a submission that breaks the policy ${
+        periodText ? `within ${periodText}` : 'during its challenge period'
+      }. If jurors agree, you earn the submitter's ${
+        submissionBaseDeposit
+          ? `${formatAmount(submissionBaseDeposit, nativeCurrency)} base deposit`
+          : 'base deposit'
+      } and your ${challengeTotal ?? 'challenge deposit'} comes back.`,
     },
     {
-      title: 'Jurors decide; the winner is paid',
-      body: 'The winner takes the pool minus one arbitration cost; the loser’s deposit is lost. Unchallenged requests are executed and the deposit returns.',
+      title: 'Kleros jurors decide',
+      body: 'They rule on the listing policy. The side they agree with gets its deposit back plus the other side’s, less the arbitration cost.',
     },
   ]
 
@@ -1076,7 +1087,7 @@ const Items = () => {
         stats={stats}
         parameters={parameters}
         explainerId={`registry-classic-${tcrAddress.toLowerCase()}`}
-        explainerHeading="One deposit, a challenge window, a court if needed."
+        explainerHeading="A deposit you get back, a bounty for spotting mistakes."
         explainerSteps={explainerSteps}
         loading={!metaEvidence || overviewQuery.isLoading}
         registeredCount={overview?.complete ? overview.registered : undefined}
@@ -1084,11 +1095,15 @@ const Items = () => {
       />
 
       <Legacy style={{ '--i': 1 } as React.CSSProperties}>
-        <Deprecation>
-          <InfoIcon />
-          Classic Curate is deprecated: this list keeps working, but new lists
-          use Light Curate.
-        </Deprecation>
+        {/* Not on a Classic list of lists: it is Kleros Verified and keeps
+            granting the badge, so nothing there may read as retired. */}
+        {!trust.listOfLists && (
+          <Deprecation>
+            <InfoIcon />
+            Classic Curate is deprecated: this list keeps working, but new lists
+            use Light Curate.
+          </Deprecation>
+        )}
         {overview && (
           <ClassicLifetime
             times={overview.latestRequests}

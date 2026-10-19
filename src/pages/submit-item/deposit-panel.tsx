@@ -48,7 +48,7 @@ export interface Outcome {
 
 export interface WindowTerms {
   seconds: number
-  /** "Challenge period" or "Pending period". */
+  /** "Challenge period" or "Submission period". */
   label: string
   /** The label of the window's end ("Ends", "Accepted"). */
   endLabel: string

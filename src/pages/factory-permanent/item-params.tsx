@@ -37,6 +37,11 @@ export const ItemTypes = objectWithoutKey(AllItemTypes, 'TWITTER_USER_ID')
 
 const { IMAGE, FILE, LONG_TEXT } = AllItemTypes
 
+const TYPE_OPTIONS = Object.values(ItemTypes).map((itemType) => ({
+  value: String(itemType),
+  label: String(itemType),
+}))
+
 const MAX_IDENTIFIERS = 5
 
 const COLUMNS = '28px minmax(0, 1fr) minmax(0, 1.25fr) 150px 108px 34px'
@@ -170,7 +175,8 @@ const ToggleLabel = styled.label`
   gap: 10px;
   cursor: pointer;
 
-  span {
+  /* The visible name, phones only (the switch's own parts are not direct children). */
+  > span {
     display: none;
     color: var(--color-text);
     font-size: var(--fs-body);
@@ -178,7 +184,7 @@ const ToggleLabel = styled.label`
   }
 
   @media (max-width: 900px) {
-    span {
+    > span {
       display: inline;
     }
   }
@@ -325,20 +331,11 @@ const ItemParams = ({
                       <Select
                         id={typeId}
                         aria-label={`Field ${index + 1} type`}
-                        value={column.type}
-                        onChange={(event) =>
-                          onTypeChange(index, event.target.value)
-                        }
-                      >
-                        {Object.values(ItemTypes).map((itemType) => (
-                          <option
-                            value={String(itemType)}
-                            key={String(itemType)}
-                          >
-                            {String(itemType)}
-                          </option>
-                        ))}
-                      </Select>
+                        value={String(column.type)}
+                        onChange={(value) => onTypeChange(index, value)}
+                        options={TYPE_OPTIONS}
+                        menuMinWidth={180}
+                      />
                     </Cell>
                     <ToggleCell>
                       <ToggleLabel
@@ -355,16 +352,13 @@ const ItemParams = ({
                       >
                         <Toggle
                           id={identifierId}
-                          type="checkbox"
-                          role="switch"
                           aria-label={`Field ${index + 1} identifier`}
-                          aria-checked={!!column.isIdentifier}
                           checked={!!column.isIdentifier}
                           disabled={!canBeIdentifier}
-                          onChange={(event) =>
+                          onChange={(checked) =>
                             setFieldValue(
                               `columns[${index}].isIdentifier`,
-                              event.target.checked,
+                              checked,
                             )
                           }
                         />

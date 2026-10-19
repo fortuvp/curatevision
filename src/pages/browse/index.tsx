@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import styled, { css, keyframes } from 'styled-components'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import useDocumentHead from 'hooks/use-document-head'
 import useNow from 'hooks/use-now'
 import useStoredLayout, {
@@ -11,6 +11,7 @@ import useStoredLayout, {
 import { formatAbsolute, formatAgo } from 'utils/time'
 import { parseRichAddress } from 'utils/rich-address'
 import ChainLogo from 'components/chain-logo'
+import { NETWORKS } from 'config/networks'
 import { CurateIcon } from 'components/curate/icons'
 import {
   Button,
@@ -21,26 +22,45 @@ import {
   Page,
   SearchField,
   SegmentedControl,
+  SelectMenu,
   SkeletonBlock,
   Small,
   StatusDot,
   Surface,
   Table,
   TableScroller,
+  ToggleGroup,
   truncateMiddle,
+  type SegmentOption,
   type StatusTone,
 } from 'components/curate/primitives'
 import { AnimatedNumber } from 'components/curate/motion/animated-number'
-import { Odometer } from 'components/curate/motion/odometer'
-import { RingGauge } from 'components/curate/motion/ring-gauge'
 import { reveal } from 'components/curate/motion/reveal'
 import { Pagination } from 'components/ui'
+import Tooltip from 'components/ui/Tooltip'
 import { fetchDashboardData } from 'pages/dashboard/data'
 import {
   applyCreationTimes,
   fetchRegistryCreationTimes,
 } from 'utils/registry-creation'
-import type { DashboardRegistry } from 'pages/dashboard/types'
+import type { DashboardRegistry, RegistryKind } from 'pages/dashboard/types'
+import { TESTNET_CHAIN_IDS } from 'pages/dashboard/view'
+import {
+  COMMUNITY_EXPLANATION,
+  COMMUNITY_LABEL,
+  COMMUNITY_LISTS_LABEL,
+  VERIFIED_EXPLANATION,
+  VERIFIED_LABEL,
+  VERIFIED_LISTS_LABEL,
+  VerifiedBadge,
+} from 'components/curate/verified-badge'
+import {
+  useVerifiedSets,
+  withVerified,
+} from 'components/curate/registry-shared-verified'
+import { Avatar } from './avatar'
+import { entryKey, fetchEntryImages, type EntryRef } from './entry-images'
+import { useCompletedRegistries, useNamedRegistries } from './metadata'
 import {
   KIND_OPTIONS,
   PAGE_SIZE,
@@ -52,8 +72,9 @@ import {
   entryCount,
   filterRegistries,
   hasAddressTitle,
+  inScope,
   kindLabel,
-  mediaUrl,
+  openRequests,
   parseChains,
   parseKinds,
   parsePage,
@@ -62,23 +83,27 @@ import {
   pendingLabel,
   registryBlurb,
   registryHref,
+  scopeChainIds,
   scopeText,
-  shareCaption,
   shownCreation,
   sortRegistries,
   summarize,
-  toggleKind,
+  trustParam,
   verificationHref,
+  verifiedShowcase,
+  type BrowseSort,
   type TrustMode,
 } from './view'
 
 /*
  * Browse (/browse): every registry the indexers know, across chains. A
  * compact title, one panel of figures for the chosen chain scope, then the
- * explorer: one toolbar row (search, trust, type, sort, layout), the
- * registries as rows, cards or a table, and pagination. The rail holds the
- * way to get a registry verified and the latest requests. The chain is
- * chosen in the app bar through ?chain. Every figure is read from the data.
+ * explorer: which lists (Kleros Verified, Community or all) with what that
+ * means, one toolbar row (search, type, sort, layout), the registries as
+ * rows, cards or a table, and pagination. Kleros Verified lists carry the
+ * seal wherever they appear; Community lists carry no mark. The rail holds
+ * the way to earn the badge and the latest requests. The chain is chosen in
+ * the app bar through ?chain. Every figure is read from the data.
  */
 
 const integer = new Intl.NumberFormat('en-US')
@@ -177,6 +202,19 @@ const LivePill = styled.span`
     color: var(--color-primary-hover);
     font-weight: 500;
   }
+
+  /* Some indexer did not answer: the figures are partial, not live. The
+     longer line may wrap on a phone. */
+  &[data-partial] {
+    height: auto;
+    min-height: 32px;
+    padding-block: 5px;
+    white-space: normal;
+
+    b {
+      color: var(--color-warning);
+    }
+  }
 `
 
 /** The pulsing dot: only while the data is present and the last fetch worked. */
@@ -196,56 +234,163 @@ const Pulse = styled.i`
 /* ---------- Figures ---------- */
 
 /*
- * One panel: the verified share as a ring (the same gauge the home page draws
- * for it), the verified count as the hero figure, then a strip of the other
- * counts. Every figure appears once.
+ * One panel of figures for the chain scope. Kleros Verified leads, as a
+ * count with the logos of its largest lists: most lists are Community lists
+ * and always will be, so the verified ones are shown as the set that earned
+ * the badge, never as a share of every list. The other counts follow as a
+ * strip split by hairlines. Every figure appears once.
  */
 const FiguresPanel = styled(Surface)`
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr);
-  align-items: center;
-  gap: 24px 36px;
+  grid-template-columns: minmax(300px, auto) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 24px 40px;
   margin-top: 28px;
-  padding: 22px 28px;
+  padding: 24px 28px;
   ${reveal}
 
   @media (max-width: 1100px) {
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
   }
 
   @media (max-width: 720px) {
-    gap: 18px 16px;
+    gap: 18px;
     padding: 18px 16px;
   }
 `
 
-const GaugeSlot = styled.div`
-  display: flex;
-  width: 148px;
-
-  @media (max-width: 720px) {
-    width: 118px;
-  }
-`
-
-const HeroFigure = styled.div`
+/* Label on top, figure at the bottom, level with the strip beside it. */
+const VerifiedFigure = styled.div`
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   gap: 10px;
   min-width: 0;
 `
 
-const Big = styled.span`
-  ${displayFigure}
-  font-size: clamp(48px, 2.4vw + 28px, 68px);
-  line-height: 0.95;
-  letter-spacing: -0.04em;
+const FigureHead = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 `
 
-const Caption = styled.span`
+/* The figure and the logos' caption share the panel's bottom line, level
+   with the other figures. */
+const FigureLine = styled.div`
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+`
+
+const BigFigure = styled.b`
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  ${displayFigure}
+  font-size: 44px;
+  line-height: 46px;
+
+  small {
+    color: var(--color-muted);
+    font-family: var(--font-sans);
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+    font-weight: 400;
+    letter-spacing: 0;
+  }
+
+  @media (max-width: 720px) {
+    font-size: 36px;
+    line-height: 40px;
+  }
+`
+
+/**
+ * The Kleros Verified lists in scope, in the dashboard's order: each logo
+ * leads to its list (its name and figure on hover and focus), then how many
+ * more, with the order said underneath.
+ */
+const Showcase = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+`
+
+const LogoRow = styled.ul`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  > li {
+    display: inline-flex;
+  }
+`
+
+const LogoLink = styled(Link)`
+  display: inline-flex;
+  border-radius: 10px;
+  transition:
+    transform var(--motion),
+    filter var(--motion);
+
+  &:hover {
+    transform: translateY(-2px);
+    filter: drop-shadow(0 6px 10px rgb(0 0 0 / 0.22));
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+
+    &:hover {
+      transform: none;
+    }
+  }
+`
+
+const MoreLists = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
   color: var(--color-muted);
-  font-size: var(--fs-small);
-  line-height: var(--lh-small);
+  font-family: var(--font-figure);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+`
+
+const ShowcaseNote = styled.span`
+  color: var(--color-faint);
+  font-size: 12px;
+  line-height: 16px;
+`
+
+/* The tip on a logo: the list's name, then its figure. */
+const TipName = styled.span`
+  display: block;
+  font-weight: 500;
+`
+
+const TipFigure = styled.span`
+  display: block;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
 `
 
 /** The other counts as a strip, split by hairlines; it takes the free width. */
@@ -254,7 +399,6 @@ const InlineStats = styled.div`
   grid-template-columns: repeat(3, minmax(0, 1fr));
 
   @media (max-width: 1100px) {
-    grid-column: 1 / -1;
     padding-top: 18px;
     border-top: 1px solid var(--glass-border);
   }
@@ -326,22 +470,56 @@ const Toolbar = styled.div`
   margin-bottom: 14px;
 
   /* The search takes its own line when the column is too narrow for one row. */
-  @media (min-width: 1241px) and (max-width: 1400px), (max-width: 900px) {
+  @media (max-width: 780px) {
     > label:first-child {
       flex-basis: 100%;
     }
   }
 
-  /* On a phone the layout switch rides next to the trust control. */
+  .browse-layout {
+    margin-left: auto;
+  }
+
+  /* On a phone the type filter and the layout share a line; sort goes under. */
   @media (max-width: 600px) {
-    > [role='radiogroup'][aria-label='Layout'] {
+    .browse-kind {
       order: 1;
     }
 
-    > [role='group'],
-    > label:last-of-type {
+    .browse-layout {
       order: 2;
     }
+
+    .browse-sort {
+      order: 3;
+    }
+  }
+`
+
+/* ---------- Which lists ---------- */
+
+/* Its own line above the toolbar, with a line saying what the choice means. */
+const StandingBar = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+  margin-bottom: 12px;
+`
+
+const StandingNote = styled.p`
+  flex: 1 1 280px;
+  min-width: 0;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  text-wrap: pretty;
+
+  > span[role='img'],
+  > span[aria-hidden] {
+    margin: 0 2px;
+    vertical-align: -3px;
   }
 `
 
@@ -349,7 +527,7 @@ const Search = styled(SearchField)`
   flex: 1 1 170px;
   height: 38px;
   padding: 0 6px 0 14px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-pill);
 
   input {
     width: 0;
@@ -383,185 +561,7 @@ const ClearButton = styled.button`
   }
 `
 
-const Track = styled.div`
-  position: relative;
-  isolation: isolate;
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  height: 38px;
-  padding: 3px;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius);
-  background: var(--color-raised);
-`
-
-const Toggle = styled.button<{ $on?: boolean }>`
-  display: inline-flex;
-  align-items: center;
-  height: 30px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: ${({ $on }) =>
-    $on ? 'var(--color-primary-soft)' : 'transparent'};
-  box-shadow: ${({ $on }) =>
-    $on
-      ? 'inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 30%, transparent)'
-      : 'none'};
-  color: ${({ $on }) => ($on ? 'var(--color-text)' : 'var(--color-muted)')};
-  font-size: var(--fs-small);
-  line-height: var(--lh-small);
-  font-weight: 500;
-  white-space: nowrap;
-  cursor: pointer;
-  transition:
-    background var(--motion),
-    box-shadow var(--motion),
-    color var(--motion);
-
-  &:hover {
-    color: var(--color-text);
-  }
-`
-
-const SortField = styled.label`
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 38px;
-  padding: 0 12px;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius);
-  background: var(--color-raised);
-  color: var(--color-faint);
-  transition: border-color var(--motion);
-
-  &:hover {
-    border-color: var(--color-border-strong);
-  }
-
-  &:focus-within {
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 4px var(--color-primary-soft);
-  }
-
-  select:focus-visible {
-    outline: none;
-  }
-
-  select {
-    appearance: none;
-    height: 100%;
-    padding-right: 18px;
-    border: 0;
-    outline: 0;
-    background: transparent;
-    color: var(--color-text);
-    font-size: var(--fs-small);
-    line-height: var(--lh-small);
-    font-weight: 500;
-    cursor: pointer;
-  }
-
-  select option {
-    background: var(--color-surface);
-    color: var(--color-text);
-  }
-
-  > svg:last-child {
-    position: absolute;
-    right: 10px;
-    pointer-events: none;
-  }
-`
-
-const LayoutTrack = styled(Track)`
-  margin-left: auto;
-
-  @media (max-width: 520px) {
-    margin-left: 0;
-  }
-`
-
-const LayoutPill = styled.span`
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  z-index: -1;
-  width: 34px;
-  height: 30px;
-  border-radius: var(--radius-sm);
-  background: var(--color-primary-soft);
-  box-shadow: inset 0 0 0 1px
-    color-mix(in srgb, var(--color-primary) 30%, transparent);
-  transition: transform var(--dur-control) var(--ease-spring);
-
-  @media (prefers-reduced-motion: reduce) {
-    transition: none;
-  }
-`
-
-const LayoutButton = styled.button<{ $on?: boolean }>`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 30px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: ${({ $on }) => ($on ? 'var(--color-text)' : 'var(--color-faint)')};
-  cursor: pointer;
-  transition: color var(--motion);
-
-  &:hover {
-    color: var(--color-text);
-  }
-`
-
-const Notice = styled.p`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0 0 14px;
-  padding: 10px 14px;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius);
-  color: var(--color-muted);
-  font-size: var(--fs-small);
-  line-height: var(--lh-small);
-
-  svg {
-    flex: 0 0 auto;
-    color: var(--status-contested);
-  }
-`
-
 /* ---------- Registry identity ---------- */
-
-const Logo = styled.span<{ $size: number }>`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  width: ${({ $size }) => $size}px;
-  height: ${({ $size }) => $size}px;
-  border: 1px solid var(--glass-border);
-  border-radius: ${({ $size }) =>
-    $size >= 40 ? 'var(--radius)' : 'var(--radius-sm)'};
-  background: var(--color-raised);
-  color: var(--color-faint);
-  overflow: hidden;
-
-  img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-`
 
 const Name = styled.span`
   ${ellipsis}
@@ -571,6 +571,19 @@ const Name = styled.span`
   font-weight: 500;
   letter-spacing: -0.005em;
   transition: color var(--motion);
+`
+
+/** A list's name, then its Kleros Verified seal; the name gives way first. */
+const NameLine = styled.span`
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+
+  > :first-child {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
 `
 
 const Meta = styled.span`
@@ -954,7 +967,7 @@ const VerifyLink = styled(Link)`
     border-bottom: 0;
   }
 
-  span:last-child {
+  > span:last-child {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -963,7 +976,7 @@ const VerifyLink = styled(Link)`
     transition: transform var(--motion);
   }
 
-  &:hover span:last-child {
+  &:hover > span:last-child {
     transform: translateX(2px);
   }
 `
@@ -977,29 +990,25 @@ const Feed = styled.ol`
 const FeedItem = styled.li`
   position: relative;
 
-  /* A hairline strings each dot to the next one. */
+  /* A hairline strings each picture to the next one. */
   &:not(:last-child)::before {
     content: '';
     position: absolute;
-    top: 26px;
-    bottom: -8px;
-    left: 3.5px;
+    top: 54px;
+    bottom: -6px;
+    left: 18px;
     width: 1px;
     background: var(--glass-border);
   }
 
   a {
     display: grid;
-    grid-template-columns: 8px minmax(0, 1fr) auto;
+    grid-template-columns: 36px minmax(0, 1fr) auto;
     align-items: start;
-    gap: 14px;
+    gap: 12px;
     padding: 12px 0;
     color: inherit;
     text-decoration: none;
-  }
-
-  a > span:first-child {
-    margin-top: 5px;
   }
 
   a:hover strong {
@@ -1032,17 +1041,22 @@ const FeedItem = styled.li`
     flex: 0 0 auto;
     color: var(--color-faint);
     font-size: 12px;
-    line-height: 18px;
+    line-height: 16px;
     white-space: nowrap;
   }
+`
 
-  small {
-    ${ellipsis}
-    margin-top: 2px;
-    color: var(--color-faint);
-    font-size: 12px;
-    line-height: 16px;
-  }
+/** The entry's picture (else its list's logo) with the status dot on its corner. */
+const FeedThumb = styled.span`
+  position: relative;
+  display: inline-flex;
+`
+
+const FeedDot = styled(StatusDot)`
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  box-shadow: 0 0 0 2.5px var(--color-surface);
 `
 
 /** A bare address or transaction hash, set in mono and shortened. */
@@ -1069,12 +1083,58 @@ const Identifier = ({ label, value }: { label: string; value: string }) => {
   )
 }
 
-const FeedHead = styled.span`
+/**
+ * The list's name, then how long ago: a name gives way first; an address
+ * stays whole and the time gives way instead.
+ */
+const FeedFoot = styled.span`
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 6px;
   min-width: 0;
+  margin-top: 2px;
+  color: var(--color-faint);
+  font-size: 12px;
+  line-height: 16px;
+
+  > span,
+  > time {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  > span {
+    flex: 0 1 auto;
+  }
+
+  > code {
+    flex: 0 0 auto;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  > time {
+    flex: 0 0 auto;
+  }
+
+  > code + time {
+    flex: 0 1 auto;
+  }
+
+  > time::before {
+    content: '·';
+    margin-right: 6px;
+    color: var(--color-faint);
+  }
+
+  > span[role='img'] {
+    flex: 0 0 auto;
+    overflow: visible;
+    align-self: center;
+  }
 `
 
 /** Read by screen readers, not shown. */
@@ -1092,26 +1152,66 @@ const VisuallyHidden = styled.span`
 
 /* ---------- Pieces ---------- */
 
-/** Registry logo from its metadata, falling back to the registry icon. */
+/** The list's logo from its metadata, else its gem (see Avatar). */
 const RegistryLogo = ({
   registry,
   size = 44,
 }: {
   registry: DashboardRegistry
   size?: number
-}) => {
-  const [failed, setFailed] = useState(false)
-  const image = mediaUrl(registry.logoURI)
-  return (
-    <Logo $size={size} aria-hidden style={{ gridArea: 'logo' }}>
-      {image && !failed ? (
-        <img src={image} alt="" onError={() => setFailed(true)} />
-      ) : (
-        <CurateIcon name="registry" size={Math.round(size * 0.42)} />
-      )}
-    </Logo>
+}) => (
+  <Avatar
+    uri={registry.logoURI}
+    seed={registry.address}
+    size={size}
+    style={{ gridArea: 'logo' }}
+  />
+)
+
+/** The Kleros Verified seal for a verified list; Community lists carry none. */
+const ListSeal = ({
+  registry,
+  size = 16,
+}: {
+  registry?: DashboardRegistry
+  size?: number
+}) =>
+  registry?.trustStatus === 'verified' ? <VerifiedBadge size={size} /> : null
+
+const TitleSeal = styled(VerifiedBadge)`
+  margin-right: 8px;
+  vertical-align: -2px;
+`
+
+/**
+ * A list's name in the rail. A list known only by its address shows the
+ * address, whole and in mono ("0x0391…ad67"), not "Registry 0x0391…".
+ */
+const ListName = ({ title, address }: { title: string; address: string }) =>
+  /^(Permanent registry|Registry) 0x/i.test(title) ? (
+    <code title={address}>{truncateMiddle(address)}</code>
+  ) : (
+    <span>{title}</span>
   )
-}
+
+/**
+ * A chain mark that stays visible on a dark surface: the Gnosis mark is a
+ * dark green, so on the dark themes it sits on a light plate.
+ */
+const ChainMark = styled.span`
+  display: inline-flex;
+  flex: 0 0 auto;
+
+  body:not([data-theme='light']) &[data-plate] > span {
+    background: color-mix(in srgb, var(--color-text) 86%, var(--color-surface));
+  }
+`
+
+const RailChain = ({ chainId, size }: { chainId: number; size: number }) => (
+  <ChainMark data-plate={chainId === NETWORKS.gnosis || undefined}>
+    <ChainLogo chainId={chainId} size={size} />
+  </ChainMark>
+)
 
 const STAKE_PENDING_TITLE =
   'Stake lists report the entries currently listed, not open requests'
@@ -1131,8 +1231,62 @@ const OpenRequestsCell = ({ registry }: { registry: DashboardRegistry }) =>
     <>{formatInt(registry.pendingCount)}</>
   )
 
-const trustName = (mode: TrustMode): string =>
-  mode === 'verified' ? 'Verified' : 'Discovery'
+const conjunction = new Intl.ListFormat('en-GB', {
+  style: 'long',
+  type: 'conjunction',
+})
+const listFormat = (names: string[]) => conjunction.format(names)
+
+/** A list's key across chains: "<chainId>:<address>". */
+const listKey = (chainId: number, address: string) =>
+  `${chainId}:${address.toLowerCase()}`
+
+/** "Kleros Verified lists", "Community list", "lists": the badge's words. */
+const listsLabel = (mode: TrustMode, count: number): string => {
+  const one = count === 1
+  if (mode === 'verified')
+    return one ? `${VERIFIED_LABEL} list` : VERIFIED_LISTS_LABEL
+  if (mode === 'community')
+    return one ? `${COMMUNITY_LABEL} list` : COMMUNITY_LISTS_LABEL
+  return one ? 'list' : 'lists'
+}
+
+/** The default first; the seal names what Kleros Verified lists earned. */
+const TRUST_OPTIONS: SegmentOption<TrustMode>[] = [
+  {
+    value: 'verified',
+    label: VERIFIED_LABEL,
+    icon: <VerifiedBadge size={15} decorative />,
+  },
+  { value: 'community', label: COMMUNITY_LABEL },
+  { value: 'all', label: 'All' },
+]
+
+/** What the chosen lists are, in one line. */
+const standingNote = (mode: TrustMode): React.ReactNode =>
+  mode === 'verified' ? (
+    VERIFIED_EXPLANATION
+  ) : mode === 'community' ? (
+    COMMUNITY_EXPLANATION
+  ) : (
+    <>
+      Every list, with <VerifiedBadge size={15} decorative />
+      <VisuallyHidden>the seal</VisuallyHidden> on the {VERIFIED_LABEL} ones.
+    </>
+  )
+
+/** How many verified lists' logos the figures panel shows. */
+const SHOWCASE_SIZE = 6
+
+/** A logo's figure: open requests, or the entries of a Stake list. */
+const showcaseFigure = (registry: DashboardRegistry): string => {
+  if (registry.kind === 'permanent') {
+    const entries = entryCount(registry)
+    return `Stake · ${formatInt(entries)} ${entries === 1 ? 'entry' : 'entries'}`
+  }
+  const open = openRequests(registry)
+  return `${formatInt(open)} open ${open === 1 ? 'request' : 'requests'}`
+}
 
 /**
  * Below this width the table cannot fit its columns (the shared Table is at
@@ -1173,22 +1327,6 @@ const CreatedOn = ({ timestamp }: { timestamp: number }) => (
   </Created>
 )
 
-const SortIcon = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden>
-    <g
-      stroke="currentColor"
-      strokeWidth="1.85"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M7 4v16" />
-      <path d="m3.5 16.5 3.5 3.5 3.5-3.5" />
-      <path d="M17 20V4" />
-      <path d="m13.5 7.5 3.5-3.5 3.5 3.5" />
-    </g>
-  </svg>
-)
-
 const ArrowIcon = ({ size = 16 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
     <g
@@ -1203,80 +1341,10 @@ const ArrowIcon = ({ size = 16 }: { size?: number }) => (
   </svg>
 )
 
-/**
- * Table, cards or rows as icon buttons with a sliding pill; `options` leaves
- * the table out where it cannot fit.
- */
-const LayoutSwitch = ({
-  value,
-  options,
-  onChange,
-}: {
-  value: ListLayout
-  options: typeof LAYOUT_OPTIONS
-  onChange: (layout: ListLayout) => void
-}) => {
-  const buttons = useRef<Array<HTMLButtonElement | null>>([])
-  const index = Math.max(
-    0,
-    options.findIndex((option) => option.value === value),
-  )
-  // Radio group keyboard model: one tab stop, arrows move and select.
-  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    const last = options.length - 1
-    const next =
-      event.key === 'ArrowRight' || event.key === 'ArrowDown'
-        ? index === last
-          ? 0
-          : index + 1
-        : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
-          ? index === 0
-            ? last
-            : index - 1
-          : event.key === 'Home'
-            ? 0
-            : event.key === 'End'
-              ? last
-              : -1
-    if (next < 0) return
-    event.preventDefault()
-    onChange(options[next].value)
-    buttons.current[next]?.focus()
-  }
-  return (
-    <LayoutTrack role="radiogroup" aria-label="Layout" onKeyDown={onKeyDown}>
-      <LayoutPill
-        aria-hidden
-        style={{ transform: `translateX(${index * 36}px)` }}
-      />
-      {options.map((option, position) => {
-        const checked = option.value === value
-        return (
-          <LayoutButton
-            key={option.value}
-            ref={(node) => {
-              buttons.current[position] = node
-            }}
-            type="button"
-            role="radio"
-            aria-checked={checked}
-            aria-label={option.label}
-            title={option.label}
-            tabIndex={checked ? 0 : -1}
-            $on={checked}
-            onClick={() => onChange(option.value)}
-          >
-            <CurateIcon name={option.icon} size={16} />
-          </LayoutButton>
-        )
-      })}
-    </LayoutTrack>
-  )
-}
-
-type Freshness = 'live' | 'stale' | 'connecting' | 'down'
+type Freshness = 'live' | 'partial' | 'stale' | 'connecting' | 'down'
 
 const FRESHNESS_TONE: Record<Exclude<Freshness, 'live'>, StatusTone> = {
+  partial: 'contested',
   stale: 'contested',
   connecting: 'neutral',
   down: 'off',
@@ -1288,31 +1356,40 @@ const FRESHNESS_TONE: Record<Exclude<Freshness, 'live'>, StatusTone> = {
  */
 const FreshnessPill = ({
   state,
+  missing,
   updatedAt,
   now,
   index,
 }: {
   state: Freshness
+  /** The chains whose data did not load, named, when `state` is partial. */
+  missing?: string
   updatedAt?: number
   now: number
   index: number
 }) => {
   const ago = updatedAt ? `Updated ${formatAgo(updatedAt, now)}` : ''
   return (
-    <LivePill style={{ ['--i' as string]: index }}>
+    <LivePill
+      style={{ ['--i' as string]: index }}
+      data-partial={state === 'partial' ? '' : undefined}
+    >
       {state === 'live' ? (
         <Pulse aria-hidden />
       ) : (
         <StatusDot $tone={FRESHNESS_TONE[state]} aria-hidden />
       )}
       {state === 'live' && <b>Live</b>}
+      {state === 'partial' && <b>Partial</b>}
       {state === 'live'
         ? ago
-        : state === 'stale'
-          ? `${ago} · last refresh failed`
-          : state === 'connecting'
-            ? 'Connecting to the indexers'
-            : 'Indexers not answering'}
+        : state === 'partial'
+          ? `Some ${missing} data did not load`
+          : state === 'stale'
+            ? `${ago} · last refresh failed`
+            : state === 'connecting'
+              ? 'Connecting to the indexers'
+              : 'Indexers not answering'}
     </LivePill>
   )
 }
@@ -1322,7 +1399,7 @@ const FreshnessPill = ({
 const BrowsePage = () => {
   useDocumentHead(
     'Browse registries | Kleros Curate',
-    'Browse Kleros Verified and discovery Curate registries across Ethereum, Gnosis and Sepolia.',
+    'Browse Kleros Verified and Community Curate lists on Ethereum and Gnosis, and on the Sepolia testnet.',
   )
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -1397,36 +1474,82 @@ const BrowsePage = () => {
     setSearchParams(next, { replace: true })
   }, [searchParams, setLayout, setSearchParams])
 
-  const registries = useMemo(
+  const dated = useMemo(
     () =>
       data
-        ? sortRegistries(
-            filterRegistries(
-              creation.data
-                ? applyCreationTimes(data.registries, creation.data)
-                : data.registries,
-              { chains, trust, kinds, search },
-            ),
-            sort,
-          )
+        ? creation.data
+          ? applyCreationTimes(data.registries, creation.data)
+          : data.registries
         : [],
-    [data, creation.data, chains, trust, kinds, search, sort],
+    [data, creation.data],
   )
-  // With nothing on this trust tab, how many match on the other one: a search
-  // for a Discovery list from the Verified tab should say where it is.
-  const otherTrust: TrustMode = trust === 'verified' ? 'unverified' : 'verified'
+  // Lists the indexer knew only by their address get their real title
+  // before filtering and sorting, so search and "Name A to Z" use the name
+  // each row shows.
+  const named = useNamedRegistries(dated)
+  // Kleros Verified by the shared rule (the chain's Kleros lists of lists,
+  // Light and Classic, and the lists registered on any of them), read apart
+  // from the dashboard load: a list whose chain has not answered is neither
+  // Verified nor Community yet.
+  const verifiedSets = useVerifiedSets(SUPPORTED_CHAIN_IDS)
+  const trusted = useMemo(
+    () => withVerified(named, verifiedSets.sets),
+    [named, verifiedSets.sets],
+  )
+  const registries = useMemo(
+    () =>
+      sortRegistries(
+        filterRegistries(trusted, { chains, trust, kinds, search }),
+        sort,
+      ),
+    [trusted, chains, trust, kinds, search, sort],
+  )
+  // With nothing in this choice, how many match in the other one: a search
+  // for a Community list from Kleros Verified should say where it is. "All"
+  // has no other.
+  const otherTrust: TrustMode | null =
+    trust === 'verified'
+      ? 'community'
+      : trust === 'community'
+        ? 'verified'
+        : null
   const otherMatches = useMemo(
     () =>
-      data && registries.length === 0
-        ? filterRegistries(data.registries, {
+      registries.length === 0 && otherTrust
+        ? filterRegistries(trusted, {
             chains,
             trust: otherTrust,
             kinds,
             search,
           }).length
         : 0,
-    [data, registries.length, chains, otherTrust, kinds, search],
+    [trusted, registries.length, chains, otherTrust, kinds, search],
   )
+  // "All chains" leaves the testnet out: a search that matches only there
+  // says so and offers it, in this choice first, else in the other one.
+  const testnetHint = useMemo(() => {
+    if (registries.length > 0 || otherMatches > 0 || chains.length > 0)
+      return null
+    for (const mode of otherTrust ? [trust, otherTrust] : [trust]) {
+      const count = filterRegistries(trusted, {
+        chains: TESTNET_CHAIN_IDS,
+        trust: mode,
+        kinds,
+        search,
+      }).length
+      if (count > 0) return { trust: mode, count }
+    }
+    return null
+  }, [
+    trusted,
+    registries.length,
+    otherMatches,
+    chains.length,
+    trust,
+    otherTrust,
+    kinds,
+    search,
+  ])
   const pageCount = Math.max(1, Math.ceil(registries.length / PAGE_SIZE))
   const currentPage = Math.min(requestedPage, pageCount)
   const visible = registries.slice(
@@ -1434,30 +1557,109 @@ const BrowsePage = () => {
     currentPage * PAGE_SIZE,
   )
 
-  const figures = useMemo(
-    () => summarize(data?.registries ?? [], chains),
-    [data, chains],
+  const figures = useMemo(() => summarize(trusted, chains), [trusted, chains])
+  const showcase = useMemo(
+    () => verifiedShowcase(trusted, chains, SHOWCASE_SIZE),
+    [trusted, chains],
   )
+  // A chain in scope whose lists of lists did not answer: its lists are in
+  // neither count, so neither count is given.
+  const trustFailed = verifiedSets.failed.filter((chainId) =>
+    inScope(chains, chainId),
+  )
+  const trustUnknown = trustFailed.length > 0
+  // A chain in scope whose lists did not load: its lists and entries are
+  // missing, so no count is given rather than a low one.
+  const listsMissing = (data?.listFailedChains ?? []).filter((chainId) =>
+    inScope(chains, chainId),
+  )
+  const countsUnknown = trustUnknown || listsMissing.length > 0
+  const partialChains = [...new Set([...listsMissing, ...trustFailed])]
+  // The chains the list below lacks: their lists, or (for Kleros Verified
+  // or Community) which of their lists are which.
+  const missingChains = trust === 'all' ? listsMissing : partialChains
+  const missingNames = listFormat(missingChains.map(chainName))
+  const retryMissing = () => {
+    if (listsMissing.length > 0) void query.refetch()
+    verifiedSets.retry()
+  }
 
   const latest = useMemo(
     () =>
       (data?.activities ?? [])
-        .filter(
-          (activity) =>
-            chains.length === 0 || chains.includes(activity.chainId),
-        )
+        .filter((activity) => inScope(chains, activity.chainId))
         .slice(0, 5),
     [data, chains],
   )
 
+  // The lists on screen, rows and rail, completed from their own metadata
+  // where the dashboard load left out a logo or a title.
+  const registryByKey = useMemo(
+    () =>
+      new Map(
+        trusted.map((registry) => [
+          listKey(registry.chainId, registry.address),
+          registry,
+        ]),
+      ),
+    [trusted],
+  )
+  const onScreen = useMemo(() => {
+    const rail = latest
+      .map((activity) =>
+        registryByKey.get(listKey(activity.chainId, activity.registryAddress)),
+      )
+      .filter((registry): registry is DashboardRegistry => !!registry)
+    return [...new Set([...visible, ...rail, ...showcase])]
+  }, [visible, latest, registryByKey, showcase])
+  const complete = useCompletedRegistries(onScreen)
+  const shownRows = visible.map(complete)
+  const shownShowcase = showcase.map(complete)
+
+  // The entries in the rail with their own image field (Light and Stake).
+  const entryRefs = useMemo(
+    () =>
+      latest.flatMap((activity): EntryRef[] => {
+        const registry = registryByKey.get(
+          listKey(activity.chainId, activity.registryAddress),
+        )
+        return activity.itemID && registry && registry.kind !== 'classic'
+          ? [
+              {
+                chainId: activity.chainId,
+                registryAddress: activity.registryAddress,
+                itemID: activity.itemID,
+                kind: registry.kind,
+              },
+            ]
+          : []
+      }),
+    [latest, registryByKey],
+  )
+  const entryImages = useQuery({
+    queryKey: [
+      'browseEntryImages',
+      entryRefs.map((entry) => `${entry.chainId}:${entryKey(entry)}`),
+    ],
+    queryFn: () => fetchEntryImages(entryRefs),
+    enabled: entryRefs.length > 0,
+    staleTime: 10 * 60_000,
+    // A new entry in the rail keeps the pictures already shown.
+    placeholderData: keepPreviousData,
+  })
+
+  // Where a list can be put forward for verification: the chains in scope
+  // with a Light Kleros list of lists, where new lists are submitted.
+  const scopedVerification = scopeChainIds(chains).filter((chainId) =>
+    VERIFICATION_CHAIN_IDS.includes(chainId),
+  )
   const verificationChains =
-    chains.length === 1 && VERIFICATION_CHAIN_IDS.includes(chains[0])
-      ? chains
-      : VERIFICATION_CHAIN_IDS
+    scopedVerification.length > 0 ? scopedVerification : VERIFICATION_CHAIN_IDS
   const scope = scopeText(chains)
   const showCreated = sort === 'recent-creation'
 
-  const loading = query.isLoading || (!data && !query.isError)
+  const loading =
+    query.isLoading || (!data && !query.isError) || verifiedSets.pending
   // fetchDashboardData swallows indexer errors and answers with empty lists,
   // so an answer without a single registry means the indexers did not answer
   // (every supported chain has registries, its list of lists at least).
@@ -1467,12 +1669,12 @@ const BrowsePage = () => {
     data && !unanswered
       ? query.isError
         ? 'stale'
-        : 'live'
+        : partialChains.length > 0
+          ? 'partial'
+          : 'live'
       : failed
         ? 'down'
         : 'connecting'
-  const registryTotal = figures.verified + figures.discovery
-
   const clearFilters = () =>
     setParam({ q: null, trust: null, kind: null, chain: null, page: null })
 
@@ -1485,6 +1687,7 @@ const BrowsePage = () => {
         </div>
         <FreshnessPill
           state={freshness}
+          missing={listFormat(partialChains.map(chainName))}
           updatedAt={data ? Math.floor(data.generatedAt / 1000) : undefined}
           now={now}
           index={1}
@@ -1507,37 +1710,87 @@ const BrowsePage = () => {
           </Small>
         ) : (
           <>
-            <GaugeSlot>
-              {loading ? (
-                <SkeletonBlock
-                  $width="100%"
-                  $height="auto"
-                  style={{ aspectRatio: '1', borderRadius: '50%' }}
-                />
-              ) : (
-                <RingGauge
-                  key={chainParam ?? 'all'}
-                  size={148}
-                  ratio={registryTotal ? figures.verified / registryTotal : 0}
-                  from="var(--status-registered)"
-                  to="var(--aurora-b)"
-                  label={`Verified share: ${formatInt(figures.verified)} of ${formatInt(registryTotal)} registries on ${scope} are on the Kleros Verified list of lists`}
-                  caption="verified"
-                />
-              )}
-            </GaugeSlot>
-            <HeroFigure>
-              <Label $tone="faint">Verified registries</Label>
-              <Big>{loading ? '—' : <Odometer value={figures.verified} />}</Big>
-              <Caption>
-                {loading ? '—' : shareCaption(registryTotal, chains)}
-              </Caption>
-            </HeroFigure>
+            <VerifiedFigure>
+              <FigureHead>
+                <VerifiedBadge size={18} decorative />
+                <Label $tone="faint">{VERIFIED_LABEL}</Label>
+              </FigureHead>
+              <FigureLine>
+                <BigFigure>
+                  <AnimatedNumber
+                    value={
+                      loading || countsUnknown ? undefined : figures.verified
+                    }
+                  />
+                  {!loading && !countsUnknown && (
+                    <small>{figures.verified === 1 ? 'list' : 'lists'}</small>
+                  )}
+                </BigFigure>
+                {!loading && shownShowcase.length > 0 && (
+                  <Showcase>
+                    <LogoRow
+                      aria-label={`${VERIFIED_LISTS_LABEL}, most open requests first`}
+                    >
+                      {shownShowcase.map((registry) => (
+                        <li key={registry.id}>
+                          <Tooltip
+                            title={
+                              <>
+                                <TipName>{registry.title}</TipName>
+                                <TipFigure>
+                                  {showcaseFigure(registry)}
+                                </TipFigure>
+                              </>
+                            }
+                          >
+                            <LogoLink
+                              to={registryHref(registry)}
+                              aria-label={registry.title}
+                            >
+                              <Avatar
+                                uri={registry.logoURI}
+                                seed={registry.address}
+                                size={32}
+                              />
+                            </LogoLink>
+                          </Tooltip>
+                        </li>
+                      ))}
+                      {!countsUnknown &&
+                        figures.verified > shownShowcase.length && (
+                          <li>
+                            <MoreLists>
+                              +
+                              {formatInt(
+                                figures.verified - shownShowcase.length,
+                              )}
+                              <VisuallyHidden> more</VisuallyHidden>
+                            </MoreLists>
+                          </li>
+                        )}
+                    </LogoRow>
+                    <ShowcaseNote aria-hidden>
+                      Most open requests first
+                    </ShowcaseNote>
+                  </Showcase>
+                )}
+              </FigureLine>
+            </VerifiedFigure>
             <InlineStats>
               {[
-                { label: 'Discovery', value: figures.discovery },
-                { label: 'Entries', value: figures.entries },
-                { label: 'Open requests', value: figures.openRequests },
+                {
+                  label: COMMUNITY_LISTS_LABEL,
+                  value: countsUnknown ? undefined : figures.community,
+                },
+                {
+                  label: 'Entries',
+                  value: listsMissing.length > 0 ? undefined : figures.entries,
+                },
+                {
+                  label: 'Open requests',
+                  value:
+                    listsMissing.length > 0 ? undefined : figures.openRequests,
+                },
               ].map((figure) => (
                 <InlineStat key={figure.label}>
                   <Label $tone="faint">{figure.label}</Label>
@@ -1561,6 +1814,19 @@ const BrowsePage = () => {
           <VisuallyHidden as="h2" id="browse-explorer-title">
             Registry list
           </VisuallyHidden>
+          <StandingBar>
+            <SegmentedControl<TrustMode>
+              ariaLabel="Which lists"
+              value={trust}
+              onChange={(value) =>
+                setParam({ trust: trustParam(value), page: null })
+              }
+              options={TRUST_OPTIONS}
+            />
+            <StandingNote aria-live="polite">
+              {standingNote(trust)}
+            </StandingNote>
+          </StandingBar>
           <Toolbar>
             <Search>
               <CurateIcon name="search" size={16} />
@@ -1585,78 +1851,41 @@ const BrowsePage = () => {
                 </ClearButton>
               )}
             </Search>
-            <SegmentedControl<TrustMode>
-              ariaLabel="Trust"
-              value={trust}
+            <ToggleGroup<RegistryKind>
+              className="browse-kind"
+              ariaLabel="Registry type"
+              value={kinds}
+              onChange={(value) =>
+                setParam({ kind: value.join(',') || null, page: null })
+              }
+              options={KIND_OPTIONS}
+            />
+            <SelectMenu<BrowseSort>
+              className="browse-sort"
+              label="Sort"
+              value={sort}
+              menuWidth={248}
               onChange={(value) =>
                 setParam({
-                  trust: value === 'verified' ? null : value,
+                  sort: value === 'recent-submission' ? null : value,
                   page: null,
                 })
               }
-              options={[
-                { value: 'verified', label: 'Verified' },
-                { value: 'unverified', label: 'Discovery' },
-              ]}
+              options={SORT_OPTIONS}
             />
-            <Track role="group" aria-label="Registry type">
-              {KIND_OPTIONS.map((option) => {
-                const selected = kinds.includes(option.value)
-                return (
-                  <Toggle
-                    key={option.value}
-                    type="button"
-                    aria-pressed={selected}
-                    $on={selected}
-                    onClick={() =>
-                      setParam({
-                        kind: toggleKind(kinds, option.value).join(',') || null,
-                        page: null,
-                      })
-                    }
-                  >
-                    {option.label}
-                  </Toggle>
-                )
-              })}
-            </Track>
-            <SortField>
-              <SortIcon />
-              <select
-                aria-label="Sort registries"
-                value={sort}
-                onChange={(event) =>
-                  setParam({
-                    sort:
-                      event.currentTarget.value === 'recent-submission'
-                        ? null
-                        : event.currentTarget.value,
-                    page: null,
-                  })
-                }
-              >
-                {SORT_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <CurateIcon name="chevron-down" size={14} />
-            </SortField>
-            <LayoutSwitch
+            <SegmentedControl<ListLayout>
+              className="browse-layout"
+              ariaLabel="Layout"
               value={shown}
-              options={layoutOptions}
               onChange={setLayout}
+              options={layoutOptions.map((option) => ({
+                value: option.value,
+                label: option.label,
+                icon: option.icon,
+                hideLabel: true,
+              }))}
             />
           </Toolbar>
-
-          {trust === 'unverified' && (
-            <Notice>
-              <CurateIcon name="shield" size={16} />
-              Discovery registries are not on the Kleros Verified list of lists.
-              Read a list&apos;s policy before you act on it.
-            </Notice>
-          )}
 
           {loading ? (
             <List aria-busy="true">
@@ -1688,23 +1917,62 @@ const BrowsePage = () => {
                 again.
               </EmptyState>
             </Surface>
-          ) : registries.length === 0 && otherMatches > 0 ? (
+          ) : registries.length === 0 && missingChains.length > 0 ? (
+            <Surface $padding="none">
+              <EmptyState
+                icon="registry"
+                title={`${missingNames} lists did not load`}
+                action={
+                  <Button
+                    type="button"
+                    $variant="secondary"
+                    $size="sm"
+                    onClick={retryMissing}
+                  >
+                    Try again
+                  </Button>
+                }
+              />
+            </Surface>
+          ) : registries.length === 0 && otherTrust && otherMatches > 0 ? (
             <Surface $padding="none">
               <EmptyState
                 icon="filter"
-                title={`None in ${trustName(trust)}`}
+                title={`No ${listsLabel(trust, 2)} match`}
+                action={
+                  <Button
+                    type="button"
+                    $size="sm"
+                    onClick={() =>
+                      setParam({ trust: trustParam(otherTrust), page: null })
+                    }
+                  >
+                    Show {formatInt(otherMatches)}{' '}
+                    {listsLabel(otherTrust, otherMatches)}
+                  </Button>
+                }
+              />
+            </Surface>
+          ) : registries.length === 0 && testnetHint ? (
+            <Surface $padding="none">
+              <EmptyState
+                icon="filter"
+                title="None on Ethereum or Gnosis"
                 action={
                   <Button
                     type="button"
                     $size="sm"
                     onClick={() =>
                       setParam({
-                        trust: otherTrust === 'verified' ? null : otherTrust,
+                        chain: TESTNET_CHAIN_IDS.join(','),
+                        trust: trustParam(testnetHint.trust),
                         page: null,
                       })
                     }
                   >
-                    Show {formatInt(otherMatches)} in {trustName(otherTrust)}
+                    Show {formatInt(testnetHint.count)}{' '}
+                    {listsLabel(testnetHint.trust, testnetHint.count)} on the{' '}
+                    {listFormat(TESTNET_CHAIN_IDS.map(chainName))} testnet
                   </Button>
                 }
               />
@@ -1725,7 +1993,7 @@ const BrowsePage = () => {
                   </Button>
                 }
               >
-                Change the search, chain, type or trust filter.
+                Change the search, the chain or a filter.
               </EmptyState>
             </Surface>
           ) : shown === 'table' ? (
@@ -1741,7 +2009,7 @@ const BrowsePage = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {visible.map((registry) => {
+                  {shownRows.map((registry) => {
                     const created = shownCreation(registry, sort)
                     return (
                       <tr
@@ -1753,12 +2021,15 @@ const BrowsePage = () => {
                           <IdentityCell>
                             <RegistryLogo registry={registry} size={34} />
                             <div style={{ minWidth: 0 }}>
-                              <TableName
-                                to={registryHref(registry)}
-                                onClick={(event) => event.stopPropagation()}
-                              >
-                                {registry.title}
-                              </TableName>
+                              <NameLine>
+                                <TableName
+                                  to={registryHref(registry)}
+                                  onClick={(event) => event.stopPropagation()}
+                                >
+                                  {registry.title}
+                                </TableName>
+                                <ListSeal registry={registry} />
+                              </NameLine>
                               <SubLine>
                                 {kindLabel(registry.kind)}
                                 {/* With the Created column the chain rides here. */}
@@ -1808,7 +2079,7 @@ const BrowsePage = () => {
             </TableScroller>
           ) : shown === 'cards' ? (
             <CardGrid>
-              {visible.map((registry, index) => {
+              {shownRows.map((registry, index) => {
                 const created = shownCreation(registry, sort)
                 const blurb = registryBlurb(registry)
                 return (
@@ -1820,7 +2091,10 @@ const BrowsePage = () => {
                     <CardTop>
                       <RegistryLogo registry={registry} size={40} />
                       <span style={{ minWidth: 0 }}>
-                        <Name>{registry.title}</Name>
+                        <NameLine>
+                          <Name>{registry.title}</Name>
+                          <ListSeal registry={registry} />
+                        </NameLine>
                         <SubLine>
                           {kindLabel(registry.kind)}
                           {created && (
@@ -1873,7 +2147,7 @@ const BrowsePage = () => {
             </CardGrid>
           ) : (
             <List>
-              {visible.map((registry, index) => {
+              {shownRows.map((registry, index) => {
                 const created = shownCreation(registry, sort)
                 const blurb = registryBlurb(registry)
                 return (
@@ -1885,7 +2159,10 @@ const BrowsePage = () => {
                   >
                     <RegistryLogo registry={registry} />
                     <RowId>
-                      <Name>{registry.title}</Name>
+                      <NameLine>
+                        <Name>{registry.title}</Name>
+                        <ListSeal registry={registry} />
+                      </NameLine>
                       <RowMeta>
                         <Chip>{kindLabel(registry.kind)}</Chip>
                         <ChainChip chainId={registry.chainId} size="sm" />
@@ -1937,7 +2214,7 @@ const BrowsePage = () => {
                   Math.min(currentPage * PAGE_SIZE, registries.length),
                 )}{' '}
                 of {formatInt(registries.length)}{' '}
-                {trust === 'verified' ? 'verified' : 'discovery'} registries
+                {listsLabel(trust, registries.length)}
               </Small>
               {registries.length > PAGE_SIZE && (
                 <Pagination
@@ -1961,10 +2238,11 @@ const BrowsePage = () => {
             style={{ ['--i' as string]: 4 }}
           >
             <RailTitle id="browse-verify-title">
-              Get a registry verified
+              <TitleSeal size={20} decorative />
+              Get {VERIFIED_LABEL}
             </RailTitle>
             <Small $muted as="p" style={{ margin: '6px 0 0' }}>
-              Submit it to the Kleros Verified list of lists for its chain.
+              Submit your list to the Kleros list of lists on its chain.
             </Small>
             <VerifyLinks>
               {verificationChains.map((chainId) => {
@@ -1973,9 +2251,9 @@ const BrowsePage = () => {
                   <VerifyLink
                     key={chainId}
                     to={href}
-                    aria-label={`Submit a registry on ${chainName(chainId)}`}
+                    aria-label={`Submit a list to the Kleros list of lists on ${chainName(chainId)}`}
                   >
-                    <ChainLogo chainId={chainId} size={20} />
+                    <RailChain chainId={chainId} size={20} />
                     <span>{chainName(chainId)}</span>
                     <span>
                       Submit <ArrowIcon size={14} />
@@ -2004,39 +2282,64 @@ const BrowsePage = () => {
               <Small $muted>No recent requests in this scope.</Small>
             ) : (
               <Feed>
-                {latest.map((activity) => (
-                  <FeedItem key={activity.id}>
-                    <Link to={activity.href}>
-                      <StatusDot $tone={activityTone(activity)} aria-hidden />
-                      <span style={{ minWidth: 0 }}>
-                        <FeedHead>
-                          <strong>{activity.status}</strong>
-                          <time
-                            dateTime={new Date(
-                              activity.timestamp * 1000,
-                            ).toISOString()}
-                            title={formatAbsolute(activity.timestamp)}
-                          >
-                            {formatAgo(activity.timestamp, now)}
-                          </time>
-                        </FeedHead>
-                        {activity.previewProps?.[0]?.value && (
-                          <Identifier
-                            label={activity.previewProps[0].label}
-                            value={activity.previewProps[0].value}
+                {latest.map((activity) => {
+                  const found = registryByKey.get(
+                    listKey(activity.chainId, activity.registryAddress),
+                  )
+                  const registry = found && complete(found)
+                  const image = activity.itemID
+                    ? entryImages.data?.[
+                        entryKey({
+                          registryAddress: activity.registryAddress,
+                          itemID: activity.itemID,
+                        })
+                      ]
+                    : undefined
+                  return (
+                    <FeedItem key={activity.id}>
+                      <Link to={activity.href}>
+                        <FeedThumb>
+                          <Avatar
+                            uri={[image, registry?.logoURI]}
+                            seed={activity.registryAddress}
+                            size={36}
                           />
-                        )}
-                        <small>{activity.registryTitle}</small>
-                      </span>
-                      <span title={chainName(activity.chainId)}>
-                        <ChainLogo chainId={activity.chainId} size={18} />
-                        <VisuallyHidden>
-                          {chainName(activity.chainId)}
-                        </VisuallyHidden>
-                      </span>
-                    </Link>
-                  </FeedItem>
-                ))}
+                          <FeedDot $tone={activityTone(activity)} aria-hidden />
+                        </FeedThumb>
+                        <span style={{ minWidth: 0 }}>
+                          <strong>{activity.status}</strong>
+                          {activity.previewProps?.[0]?.value && (
+                            <Identifier
+                              label={activity.previewProps[0].label}
+                              value={activity.previewProps[0].value}
+                            />
+                          )}
+                          <FeedFoot>
+                            <ListName
+                              title={registry?.title ?? activity.registryTitle}
+                              address={activity.registryAddress}
+                            />
+                            <ListSeal registry={registry} size={12} />
+                            <time
+                              dateTime={new Date(
+                                activity.timestamp * 1000,
+                              ).toISOString()}
+                              title={formatAbsolute(activity.timestamp)}
+                            >
+                              {formatAgo(activity.timestamp, now)}
+                            </time>
+                          </FeedFoot>
+                        </span>
+                        <span title={chainName(activity.chainId)}>
+                          <RailChain chainId={activity.chainId} size={18} />
+                          <VisuallyHidden>
+                            {chainName(activity.chainId)}
+                          </VisuallyHidden>
+                        </span>
+                      </Link>
+                    </FeedItem>
+                  )
+                })}
               </Feed>
             )}
           </Surface>

@@ -449,7 +449,7 @@ const ItemStatusCard = ({
             : undefined
 
   const prompt = isPending
-    ? `The window closed ${formatAgo(windowEnd, now)} with no challenge. Anyone can execute it; the deposit returns to the ${requesterName}. Gas only.`
+    ? `The window closed ${formatAgo(windowEnd, now)} with no challenge. Anyone can execute it; the deposit returns to the ${requesterName}.`
     : appealable
       ? currentRuling === SUBGRAPH_RULING.NONE
         ? `Jurors refused to rule. If one side fully funds an appeal by ${formatAbsolute(appealEnd)}, the other must fund too or loses.`
@@ -598,7 +598,7 @@ const ItemStatusCard = ({
           )}
           {(statusCode === STATUS_CODE.REGISTERED || isResubmit) && (
             <div>
-              <dt>Challenge window once sent</dt>
+              <dt>Challenge period once sent</dt>
               <dd
                 title={formatDurationLong(challengePeriodDuration.toNumber())}
               >

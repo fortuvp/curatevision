@@ -1,4 +1,10 @@
 import type { StatusTone } from 'components/curate/primitives'
+import {
+  COMMUNITY_EXPLANATION,
+  COMMUNITY_LABEL,
+  VERIFIED_EXPLANATION,
+  VERIFIED_LABEL,
+} from 'components/curate/verified-badge'
 import { STATUS_CODE as LIGHT_STATUS } from 'utils/item-status'
 import { STATUS_CODE as STAKE_STATUS } from 'utils/permanent-item-status'
 
@@ -38,7 +44,8 @@ export const SECTIONS: GuideSectionLink[] = [
   { id: 'submitting', label: 'Submitting' },
   { id: 'challenging', label: 'Challenging' },
   { id: 'disputes', label: 'Disputes and appeals' },
-  { id: 'rewards', label: 'Rewards' },
+  { id: 'rewards', label: 'Bounties and rewards' },
+  { id: 'stake-curate', label: 'Stake Curate' },
   { id: 'launching', label: 'Launching a list' },
   { id: 'agents', label: 'Agents and skills' },
   { id: 'glossary', label: 'Glossary' },
@@ -54,6 +61,8 @@ export const sectionNumber = (id: string): string =>
 export interface GuideStep {
   title: string
   body: string
+  /** Sections that say more, linked by number after the body. */
+  see?: string[]
 }
 
 export const SUBMIT_STEPS: GuideStep[] = [
@@ -67,11 +76,12 @@ export const SUBMIT_STEPS: GuideStep[] = [
   },
   {
     title: 'Review the deposit and sign',
-    body: 'The exact total is shown before you sign.',
+    body: 'Held, not spent: the exact total is shown before you sign.',
   },
   {
-    title: 'Wait for the challenge period to end',
-    body: 'Unchallenged, the request can be executed and your deposit returns in full; challenged, it goes to court.',
+    title: 'Get listed and your deposit back',
+    body: 'In a Light or Classic list, once the challenge period ends with no challenge, anyone can execute the request: the entry is listed and your whole deposit comes back. In a Stake list your stake stays with the entry, growing with every failed challenge, until you withdraw it.',
+    see: ['stake-curate'],
   },
 ]
 
@@ -86,11 +96,11 @@ export const CHALLENGE_STEPS: GuideStep[] = [
   },
   {
     title: 'Send the challenge deposit',
-    body: 'Challenge base deposit plus arbitration cost, shown before you sign; lost if the jurors side with the requester.',
+    body: 'Challenge base deposit plus arbitration cost, shown before you sign. It goes to the requester if jurors side with them.',
   },
   {
     title: 'Follow the case',
-    body: 'Once the ruling is final the entry is kept, rejected or removed, and the winner is paid.',
+    body: 'Once the ruling is final the registry applies it and the winner is paid.',
   },
 ]
 
@@ -117,42 +127,68 @@ export const DISPUTE_STEPS: GuideStep[] = [
   },
 ]
 
-export const COSTS: { action: string; base: string }[] = [
-  { action: 'Submit an entry', base: 'submission base deposit' },
-  { action: 'Request a removal', base: 'removal base deposit' },
+export type OutcomeKind = 'gain' | 'loss' | 'back'
+
+export interface CostRow {
+  action: string
+  base: string
+  /** What comes back, and when. */
+  back: string
+}
+
+export const COSTS: CostRow[] = [
+  {
+    action: 'Submit an entry',
+    base: 'submission base deposit',
+    back: 'All of it, once the entry is listed',
+  },
+  {
+    action: 'Request a removal',
+    base: 'removal base deposit',
+    back: 'All of it, once the entry is removed',
+  },
   {
     action: 'Challenge a submission',
     base: 'submission challenge base deposit',
+    back: 'Back with the submitter’s, if jurors agree',
   },
-  { action: 'Challenge a removal', base: 'removal challenge base deposit' },
+  {
+    action: 'Challenge a removal',
+    base: 'removal challenge base deposit',
+    back: 'Back with the requester’s, if jurors agree',
+  },
 ]
 
-export type OutcomeKind = 'gain' | 'loss' | 'back'
+export const COSTS_NOTE =
+  'After a challenge, the side jurors agree with takes both deposits minus one arbitration cost.'
 
-export const OUTCOMES: {
+export interface OutcomeRole {
   role: string
   rows: { kind: OutcomeKind; when: string; result: string }[]
-  footnote?: string
-}[] = [
+  /** A closing line, with a section that says more. */
+  footnote?: { text: string; see?: string }
+}
+
+export const OUTCOMES: OutcomeRole[] = [
   {
     role: 'If you submit',
     rows: [
       {
         kind: 'back',
-        when: 'Unchallenged',
-        result: 'Your deposit returns in full; you pay only gas.',
+        when: 'Nobody challenges',
+        result: 'Your entry is listed and your whole deposit comes back.',
       },
       {
         kind: 'gain',
         when: 'Challenged, jurors side with you',
         result:
-          'Your deposit back, plus the challenger’s minus the arbitration fees.',
+          'Your deposit back, plus the challenger’s minus one arbitration cost.',
       },
       {
         kind: 'loss',
         when: 'Challenged, jurors side against you',
         result:
-          'Your deposit goes to the challenger, minus the arbitration cost paid to jurors.',
+          'Your deposit goes to the challenger, minus one arbitration cost.',
       },
     ],
   },
@@ -161,19 +197,21 @@ export const OUTCOMES: {
     rows: [
       {
         kind: 'gain',
-        when: 'Jurors side with you',
+        when: 'Jurors side with you: the bounty',
         result:
-          'Your deposit back, plus the requester’s minus the arbitration fees.',
+          'Your deposit back, plus the requester’s minus one arbitration cost.',
       },
       {
         kind: 'loss',
         when: 'Jurors side against you',
         result:
-          'Your deposit goes to the requester, minus the arbitration cost paid to jurors.',
+          'Your deposit goes to the requester, minus one arbitration cost.',
       },
     ],
-    footnote:
-      'In Stake Curate a winning challenger takes the entry’s stake; a losing one adds theirs to it.',
+    footnote: {
+      text: 'In Stake Curate the bounty is the entry’s whole stake.',
+      see: 'stake-curate',
+    },
   },
   {
     role: 'If you fund an appeal',
@@ -378,6 +416,52 @@ if (import.meta.env.DEV)
       )
   })
 
+/*
+ * Stake Curate against Light and Classic, only where the drawing cannot say
+ * it. Checked against the PermanentGTCR contract: addItem takes the token
+ * stake (at least submissionMinDeposit) and the arbitration cost, held as the
+ * entry's arbitration deposit; challengeItem takes challengeStakeMultiplier
+ * of the entry's stake plus the arbitration cost, which goes to the court;
+ * rule() adds the challenge stake to the entry's stake when jurors keep it.
+ */
+export const STAKE_COMPARE: {
+  aspect: string
+  classic: string
+  stake: string
+}[] = [
+  {
+    aspect: 'You put in',
+    classic: 'A base deposit + the arbitration cost',
+    stake: 'A stake in the list’s token + an arbitration deposit',
+  },
+  {
+    aspect: 'To challenge',
+    classic: 'A challenge deposit + the arbitration cost',
+    stake: 'A share of the entry’s stake + the arbitration cost',
+  },
+  {
+    aspect: 'A failed challenge',
+    classic: 'Its deposit goes to the requester, minus one arbitration cost',
+    stake: 'Its stake joins the entry’s stake',
+  },
+]
+
+/** Each role in a Stake list, said once and side by side: neither leads. */
+export const STAKE_ROLES: { role: string; line: string }[] = [
+  {
+    role: 'If you submit',
+    line: 'Follow the policy and the stake stays yours to withdraw; every failed challenge adds to it.',
+  },
+  {
+    role: 'If you challenge',
+    line: 'Challenge at any time. If jurors agree the entry breaks the policy, its whole stake is yours.',
+  },
+]
+
+/** The cases the drawing leaves out (PermanentGTCR rule()). */
+export const STAKE_EDGE_CASES =
+  'An entry jurors keep while it is withdrawing is withdrawn at the ruling. If jurors refuse to rule, each side gets its stake back and half the arbitration deposit, and the entry leaves the list. Appeals work as in Light and Classic.'
+
 export const DECISIONS: { term: string; definition: string }[] = [
   {
     term: 'Policy',
@@ -392,7 +476,7 @@ export const DECISIONS: { term: string; definition: string }[] = [
   {
     term: 'Deposits',
     definition:
-      'Submission, removal and the two challenge deposits. Higher ones deter spam and raise the bounty; lower ones invite submissions.',
+      'Submission, removal and the two challenge deposits. Higher ones raise the bounty and deter spam; lower ones invite submissions.',
   },
   {
     term: 'Challenge period',
@@ -421,7 +505,7 @@ export const AGENT_FILES: { href: string; name: string; about: string }[] = [
   {
     href: '/curate-agent-context.md',
     name: '/curate-agent-context.md',
-    about: 'Chains, verified list-of-lists addresses, rules and routes.',
+    about: 'Chains, the Kleros list-of-lists addresses, rules and routes.',
   },
   {
     href: '/llms.txt',
@@ -445,6 +529,8 @@ export const GLOSSARY: {
   definition: string
   /** Sections that say more, linked by number. */
   see?: string[]
+  /** Drawn before the term: the Kleros Verified seal. */
+  mark?: 'verified'
 }[] = [
   {
     term: 'Registry',
@@ -457,9 +543,27 @@ export const GLOSSARY: {
       'One item in a registry; each list names its own: a tag, a token.',
   },
   {
+    term: `${VERIFIED_LABEL} list`,
+    definition: `${VERIFIED_EXPLANATION} It carries the seal.`,
+    see: ['launching'],
+    mark: 'verified',
+  },
+  {
+    term: `${COMMUNITY_LABEL} list`,
+    definition: COMMUNITY_EXPLANATION,
+    see: ['launching'],
+  },
+  {
     term: 'Deposit',
-    definition: 'A base deposit set by the list plus the arbitration cost.',
-    see: ['lifecycle', 'submitting'],
+    definition:
+      'In Light and Classic lists, a base deposit set by the list plus the arbitration cost. Held, not spent: it comes back when your request goes through. Stake lists hold a stake instead.',
+    see: ['submitting', 'stake-curate'],
+  },
+  {
+    term: 'Bounty',
+    definition:
+      'What a successful challenger earns: the other side’s deposit minus one arbitration cost, or in Stake Curate the entry’s whole stake.',
+    see: ['rewards', 'stake-curate'],
   },
   {
     term: 'Court',
@@ -478,8 +582,7 @@ export const GLOSSARY: {
   },
   {
     term: 'Light Curate',
-    definition:
-      'The default kind, called Standard here. Only an IPFS reference is stored on chain, so costs stay low.',
+    definition: 'Only an IPFS reference is stored on chain, so costs stay low.',
   },
   {
     term: 'Classic Curate',
@@ -489,7 +592,8 @@ export const GLOSSARY: {
   {
     term: 'Stake Curate',
     definition:
-      'Each entry’s ERC20 stake stays locked while it is listed, so it can be challenged at any time.',
+      'Each entry’s ERC20 stake stays locked while it is listed, open to challenge at any time. It goes back to the submitter on withdrawal, with every failed challenger’s stake added.',
+    see: ['stake-curate'],
   },
 ]
 

@@ -197,16 +197,16 @@ const RemoveModal = ({
       title: `You deposit ${total} now`,
       body: `The removal request is published${
         needsEvidence ? ' with your justification' : ''
-      } and a challenge window of ${period} opens. The ${name} stays listed until the request is executed.`,
+      } and a challenge period of ${period} opens. The ${name} stays listed until the request is executed.`,
     },
     {
-      title: 'Nobody challenges',
-      body: `After ${period} anyone can execute the request: the ${name} is removed and your deposit comes back in full.`,
+      title: 'No challenge',
+      body: `After ${period} the request can be executed: the ${name} is removed and your ${total} comes back.`,
     },
     {
-      title: 'Someone challenges',
+      title: 'If someone challenges',
       branch: true,
-      body: 'Kleros jurors decide on the listing policy. The winner takes both deposits minus one arbitration cost; the loser loses the deposit.',
+      body: "Kleros jurors check it against the listing policy. If they side with you, you get your deposit back plus the challenger's, less the arbitration cost; if not, it goes to the challenger.",
     },
   ]
 
@@ -224,7 +224,7 @@ const RemoveModal = ({
             <Body>
               {needsEvidence
                 ? `This list asks for a justification. Tell the jurors why this ${name} no longer meets the listing policy.`
-                : `Ask for this ${name} to be taken off the list. Anyone can challenge the request during the challenge window; then Kleros jurors decide.`}
+                : `Ask for this ${name} to be taken off the list.`}
             </Body>
             <div>
               <Button
@@ -256,7 +256,7 @@ const RemoveModal = ({
                 blocker: gate.blocker,
                 loading: isSubmitting,
               })}
-              policy={`This is a deposit, not a fee: it is returned if the removal is accepted. The challenge window lasts ${period}.`}
+              policy={`This is a deposit, not a fee: it is returned if the removal is accepted. The challenge period lasts ${period}.`}
             />
             {!gate.fix && gate.controls && (
               <Row $justify="flex-end" $wrap>

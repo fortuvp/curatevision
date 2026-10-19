@@ -9,14 +9,21 @@ import { BigNumber, type BigNumberish, utils } from 'ethers'
 export const formatEther = (value: BigNumberish): string =>
   utils.formatEther(BigNumber.from(value)).replace(/\.?0+$/, '')
 
-/** "51.6 xDAI"; an em dash while the amount is unknown. */
+/** Thousands separators on the whole part; the decimals stay exact. */
+export const groupThousands = (decimal: string): string => {
+  const [whole, fraction] = decimal.split('.')
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  return fraction === undefined ? grouped : `${grouped}.${fraction}`
+}
+
+/** "51.6 xDAI", "1,280.0 xDAI"; an em dash while the amount is unknown. */
 export const formatAmount = (
   value: BigNumberish | null | undefined,
   currency: string,
 ): string =>
   value === null || value === undefined
     ? '—'
-    : `${formatEther(value)} ${currency}`
+    : `${groupThousands(formatEther(value))} ${currency}`
 
 /** Unix seconds from a subgraph string, a BigNumber or a number; 0 if unset. */
 export const toSeconds = (value: unknown): number => {

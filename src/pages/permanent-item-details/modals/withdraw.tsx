@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import styled from 'styled-components'
 import type { Address } from 'viem'
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
 import { simulateContract } from '@wagmi/core'
@@ -9,8 +10,7 @@ import { formatDuration, formatDurationLong } from 'utils/time'
 import { wrapWithToast, errorToast } from 'utils/wrap-with-toast'
 import { parseWagmiError } from 'utils/parse-wagmi-error'
 import { wagmiConfig } from 'config/wagmi'
-import { Body, Stack } from 'components/curate/primitives'
-import { WhatHappensNext } from 'components/curate/what-happens-next'
+import { Body, Button, Label, Small, Stack } from 'components/curate/primitives'
 import { WithdrawalStepper } from '../withdrawal-stepper'
 import { capitalize } from '../facts'
 import {
@@ -26,8 +26,28 @@ import {
  * signs one transaction, waits the withdrawing period (during which the item
  * can still be challenged), then anyone executes the withdrawal and the stake
  * and arbitration deposit return. The three steps are drawn as the same
- * stepper the item page shows.
+ * stepper the item page shows; under it, what comes back and one button.
  */
+
+const Returned = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 16px;
+  border-top: 1px solid var(--glass-border);
+`
+
+const ReturnedFigure = styled.output`
+  display: block;
+  color: var(--color-text);
+  font-family: var(--font-figure);
+  font-size: clamp(24px, 1.2vw + 16px, 30px);
+  line-height: 1.1;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+`
 
 interface WithdrawModalProps {
   isOpen: boolean
@@ -126,37 +146,32 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({
             'Anyone',
           ]}
         />
-        <WhatHappensNext
-          receipt={[
-            {
-              label: period
-                ? `Returned after ${period}`
-                : 'Returned after the withdrawing period',
-              value: returned,
-            },
-          ]}
-          total="gas only"
-          steps={[
-            {
-              title: 'You start the withdrawal',
-              body: 'No deposit leaves your wallet. The withdrawing period starts with this transaction.',
-            },
-            {
-              title: period ? `Withdrawing for ${period}` : 'Withdrawing',
-              body: `The ${itemName} stays listed with its ${stakeText} at stake. A challenger can still open a dispute; if the jurors keep the ${itemName}, it is withdrawn at that moment instead.`,
-            },
-            {
-              title: 'Execute withdrawal',
-              body: `Once the period is over, you or anyone else executes it and ${returned} go back to the submitter.`,
-            },
-          ]}
-          confirmLabel="Start withdrawal"
-          onConfirm={handleStartWithdraw}
-          confirmDisabled={Boolean(blocker)}
-          confirmBlocker={blocker}
-          loading={loading}
-          bare
-        />
+        <Returned>
+          <Label $tone="faint">
+            {period
+              ? `Back to the submitter after ${period}`
+              : 'Back to the submitter after the withdrawing period'}
+          </Label>
+          <ReturnedFigure>{returned}</ReturnedFigure>
+        </Returned>
+        <Stack $gap={8}>
+          <Button
+            type="button"
+            $variant="primary"
+            $block
+            disabled={!!blocker || loading}
+            aria-disabled={!!blocker || loading}
+            title={blocker}
+            onClick={handleStartWithdraw}
+          >
+            {loading ? 'Waiting for your wallet…' : 'Start withdrawal'}
+          </Button>
+          {blocker && (
+            <Small $muted role="status">
+              {blocker}
+            </Small>
+          )}
+        </Stack>
         <GateHelper gate={gate} caption={false} />
       </Stack>
     </ModalShell>

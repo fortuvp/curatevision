@@ -6,12 +6,23 @@ import styled, {
 } from 'styled-components'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import type { IconProp } from '@fortawesome/fontawesome-svg-core'
-import { joinClassNames, kitRadius, motionOk } from './kit-styles'
+import {
+  ctaButton,
+  ctaButtonLit,
+  edgeTransition,
+  joinClassNames,
+  kitRadius,
+  motionOk,
+  quietButton,
+  quietButtonHover,
+} from './kit-styles'
 
 /*
- * Button, v2: primary (blue fill with a soft glow and grain), secondary
- * (raised glass), ghost, link and danger (soft danger tint). Height 40, 32
- * small, radius 10, labels at 500. Press dips to 97% and springs back.
+ * Button, round 2 ("Lit edge", DESIGN.md): primary is a dark glass pill with
+ * a luminous 1px edge that sweeps round and glows on hover and focus;
+ * secondary is a quiet ghost with a hairline; ghost, link and danger (soft
+ * danger tint) as before. Height 40, 32 small, pill-shaped (`shape="square"`
+ * keeps the 10px corner), labels at 500. Press dips to 97% and springs back.
  * Disabled turns neutral with its label at full contrast.
  * `type` keeps the legacy names and maps them onto those looks; indigo is
  * never used on buttons. A pending action runs a thin shimmer along the
@@ -37,44 +48,17 @@ const enabled = `&${enabledState}`
 
 const variantStyles: Record<Variant, FlattenSimpleInterpolation> = {
   primary: css`
-    border-color: transparent;
-    background: var(--color-primary-fill);
-    color: var(--color-on-primary);
-    box-shadow:
-      inset 0 1px 0 var(--glass-highlight),
-      0 0 0 1px color-mix(in srgb, var(--color-primary) 45%, transparent),
-      0 10px 28px -12px var(--color-primary);
+    ${ctaButton}
 
-    /* Fine grain over the fill so it reads as a lit material, not flat paint. */
-    &::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      border-radius: inherit;
-      background-image: var(--noise);
-      background-size: 120px;
-      opacity: 0.1;
-      mix-blend-mode: overlay;
-      pointer-events: none;
-    }
-
-    ${enabled}:hover {
-      filter: brightness(1.08);
-      box-shadow:
-        inset 0 1px 0 var(--glass-highlight),
-        0 0 0 1px color-mix(in srgb, var(--color-primary) 60%, transparent),
-        0 12px 32px -10px var(--color-primary);
+    ${enabled}:hover, ${enabled}:focus-visible {
+      ${ctaButtonLit}
     }
   `,
   secondary: css`
-    border-color: var(--glass-border);
-    background: var(--color-raised);
-    color: var(--color-text);
-    box-shadow: inset 0 1px 0 var(--glass-highlight);
+    ${quietButton}
 
     ${enabled}:hover {
-      border-color: var(--color-border-strong);
-      background: color-mix(in srgb, var(--color-text) 7%, transparent);
+      ${quietButtonHover}
     }
   `,
   ghost: css`
@@ -146,9 +130,7 @@ const ButtonScope = styled.span<{
     overflow: hidden;
     border: 1px solid transparent;
     border-radius: ${({ $shape }) =>
-      $shape === 'round' || $shape === 'circle'
-        ? 'var(--radius-pill)'
-        : kitRadius.control};
+      $shape === 'square' ? kitRadius.control : 'var(--radius-pill)'};
     font-family: var(--font-sans);
     font-size: var(--fs-body);
     line-height: var(--lh-body);
@@ -164,7 +146,8 @@ const ButtonScope = styled.span<{
       box-shadow var(--dur-hover) var(--ease-out),
       color var(--dur-hover) var(--ease-out),
       filter var(--dur-hover) var(--ease-out),
-      transform 260ms var(--ease-spring);
+      transform 260ms var(--ease-spring),
+      ${edgeTransition};
 
     ${({ $variant }) => variantStyles[$variant]}
   }
@@ -198,6 +181,7 @@ const ButtonScope = styled.span<{
     filter: none;
     cursor: not-allowed;
 
+    &::before,
     &::after {
       content: none;
     }

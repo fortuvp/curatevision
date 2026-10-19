@@ -18,7 +18,7 @@ import { useActionGate } from 'components/curate/item-light-gate'
 /*
  * Submit evidence on an entry: inline at the end of the history while a
  * request is open, or as a dialog. The file is uploaded through Atlas at
- * submit time; publishing costs gas only.
+ * submit time.
  */
 
 const EVIDENCE_FORM_ID = 'submitEvidenceForm'
@@ -143,10 +143,7 @@ const EvidenceModal = ({
       }
     >
       <Stack $gap={14}>
-        <Body $muted>
-          Published on-chain and attached to this entry for jurors and curators
-          to read. Publishing costs gas only.
-        </Body>
+        <Body $muted>Published on-chain with this entry, for the jurors.</Body>
         <EvidenceForm
           onSubmit={submitEvidence}
           formID={EVIDENCE_FORM_ID}

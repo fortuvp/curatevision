@@ -804,24 +804,25 @@ const StakeRegistry = () => {
           ) : (
             'an arbitration deposit'
           )}
-          . The stake stays locked while your {itemName} is listed, and anyone
-          can challenge it at any time.
-          {withdrawingPeriod !== undefined &&
-            ` Taking it back takes ${formatDurationLong(withdrawingPeriod)}.`}
+          . They back your {itemName} while it is listed and come back when you
+          withdraw
+          {withdrawingPeriod !== undefined
+            ? `, which takes ${formatDurationLong(withdrawingPeriod)}.`
+            : '.'}
         </>
       ),
     },
     {
-      title: 'A challenger stakes against it',
-      body: `A challenger locks ${
+      title: 'Spot a mistake, earn the stake',
+      body: `Challenge a ${itemName} that breaks the policy, at any time, by locking ${
         challengePercent
-          ? `${challengePercent} of your stake`
-          : 'a share of your stake'
-      } and pays the arbitration cost to the court, then Kleros jurors rule on the listing policy. The challenger recovers that cost from your deposit only if they win.`,
+          ? `${challengePercent} of its stake`
+          : 'a share of its stake'
+      } plus the arbitration cost. If Kleros jurors agree, you take its whole stake and its arbitration deposit, and your own stake comes back.`,
     },
     {
-      title: 'Win and your stake grows, lose and the challenger takes it',
-      body: `If you win, the challenger's stake is added to yours, so the next challenge costs more (progressive protection). If you lose, the challenger takes your stake and the arbitration deposit, and the ${itemName} leaves the list.`,
+      title: 'Kept on the list, your stake grows',
+      body: `If the jurors keep your ${itemName}, the challenger's stake is added to yours, so the next challenge costs more (progressive protection).`,
     },
   ]
 
@@ -921,7 +922,7 @@ const StakeRegistry = () => {
         stats={stats}
         parameters={parameters}
         explainerId={`registry-stake-${tcrAddress.toLowerCase()}`}
-        explainerHeading="Your stake stays locked, and a challenge can come at any time."
+        explainerHeading="A stake backs every entry. Spot a bad one and it is yours."
         explainerSteps={explainerSteps}
         loading={loading || summaryLoading}
       />

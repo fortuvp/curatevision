@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import styled, { keyframes } from 'styled-components'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import useDocumentHead from 'hooks/use-document-head'
 import useNow from 'hooks/use-now'
 import { parseIpfs } from 'utils/ipfs-parse'
@@ -17,38 +17,64 @@ import {
   Label,
   Page,
   SegmentedControl,
+  SelectMenu,
+  type SelectMenuOption,
   SkeletonBlock,
   Small,
-  StatusDot,
   Surface,
   Table,
   TableScroller,
   VisuallyHidden,
   truncateMiddle,
 } from 'components/curate/primitives'
-import { StatusBoard } from 'components/curate/status-board'
 import { OrbitChart } from 'components/curate/orbit-chart'
 import { ActivityWave } from 'components/curate/motion/activity-wave'
 import { Odometer } from 'components/curate/motion/odometer'
-import { RingGauge } from 'components/curate/motion/ring-gauge'
 import { AnimatedNumber } from 'components/curate/motion/animated-number'
 import { reveal } from 'components/curate/motion/reveal'
-import { fetchDashboardData } from './data'
-import type { DashboardRegistry } from './types'
+import { VerifiedBadge } from 'components/curate/verified-badge'
+import { getNativeCurrency } from 'config/chains'
 import {
+  completeChallengeWindows,
+  fetchDashboardData,
+  loadRulingCards,
+} from './data'
+import {
+  HappeningNow,
+  type OpenListChip,
+  type RulingsView,
+} from './happening-now'
+import { BountiesBody, BountiesRing } from './bounties'
+import { VerifiedLists } from './verified-lists'
+import type {
+  DashboardActivity,
+  DashboardData,
+  DashboardRegistry,
+  RulingRow,
+} from './types'
+import {
+  MAINNET_CHAIN_IDS,
   SUPPORTED_CHAIN_IDS,
   TESTNET_CHAIN_IDS,
   buildBoard,
   scopeChains,
   chainInfo,
   entryCount,
+  formatUnits,
   kindLabel,
   registryHref,
+  newestVerified,
+  rulingCard,
+  scopedBounties,
   scopedFigures,
+  scopedRulings,
   scopedSeries,
+  scopedWins,
   sortRegistries,
   validChain,
+  windowsPending,
   type ChainFilter,
+  type DashboardCard,
 } from './view'
 
 /*
@@ -58,9 +84,17 @@ import {
  */
 
 const integer = new Intl.NumberFormat('en-US')
+const listFormat = new Intl.ListFormat('en', {
+  style: 'long',
+  type: 'conjunction',
+})
 const formatInt = (value: number) => integer.format(Math.round(value))
 const plural = (value: number, one: string, many: string) =>
   `${formatInt(value)} ${value === 1 ? one : many}`
+
+/** Rulings the Disputes box shows first, and how many more each "show more" adds. */
+const RULINGS_FIRST = 4
+const RULINGS_STEP = 8
 
 /*
  * Categorical colours, fixed per entity: chains always wear the same hue,
@@ -77,6 +111,31 @@ const LIST_PALETTE = [
   'var(--viz-2)',
   'var(--viz-3)',
   'var(--viz-4)',
+]
+
+/**
+ * The page's chain scopes: "All chains" (every mainnet; a testnet is never
+ * part of it), then each chain, the testnet last and tagged.
+ */
+const scopeOptions: SelectMenuOption<string>[] = [
+  {
+    value: 'all',
+    label: 'All chains',
+    hint: listFormat.format(
+      MAINNET_CHAIN_IDS.map((id) => chainInfo(id)?.name ?? String(id)),
+    ),
+    icon: 'chain',
+  },
+  ...SUPPORTED_CHAIN_IDS.map((chainId) => {
+    const testnet = TESTNET_CHAIN_IDS.includes(chainId)
+    return {
+      value: String(chainId),
+      label: chainInfo(chainId)?.name ?? String(chainId),
+      icon: <ChainLogo chainId={chainId} size={18} />,
+      tag: testnet ? 'testnet' : undefined,
+      divider: testnet,
+    }
+  }).sort((a, b) => Number(Boolean(a.tag)) - Number(Boolean(b.tag))),
 ]
 
 const mediaUrl = (uri?: string | null): string | null => {
@@ -190,6 +249,21 @@ const ScopeBar = styled.div`
   margin-bottom: 22px;
   padding-bottom: 18px;
   border-bottom: 1px solid var(--glass-border);
+
+  /* Phones: the four chains do not fit a segmented track; a menu does. */
+  .scope-narrow {
+    display: none;
+  }
+
+  @media (max-width: 560px) {
+    .scope-wide {
+      display: none;
+    }
+
+    .scope-narrow {
+      display: inline-flex;
+    }
+  }
 `
 
 const FeaturedTop = styled.div`
@@ -266,13 +340,17 @@ const Big = styled.span<{ $hero?: boolean }>`
   font-variant-numeric: tabular-nums;
 `
 
+/*
+ * Entries by chain, then Bounties won across the other two thirds. Below
+ * 1180px a third is too narrow for the ring and its legend: the two stack.
+ */
 const Gauges = styled.div`
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
   gap: 16px;
   margin-top: 16px;
 
-  @media (max-width: 1000px) {
+  @media (max-width: 1180px) {
     grid-template-columns: 1fr;
   }
 `
@@ -307,6 +385,7 @@ const Legend = styled.ul`
   display: flex;
   flex-direction: column;
   gap: 8px;
+  max-width: 400px;
   margin: 10px 0 0;
   padding: 0;
   list-style: none;
@@ -369,6 +448,16 @@ const SectionTitle = styled.h2`
   line-height: 34px;
   font-weight: 500;
   letter-spacing: -0.03em;
+`
+
+const BoardSkeleton = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
 `
 
 const Split = styled.div`
@@ -454,8 +543,16 @@ const Logo = styled.span<{ $image?: string | null }>`
   color: var(--color-faint);
 `
 
+const NameLine = styled.span`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+`
+
 const RegistryName = styled(Link)`
   display: block;
+  min-width: 0;
   overflow: hidden;
   color: var(--color-text);
   font-weight: 500;
@@ -480,6 +577,15 @@ const SeeAll = styled(Link)`
   &:hover {
     color: var(--color-text);
   }
+`
+
+/* The panel's two columns and their windows, said once. */
+const CuratorsHead = styled.div`
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  flex-wrap: wrap;
 `
 
 const CuratorRow = styled(Link)`
@@ -516,15 +622,30 @@ const Rank = styled.span`
   font-variant-numeric: tabular-nums;
 `
 
+/* A curator's bounties won, all time: the bounty glyph lights when any. */
 const Won = styled.span`
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  color: var(--color-muted);
+  gap: 6px;
+  color: var(--color-text);
   font-family: var(--font-figure);
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+
+  svg {
+    color: var(--status-window);
+  }
+
+  &[data-none] {
+    color: var(--color-muted);
+    font-weight: 400;
+
+    svg {
+      color: var(--color-faint);
+    }
+  }
 `
 
 const EmptyNote = styled.p`
@@ -543,6 +664,34 @@ const ChartEmpty = styled.div`
   color: var(--color-muted);
   font-size: var(--fs-small);
 `
+
+/** A board row with its list's logo, best known name and trust seal. */
+const withRegistry = (
+  card: DashboardCard,
+  lists: Map<string, DashboardRegistry>,
+): DashboardCard => {
+  const registry = lists.get(`${card.chainId}:${card.registryAddress}`)
+  return {
+    ...card,
+    registry:
+      registry?.title || card.registry || truncateMiddle(card.registryAddress),
+    logo: mediaUrl(registry?.logoURI),
+    verified: registry?.trustStatus === 'verified',
+  }
+}
+
+/** "30 xDAI": what the challenger won on a ruling, when they won. */
+const bountyLabel = (
+  row: RulingRow,
+  tokens: DashboardData['tokens'],
+): string | undefined => {
+  if (!row.challengerWon) return undefined
+  const coin = row.token
+    ? tokens[`${row.chainId}:${row.token}`]
+    : getNativeCurrency(row.chainId)
+  if (!coin) return undefined
+  return `${formatUnits(BigInt(row.bounty || '0'), coin.decimals)} ${coin.symbol}`
+}
 
 const RegistryLogo = ({ registry }: { registry: DashboardRegistry }) => (
   <Logo $image={mediaUrl(registry.logoURI)} aria-hidden>
@@ -570,6 +719,34 @@ const Dashboard = () => {
   const data = query.data
   const loading = query.isLoading || !data
 
+  /*
+   * When a load could not place every challenge window in time (a slow or
+   * failing node), read them once more on its own, outside the load's
+   * budget, and fill the result into the dashboard's data: the guide's
+   * live figure reads the same query.
+   */
+  const queryClient = useQueryClient()
+  const windowsMissing =
+    !!data &&
+    Object.keys(data.unchallengedRows ?? {}).some((chainId) =>
+      windowsPending(data, Number(chainId)),
+    )
+  const windowsRetry = useQuery({
+    queryKey: ['curateDashboardWindows', data?.generatedAt],
+    queryFn: async () => {
+      if (!data) return false
+      const next = await completeChallengeWindows(data)
+      queryClient.setQueryData<DashboardData>(['curateDashboard'], (current) =>
+        current?.generatedAt === data.generatedAt ? next : current,
+      )
+      return true
+    },
+    enabled: windowsMissing,
+    staleTime: Infinity,
+    retry: false,
+  })
+  const checkingWindows = windowsMissing && windowsRetry.isFetching
+
   const setChain = (value: string) => {
     const next = new URLSearchParams(searchParams)
     if (value === 'all') next.delete('chain')
@@ -578,47 +755,136 @@ const Dashboard = () => {
   }
 
   const chains = useMemo(() => scopeChains(chain), [chain])
-  // Links to Browse keep the page's scope ("Mainnets" is Ethereum + Gnosis).
+  // What "All chains" covers, named under the switch: "Ethereum and Gnosis".
+  const scopeName = listFormat.format(
+    chains.map((chainId) => chainInfo(chainId)?.name ?? String(chainId)),
+  )
+  // Links to Browse keep the page's scope ("All chains" is Ethereum + Gnosis).
   const browseScope = `chain=${chains.join(',')}`
   const scoped = useMemo(
     () => (data?.registries ?? []).filter((r) => chains.includes(r.chainId)),
     [data, chains],
   )
 
-  const board = useMemo(() => {
-    if (!data) return { open: [], inCourt: [], decided: [] }
-    const logos = new Map(
-      data.registries.map((registry) => [
-        `${registry.chainId}:${registry.address}`,
-        mediaUrl(registry.logoURI),
-      ]),
-    )
-    const withLogo = (cards: ReturnType<typeof buildBoard>['open']) =>
-      cards.map((card) => ({
-        ...card,
-        logo: logos.get(
-          `${card.chainId}:${card.href.split('/')[3]?.toLowerCase()}`,
-        ),
-      }))
-    const built = buildBoard(
-      data.unchallenged,
-      data.decided,
-      data.openDisputes,
-      now,
-      chains,
-    )
-    return {
-      open: withLogo(built.open),
-      inCourt: withLogo(built.inCourt),
-      decided: withLogo(built.decided),
-    }
-  }, [data, now, chains])
-
   /** Every figure on the page describes the same scope. */
   const figures = useMemo(
-    () => (data ? scopedFigures(data, chains) : undefined),
+    () => (data ? scopedFigures(data, chains, now) : undefined),
+    [data, chains, now],
+  )
+
+  // Every list by chain and address: rows wear its logo, name and seal.
+  const lists = useMemo(
+    () =>
+      new Map(
+        (data?.registries ?? []).map((registry) => [
+          `${registry.chainId}:${registry.address}`,
+          registry,
+        ]),
+      ),
+    [data],
+  )
+
+  const board = useMemo(() => {
+    if (!data)
+      return {
+        open: [],
+        openLists: [] as OpenListChip[],
+        live: [],
+      }
+    const withList = (cards: DashboardCard[]) =>
+      cards.map((card) => withRegistry(card, lists))
+    const built = buildBoard(data, now, chains)
+    return {
+      open: withList(built.open),
+      // Each list's own page, filtered to its open requests, oldest first.
+      openLists: built.openLists.map((list) => {
+        const registry = lists.get(`${list.chainId}:${list.registry}`)
+        return {
+          key: `${list.chainId}:${list.registry}`,
+          title: registry?.title || truncateMiddle(list.registry),
+          logo: mediaUrl(registry?.logoURI),
+          count: list.count,
+          href: `/tcr/${list.chainId}/${list.registry}?submitted=true&removalRequested=true&oldestFirst=true`,
+        }
+      }),
+      live: withList(built.live),
+    }
+  }, [data, now, chains, lists])
+
+  /*
+   * Rulings, all time: the ledger orders every one of them; the rows shown
+   * take the entry's identifiers from the cards the load read, and "show
+   * more" reads the cards of the next ones.
+   */
+  const [rulingsShown, setRulingsShown] = useState(RULINGS_FIRST)
+  useEffect(() => setRulingsShown(RULINGS_FIRST), [chain])
+  const rulingRows = useMemo(
+    () => (data ? scopedRulings(data, chains) : []),
     [data, chains],
   )
+  const shownRows = rulingRows.slice(0, rulingsShown)
+  const [extraCards, setExtraCards] = useState<
+    Record<string, DashboardActivity>
+  >({})
+  const baseCards = useMemo(
+    () => new Map((data?.decided ?? []).map((card) => [card.id, card])),
+    [data],
+  )
+  const cardOf = (id: string) => baseCards.get(id) ?? extraCards[id]
+  const missingRows = shownRows.filter((row) => !cardOf(row.id))
+  const rulingCards = useQuery({
+    queryKey: ['curateRulingCards', missingRows.map((row) => row.id)],
+    queryFn: () => loadRulingCards(missingRows),
+    enabled: missingRows.length > 0,
+    staleTime: Infinity,
+    retry: 1,
+  })
+  useEffect(() => {
+    const loaded = rulingCards.data
+    if (!loaded?.length) return
+    setExtraCards((previous) => {
+      const next = { ...previous }
+      for (const card of loaded) next[card.id] = card
+      return next
+    })
+  }, [rulingCards.data])
+
+  const rulings: RulingsView = {
+    cards: shownRows.map((row) =>
+      withRegistry(
+        rulingCard(
+          row,
+          now,
+          cardOf(row.id),
+          bountyLabel(row, data?.tokens ?? {}),
+        ),
+        lists,
+      ),
+    ),
+    pending: new Set(
+      rulingCards.isFetching ? missingRows.map((row) => row.id) : [],
+    ),
+    total: rulingRows.length,
+    capped: chains.some((chainId) => data?.rulingsCapped?.[chainId]),
+    partial: !!data && chains.some((chainId) => !data.rulings?.[chainId]),
+    onMore:
+      rulingsShown < rulingRows.length
+        ? () => setRulingsShown((shown) => shown + RULINGS_STEP)
+        : undefined,
+    onFewer:
+      rulingsShown > RULINGS_FIRST && rulingRows.length > RULINGS_FIRST
+        ? () => setRulingsShown(RULINGS_FIRST)
+        : undefined,
+  }
+
+  /** Bounties won, all time, per coin, in the page's scope. */
+  const bounties = useMemo(
+    () => (data ? scopedBounties(data, chains) : undefined),
+    [data, chains],
+  )
+
+  /** The Kleros Verified lists in scope, newest to earn the badge first. */
+  const verifiedLists = useMemo(() => newestVerified(scoped), [scoped])
 
   const series = useMemo(
     () => (data ? scopedSeries(data, chains) : []),
@@ -684,28 +950,32 @@ const Dashboard = () => {
 
   /*
    * Top curators in scope, ranked by what their row shows: requests made
-   * plus challenges made (a won challenge is already one challenge).
+   * plus challenges made over the 30 days. Their bounties won are all
+   * time, from the rulings ledger, like every other case on the page.
    */
+  const wins = useMemo(
+    () => (data ? scopedWins(data, chains) : new Map<string, number>()),
+    [data, chains],
+  )
+  const winsKnown = !!data && chains.every((chainId) => data.rulings?.[chainId])
   const curators = useMemo(
     () =>
       (data?.users ?? [])
         .map((user) => {
           let requests = 0
           let challenges = 0
-          let won = 0
           let lastActiveAt = 0
           for (const [id, stats] of Object.entries(user.chains)) {
             if (!chains.includes(Number(id))) continue
             requests += stats.submissions + stats.removals
             challenges += stats.challenges
-            won += stats.successfulChallenges
             lastActiveAt = Math.max(lastActiveAt, stats.lastActiveAt)
           }
           return {
             address: user.address,
             requests,
             challenges,
-            won,
+            won: wins.get(user.address.toLowerCase()) ?? 0,
             lastActiveAt,
           }
         })
@@ -716,7 +986,7 @@ const Dashboard = () => {
             b.lastActiveAt - a.lastActiveAt,
         )
         .slice(0, 6),
-    [data, chains],
+    [data, chains, wins],
   )
 
   const chartLabels = useMemo(
@@ -753,7 +1023,6 @@ const Dashboard = () => {
     .map((id) => chainInfo(id)?.name)
     .filter(Boolean)
     .join(' and ')
-  const inCourtNow = figures ? figures.challenges - figures.decided : 0
 
   return (
     <Page>
@@ -775,8 +1044,8 @@ const Dashboard = () => {
           Lists anyone can challenge. <em>Settled by jurors.</em>
         </Headline>
         <Lede style={{ ['--i' as string]: 2 }}>
-          Challenge a submission that breaks its list’s policy and win its
-          deposit if jurors agree.
+          Challenge a submission that breaks its list’s policy and earn its
+          bounty if jurors agree.
         </Lede>
         <Actions style={{ ['--i' as string]: 3 }}>
           <ButtonLink to={`/browse?${browseScope}`} $variant="primary">
@@ -795,22 +1064,28 @@ const Dashboard = () => {
         style={{ ['--i' as string]: 4 }}
       >
         <ScopeBar>
-          {testnet && (
-            <Label $tone="faint" style={{ marginRight: 'auto' }}>
-              Test network
-            </Label>
-          )}
+          <Label $tone="faint" style={{ marginRight: 'auto' }}>
+            {chain === 'all' ? scopeName : testnet ? 'Test network' : ''}
+          </Label>
           <SegmentedControl
-            ariaLabel="Scope"
+            className="scope-wide"
+            ariaLabel="Chains"
             value={chain === 'all' ? 'all' : String(chain)}
             onChange={setChain}
-            options={[
-              { value: 'all', label: 'Mainnets' },
-              ...SUPPORTED_CHAIN_IDS.map((chainId) => ({
-                value: String(chainId),
-                label: chainInfo(chainId)?.name ?? String(chainId),
-              })),
-            ]}
+            options={scopeOptions.map(({ value, label, tag }) => ({
+              value,
+              label,
+              tag,
+            }))}
+          />
+          <SelectMenu
+            className="scope-narrow"
+            label="Chains"
+            hideLabel
+            align="end"
+            value={chain === 'all' ? 'all' : String(chain)}
+            onChange={setChain}
+            options={scopeOptions}
           />
         </ScopeBar>
         <FeaturedTop>
@@ -915,105 +1190,48 @@ const Dashboard = () => {
             </Legend>
           </div>
         </GaugeCard>
-        <GaugeCard $padding="none" style={{ ['--i' as string]: 6 }}>
-          <RingGauge
-            key={`v-${chains.join('-')}`}
-            size={168}
-            ratio={
-              figures?.registries ? figures.verified / figures.registries : 0
-            }
-            from="var(--status-registered)"
-            to="var(--aurora-b)"
-            label={`Verified registries: ${figures?.verified ?? 0} of ${figures?.registries ?? 0}`}
-            caption="of lists verified"
-          />
-          <div>
-            <h3>Verified registries</h3>
-            <Small $muted>
-              {figures
-                ? `${formatInt(figures.verified)} of ${formatInt(figures.registries)} are Kleros lists of lists or listed on one.`
-                : '—'}
-            </Small>
-          </div>
-        </GaugeCard>
-        <GaugeCard $padding="none" style={{ ['--i' as string]: 7 }}>
-          <RingGauge
-            key={`c-${chains.join('-')}`}
-            size={168}
-            ratio={figures?.decided ? figures.won / figures.decided : 0}
-            value={figures?.decided ? undefined : '—'}
-            from="var(--status-contested)"
-            to="var(--color-danger)"
-            label={
-              figures
-                ? `Challenges won in the last 30 days: ${figures.won} of ${figures.decided} decided; jurors sided with the challenger. ${inCourtNow} still in court.`
-                : 'Challenges won in the last 30 days'
-            }
-            caption={figures?.decided ? 'of decided won' : 'none decided'}
-          />
-          <div>
-            <h3>Challenges that won</h3>
-            <Small $muted>
-              {figures
-                ? figures.challenges === 0
-                  ? 'No challenges in the last 30 days.'
-                  : figures.decided === 0
-                    ? `${plural(inCourtNow, 'challenge', 'challenges')} in the last 30 days, all still in court.`
-                    : `${formatInt(figures.won)} of ${formatInt(figures.decided)} decided · ${formatInt(inCourtNow)} still in court · last 30 days.`
-                : '—'}
-            </Small>
-          </div>
+        <GaugeCard $padding="none" $stack style={{ ['--i' as string]: 6 }}>
+          <BountiesRing bounties={bounties} ringKey={`b-${chains.join('-')}`} />
+          <BountiesBody bounties={bounties} />
         </GaugeCard>
       </Gauges>
+
+      <VerifiedLists
+        lists={verifiedLists}
+        loading={loading}
+        browseHref={`/browse?trust=verified&${browseScope}`}
+        scopeKey={chains.join('-')}
+        failed={partialChains.length > 0}
+      />
 
       <SectionHead>
         <SectionTitle>Happening now</SectionTitle>
       </SectionHead>
-      {loading ? (
-        <Split style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
-          <SkeletonBlock $height="320px" />
-          <SkeletonBlock $height="320px" />
-          <SkeletonBlock $height="320px" />
-        </Split>
+      {loading || !figures ? (
+        <BoardSkeleton>
+          <SkeletonBlock $height="380px" />
+          <SkeletonBlock $height="380px" />
+        </BoardSkeleton>
       ) : (
-        <StatusBoard
-          limit={4}
-          columns={[
-            {
-              id: 'open',
-              title: 'Unchallenged',
-              hint: 'Open requests, not in court',
-              tone: 'window',
-              cards: board.open,
-              count: figures?.unchallenged,
-              capped: figures?.unchallengedCapped,
-              moreHref: `/browse?sort=activity&${browseScope}`,
-              empty: 'No open requests',
-            },
-            {
-              id: 'court',
-              title: 'In court',
-              hint: 'Disputes open now',
-              tone: 'contested',
-              cards: board.inCourt,
-              empty: 'No disputes open',
-            },
-            {
-              id: 'decided',
-              title: 'Decided',
-              hint: 'Rulings · last 30 days',
-              tone: 'registered',
-              cards: board.decided,
-              capped: figures?.decidedCapped,
-              empty: 'No rulings in the last 30 days',
-            },
-          ]}
+        <HappeningNow
+          open={board.open}
+          live={board.live}
+          rulings={rulings}
+          figures={figures}
+          openLists={board.openLists}
+          now={now}
+          checking={checkingWindows}
+          stakeHref={
+            scoped.some((registry) => registry.kind === 'permanent')
+              ? `/browse?trust=all&kind=permanent&${browseScope}`
+              : undefined
+          }
         />
       )}
 
       <SectionHead>
         <SectionTitle>Most active</SectionTitle>
-        <SeeAll to={`/browse?sort=activity&${browseScope}`}>
+        <SeeAll to={`/browse?trust=all&sort=activity&${browseScope}`}>
           All registries <CurateIcon name="submit" size={13} />
         </SeeAll>
       </SectionHead>
@@ -1043,12 +1261,17 @@ const Dashboard = () => {
                       <RegistryCell>
                         <RegistryLogo registry={registry} />
                         <div style={{ minWidth: 0 }}>
-                          <RegistryName
-                            to={registryHref(registry)}
-                            title={registry.title}
-                          >
-                            {registry.title}
-                          </RegistryName>
+                          <NameLine>
+                            <RegistryName
+                              to={registryHref(registry)}
+                              title={registry.title}
+                            >
+                              {registry.title}
+                            </RegistryName>
+                            {registry.trustStatus === 'verified' && (
+                              <VerifiedBadge size={16} />
+                            )}
+                          </NameLine>
                           <RowMeta>
                             <span
                               className="phone-only"
@@ -1059,11 +1282,7 @@ const Dashboard = () => {
                                 {chainInfo(registry.chainId)?.name}
                               </VisuallyHidden>
                             </span>
-                            <Small $muted>
-                              {kindLabel(registry.kind)}
-                              {registry.trustStatus === 'verified' &&
-                                ' · Verified'}
-                            </Small>
+                            <Small $muted>{kindLabel(registry.kind)}</Small>
                           </RowMeta>
                         </div>
                       </RegistryCell>
@@ -1086,7 +1305,17 @@ const Dashboard = () => {
         )}
 
         <Surface $padding="standard" aria-label="Top curators">
-          <Label $tone="faint">Top curators · 30 days</Label>
+          <CuratorsHead>
+            <Label $tone="faint">Top curators · 30 days</Label>
+            {!loading && curators.length > 0 && (
+              <Label
+                $tone="faint"
+                title="Bounties won: challenges the court ruled for them, all time"
+              >
+                Won · all time
+              </Label>
+            )}
+          </CuratorsHead>
           {loading ? (
             <SkeletonBlock $height="260px" style={{ marginTop: 16 }} />
           ) : curators.length === 0 ? (
@@ -1103,12 +1332,16 @@ const Dashboard = () => {
                       {plural(row.challenges, 'challenge', 'challenges')}
                     </Small>
                   </span>
-                  <Won title="Challenges won">
-                    <StatusDot
-                      $tone={row.won > 0 ? 'registered' : 'neutral'}
-                      aria-hidden
-                    />
-                    {formatInt(row.won)} won
+                  <Won
+                    title={`${plural(row.won, 'bounty', 'bounties')} won, all time`}
+                    data-none={row.won === 0 ? '' : undefined}
+                  >
+                    <CurateIcon name="bounty" size={13} />
+                    {winsKnown ? formatInt(row.won) : '—'}
+                    <VisuallyHidden>
+                      {' '}
+                      {row.won === 1 ? 'bounty' : 'bounties'} won, all time
+                    </VisuallyHidden>
                   </Won>
                 </CuratorRow>
               ))}

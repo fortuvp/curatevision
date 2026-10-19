@@ -196,7 +196,7 @@ const RemoveModal = ({
       : [{ label: 'Removal deposit (base + arbitration cost)', value: total }]
   const steps: OutcomeStep[] = [
     {
-      title: 'Challenge window opens',
+      title: 'Challenge period opens',
       body: windowSpan ? (
         <>
           {windowSpan}, while the {name} stays listed
@@ -206,13 +206,13 @@ const RemoveModal = ({
       ),
     },
     {
-      title: 'Nobody challenges',
-      body: `The ${name} is removed; your deposit comes back in full`,
+      title: 'No challenge',
+      body: `The ${name} is removed and your deposit comes back`,
     },
     {
-      title: 'Someone challenges',
+      title: 'If someone challenges',
       branch: true,
-      body: 'Jurors decide; the winner takes both deposits minus one arbitration cost',
+      body: "Jurors decide. If they side with you, you get your deposit back plus the challenger's, less the arbitration cost; if not, it goes to the challenger",
     },
   ]
 

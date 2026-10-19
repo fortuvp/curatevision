@@ -4,6 +4,7 @@ import useDocumentHead from 'hooks/use-document-head'
 import { NETWORKS } from 'config/networks'
 import useDisplayedChainId from './use-displayed-chain-id'
 import { CurateIcon } from 'components/curate/icons'
+import { VERIFIED_LABEL, VerifiedBadge } from 'components/curate/verified-badge'
 import {
   Button,
   ButtonLink,
@@ -16,7 +17,9 @@ import {
 import { reveal } from 'components/curate/motion/reveal'
 import { TableOfContents } from './table-of-contents'
 import { LifecycleSchematic } from './lifecycle-schematic'
+import { StakeSchematic } from './stake-schematic'
 import { AppealWindow } from './appeal-window'
+import { OpenNow } from './open-now'
 import {
   DESKTOP_QUERY,
   useInView,
@@ -28,6 +31,7 @@ import {
   AGENT_PROMPT,
   CHALLENGE_STEPS,
   COSTS,
+  COSTS_NOTE,
   DECISIONS,
   DISPUTE_STEPS,
   GLOSSARY,
@@ -35,11 +39,15 @@ import {
   OUTCOMES,
   SECTIONS,
   SOURCES,
+  STAKE_COMPARE,
+  STAKE_EDGE_CASES,
+  STAKE_ROLES,
   SUBMIT_STEPS,
   sectionNumber,
 } from './content'
 import {
   Aside,
+  CompareTable,
   Costs,
   DefinitionGrid,
   Eyebrow,
@@ -49,6 +57,8 @@ import {
   GuideSection,
   OutcomeTable,
   Prose,
+  RolePair,
+  SeeLinks,
   SourceGrid,
   StatusLegend,
   Steps,
@@ -59,8 +69,11 @@ import {
  * Guide (route /guide): the one page where text is the product. A sticky
  * table of contents follows the reader; the lifecycle is the featured drawing
  * and draws itself in; sections open with display headings and read at a 68ch
- * measure. Every mechanism follows the public Kleros documentation, and no
- * figures are given because each list and court sets its own.
+ * measure. Deposits are told as money that comes back and bounties to earn,
+ * both sides at once. Every mechanism follows the public Kleros documentation
+ * (and, for Stake Curate, the PermanentGTCR contract). Deposits and periods
+ * are never given as figures, because each list and court sets its own; the
+ * one figure is the live count of requests open for verification.
  */
 
 const COPIED_FOR_MS = 1600
@@ -128,9 +141,10 @@ const GuidePill = styled.span`
   }
 `
 
+/* Two sentences, the earning one in the accent on its own lines. */
 const Title = styled.h1`
   margin: 0;
-  max-width: 17ch;
+  max-width: 25ch;
   color: var(--color-text);
   font-family: var(--font-display);
   font-size: clamp(38px, 2.8vw + 18px, 60px);
@@ -140,6 +154,7 @@ const Title = styled.h1`
   text-wrap: balance;
 
   em {
+    display: block;
     font-style: normal;
     color: var(--color-primary);
   }
@@ -285,6 +300,19 @@ const Actions = styled.div`
   gap: 10px;
 `
 
+/* ---------- Stake Curate ---------- */
+
+const StakePanel = styled(Surface)`
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 22px 28px 26px;
+
+  @media (max-width: 720px) {
+    padding: 18px 16px 20px;
+  }
+`
+
 const ReplayIcon = () => (
   <svg
     width="14"
@@ -300,12 +328,25 @@ const ReplayIcon = () => (
   </svg>
 )
 
+const Replay = ({ onReplay, what }: { onReplay: () => void; what: string }) => (
+  <Button
+    type="button"
+    $variant="ghost"
+    $size="sm"
+    onClick={onReplay}
+    aria-label={`Replay the ${what} drawing`}
+  >
+    <ReplayIcon />
+    Replay
+  </Button>
+)
+
 /* ---------- Page ---------- */
 
 const Guide = () => {
   useDocumentHead(
     'Guide | Kleros Curate',
-    'How Kleros Curate works: submitting, challenging, disputes and appeals, rewards, launching a list, agent skills and a glossary.',
+    'How Kleros Curate works: submitting in good faith and getting your deposit back, earning bounties by challenging, disputes and appeals, Stake Curate, launching a list, agent skills and a glossary.',
   )
   const desktop = useMediaQuery(DESKTOP_QUERY)
   const reduced = useReducedMotion()
@@ -315,6 +356,9 @@ const Guide = () => {
   const [run, setRun] = useState(0)
   const panelRef = useRef<HTMLDivElement>(null)
   const panelInView = useInView(panelRef, 0.25)
+  const [stakeRun, setStakeRun] = useState(0)
+  const stakeRef = useRef<HTMLDivElement>(null)
+  const stakeInView = useInView(stakeRef, 0.25)
   const launchHref = `/launch/${useDisplayedChainId()}`
 
   // A deep link (/guide#glossary) lands after the lazy route renders.
@@ -362,12 +406,12 @@ const Guide = () => {
               {SECTIONS.length} sections · follows the public Kleros docs
             </GuidePill>
             <Title style={{ ['--i' as string]: 1 }}>
-              Add to a list, challenge what does not belong,{' '}
-              <em>let jurors settle the rest.</em>
+              Submit in good faith, get your deposit back.{' '}
+              <em>Spot a mistake, earn the bounty.</em>
             </Title>
             <Lede style={{ ['--i' as string]: 2 }}>
-              How Kleros Curate works: each step, what it costs and what comes
-              back.
+              How Kleros Curate works: each step, what it costs, what comes back
+              and what you can earn.
             </Lede>
           </Hero>
 
@@ -390,16 +434,10 @@ const Guide = () => {
                 </PanelHeading>
               </div>
               {!reduced && (
-                <Button
-                  type="button"
-                  $variant="ghost"
-                  $size="sm"
-                  onClick={() => setRun((value) => value + 1)}
-                  aria-label="Replay the lifecycle drawing"
-                >
-                  <ReplayIcon />
-                  Replay
-                </Button>
+                <Replay
+                  what="lifecycle"
+                  onReplay={() => setRun((value) => value + 1)}
+                />
               )}
             </PanelTop>
             <LifecycleSchematic
@@ -418,9 +456,10 @@ const Guide = () => {
                   <Label $tone="faint">Deposit</Label>
                 </dt>
                 <dd>
-                  <b>Base + arbitration cost</b>
+                  <b>Back in full</b>
                   <span>
-                    Sent in one transaction; back in full if nobody challenges.
+                    Base + arbitration cost, sent in one transaction; all of it
+                    comes back when the entry follows the list’s policy.
                   </span>
                 </dd>
               </div>
@@ -435,13 +474,13 @@ const Guide = () => {
               </div>
               <div>
                 <dt>
-                  <Label $tone="faint">Dispute</Label>
+                  <Label $tone="faint">Bounty</Label>
                 </dt>
                 <dd>
-                  <b>Kleros jurors rule</b>
+                  <b>The other side’s deposit</b>
                   <span>
-                    On the list’s policy; the winner receives both deposits
-                    minus the fees.
+                    Jurors rule on the list’s policy; the winner takes both
+                    deposits minus one arbitration cost.
                   </span>
                 </dd>
               </div>
@@ -467,19 +506,33 @@ const Guide = () => {
             <StatusLegend groups={LEGEND} />
           </GuideSection>
 
-          <GuideSection id="submitting" heading="Read the policy, then deposit">
+          <GuideSection
+            id="submitting"
+            heading="Follow the policy, get your deposit back"
+          >
             <Steps steps={SUBMIT_STEPS} />
-            <Costs label="What you send, per action" rows={COSTS} />
+            <Costs
+              label="What you send, and what comes back · Light and Classic"
+              rows={COSTS}
+              note={COSTS_NOTE}
+            />
             <Aside>
               Some lists also require a justification for removal requests.
             </Aside>
           </GuideSection>
 
-          <GuideSection id="challenging" heading="Show why, then pay a deposit">
+          <GuideSection
+            id="challenging"
+            heading="Spot a mistake, earn the bounty"
+          >
             <Prose>
-              Anyone can challenge a request, new entries and removal requests
-              alike, while its challenge period runs.
+              In a Light or Classic list anyone can challenge a request while
+              its challenge period runs. If jurors agree, you get your deposit
+              back plus the requester’s, minus one arbitration cost. In a Stake
+              list you can challenge at any time, for the entry’s whole stake.{' '}
+              <SeeLinks ids={['stake-curate']} />
             </Prose>
+            <OpenNow />
             <Steps steps={CHALLENGE_STEPS} />
           </GuideSection>
 
@@ -496,31 +549,77 @@ const Guide = () => {
             </Prose>
           </GuideSection>
 
-          <GuideSection id="rewards" heading="The wrong side pays">
-            <Prose>There is no reward pool.</Prose>
+          <GuideSection id="rewards" heading="Being right pays">
+            <Prose>
+              There is no reward pool: every bounty is the other side’s deposit.
+            </Prose>
             <OutcomeTable
-              title="What happens to what you put in"
+              title="What happens to what you put in · Light and Classic"
               roles={OUTCOMES}
             />
             <Prose $quiet>
-              In Light and Classic Curate, claim winnings and appeal returns on
-              the entry once the ruling is final.
+              Appeal returns are claimed on the entry once the ruling is final.
+            </Prose>
+          </GuideSection>
+
+          <GuideSection
+            id="stake-curate"
+            heading="A standing bounty on every entry"
+          >
+            <RolePair roles={STAKE_ROLES} />
+            <StakePanel
+              ref={stakeRef}
+              $padding="none"
+              role="group"
+              aria-label="An entry’s life in a Stake Curate list"
+            >
+              <PanelTop>
+                <Label $tone="faint">One entry, start to finish</Label>
+                {!reduced && (
+                  <Replay
+                    what="Stake Curate"
+                    onReplay={() => setStakeRun((value) => value + 1)}
+                  />
+                )}
+              </PanelTop>
+              <StakeSchematic
+                play={stakeInView}
+                run={stakeRun}
+                caption={
+                  <>
+                    <Label $tone="faint">Who gets the stake</Label>
+                    <span>Submitter: withdrawn or kept.</span>
+                    <span>Challenger: removed.</span>
+                  </>
+                }
+              />
+            </StakePanel>
+            <CompareTable
+              caption="Light and Classic Curate compared with Stake Curate"
+              columns={['Light and Classic', 'Stake Curate']}
+              rows={STAKE_COMPARE}
+            />
+            <Prose $quiet>
+              {STAKE_EDGE_CASES} <SeeLinks ids={['disputes']} />
             </Prose>
           </GuideSection>
 
           <GuideSection id="launching" heading="Policy, schema, parameters">
             <Prose>
-              Anyone can deploy a list on Light Curate, which the app calls
-              Standard, or on Stake Curate. Classic Curate is being deprecated.
+              Anyone can deploy a list on Light Curate or on Stake Curate.
+              Classic Curate is being deprecated.
             </Prose>
             <DefinitionGrid label="What you decide" items={DECISIONS} />
             <Prose $quiet>
-              Stake Curate also sets the stake token and minimum, the
-              challenger’s share, the withdrawal wait and the juror count.
+              A Stake list also sets its token and minimum stake, the challenge
+              stake share, and its submission, reinclusion and withdrawing
+              periods.
             </Prose>
-            <Aside>
-              To reach the home page, submit the new list to the Kleros Verified
-              list of lists; it appears once that request is executed.
+            <Aside label={VERIFIED_LABEL}>
+              Every new list starts as a Community list. Submit it to a Kleros
+              list of lists on its chain: once it is registered on one, it
+              carries the <VerifiedBadge size={16} decorative />{' '}
+              {VERIFIED_LABEL} seal.
             </Aside>
             <Actions>
               <ButtonLink to={launchHref} $variant="primary">

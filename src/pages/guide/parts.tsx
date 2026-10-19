@@ -2,20 +2,25 @@ import React from 'react'
 import styled from 'styled-components'
 import { CurateIcon } from 'components/curate/icons'
 import { Label, Small, StatusDot, Surface } from 'components/curate/primitives'
+import { VerifiedBadge } from 'components/curate/verified-badge'
 import {
   SECTIONS,
   sectionNumber,
+  type CostRow,
   type GuideStep,
   type LegendItem,
   type OutcomeKind,
+  type OutcomeRole,
 } from './content'
 import { useJump } from './table-of-contents'
 
 /*
  * The guide's reading pieces: section heads in display type, prose at a 68ch
- * measure, numbered steps on a rail, cost rows, asides, the status legend,
- * the outcome panel and definition grids. Separation comes from space and
- * hairlines; the only panels are the drawings and the outcome table.
+ * measure, numbered steps on a rail, cost rows with what comes back, asides,
+ * the status legend, the outcome panel, the two roles side by side, the Stake
+ * Curate comparison and definition grids. Separation comes from space and
+ * hairlines; the only panels are the drawings, the live count and the
+ * outcome table.
  */
 
 export const MEASURE = '68ch'
@@ -170,6 +175,69 @@ export const Aside = ({
   </AsideBox>
 )
 
+/* ---------- Cross-references ---------- */
+
+/** "See 07": a jump to another section, read out with its name. */
+export const SeeLinks = ({ ids }: { ids: string[] }) => {
+  const jump = useJump()
+  return (
+    <>
+      See{' '}
+      {ids.map((id, index) => (
+        <React.Fragment key={id}>
+          {index > 0 && ', '}
+          <a
+            href={`#${id}`}
+            onClick={(event) => jump(event, id)}
+            aria-label={`Section ${sectionNumber(id)}: ${
+              SECTIONS.find((section) => section.id === id)?.label
+            }`}
+          >
+            {sectionNumber(id)}
+          </a>
+        </React.Fragment>
+      ))}
+      .
+    </>
+  )
+}
+
+/* ---------- Outcome marks ---------- */
+
+const MARK: Record<OutcomeKind, { glyph: string; tone: string; name: string }> =
+  {
+    gain: {
+      glyph: '+',
+      tone: 'var(--color-success)',
+      name: 'More than you put in',
+    },
+    loss: {
+      glyph: '−',
+      tone: 'var(--color-danger)',
+      name: 'Goes to the other side',
+    },
+    back: { glyph: '=', tone: 'var(--color-muted)', name: 'Returned' },
+  }
+
+const Mark = styled.i<{ $tone: string }>`
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, ${({ $tone }) => $tone} 16%, transparent);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, ${({ $tone }) => $tone} 30%, transparent);
+  /* Pulled toward the text color so the glyph clears 4.5:1 on its tint. */
+  color: color-mix(in srgb, ${({ $tone }) => $tone} 80%, var(--color-text));
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 1;
+`
+
 /* ---------- Steps ---------- */
 
 const StepRail = styled.ol`
@@ -242,6 +310,16 @@ const StepItem = styled.li`
     line-height: 24px;
     text-wrap: pretty;
   }
+
+  p a {
+    color: var(--color-primary);
+    font-variant-numeric: tabular-nums;
+    text-decoration: none;
+  }
+
+  p a:hover {
+    text-decoration: underline;
+  }
 `
 
 export const Steps = ({ steps }: { steps: GuideStep[] }) => (
@@ -250,7 +328,15 @@ export const Steps = ({ steps }: { steps: GuideStep[] }) => (
       <StepItem key={step.title}>
         <div>
           <b>{step.title}</b>
-          <p>{step.body}</p>
+          <p>
+            {step.body}
+            {step.see && (
+              <>
+                {' '}
+                <SeeLinks ids={step.see} />
+              </>
+            )}
+          </p>
         </div>
       </StepItem>
     ))}
@@ -269,12 +355,11 @@ const CostRows = styled.dl`
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-width: 780px;
   margin: 0;
 
   > div {
     display: grid;
-    grid-template-columns: 200px minmax(0, 1fr);
+    grid-template-columns: 172px minmax(0, 1.2fr) minmax(0, 1fr);
     gap: 8px 16px;
     align-items: center;
     min-height: 56px;
@@ -299,10 +384,31 @@ const CostRows = styled.dl`
     margin: 0;
   }
 
+  /* What comes back, and when. */
+  dd + dd {
+    color: var(--color-text);
+    font-size: var(--fs-small);
+    line-height: 22px;
+  }
+
+  @media (max-width: 1180px) {
+    > div {
+      grid-template-columns: 172px minmax(0, 1fr);
+    }
+
+    dd + dd {
+      grid-column: 2;
+    }
+  }
+
   @media (max-width: 720px) {
     > div {
       grid-template-columns: 1fr;
       padding: 12px 14px;
+    }
+
+    dd + dd {
+      grid-column: auto;
     }
   }
 `
@@ -329,9 +435,12 @@ const Plus = styled.span`
 export const Costs = ({
   label,
   rows,
+  note,
 }: {
   label: string
-  rows: { action: string; base: string }[]
+  rows: CostRow[]
+  /** One line under the rows: how a challenged pot is split. */
+  note?: string
 }) => (
   <CostBlock>
     <Label $tone="faint">{label}</Label>
@@ -345,9 +454,16 @@ export const Costs = ({
             <VisuallyHidden> plus </VisuallyHidden>
             <Term $muted>arbitration cost</Term>
           </dd>
+          <dd>
+            <span>
+              <VisuallyHidden>Comes back: </VisuallyHidden>
+              {row.back}
+            </span>
+          </dd>
         </div>
       ))}
     </CostRows>
+    {note && <Small $muted>{note}</Small>}
   </CostBlock>
 )
 
@@ -599,49 +715,12 @@ const OutcomeColumns = styled.div`
   }
 `
 
-const MARK: Record<OutcomeKind, { glyph: string; tone: string; name: string }> =
-  {
-    gain: {
-      glyph: '+',
-      tone: 'var(--color-success)',
-      name: 'More than you put in',
-    },
-    loss: {
-      glyph: '−',
-      tone: 'var(--color-danger)',
-      name: 'Goes to the other side',
-    },
-    back: { glyph: '=', tone: 'var(--color-muted)', name: 'Returned' },
-  }
-
-const Mark = styled.i<{ $tone: string }>`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, ${({ $tone }) => $tone} 16%, transparent);
-  box-shadow: inset 0 0 0 1px
-    color-mix(in srgb, ${({ $tone }) => $tone} 30%, transparent);
-  /* Pulled toward the text color so the glyph clears 4.5:1 on its tint. */
-  color: color-mix(in srgb, ${({ $tone }) => $tone} 80%, var(--color-text));
-  font-size: 14px;
-  font-style: normal;
-  font-weight: 600;
-  line-height: 1;
-`
-
 export const OutcomeTable = ({
   title,
   roles,
 }: {
   title: string
-  roles: {
-    role: string
-    rows: { kind: OutcomeKind; when: string; result: string }[]
-    footnote?: string
-  }[]
+  roles: OutcomeRole[]
 }) => (
   <OutcomePanel $padding="none" aria-label={title}>
     <OutcomeHead>
@@ -681,11 +760,206 @@ export const OutcomeTable = ({
               </li>
             ))}
           </ul>
-          {role.footnote && <Small $muted>{role.footnote}</Small>}
+          {role.footnote && (
+            <Footnote>
+              {role.footnote.text}
+              {role.footnote.see && (
+                <>
+                  {' '}
+                  <SeeLinks ids={[role.footnote.see]} />
+                </>
+              )}
+            </Footnote>
+          )}
         </div>
       ))}
     </OutcomeColumns>
   </OutcomePanel>
+)
+
+const Footnote = styled(Small).attrs({ $muted: true })`
+  a {
+    color: var(--color-primary);
+    font-variant-numeric: tabular-nums;
+    text-decoration: none;
+  }
+
+  a:hover {
+    text-decoration: underline;
+  }
+`
+
+/* ---------- Comparison ---------- */
+
+const CompareGrid = styled.table`
+  width: 100%;
+  margin: 0;
+  border-collapse: collapse;
+  table-layout: fixed;
+
+  th,
+  td {
+    padding: 14px 24px 15px 0;
+    border-top: 1px solid var(--glass-border);
+    text-align: left;
+    vertical-align: top;
+  }
+
+  th:last-child,
+  td:last-child {
+    padding-right: 0;
+  }
+
+  thead th {
+    padding-top: 0;
+    padding-bottom: 10px;
+    border-top: 0;
+    font-weight: inherit;
+  }
+
+  tbody th {
+    color: var(--color-text);
+    font-size: var(--fs-body);
+    line-height: 22px;
+    font-weight: 500;
+  }
+
+  td {
+    color: var(--color-muted);
+    font-size: 15px;
+    line-height: 23px;
+    text-wrap: pretty;
+  }
+
+  /* On phones each row stacks: the aspect, then each kind with its name. */
+  @media (max-width: 720px) {
+    colgroup,
+    thead {
+      display: none;
+    }
+
+    tr {
+      display: block;
+      padding: 14px 0 16px;
+      border-top: 1px solid var(--glass-border);
+    }
+
+    th,
+    td {
+      display: block;
+      padding: 0;
+      border-top: 0;
+    }
+
+    td {
+      margin-top: 10px;
+    }
+
+    td::before {
+      content: attr(data-label);
+      display: block;
+      margin-bottom: 2px;
+      color: var(--color-faint);
+      font-family: var(--font-label);
+      font-size: var(--fs-label);
+      line-height: var(--lh-label);
+      font-weight: 500;
+      letter-spacing: var(--tracking-label);
+      text-transform: uppercase;
+    }
+  }
+`
+
+/** Two kinds of list side by side, one aspect per row, neither favoured. */
+export const CompareTable = ({
+  caption,
+  columns,
+  rows,
+}: {
+  caption: string
+  columns: [string, string]
+  rows: { aspect: string; classic: string; stake: string }[]
+}) => (
+  <CompareGrid>
+    <VisuallyHidden as="caption">{caption}</VisuallyHidden>
+    <colgroup>
+      <col style={{ width: '22%' }} />
+      <col />
+      <col />
+    </colgroup>
+    <thead>
+      <tr>
+        <th scope="col">
+          <VisuallyHidden>Aspect</VisuallyHidden>
+        </th>
+        {columns.map((column) => (
+          <th key={column} scope="col">
+            <Label $tone="text">{column}</Label>
+          </th>
+        ))}
+      </tr>
+    </thead>
+    <tbody>
+      {rows.map((row) => (
+        <tr key={row.aspect}>
+          <th scope="row">{row.aspect}</th>
+          <td data-label={columns[0]}>{row.classic}</td>
+          <td data-label={columns[1]}>{row.stake}</td>
+        </tr>
+      ))}
+    </tbody>
+  </CompareGrid>
+)
+
+/* ---------- Roles ---------- */
+
+const RoleGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 40px;
+
+  > div {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 14px;
+    border-top: 1px solid var(--glass-border);
+  }
+
+  p {
+    margin: 0;
+    max-width: 40ch;
+    color: var(--color-text);
+    font-size: 17px;
+    line-height: 27px;
+    letter-spacing: -0.005em;
+    text-wrap: pretty;
+  }
+
+  @media (max-width: 720px) {
+    grid-template-columns: 1fr;
+
+    p {
+      font-size: 16px;
+      line-height: 25px;
+    }
+  }
+`
+
+/** Two roles side by side, set alike so neither one leads. */
+export const RolePair = ({
+  roles,
+}: {
+  roles: { role: string; line: string }[]
+}) => (
+  <RoleGrid>
+    {roles.map((item) => (
+      <div key={item.role}>
+        <Label $tone="faint">{item.role}</Label>
+        <p>{item.line}</p>
+      </div>
+    ))}
+  </RoleGrid>
 )
 
 /* ---------- Definitions ---------- */
@@ -739,55 +1013,51 @@ export const Definitions = styled.dl`
   }
 `
 
+const TermSeal = styled(VerifiedBadge)`
+  margin-right: 8px;
+  vertical-align: -2px;
+`
+
 export const DefinitionGrid = ({
   label,
   items,
 }: {
   label?: string
-  items: { term: string; definition: string; see?: string[] }[]
-}) => {
-  const jump = useJump()
-  return (
-    <div>
-      {label && (
-        <div style={{ marginBottom: 10 }}>
-          <Label $tone="faint">{label}</Label>
+  items: {
+    term: string
+    definition: string
+    see?: string[]
+    /** Drawn before the term: the Kleros Verified seal. */
+    mark?: 'verified'
+  }[]
+}) => (
+  <div>
+    {label && (
+      <div style={{ marginBottom: 10 }}>
+        <Label $tone="faint">{label}</Label>
+      </div>
+    )}
+    <Definitions>
+      {items.map((item) => (
+        <div key={item.term}>
+          <dt>
+            {item.mark === 'verified' && <TermSeal size={18} decorative />}
+            {item.term}
+          </dt>
+          <dd>
+            {item.definition}
+            {item.see && (
+              <>
+                {' '}
+                <SeeLinks ids={item.see} />
+              </>
+            )}
+          </dd>
         </div>
-      )}
-      <Definitions>
-        {items.map((item) => (
-          <div key={item.term}>
-            <dt>{item.term}</dt>
-            <dd>
-              {item.definition}
-              {item.see && (
-                <>
-                  {' '}
-                  See{' '}
-                  {item.see.map((id, index) => (
-                    <React.Fragment key={id}>
-                      {index > 0 && ', '}
-                      <a
-                        href={`#${id}`}
-                        onClick={(event) => jump(event, id)}
-                        aria-label={`Section ${sectionNumber(id)}: ${
-                          SECTIONS.find((section) => section.id === id)?.label
-                        }`}
-                      >
-                        {sectionNumber(id)}
-                      </a>
-                    </React.Fragment>
-                  ))}
-                  .
-                </>
-              )}
-            </dd>
-          </div>
-        ))}
-      </Definitions>
-    </div>
-  )
-}
+      ))}
+    </Definitions>
+  </div>
+)
 
 /* ---------- Links ---------- */
 

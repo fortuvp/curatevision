@@ -13,7 +13,10 @@ import PermanentEvidenceModal from 'pages/permanent-item-details/modals/evidence
 import toOrdinal from 'utils/ordinal'
 import { CurateIcon } from 'components/curate/icons'
 import {
-  Button,
+  EvidenceClosed,
+  openEvidenceComposer,
+} from 'components/inline-evidence-composer'
+import {
   SkeletonBlock,
   Small,
   StatusDot,
@@ -31,8 +34,9 @@ import {
  * panel, one group per submission (newest first, the latest open), each a
  * glowing vertical timeline of every event the subgraph recorded
  * (submission, evidence, challenge, rulings, appeals, withdrawal) with
- * absolute UTC dates linked to their transactions; then the inline
- * evidence composer while the item is on the list.
+ * absolute UTC dates linked to their transactions; then the evidence
+ * composer, always open while the item is on the list (the contract takes
+ * evidence on any item that is not Absent) and a one-line note otherwise.
  */
 
 /**
@@ -815,16 +819,8 @@ const submissionState = (
 
 export const EVIDENCE_COMPOSER_ID = 'evidence-composer'
 
-export const scrollToEvidenceComposer = () => {
-  const composer = document.querySelector(`#${EVIDENCE_COMPOSER_ID}`)
-  composer?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  window.setTimeout(() => {
-    const input = composer?.querySelector('textarea, input') as
-      | HTMLElement
-      | undefined
-    input?.focus()
-  }, 260)
-}
+/** Scrolls to the evidence composer and focuses its first field. */
+export const scrollToEvidenceComposer = () => openEvidenceComposer()
 
 interface RequestTimelinesProps {
   item?: PermanentTimelineItem
@@ -881,17 +877,6 @@ const RequestTimelines = ({ item, metaEvidence }: RequestTimelinesProps) => {
               Every submission of this {itemName}, newest first. Times in UTC.
             </Small>
           </div>
-          {active && (
-            <Button
-              type="button"
-              $variant="secondary"
-              $size="sm"
-              onClick={scrollToEvidenceComposer}
-            >
-              <CurateIcon name="policy" size={14} />
-              Add evidence
-            </Button>
-          )}
         </HistoryHead>
         <Panel $padding="none">
           {submissions.map((submission, i) => {
@@ -950,11 +935,16 @@ const RequestTimelines = ({ item, metaEvidence }: RequestTimelinesProps) => {
           })}
         </Panel>
       </div>
-      {active && (
+      {/* The contract takes evidence on any item that is not Absent. */}
+      {active ? (
         <PermanentEvidenceModal
           item={item}
           inline
           composerId={EVIDENCE_COMPOSER_ID}
+        />
+      ) : (
+        <EvidenceClosed
+          reason={`Opens if this ${itemName} is submitted again.`}
         />
       )}
     </>

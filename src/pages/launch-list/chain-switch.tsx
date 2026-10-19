@@ -1,15 +1,19 @@
 import React, { useLayoutEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import ChainLogo from 'components/chain-logo'
 import { Label } from 'components/curate/primitives'
+import { litThumb, recessTrack } from 'components/ui/kit-styles'
 import { NETWORKS_INFO } from 'config/networks'
 
 /*
  * The chain the new list will be deployed on, as real links to
- * /launch/:chainId (so each chain has its own URL) with a pill that slides
- * to the current one. It is labelled, because it is not the app bar's chain
- * selector: it only picks the factory the buttons below open.
+ * /launch/:chainId (so each chain has its own URL), in the selector
+ * language of the app bar nav and Browse's segments: a recessed track whose
+ * raised, lit thumb slides to the current chain. It is labelled, because it
+ * is not the app bar's chain selector: it only picks the factory the chosen
+ * card opens. The query string rides along, so a chosen list type survives
+ * the switch.
  */
 
 const Wrap = styled.div`
@@ -33,10 +37,8 @@ const Track = styled.nav`
   gap: 2px;
   max-width: 100%;
   padding: 3px;
-  border: 1px solid var(--glass-border);
   border-radius: var(--radius-pill);
-  background: var(--color-raised);
-  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  ${recessTrack}
   overflow-x: auto;
   scrollbar-width: none;
 
@@ -52,9 +54,7 @@ const Pill = styled.span`
   left: 0;
   z-index: -1;
   border-radius: var(--radius-pill);
-  background: var(--color-primary-soft);
-  box-shadow: inset 0 0 0 1px
-    color-mix(in srgb, var(--color-primary) 32%, transparent);
+  ${litThumb}
   transition:
     transform var(--dur-control) var(--ease-spring),
     width var(--dur-control) var(--ease-spring);
@@ -89,6 +89,12 @@ const Item = styled(Link)`
     color: var(--color-text);
   }
 
+  /* The track clips, so the focus ring sits inside the link. */
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: -2px;
+  }
+
   small {
     color: var(--color-faint);
     font-size: 11px;
@@ -113,6 +119,7 @@ export const ChainSwitch = ({
 }) => {
   const track = useRef<HTMLElement>(null)
   const [pill, setPill] = useState<PillBox>()
+  const { search } = useLocation()
 
   // Slide to the current chain when it changes.
   useLayoutEffect(() => {
@@ -186,7 +193,7 @@ export const ChainSwitch = ({
           return (
             <Item
               key={id}
-              to={`/launch/${id}`}
+              to={{ pathname: `/launch/${id}`, search }}
               aria-current={id === chainId ? 'page' : undefined}
               title={test ? `${name} (test network)` : name}
             >

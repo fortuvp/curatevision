@@ -8,7 +8,6 @@ import {
   Button,
   ButtonAnchor,
   ButtonLink,
-  Chip,
   HeroStatement,
   Label,
   Page,
@@ -40,6 +39,7 @@ Goal:
 - Draft or review the policy before launch.
 - Prepare valid MetaEvidence and item schema.
 - Decide whether we self-host, use Quickstart indexing, or buy Curate Pro support.
+- Plan the submission to the Kleros list of lists on its chain, so the list can earn the Kleros Verified badge.
 - Produce a launch checklist with risks, costs, dependencies, and next actions.`
 
 const PROMPT_LINES = CREATOR_PROMPT.split('\n')
@@ -97,7 +97,6 @@ type TierAction =
 interface Tier {
   name: string
   path: string
-  featured: boolean
   /** US dollars per month. */
   price: number
   priceDetail: string
@@ -108,15 +107,14 @@ interface Tier {
 const TIERS: Tier[] = [
   {
     name: 'Permissionless',
-    path: 'Default path',
-    featured: false,
+    path: 'Open path',
     price: 0,
     priceDetail: 'self-operated',
     layers: {
       registry: {
         owner: 'you',
         label: 'Deploy yourself',
-        text: 'Deploy a registry without approval from Kleros.',
+        text: 'Deploy a registry yourself; no permission needed.',
       },
       frontend: {
         owner: 'you',
@@ -139,14 +137,13 @@ const TIERS: Tier[] = [
   {
     name: 'Quickstart',
     path: 'Fastest path',
-    featured: true,
     price: 19.99,
     priceDetail: 'API access',
     layers: {
       registry: {
         owner: 'you',
         label: 'Deploy yourself',
-        text: 'Deploy a registry without approval from Kleros.',
+        text: 'Deploy a registry yourself; no permission needed.',
       },
       frontend: {
         owner: 'you',
@@ -174,7 +171,6 @@ const TIERS: Tier[] = [
   {
     name: 'Curate Pro',
     path: 'Supported path',
-    featured: false,
     price: 199,
     priceDetail: 'managed support',
     layers: {
@@ -383,7 +379,7 @@ const Matrix = styled.div`
   }
 `
 
-const Column = styled.article<{ $featured: boolean }>`
+const Column = styled.article`
   ${placed}
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -396,31 +392,10 @@ const Column = styled.article<{ $featured: boolean }>`
     background-color var(--motion),
     border-color var(--motion);
 
-  ${({ $featured }) =>
-    $featured
-      ? css`
-          border-color: color-mix(
-            in srgb,
-            var(--color-primary) 30%,
-            transparent
-          );
-          background: linear-gradient(
-            180deg,
-            color-mix(in srgb, var(--color-primary) 10%, transparent),
-            color-mix(in srgb, var(--color-primary) 3%, transparent) 55%
-          );
-          box-shadow: inset 0 1px 0
-            color-mix(in srgb, var(--color-primary) 22%, transparent);
-        `
-      : css`
-          &:hover {
-            background-color: color-mix(
-              in srgb,
-              var(--color-text) 3%,
-              transparent
-            );
-          }
-        `}
+  /* Three equal paths: none is lit ahead of the reader's choice. */
+  &:hover {
+    background-color: color-mix(in srgb, var(--color-text) 3%, transparent);
+  }
 
   @media (max-width: 720px) {
     padding: 14px 0 12px;
@@ -428,7 +403,7 @@ const Column = styled.article<{ $featured: boolean }>`
   }
 `
 
-/* Row rules run across every column, over the featured band. */
+/* Row rules run across every column. */
 const RowRule = styled.span`
   ${placed}
   position: relative;
@@ -579,11 +554,6 @@ const Breakdown = styled(Small)`
       content: none;
     }
   }
-`
-
-/* Text color, not primary: the tinted column leaves primary under 4.5:1. */
-const Recommended = styled(Chip)`
-  color: var(--color-text);
 `
 
 const ActionCell = styled.div`
@@ -1228,7 +1198,7 @@ const PathButton = ({
   phone?: boolean
 }) => {
   const { action } = tier
-  const variant = tier.featured ? 'primary' : 'secondary'
+  const variant = 'secondary'
   return action.kind === 'launch' ? (
     <ButtonLink to={launchHref} $variant={variant} $block>
       <CurateIcon name={action.icon} size={16} />
@@ -1263,7 +1233,6 @@ const TierColumn = ({
   return (
     <Column
       aria-label={tier.name}
-      $featured={tier.featured}
       style={cssVars({
         '--c': index + 2,
         '--r': `1 / span ${DESKTOP_ROWS}`,
@@ -1272,8 +1241,7 @@ const TierColumn = ({
       })}
     >
       <Eyebrow style={at(ROW.eyebrow)}>
-        <Label $tone={tier.featured ? 'text' : 'faint'}>{tier.path}</Label>
-        {tier.featured && <Recommended $selected>Recommended</Recommended>}
+        <Label $tone="faint">{tier.path}</Label>
       </Eyebrow>
       <TierName style={at(ROW.name)}>{tier.name}</TierName>
       <PriceRow style={at(ROW.price)}>
@@ -1358,7 +1326,7 @@ const LayerMatrix = () => {
       '--mr': phone,
     })
   const full = { c: 1, mc: '1 / -1' }
-  // Row names stay in the first column on a phone, clear of the featured band.
+  // Row names stay in the first column on a phone.
   const name = { c: 1, mc: 1 }
   const rule = { c: '1 / -1', mc: '1 / -1' }
 
@@ -1419,16 +1387,14 @@ const LayerMatrix = () => {
       </Matrix>
 
       <PhoneActions>
-        {[...TIERS]
-          .sort((a, b) => Number(b.featured) - Number(a.featured))
-          .map((tier) => (
-            <PathButton
-              key={tier.name}
-              tier={tier}
-              launchHref={launchHref}
-              phone
-            />
-          ))}
+        {TIERS.map((tier) => (
+          <PathButton
+            key={tier.name}
+            tier={tier}
+            launchHref={launchHref}
+            phone
+          />
+        ))}
       </PhoneActions>
     </Module>
   )
@@ -1503,7 +1469,7 @@ const CuratePro = () => {
             },
             {
               title: 'Deposits',
-              body: 'In Light and Classic Curate, each request locks a base deposit plus the arbitration cost; it comes back in full if nobody challenges. A challenger locks the same kind of deposit.',
+              body: 'In Light and Classic Curate, each request locks a base deposit plus the arbitration cost; it comes back in full when the entry follows the policy. A challenger locks the same kind of deposit and earns the submitter’s base deposit by spotting one that breaks it.',
             },
             {
               title: 'Indexing and front end',

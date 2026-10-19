@@ -319,7 +319,7 @@ const Main = styled.div`
   }
 `
 
-/* Sticky under the floating app bar. */
+/* Sticky under the app bar. */
 const Rail = styled.aside`
   position: sticky;
   top: calc(var(--app-bar-height) + 24px);
@@ -677,18 +677,18 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
             arbitrationCost.arbitrationCost
               ? ` plus ${nativeText(arbitrationCost.arbitrationCost, nativeCurrency)} for arbitration`
               : ' plus an arbitration deposit'
-          }, locked while the ${name} is listed.`
-        : `A token stake and an arbitration deposit, locked while the ${name} is listed.`,
+          }. It backs the ${name} while listed and comes back when the submitter withdraws.`
+        : `A token stake and an arbitration deposit back the ${name} while listed, and come back when the submitter withdraws.`,
     },
     {
-      title: 'Anyone can challenge, at any time',
+      title: 'Spot a mistake, earn the stake',
       body: registry
-        ? `The challenger stakes ${multiplierPercent(registry.challengeStakeMultiplier)} of the stake and pays the arbitration cost; the winner takes the loser's stake. ${
+        ? `Challenge a ${name} that breaks the policy, at any time, with ${multiplierPercent(registry.challengeStakeMultiplier)} of its stake plus the arbitration cost. If jurors agree, you take its stake and arbitration deposit and your stake comes back; if not, your stake is added to the ${name}'s. ${
             toNum(registry.submissionPeriod) > 0
               ? `Pending for ${formatDurationLong(toNum(registry.submissionPeriod))}, then accepted.`
               : `Accepted at once: this list has no submission period.`
           }`
-        : `The challenger stakes a share of the stake and pays the arbitration cost; the winner takes the loser's stake.`,
+        : `Challenge a ${name} that breaks the policy, at any time, with a share of its stake. If jurors agree, you take its stake and your stake comes back; if not, your stake is added to the ${name}'s.`,
     },
     {
       title: 'Withdraw to get the stake back',
@@ -870,7 +870,7 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
           <Explainer
             id="stake-curate-item"
             eyebrow="How this list works"
-            heading="A stake keeps every entry honest."
+            heading="A stake backs every entry. Spot a bad one and it is yours."
             steps={explainerSteps}
           />
         </Main>

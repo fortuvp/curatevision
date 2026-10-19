@@ -52,7 +52,7 @@ const SECTION_COPY: Record<FactorySection, { heading: string; lede: string }> =
     ...FACTORY_COPY.sections,
     deposit: {
       heading: 'Set the deposits and the court',
-      lede: 'A submitter locks a deposit during the challenge period; it comes back in full if nobody challenges.',
+      lede: 'A submitter’s deposit comes back in full when the entry follows the policy; a challenger who spots one that breaks it earns a bounty.',
     },
   }
 

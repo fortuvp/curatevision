@@ -20,9 +20,10 @@ import AppMenu from 'components/layout/app-menu'
 import Help from 'components/layout/help'
 import ThemeMenu from 'components/layout/theme-menu'
 import {
-  BarChipButton,
+  BarAccountAddress,
+  BarAccountPill,
+  BarConnectButton,
   BarIconButton,
-  BarPrimaryButton,
 } from 'components/layout/app-bar-controls'
 import { defaultTcrAddresses, type validChains } from 'config/tcr-addresses'
 import { StakeContext } from 'contexts/stake-context'
@@ -30,50 +31,39 @@ import useUrlChainId from 'hooks/use-url-chain-id'
 import { preloadFactory } from 'bootstrap/app-router'
 import { CurateIcon } from 'components/curate/icons'
 import ChainLogo from 'components/chain-logo'
-import { validChain } from 'pages/dashboard/view'
+import {
+  ChainStack,
+  SelectMenu,
+  type SelectMenuOption,
+  truncateMiddle,
+} from 'components/curate/primitives'
+import { MAINNET_CHAIN_IDS, TESTNET_CHAIN_IDS } from 'pages/dashboard/view'
 import { useLaunchChainId } from './launch-chain'
 
 /*
- * App bar (DESIGN.md, Layout): 56px, sticky, surface at 92% over the bloom with a
- * hairline. Logo, primary navigation, chain chip, account chip or Connect, theme
- * menu, help. On phones the navigation moves under the menu button.
+ * App bar (DESIGN.md, Frame and stage; round 2): a full-width sticky bar.
+ * Transparent over the aurora at the top of the page; once the page scrolls
+ * it takes a blurred, translucent stage fill and a hairline bottom edge. It
+ * never floats or turns into a pill. Logo, primary navigation, chain chip,
+ * Connect (or the account pill), theme menu, help. On phones the navigation
+ * moves under the menu button.
  */
-/*
- * Sticky bar; after 24px of scroll it lifts into a floating pill (the spec's
- * top bar) so the content underneath reads through the blur.
- */
-const Container = styled.header<{ $floating?: boolean }>`
+const Container = styled.header`
   position: sticky;
   top: 0;
   z-index: 50;
   width: 100%;
-  margin: 0 auto;
-  max-width: ${({ $floating }) => ($floating ? 'calc(100% - 24px)' : '100%')};
-  background: ${({ $floating }) =>
-    $floating
-      ? 'color-mix(in srgb, var(--color-bg) 72%, transparent)'
-      : 'transparent'};
-  backdrop-filter: ${({ $floating }) =>
-    $floating ? 'blur(16px) saturate(160%)' : 'none'};
-  -webkit-backdrop-filter: ${({ $floating }) =>
-    $floating ? 'blur(16px) saturate(160%)' : 'none'};
-  border: 1px solid
-    ${({ $floating }) => ($floating ? 'var(--glass-border)' : 'transparent')};
-  border-bottom-color: ${({ $floating }) =>
-    $floating ? 'var(--glass-border)' : 'var(--glass-border)'};
-  border-radius: ${({ $floating }) => ($floating ? 'var(--radius-pill)' : '0')};
-  transform: translateY(${({ $floating }) => ($floating ? '8px' : '0')});
+  border-bottom: 1px solid transparent;
+  background: transparent;
   transition:
-    max-width 200ms var(--ease-in-out),
-    background-color 200ms var(--ease-in-out),
-    border-color 200ms var(--ease-in-out),
-    border-radius 200ms var(--ease-in-out),
-    transform 200ms var(--ease-in-out);
+    background-color 240ms var(--ease-in-out),
+    border-color 240ms var(--ease-in-out);
 
-  @media (max-width: 600px) {
-    max-width: 100%;
-    border-radius: 0;
-    transform: none;
+  &[data-scrolled='true'] {
+    border-bottom-color: var(--glass-border);
+    background: color-mix(in srgb, var(--stage) 72%, transparent);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    backdrop-filter: blur(16px) saturate(160%);
   }
 `
 
@@ -129,31 +119,37 @@ const RightGroup = styled.div`
 `
 
 const MobileNavMenu = styled.nav`
-  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 220px;
   padding: 6px;
 `
 
+/* Phone menu rows: glass rows; the current section is lit like a thumb. */
 const MobileMenuLink = styled(Link)<{ $active?: boolean }>`
+  position: relative;
   display: flex;
   align-items: center;
   min-height: 40px;
-  padding: 0 10px;
-  border-radius: var(--radius-sm);
+  padding: 0 12px;
+  border-radius: 10px;
   color: ${({ $active }) =>
-    $active ? 'var(--color-primary-on-soft)' : 'var(--color-text)'};
-  background: ${({ $active }) =>
-    $active ? 'var(--color-primary-soft)' : 'transparent'};
+    $active ? 'var(--color-text)' : 'var(--color-muted)'};
+  background: ${({ $active }) => ($active ? 'var(--thumb)' : 'transparent')};
+  box-shadow: ${({ $active }) => ($active ? 'var(--thumb-shadow)' : 'none')};
   text-decoration: none;
   font-size: var(--fs-body);
   font-weight: 500;
   white-space: nowrap;
-  transition: background var(--motion);
+  transition:
+    background var(--motion),
+    color var(--motion);
 
   &:hover {
-    color: ${({ $active }) =>
-      $active ? 'var(--color-primary-on-soft)' : 'var(--color-text)'};
+    color: var(--color-text);
     background: ${({ $active }) =>
-      $active ? 'var(--color-primary-soft)' : 'var(--color-raised)'};
+      $active ? 'var(--thumb)' : 'var(--hover-fill)'};
   }
 `
 
@@ -199,12 +195,11 @@ const StakeTag = styled.span`
 `
 
 /*
- * Labels give way before the centred nav can collide with them: the
- * Connect label goes on phones and between 901 and 1099px (the nav is back
- * but the bar is still narrow), the chain name below 1280px.
+ * Connect keeps its label everywhere but phones, where it is a 38px
+ * circle (the label stays for screen readers).
  */
 const ConnectLabel = styled.span`
-  @media (max-width: 600px), (min-width: 901px) and (max-width: 1099px) {
+  @media (max-width: 600px) {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -214,72 +209,26 @@ const ConnectLabel = styled.span`
   }
 `
 
-const ChainLabel = styled.span`
-  @media (max-width: 600px), (min-width: 901px) and (max-width: 1279px) {
-    display: none;
+/*
+ * The chain chip gives way first: on phones and between 901 and 1099px
+ * (the nav is back but the bar is narrow) it shows only its mark, the
+ * chosen chain's logo or, for "All chains", the Ethereum and Gnosis marks
+ * together, next to its chevron. Its name stays the accessible name and
+ * the tooltip.
+ */
+const ChainSlot = styled.span`
+  display: contents;
+
+  @media (max-width: 600px), (min-width: 901px) and (max-width: 1099px) {
+    [data-part='value'] {
+      display: none;
+    }
   }
 `
 
-const ChainDropdownWrapper = styled.div`
-  ${smallScreenStyle(
-    () => css`
-      .ui-dropdown > div:last-child {
-        right: 0;
-        left: auto;
-      }
-    `,
-  )}
-`
-
-const ChainMenu = styled.div`
-  min-width: 180px;
-  padding: 6px;
-`
-
-const ChainMenuItem = styled.button<{ $active?: boolean }>`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-height: 38px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: var(--radius);
-  background: ${({ $active }) =>
-    $active ? 'var(--color-primary-soft)' : 'transparent'};
-  color: ${({ $active }) =>
-    $active ? 'var(--color-primary-on-soft)' : 'var(--color-text)'};
-  font-size: var(--fs-body);
-  font-weight: 500;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background var(--motion);
-
-  &:hover {
-    background: ${({ $active }) =>
-      $active ? 'var(--color-primary-soft)' : 'var(--color-raised)'};
-  }
-`
-
-const AccountLink = styled(Link)`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  overflow: hidden;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-pill);
-  background: var(--glass);
-  transition:
-    border-color var(--motion),
-    background var(--motion);
-
-  &:hover {
-    border-color: var(--color-border-strong);
-    background: var(--color-raised);
-  }
-`
+/** The scope value for "All chains" (no `chain` param). */
+const ALL_SCOPE = 'all'
+const ALL_CHAINS = 'All chains'
 
 const AppBar = () => {
   const web3Context = useWeb3Context()
@@ -310,49 +259,47 @@ const AppBar = () => {
 
   const displayedChainId = urlChainId ?? savedChainId ?? networkId
   const launchChainId = useLaunchChainId()
-  const [floating, setFloating] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
   useEffect(() => {
-    const onScroll = () => setFloating(window.scrollY > 24)
+    const onScroll = () => setScrolled(window.scrollY > 4)
     onScroll()
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
-  const [chainDropdownOpen, setChainDropdownOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [helpDropdownOpen, setHelpDropdownOpen] = useState(false)
 
   /*
-   * The dashboard and Browse are scoped pages: the chip shows and sets their
-   * `?chain=` scope (the dashboard takes one chain or "Mainnets", Browse
-   * any set or "All chains"), so the bar and the page never disagree.
+   * Browse is a scoped page: the chip shows and sets its `?chain=` scope, so
+   * the bar and the page never disagree. "All chains" (no `chain` param)
+   * means Ethereum and Gnosis; Sepolia is a testnet, listed apart and picked
+   * on its own (DESIGN.md, Data rules). The dashboard sets the same scope
+   * with its own control, next to the figures it scopes, so the bar does not
+   * repeat it there.
    */
   const isDashboard = location.pathname === '/'
   const isBrowse = location.pathname === '/browse'
-  const isScoped = isDashboard || isBrowse
-  const scopeChainIds = useMemo(() => {
-    const param = new URLSearchParams(location.search).get('chain')
-    if (isDashboard) {
-      const scope = validChain(param)
-      return scope === 'all' ? [] : [scope]
-    }
-    return (
-      param
+  const isScoped = isBrowse
+  const showChainMenu = !isDashboard
+  const scopeChainIds = useMemo(
+    () =>
+      new URLSearchParams(location.search)
+        .get('chain')
         ?.split(',')
         .map(Number)
         .filter((chainId) =>
           SUPPORTED_CHAINS.some((chain) => Number(chain.id) === chainId),
-        ) ?? []
-    )
-  }, [location.search, isDashboard])
+        ) ?? [],
+    [location.search],
+  )
   const scopeChainId = scopeChainIds.length === 1 ? scopeChainIds[0] : null
   const currentChainInfo =
     NETWORKS_INFO[
       (isScoped ? scopeChainId : displayedChainId) as keyof typeof NETWORKS_INFO
     ]
-  const allLabel = isDashboard ? 'Mainnets' : 'All chains'
   const scopeLabel =
     scopeChainIds.length === 0
-      ? allLabel
+      ? ALL_CHAINS
       : scopeChainIds.length === 1
         ? currentChainInfo?.name || 'Select chain'
         : `${scopeChainIds.length} chains`
@@ -364,14 +311,10 @@ const AppBar = () => {
       else next.delete('chain')
       next.delete('page')
       const search = next.toString()
-      // The dashboard's scope replaces its history entry, like its own
-      // segmented control; Browse keeps each filter step.
-      navigate(`${location.pathname}${search ? `?${search}` : ''}`, {
-        replace: isDashboard,
-      })
-      setChainDropdownOpen(false)
+      // Browse keeps each filter step in the history.
+      navigate(`${location.pathname}${search ? `?${search}` : ''}`)
     },
-    [location.search, location.pathname, isDashboard, navigate],
+    [location.search, location.pathname, navigate],
   )
 
   const handleChainSelect = useCallback(
@@ -380,10 +323,7 @@ const AppBar = () => {
         handleScopeSelect(chainId)
         return
       }
-      if (chainId === displayedChainId) {
-        setChainDropdownOpen(false)
-        return
-      }
+      if (chainId === displayedChainId) return
       const nextTcr = defaultTcrAddresses[chainId as validChains]
       if (!nextTcr) return
       localStorage.setItem(SAVED_NETWORK_KEY, chainId.toString())
@@ -395,8 +335,6 @@ const AppBar = () => {
       )
       if (factoryMatch) navigate(`/${factoryMatch[1]}/${chainId}`)
       else navigate(`/tcr/${chainId}/${nextTcr}`)
-
-      setChainDropdownOpen(false)
     },
     [
       navigate,
@@ -406,6 +344,53 @@ const AppBar = () => {
       location.pathname,
     ],
   )
+
+  const chainOptions = useMemo(() => {
+    const chains: SelectMenuOption<string>[] = SUPPORTED_CHAINS.flatMap(
+      (chain) => {
+        const info = NETWORKS_INFO[chain.id as keyof typeof NETWORKS_INFO]
+        if (!info) return []
+        const testnet = TESTNET_CHAIN_IDS.includes(Number(chain.id))
+        return [
+          {
+            value: String(chain.id),
+            label: info.name,
+            icon: <ChainLogo chainId={Number(chain.id)} size={18} />,
+            tag: testnet ? 'testnet' : undefined,
+          },
+        ]
+      },
+    )
+    // Testnets close the list, under a hairline.
+    const mainnets = chains.filter((option) => !option.tag)
+    const testnets = chains
+      .filter((option) => option.tag)
+      .map((option, index) => ({ ...option, divider: index === 0 }))
+    const all: SelectMenuOption<string>[] = isScoped
+      ? [
+          {
+            value: ALL_SCOPE,
+            label: ALL_CHAINS,
+            hint: mainnets.map((option) => option.label).join(' and '),
+            icon: <ChainStack chainIds={MAINNET_CHAIN_IDS} size={18} />,
+          },
+        ]
+      : []
+    return [...all, ...mainnets, ...testnets]
+  }, [isScoped])
+
+  const chainValue = isScoped
+    ? scopeChainIds.length === 0
+      ? ALL_SCOPE
+      : scopeChainIds.length === 1
+        ? String(scopeChainIds[0])
+        : ''
+    : String(displayedChainId ?? '')
+
+  const chainMenuLabel = isBrowse ? 'Filter registries by chain' : 'Chain'
+
+  const account =
+    web3Context.active && web3Context.account ? web3Context.account : null
 
   const mobileMenuOverlay = (
     <MobileNavMenu aria-label="Main">
@@ -451,11 +436,20 @@ const AppBar = () => {
       >
         Curate Pro
       </MobileMenuLink>
+      {account && (
+        <MobileMenuLink
+          to={`/address/${account}`}
+          $active={location.pathname.startsWith('/address/')}
+          onClick={() => setMobileMenuOpen(false)}
+        >
+          Your profile
+        </MobileMenuLink>
+      )}
     </MobileNavMenu>
   )
 
   return (
-    <Container $floating={floating}>
+    <Container data-scrolled={scrolled}>
       <Row>
         <LeftGroup>
           <MobileMenuWrapper>
@@ -482,101 +476,45 @@ const AppBar = () => {
         </LeftGroup>
         <AppMenu />
         <RightGroup>
-          <ChainDropdownWrapper>
-            <Dropdown
-              trigger={['click']}
-              visible={chainDropdownOpen}
-              onVisibleChange={setChainDropdownOpen}
-              placement="bottomRight"
-              overlay={
-                <ChainMenu role="menu" aria-label="Chain">
-                  {isScoped && (
-                    <ChainMenuItem
-                      type="button"
-                      role="menuitemradio"
-                      aria-checked={scopeChainIds.length === 0}
-                      $active={scopeChainIds.length === 0}
-                      onClick={() => handleScopeSelect(null)}
-                    >
-                      <CurateIcon name="chain" size={16} />
-                      {allLabel}
-                    </ChainMenuItem>
-                  )}
-                  {SUPPORTED_CHAINS.map((chain) => {
-                    const info =
-                      NETWORKS_INFO[chain.id as keyof typeof NETWORKS_INFO]
-                    if (!info) return null
-                    const active = isScoped
-                      ? Number(chain.id) === scopeChainId
-                      : chain.id === displayedChainId
-                    return (
-                      <ChainMenuItem
-                        key={chain.id}
-                        type="button"
-                        role="menuitemradio"
-                        aria-checked={active}
-                        $active={active}
-                        onClick={() => handleChainSelect(Number(chain.id))}
-                      >
-                        <ChainLogo chainId={Number(chain.id)} size={18} />
-                        {info.name}
-                      </ChainMenuItem>
-                    )
-                  })}
-                </ChainMenu>
-              }
-            >
-              <BarChipButton
-                type="button"
-                aria-haspopup="menu"
-                aria-expanded={chainDropdownOpen}
-                title={
-                  isBrowse
-                    ? 'Filter registries by chain'
-                    : isDashboard
-                      ? 'Chains the figures cover'
-                      : 'Chain'
+          {showChainMenu && (
+            <ChainSlot>
+              <SelectMenu<string>
+                appearance="chip"
+                align="end"
+                label={chainMenuLabel}
+                title={chainMenuLabel}
+                heading={isScoped ? 'Chains' : 'Chain'}
+                value={chainValue}
+                placeholder={isScoped ? scopeLabel : 'Select chain'}
+                options={chainOptions}
+                menuWidth={232}
+                renderValue={(option) => option?.label ?? scopeLabel}
+                onChange={(next) =>
+                  isScoped && next === ALL_SCOPE
+                    ? handleScopeSelect(null)
+                    : handleChainSelect(Number(next))
                 }
-                aria-label={
-                  isBrowse
-                    ? `Filter registries by chain: ${scopeLabel}`
-                    : isDashboard
-                      ? `Chains the figures cover: ${scopeLabel}`
-                      : `Chain: ${currentChainInfo?.name || 'Select chain'}`
-                }
-              >
-                {currentChainInfo ? (
-                  <ChainLogo
-                    chainId={Number(currentChainInfo.chainId)}
-                    size={18}
-                  />
-                ) : (
-                  <CurateIcon name="chain" size={16} />
-                )}
-                <ChainLabel>
-                  {isScoped
-                    ? scopeLabel
-                    : currentChainInfo?.name || 'Select chain'}
-                </ChainLabel>
-                <CurateIcon name="chevron-down" size={13} />
-              </BarChipButton>
-            </Dropdown>
-          </ChainDropdownWrapper>
-          {web3Context.active && web3Context.account ? (
-            <AccountLink
-              to={`/address/${web3Context.account}`}
-              title="Open profile"
-            >
+              />
+            </ChainSlot>
+          )}
+          {account ? (
+            <BarAccountPill>
               <Identicon />
-            </AccountLink>
+              <BarAccountAddress
+                to={`/address/${account}`}
+                title="Open profile"
+              >
+                {truncateMiddle(account)}
+              </BarAccountAddress>
+            </BarAccountPill>
           ) : (
-            <BarPrimaryButton
+            <BarConnectButton
               type="button"
               onClick={() => open({ view: 'Connect' })}
             >
               <CurateIcon name="wallet" size={16} />
               <ConnectLabel>Connect</ConnectLabel>
-            </BarPrimaryButton>
+            </BarConnectButton>
           )}
           <ThemeMenu />
           <Dropdown

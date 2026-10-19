@@ -342,6 +342,8 @@ export interface RegistryShare {
   title: string
   href: string
   logo?: string
+  /** The list is Kleros Verified. */
+  verified?: boolean
   count: number
 }
 
@@ -361,6 +363,7 @@ export const registryShares = (
         title: activity.registryTitle,
         href: registryHref(activity),
         logo: activity.registryLogo,
+        verified: activity.registryVerified,
         count: 1,
       })
   }

@@ -1,20 +1,23 @@
-import React from 'react'
+import React, { useId, useLayoutEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 import { LAYOUT_OPTIONS, type ListLayout } from 'hooks/use-stored-layout'
+import Switch from 'components/ui/Switch'
 import {
   SearchField,
   SegmentedControl,
   StatusDot,
+  ToggleGroup,
   type StatusTone,
 } from './primitives'
 import { CurateIcon } from './icons'
 
 /*
  * Registry toolbar: search (with the shown/total count at its end), the
- * sensitive-content switch, sort and layout as sliding segmented controls,
- * and the status filters as a chip rail under them (multi-select; a selected
- * chip fills from its dot). Every chip and control is in view on desktop:
- * the rail wraps. Only on phones does the rail scroll sideways, under a fade.
+ * sensitive-content switch (the app's lit Switch), sort and layout as
+ * sliding segmented controls, and the status filters under them as one
+ * ToggleGroup (multi-select; each pressed status sits on its own lit thumb,
+ * led by its status dot). Where the track is wider than the column it
+ * scrolls sideways under a fade.
  */
 
 const integer = new Intl.NumberFormat('en-US')
@@ -75,12 +78,25 @@ const Count = styled.span`
 const RailScroller = styled.div`
   grid-area: chips;
   min-width: 0;
+  /* Room above and below so the thumbs' glow is not clipped. */
+  margin: -6px 0;
+  padding: 6px 0;
+  overflow-x: auto;
+  scrollbar-width: none;
 
-  /* Phones: one swipeable line, the far edge faded so it reads as more. */
-  @media (max-width: 720px) {
-    margin-right: -4px;
-    overflow-x: auto;
-    scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* The track keeps its natural width; this box scrolls it instead. */
+  > [role='group'] {
+    max-width: none;
+    overflow: visible;
+  }
+
+  /* Only when the track is wider than the column (measured): one
+     swipeable line, the far edge faded so it reads as more. */
+  &[data-overflow] {
     mask-image: linear-gradient(
       90deg,
       var(--color-text) calc(100% - 40px),
@@ -92,86 +108,35 @@ const RailScroller = styled.div`
       transparent
     );
 
-    &::-webkit-scrollbar {
-      display: none;
+    > [role='group'] {
+      margin-right: 40px;
     }
   }
 `
 
-const Rail = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
+/** Whether the status track is wider than its column (it then scrolls under a fade). */
+const useOverflow = () => {
+  const box = useRef<HTMLDivElement>(null)
+  const [overflow, setOverflow] = useState(false)
+  useLayoutEffect(() => {
+    const node = box.current
+    const track = node?.firstElementChild as HTMLElement | null
+    if (!node || !track) return undefined
+    const measure = () => setOverflow(track.offsetWidth > node.clientWidth)
+    measure()
+    if (typeof ResizeObserver === 'undefined') return undefined
+    const observer = new ResizeObserver(measure)
+    observer.observe(node)
+    observer.observe(track)
+    return () => observer.disconnect()
+  }, [])
+  return [box, overflow] as const
+}
 
-  @media (max-width: 720px) {
-    flex-wrap: nowrap;
-    width: max-content;
-    padding: 2px 40px 2px 0;
-  }
-`
-
-const ChipToggle = styled.button`
-  position: relative;
-  isolation: isolate;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 32px;
-  padding: 0 13px 0 11px;
-  overflow: hidden;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-pill);
-  background: var(--color-raised);
-  color: var(--color-muted);
-  font-size: var(--fs-small);
-  line-height: var(--lh-small);
-  font-weight: 500;
-  white-space: nowrap;
-  cursor: pointer;
-  transition:
-    color var(--motion),
-    border-color var(--motion),
-    transform var(--motion);
-
-  /* The selected fill slides out from the dot. */
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    border-radius: inherit;
-    background: var(--color-primary-soft);
-    transform: scaleX(0);
-    transform-origin: 14px 50%;
-    transition: transform 380ms cubic-bezier(0.34, 1.3, 0.64, 1);
-  }
-
-  &:hover {
-    color: var(--color-text);
-    border-color: var(--color-border-strong);
-  }
-
-  &[aria-pressed='true'] {
-    color: var(--color-text);
-    border-color: color-mix(in srgb, var(--color-primary) 45%, transparent);
-
-    &::before {
-      transform: scaleX(1);
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    &::before {
-      transition: none;
-    }
-  }
-`
-
-const Switch = styled.label`
+/* The sensitive-content switch: the app's lit Switch, named by its label. */
+const SwitchField = styled.label`
   grid-area: nsfw;
   justify-self: start;
-  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 9px;
@@ -184,55 +149,7 @@ const Switch = styled.label`
   white-space: nowrap;
   cursor: pointer;
   user-select: none;
-
-  input {
-    position: absolute;
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  i {
-    position: relative;
-    flex: 0 0 auto;
-    width: 28px;
-    height: 16px;
-    border: 1px solid var(--glass-border);
-    border-radius: var(--radius-pill);
-    background: var(--color-raised);
-    transition:
-      background var(--motion),
-      border-color var(--motion);
-  }
-
-  i::after {
-    content: '';
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 10px;
-    height: 10px;
-    border-radius: var(--radius-pill);
-    background: var(--color-muted);
-    transition:
-      transform 320ms cubic-bezier(0.34, 1.4, 0.64, 1),
-      background var(--motion);
-  }
-
-  input:checked + i {
-    border-color: color-mix(in srgb, var(--color-primary) 50%, transparent);
-    background: var(--color-primary-soft);
-  }
-
-  input:checked + i::after {
-    transform: translateX(12px);
-    background: var(--color-primary);
-    box-shadow: 0 0 8px var(--color-primary);
-  }
-
-  input:focus-visible + i {
-    outline: 2px solid var(--color-primary);
-    outline-offset: 2px;
-  }
+  transition: color var(--motion);
 
   &:hover {
     color: var(--color-text);
@@ -251,6 +168,11 @@ const Slot = styled.div<{ $area: 'sort' | 'layout' }>`
   @media (max-width: 520px) {
     justify-self: ${({ $area }) => ($area === 'sort' ? 'start' : 'end')};
   }
+`
+
+/* A status dot inside a toggle, with room for its halo. */
+const ChipDot = styled(StatusDot)`
+  margin: 0 2px 0 1px;
 `
 
 export interface FilterChip {
@@ -288,64 +210,73 @@ export const RegistryToolbar = ({
   onNsfwChange: (checked: boolean) => void
   shown: number
   total: number
-}) => (
-  <Bar role="region" aria-label="Filters">
-    <Search>
-      <CurateIcon name="search" size={16} />
-      <input
-        aria-label={placeholder}
-        placeholder={placeholder}
-        value={search}
-        onChange={(event) => onSearch(event.currentTarget.value)}
-      />
-      <Count aria-live="polite" title="Shown of total">
-        {integer.format(shown)} of {integer.format(total)}
-      </Count>
-    </Search>
-    <Switch>
-      <input
-        type="checkbox"
-        checked={nsfwFilter}
-        onChange={(event) => onNsfwChange(event.currentTarget.checked)}
-      />
-      <i aria-hidden />
-      Hide sensitive content
-    </Switch>
-    <Slot $area="sort">
-      <SegmentedControl<'newest' | 'oldest'>
-        ariaLabel="Sort"
-        value={sort}
-        onChange={onSortChange}
-        options={[
-          { value: 'newest', label: 'Newest' },
-          { value: 'oldest', label: 'Oldest' },
-        ]}
-      />
-    </Slot>
-    <Slot $area="layout">
-      <SegmentedControl
-        ariaLabel="Layout"
-        value={layout}
-        onChange={onLayoutChange}
-        options={LAYOUT_OPTIONS}
-      />
-    </Slot>
-    <RailScroller>
-      <Rail role="group" aria-label="Status filters">
-        {chips.map((chip) => (
-          <ChipToggle
-            key={chip.key}
-            type="button"
-            aria-pressed={chip.checked}
-            onClick={() => onChipChange(chip.key, !chip.checked)}
-          >
-            {chip.tone && <StatusDot $tone={chip.tone} aria-hidden />}
-            {chip.label}
-          </ChipToggle>
-        ))}
-      </Rail>
-    </RailScroller>
-  </Bar>
-)
+}) => {
+  const nsfwLabelId = useId()
+  const [rail, railOverflows] = useOverflow()
+  return (
+    <Bar role="region" aria-label="Filters">
+      <Search>
+        <CurateIcon name="search" size={16} />
+        <input
+          aria-label={placeholder}
+          placeholder={placeholder}
+          value={search}
+          onChange={(event) => onSearch(event.currentTarget.value)}
+        />
+        <Count aria-live="polite" title="Shown of total">
+          {integer.format(shown)} of {integer.format(total)}
+        </Count>
+      </Search>
+      <SwitchField>
+        <Switch
+          size="small"
+          checked={nsfwFilter}
+          onChange={(checked) => onNsfwChange(checked)}
+          aria-labelledby={nsfwLabelId}
+        />
+        <span id={nsfwLabelId}>Hide sensitive content</span>
+      </SwitchField>
+      <Slot $area="sort">
+        <SegmentedControl<'newest' | 'oldest'>
+          ariaLabel="Sort"
+          value={sort}
+          onChange={onSortChange}
+          options={[
+            { value: 'newest', label: 'Newest' },
+            { value: 'oldest', label: 'Oldest' },
+          ]}
+        />
+      </Slot>
+      <Slot $area="layout">
+        <SegmentedControl
+          ariaLabel="Layout"
+          value={layout}
+          onChange={onLayoutChange}
+          options={LAYOUT_OPTIONS}
+        />
+      </Slot>
+      <RailScroller ref={rail} data-overflow={railOverflows ? '' : undefined}>
+        <ToggleGroup<string>
+          ariaLabel="Status filters"
+          value={chips.filter((chip) => chip.checked).map((chip) => chip.key)}
+          onChange={(pressed) => {
+            // One press flips one status: find it and report just that one.
+            const flipped = chips.find(
+              (chip) => pressed.includes(chip.key) !== chip.checked,
+            )
+            if (flipped) onChipChange(flipped.key, !flipped.checked)
+          }}
+          options={chips.map((chip) => ({
+            value: chip.key,
+            label: chip.label,
+            icon: chip.tone ? (
+              <ChipDot $tone={chip.tone} aria-hidden />
+            ) : undefined,
+          }))}
+        />
+      </RailScroller>
+    </Bar>
+  )
+}
 
 export default RegistryToolbar

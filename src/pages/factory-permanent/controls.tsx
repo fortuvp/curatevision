@@ -9,6 +9,8 @@ import useUrlChainId from 'hooks/use-url-chain-id'
 import { parseIpfs } from 'utils/ipfs-parse'
 import { errorToast, infoToast, successToast } from 'utils/wrap-with-toast'
 import { CurateIcon } from 'components/curate/icons'
+import KitSelect from 'components/ui/Select'
+import Switch from 'components/ui/Switch'
 import { reveal } from 'components/curate/motion/reveal'
 import {
   Button,
@@ -22,11 +24,11 @@ import {
 
 /*
  * The Stake wizard's controls: a labelled field with one line of help and
- * the validation message inline, text and amount inputs, a select, a lit
- * range slider, a switch, the wallet gate (connect, switch chain, sign in)
- * and the IPFS upload through Atlas. Every control is a native element, so
- * labels, focus rings and the keyboard come for free; Formik binds through
- * `useField`, so the steps keep their `withFormik` wrappers and schemas.
+ * the validation message inline, text and amount inputs, a select (the
+ * app's glass Select), a lit range slider, a switch (the app's lit Switch),
+ * the wallet gate (connect, switch chain, sign in) and the IPFS upload
+ * through Atlas. Formik binds through `useField`, so the steps keep their
+ * `withFormik` wrappers and schemas.
  */
 
 /* ---------- Layout ---------- */
@@ -254,68 +256,69 @@ export const AmountInput = styled(Input)`
   font-variant-numeric: tabular-nums;
 `
 
-const SelectShell = styled.span`
-  position: relative;
+/* The kit's glass Select at the width and type size of the inputs around it. */
+const SelectField = styled(KitSelect)`
   display: block;
   width: 100%;
   min-width: 0;
 
-  svg {
-    position: absolute;
-    top: 50%;
-    right: 14px;
-    color: var(--color-faint);
-    transform: translateY(-50%);
-    pointer-events: none;
+  .ui-select-trigger {
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
   }
 `
 
-const SelectControl = styled.select`
-  width: 100%;
-  height: 44px;
-  min-width: 0;
-  padding: 0 40px 0 14px;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius);
-  background: var(--color-raised);
-  color: var(--color-text);
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
-  appearance: none;
-  cursor: pointer;
-  transition:
-    border-color var(--motion),
-    box-shadow var(--motion);
+export interface SelectOption {
+  value: string
+  label: React.ReactNode
+  disabled?: boolean
+}
 
-  &:hover {
-    border-color: var(--color-border-strong);
-  }
-
-  &:focus {
-    outline: none;
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 4px var(--color-primary-soft);
-  }
-
-  &:disabled {
-    color: var(--color-muted);
-    cursor: not-allowed;
-    opacity: 0.7;
-  }
-
-  option {
-    background: var(--color-surface);
-    color: var(--color-text);
-  }
-`
-
-export const Select = (
-  props: React.SelectHTMLAttributes<HTMLSelectElement>,
-) => (
-  <SelectShell>
-    <SelectControl {...props} />
-    <CurateIcon name="chevron-down" size={16} />
-  </SelectShell>
+/**
+ * A form dropdown: the app's Select (a field trigger opening a glass
+ * listbox), not a native <select>. `placeholder` shows while `value` is ''.
+ */
+export const Select = ({
+  options,
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  menuMinWidth,
+  ...a11y
+}: {
+  options: SelectOption[]
+  value: string
+  onChange: (value: string) => void
+  placeholder?: string
+  disabled?: boolean
+  /** A floor for the option panel's width when the field is narrow. */
+  menuMinWidth?: number
+  id?: string
+  'aria-label'?: string
+  'aria-describedby'?: string
+  'aria-invalid'?: React.AriaAttributes['aria-invalid']
+}) => (
+  <SelectField
+    {...a11y}
+    value={value}
+    disabled={disabled}
+    placeholder={placeholder}
+    dropdownStyle={menuMinWidth ? { minWidth: menuMinWidth } : undefined}
+    onChange={(next) =>
+      onChange(String(typeof next === 'object' ? next.key : next))
+    }
+  >
+    {options.map((option) => (
+      <KitSelect.Option
+        key={option.value}
+        value={option.value}
+        disabled={option.disabled}
+      >
+        {option.label}
+      </KitSelect.Option>
+    ))}
+  </SelectField>
 )
 
 const thumb = css`
@@ -590,62 +593,8 @@ const SwitchText = styled.span`
   font-weight: 500;
 `
 
-export const Toggle = styled.input`
-  appearance: none;
-  position: relative;
-  flex: 0 0 auto;
-  width: 42px;
-  height: 24px;
-  margin: 0;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-pill);
-  background: var(--color-raised);
-  cursor: pointer;
-  transition:
-    background var(--motion),
-    border-color var(--motion),
-    box-shadow var(--motion);
-
-  &::after {
-    content: '';
-    position: absolute;
-    top: 3px;
-    left: 3px;
-    width: 16px;
-    height: 16px;
-    border-radius: var(--radius-pill);
-    background: var(--color-muted);
-    transition:
-      transform 320ms var(--ease-spring),
-      background var(--motion);
-  }
-
-  &:hover {
-    border-color: var(--color-border-strong);
-  }
-
-  &:checked {
-    border-color: color-mix(in srgb, var(--color-primary) 60%, transparent);
-    background: var(--color-primary-fill);
-    box-shadow: 0 6px 18px -8px var(--color-primary);
-  }
-
-  &:checked::after {
-    transform: translateX(18px);
-    background: var(--color-on-primary);
-  }
-
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.45;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    &::after {
-      transition: none;
-    }
-  }
-`
+/** The app's lit Switch; a field names it with a label or `aria-label`. */
+export const Toggle = Switch
 
 export const SwitchField = ({
   id: givenId,
@@ -670,14 +619,12 @@ export const SwitchField = ({
         {label}
         {help && <Help>{help}</Help>}
       </SwitchText>
-      <Toggle
+      {/* The app's lit Switch (a button), named by this label. */}
+      <Switch
         id={id}
-        type="checkbox"
-        role="switch"
         checked={checked}
         disabled={disabled}
-        aria-checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
+        onChange={(next) => onChange(next)}
       />
     </SwitchRow>
   )

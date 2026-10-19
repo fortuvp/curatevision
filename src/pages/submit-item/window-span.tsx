@@ -4,7 +4,7 @@ import { formatDuration, formatDurationLong } from 'utils/time'
 import { useInView } from './use-in-view'
 
 /*
- * The registry's window (challenge period, or Stake Curate's pending period)
+ * The registry's window (challenge period, or Stake Curate's submission period)
  * drawn as what it is: a span of time on a line. The lit node on the left is
  * the moment the transaction is mined, the hollow node on the right is the
  * window's end, and the line between them is cut into one block per unit
@@ -167,7 +167,7 @@ export const WindowSpan = ({
   endText,
 }: {
   seconds: number
-  /** "Challenge period" or "Pending period". */
+  /** "Challenge period" or "Submission period". */
   label: string
   /** "about 22 Oct 08:52 UTC", for the accessible description. */
   endText: string

@@ -19,6 +19,10 @@ import {
   DashboardRegistry,
   RegistryKind,
 } from 'pages/dashboard/types'
+import {
+  readVerifiedSets,
+  withVerified,
+} from 'components/curate/registry-shared-verified'
 
 const PROFILE_QUERY_TIMEOUT_MS = 10_000
 /** Rows per indexer page; both indexers serve up to 1,000. */
@@ -228,6 +232,8 @@ export interface ProfileActivity extends DashboardActivity {
   disputeOutcome?: string
   /** The registry's logo (IPFS path or URL), when the registry index has one. */
   registryLogo?: string
+  /** The list is Kleros Verified (the shared rule, stamped on the index). */
+  registryVerified?: boolean
 }
 
 export interface AddressProfileData {
@@ -538,14 +544,21 @@ const readGovernanceParams = async (
 }
 
 /**
- * The registry index (every indexed list with its title and logo). The page
- * passes one that reads the dashboard's shared query cache, so the profile,
- * the governance scan and the dashboard and browse pages share one load.
+ * The registry index (every indexed list with its title and logo), its
+ * Kleros Verified standing stamped by the shared rule
+ * (components/curate/verified-rule.ts). The page passes one that reads the shared
+ * query caches, so the profile, the governance scan and the dashboard and
+ * browse pages share one load.
  */
 export type RegistryIndexReader = () => Promise<DashboardRegistry[]>
 
-const readRegistryIndex: RegistryIndexReader = async () =>
-  (await fetchDashboardData()).registries
+const readRegistryIndex: RegistryIndexReader = async () => {
+  const [dashboard, sets] = await Promise.all([
+    fetchDashboardData(),
+    readVerifiedSets(SUPPORTED_CHAIN_IDS),
+  ])
+  return withVerified(dashboard.registries, sets)
+}
 
 /**
  * The lists whose governor() is this address, with their parameters. Read
@@ -774,6 +787,7 @@ export const fetchAddressProfileData = async (
     )
     if (!registry) continue
     if (registry.logoURI) activity.registryLogo = registry.logoURI
+    if (registry.trustStatus === 'verified') activity.registryVerified = true
     // Stake Curate requests carry no title; the index has the list's own.
     if (
       registry.title &&

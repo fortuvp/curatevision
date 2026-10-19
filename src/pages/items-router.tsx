@@ -70,8 +70,14 @@ const ItemsRouter = () => {
   const chainId = useUrlChainId()
   const [searchParams] = useSearchParams()
   const isAttachmentOpen = searchParams.has('attachment')
-  const { isLightCurate, isClassicCurate, isPermanentCurate, checking, error } =
-    useCheckLightCurate()
+  const {
+    isLightCurate,
+    isClassicCurate,
+    isPermanentCurate,
+    checking,
+    error,
+    retry,
+  } = useCheckLightCurate()
   useTcrNetwork()
   const setIsPermanent = useContext(StakeContext)?.setIsPermanent
   const queryClient = useQueryClient()
@@ -144,8 +150,9 @@ const ItemsRouter = () => {
     return (
       <ErrorPage
         code="Error"
-        title="Subgraph unavailable"
-        message="Curate could not verify this registry type from the configured GTCR subgraphs. Please retry in a moment."
+        title="This list did not load"
+        message="The indexer did not answer."
+        onRetry={retry}
       />
     )
 
@@ -153,8 +160,8 @@ const ItemsRouter = () => {
     return (
       <ErrorPage
         code="Error"
-        title="Registry Not Found"
-        message="This registry could not be found on any subgraph. The subgraph endpoint may be down or the registry address may be invalid."
+        title="List not found"
+        message="No Curate list answers at this address on this chain."
       />
     )
 

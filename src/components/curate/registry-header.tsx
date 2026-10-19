@@ -11,11 +11,11 @@ import {
   Chip,
   Label,
   SkeletonBlock,
-  StatusDot,
   Surface,
   truncateMiddle,
 } from './primitives'
 import { CurateIcon } from './icons'
+import { TrustTag } from './verified-badge'
 import { Explainer, type ExplainerStep } from './explainer'
 import { RingGauge } from './motion/ring-gauge'
 import { reveal } from './motion/reveal'
@@ -131,13 +131,14 @@ const Chips = styled.div`
   gap: 6px;
 `
 
-/* The trust chip arrives with its data: it fades in rather than popping. */
+/* The trust mark arrives with its data: it fades in rather than popping. */
 const fadeIn = keyframes`
   from { opacity: 0; }
   to { opacity: 1; }
 `
 
-const TrustChip = styled(Chip)`
+const TrustSlot = styled.span`
+  display: inline-flex;
   animation: ${fadeIn} 240ms var(--ease-out, ease-out) both;
 
   @media (prefers-reduced-motion: reduce) {
@@ -445,7 +446,7 @@ const StatValue = ({ value }: { value?: React.ReactNode }) =>
 const depositNoteFor = (kindLabel: string, itemName: string) =>
   /stake/i.test(kindLabel)
     ? `Locked, not spent: it stays locked while your ${itemName} is listed and comes back when you withdraw, unless a challenge succeeds.`
-    : `A deposit, not a fee: back in full if nobody challenges your ${itemName}.`
+    : `A deposit, not a fee: it comes back when your ${itemName} follows the list’s policy.`
 
 export const RegistryHeader = ({
   title,
@@ -480,12 +481,13 @@ export const RegistryHeader = ({
   chainId?: number
   address: string
   /**
-   * On a Kleros Verified list of lists (useRegistryVerified). Undefined
-   * while that is loading or could not be read: no trust chip then, so the
-   * header never claims Discovery without data.
+   * Kleros Verified: the chain's Kleros list of lists or registered on it
+   * (useRegistryVerified); false is a Community list. Undefined while that
+   * is loading or could not be read: no trust mark then, so the header
+   * never calls a list Community without data.
    */
   verified?: boolean
-  /** The registry is itself a list of lists. */
+  /** The registry is the chain's Kleros list of lists. */
   listOfLists?: boolean
   kindLabel: string
   itemName: string
@@ -559,21 +561,10 @@ export const RegistryHeader = ({
             <Chips>
               {chainId && <ChainChip chainId={chainId} />}
               <Chip>{kindLabel}</Chip>
-              {verified === true && (
-                <TrustChip
-                  title={
-                    listOfLists
-                      ? 'A Kleros Verified list of lists'
-                      : 'Listed on a Kleros Verified list of lists'
-                  }
-                >
-                  <StatusDot $tone="registered" aria-hidden /> Verified
-                </TrustChip>
-              )}
-              {verified === false && (
-                <TrustChip title="Not listed on a Kleros Verified list of lists">
-                  Discovery
-                </TrustChip>
+              {verified !== undefined && (
+                <TrustSlot>
+                  <TrustTag verified={verified} listOfLists={listOfLists} />
+                </TrustSlot>
               )}
               <Address title={address}>{truncateMiddle(address, 8, 6)}</Address>
             </Chips>

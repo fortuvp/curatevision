@@ -558,7 +558,7 @@ const Deploy = ({
       ? groupAmount(formatToken(shareOf(stake, percent), decimals))
       : null
   const logo = tcrState.tcrLogo ? parseIpfs(tcrState.tcrLogo) : ''
-  // Days and hours, as the Standard review and the preview read them; the
+  // Days and hours, as the Light review and the preview read them; the
   // hours typed in the wizard on hover.
   const hours = (value: number | string) => {
     const seconds = hoursToSeconds(value)
