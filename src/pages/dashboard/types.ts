@@ -24,6 +24,12 @@ export interface DashboardRegistry {
   createdAtExact?: boolean
   lastActivityAt?: number
   trustStatus: TrustStatus
+  /**
+   * Kleros Verified lists: when the list earned the badge, the earliest
+   * registration among the chain's lists of lists (unix seconds). Absent for
+   * the lists of lists themselves, which grant it.
+   */
+  verifiedAt?: number
 }
 
 export interface DashboardActivity {
@@ -49,6 +55,42 @@ export interface DashboardActivity {
   status: string
   timestamp: number
   href: string
+}
+
+/**
+ * One dispute the court has closed (a ruling, or a refusal to rule), as the
+ * all-time ledger reads it: every resolved dispute, paged to the end.
+ */
+export interface RulingRow {
+  /** The id of its card (DashboardActivity.id), e.g. "light-<request id>". */
+  id: string
+  chainId: number
+  kind: RegistryKind
+  /** List address, lowercase. */
+  registry: string
+  itemID?: string
+  /** Unix seconds. */
+  resolvedAt: number
+  /** What the ruling did to the request (or to the entry, on Stake lists). */
+  outcome: NonNullable<DashboardActivity['outcome']>
+  /** The ruling went to the challenger (disputeOutcome "Reject"). */
+  challengerWon: boolean
+  /** Who challenged, lowercase. */
+  challenger?: string
+  /**
+   * What the winning challenger took, on top of their own deposit back, in
+   * the coin's smallest unit: the request's base deposit (Light, Classic) or
+   * the entry's stake (Stake). "0" when the challenger did not win.
+   */
+  bounty: string
+  /** Stake lists: the ERC-20 the bounty is paid in, lowercase. Absent: the chain's coin. */
+  token?: string
+}
+
+/** An ERC-20 a Stake bounty is paid in, read on chain (or known). */
+export interface TokenInfo {
+  symbol: string
+  decimals: number
 }
 
 /** An unresolved request nobody has challenged (Light and Classic). */
@@ -96,7 +138,6 @@ export interface DashboardMetrics {
   activeVerification: number
   disputes: number
   curators: number
-  bountyByChain: Record<number, string>
 }
 
 /** One UTC day of request activity (the 30-day window, all chains). */
@@ -142,12 +183,24 @@ export interface DashboardData {
    * when every period on the chain loaded and the cards were read.
    */
   closingSoon: Record<number, DashboardActivity[]>
-  /** Every ruling in the window, newest first. */
+  /**
+   * The cards (with the entry's identifiers) of the newest rulings per
+   * chain, newest first; older ones load on demand (loadRulingCards).
+   */
   decided: DashboardActivity[]
-  /** Per chain: true when the rulings query hit its row limit. */
-  decidedCapped: Record<number, boolean>
+  /**
+   * Per chain, every dispute the court has closed, all time, newest first.
+   * A chain is absent when its ledger did not load in full.
+   */
+  rulings: Record<number, RulingRow[]>
+  /** Per chain: the ledger stopped at its page limit (counts are lower bounds). */
+  rulingsCapped: Record<number, boolean>
+  /** Stake bounty tokens by "<chainId>:<token address>". */
+  tokens: Record<string, TokenInfo>
   /** Every dispute open right now (disputed and not yet resolved). */
   openDisputes: DashboardActivity[]
+  /** Per chain: the open-dispute read hit its row limit. */
+  openDisputesCapped: Record<number, boolean>
   users: DashboardUser[]
   metrics: DashboardMetrics
 }

@@ -1,4 +1,5 @@
 import { NETWORKS_INFO } from 'config/networks'
+import { getNativeCurrency } from 'config/chains'
 import type { StatusTone } from 'components/curate/primitives'
 import { formatAgo } from 'utils/time'
 import type {
@@ -7,6 +8,7 @@ import type {
   DashboardDay,
   DashboardRegistry,
   RegistryKind,
+  RulingRow,
   UnchallengedRow,
 } from './types'
 
@@ -119,21 +121,10 @@ export const scopedFigures = (
   now: number = Math.floor(Date.now() / 1000),
 ) => {
   const scoped = data.registries.filter((r) => chains.includes(r.chainId))
-  let curators = 0
-  let challenges = 0
-  let decided = 0
-  let won = 0
-  for (const user of data.users) {
-    let active = false
-    for (const [id, stats] of Object.entries(user.chains))
-      if (chains.includes(Number(id))) {
-        active = true
-        challenges += stats.challenges
-        decided += stats.decidedChallenges
-        won += stats.successfulChallenges
-      }
-    if (active) curators += 1
-  }
+  // Curators active in the 30-day window, on a chain in scope.
+  const curators = data.users.filter((user) =>
+    Object.keys(user.chains).some((id) => chains.includes(Number(id))),
+  ).length
   let unchallenged = 0
   let unchallengedCapped = false
   for (const chainId of chains) {
@@ -176,19 +167,214 @@ export const scopedFigures = (
       .filter((r) => r.kind !== 'permanent')
       .reduce((sum, r) => sum + r.pendingCount, 0),
     inCourt: data.openDisputes.filter((a) => chains.includes(a.chainId)).length,
+    /** The open-dispute read hit its limit: "In court" is a lower bound. */
+    inCourtCapped: chains.some((chainId) => data.openDisputesCapped?.[chainId]),
     unchallenged,
     unchallengedCapped,
     windowsKnown,
     inWindow,
     pastWindow,
     inWindowDeposits,
-    decidedCapped: chains.some((chainId) => data.decidedCapped[chainId]),
     curators,
-    challenges,
-    decided,
-    won,
   }
 }
+
+/* ---------- Rulings and bounties (all time) ---------- */
+
+/** "30,690.1", "22.586", "0.0001": grouped, at most `fraction` decimals (rounded). */
+export const formatUnits = (
+  amount: bigint,
+  decimals: number,
+  fraction = 4,
+): string => {
+  let value = amount
+  let places = decimals
+  if (decimals > fraction) {
+    const scale = 10n ** BigInt(decimals - fraction)
+    value = (amount + scale / 2n) / scale
+    places = fraction
+  }
+  const base = 10n ** BigInt(places)
+  const whole = new Intl.NumberFormat('en-US').format(value / base)
+  const rest = (value % base)
+    .toString()
+    .padStart(places, '0')
+    .replace(/0+$/, '')
+  return rest ? `${whole}.${rest}` : whole
+}
+
+/** One coin bounties were paid in, in a scope of chains. */
+export interface BountyCoin {
+  /** "<chainId>:native" or "<chainId>:<token address>". */
+  key: string
+  chainId: number
+  /** Stake lists' ERC-20, lowercase; absent for the chain's own coin. */
+  token?: string
+  /** "xDAI", "ETH", "sDAI"; the short token address when its symbol did not load. */
+  symbol: string
+  /** Unknown when a token's decimals did not load: show the count, not an amount. */
+  decimals?: number
+  /** The total, in the coin's smallest unit. */
+  amount: bigint
+  /** The total in whole coins (approximate), for count-up animations. */
+  value?: number
+  /** "30,690.1 xDAI" (at most 4 decimals), or undefined when decimals are unknown. */
+  display?: string
+  /** Winning challenges paid in this coin. */
+  won: number
+}
+
+/** Every resolved dispute in a scope of chains, newest first. */
+export const scopedRulings = (
+  data: DashboardData,
+  chains: number[],
+): RulingRow[] =>
+  chains
+    .flatMap((chainId) => data.rulings?.[chainId] ?? [])
+    .sort((a, b) => b.resolvedAt - a.resolvedAt || a.id.localeCompare(b.id))
+
+/**
+ * The bounties challengers have won, all time, in a scope of chains (the
+ * dashboard's: "All chains" is Ethereum and Gnosis; one chain; Sepolia on
+ * its own). One entry per coin, never added across coins: each chain's own
+ * coin (Light and Classic lists: the requester's base deposit of every
+ * dispute the challenger won) and each Stake token (the entry's stake).
+ * Coins are ordered by chain (scope order), the chain's coin before its
+ * Stake tokens; coins nobody won are left out.
+ *
+ *  - won: winning challenges (rulings for the challenger), all coins
+ *  - winners: how many different challengers won them
+ *  - rulings: every dispute the court closed (a ruling or a refusal)
+ *  - capped: some ledger stopped at its page limit: counts are lower bounds
+ *  - loaded: chains whose ledger loaded (the figures cover these)
+ *  - missing: chains whose ledger did not load (their bounties are absent)
+ *
+ * The landing page reads this to show the all-time bounty figure.
+ */
+export const scopedBounties = (data: DashboardData, chains: number[]) => {
+  const coins = new Map<string, BountyCoin>()
+  const winners = new Set<string>()
+  let won = 0
+  let rulings = 0
+  for (const chainId of chains)
+    for (const row of data.rulings?.[chainId] ?? []) {
+      rulings += 1
+      if (!row.challengerWon) continue
+      won += 1
+      if (row.challenger) winners.add(row.challenger)
+      const key = `${chainId}:${row.token ?? 'native'}`
+      const coin = coins.get(key) ?? {
+        key,
+        chainId,
+        token: row.token,
+        symbol: '',
+        amount: 0n,
+        won: 0,
+      }
+      coin.amount += BigInt(row.bounty || '0')
+      coin.won += 1
+      coins.set(key, coin)
+    }
+  for (const coin of coins.values()) {
+    const info = coin.token
+      ? data.tokens?.[coin.key]
+      : getNativeCurrency(coin.chainId)
+    coin.symbol =
+      info?.symbol ?? `${coin.token?.slice(0, 6)}…${coin.token?.slice(-4)}`
+    coin.decimals = info?.decimals
+    if (coin.decimals !== undefined) {
+      coin.display = `${formatUnits(coin.amount, coin.decimals)} ${coin.symbol}`
+      coin.value = Number(
+        formatUnits(coin.amount, coin.decimals, 6).replace(/,/g, ''),
+      )
+    }
+  }
+  const order = (coin: BountyCoin) =>
+    chains.indexOf(coin.chainId) * 2 + (coin.token ? 1 : 0)
+  return {
+    coins: [...coins.values()].sort(
+      (a, b) =>
+        order(a) - order(b) || (a.token ?? '').localeCompare(b.token ?? ''),
+    ),
+    won,
+    winners: winners.size,
+    rulings,
+    capped: chains.some((chainId) => data.rulingsCapped?.[chainId]),
+    loaded: chains.filter((chainId) => !!data.rulings?.[chainId]),
+    missing: chains.filter((chainId) => !data.rulings?.[chainId]),
+  }
+}
+
+/**
+ * Bounties won per challenger (lowercase address), all time, in a scope of
+ * chains: how many of their challenges the court ruled for them.
+ */
+export const scopedWins = (
+  data: DashboardData,
+  chains: number[],
+): Map<string, number> => {
+  const wins = new Map<string, number>()
+  for (const chainId of chains)
+    for (const row of data.rulings?.[chainId] ?? [])
+      if (row.challengerWon && row.challenger)
+        wins.set(row.challenger, (wins.get(row.challenger) ?? 0) + 1)
+  return wins
+}
+
+/**
+ * Kleros Verified lists, newest to earn the badge first; the lists of
+ * lists (which grant it, so have no date) last, by entries.
+ */
+export const newestVerified = (
+  registries: DashboardRegistry[],
+): DashboardRegistry[] =>
+  registries
+    .filter((registry) => registry.trustStatus === 'verified')
+    .sort(
+      (a, b) =>
+        (b.verifiedAt ?? 0) - (a.verifiedAt ?? 0) ||
+        entryCount(b) - entryCount(a) ||
+        a.title.localeCompare(b.title),
+    )
+
+const RULING_LABEL: Record<RulingRow['outcome'], string> = {
+  registered: 'Registered by ruling',
+  rejected: 'Rejected by ruling',
+  removed: 'Removed by ruling',
+  kept: 'Kept by ruling',
+  'no-ruling': 'Court refused to rule',
+}
+
+/**
+ * A ruling's row, from the ledger alone or with its loaded card (which adds
+ * the entry's identifiers). `bounty` is what the challenger won, formatted.
+ */
+export const rulingCard = (
+  row: RulingRow,
+  now: number,
+  card?: DashboardActivity,
+  bounty?: string,
+): DashboardCard => ({
+  id: row.id,
+  href: row.itemID
+    ? `/tcr/${row.chainId}/${row.registry}/${row.itemID}`
+    : `/tcr/${row.chainId}/${row.registry}`,
+  registry: card?.registryTitle ?? '',
+  registryAddress: row.registry,
+  identifiers: card?.previewProps ?? [],
+  chainId: row.chainId,
+  actor: card?.actor,
+  when: `decided ${formatAgoLong(row.resolvedAt, now)}`,
+  at: row.resolvedAt,
+  detail: RULING_LABEL[row.outcome],
+  bounty,
+  tone:
+    row.outcome === 'registered' || row.outcome === 'kept'
+      ? 'registered'
+      : row.outcome === 'no-ruling'
+        ? 'neutral'
+        : 'off',
+})
 
 /** The 30-day series summed over a scope of chains, oldest day first. */
 export const scopedSeries = (
@@ -309,6 +495,10 @@ export interface DashboardCard {
   request?: 'submission' | 'removal'
   /** The request's base deposit in wei: what a winning challenger takes. */
   deposit?: string
+  /** A ruling for the challenger: what they won, e.g. "30 xDAI". */
+  bounty?: string
+  /** The list is Kleros Verified (the row shows the seal). */
+  verified?: boolean
   /** The request's challenge window, when its list's period is known. */
   windowStart?: number
   windowEnd?: number
@@ -318,10 +508,14 @@ export interface DashboardCard {
 
 const DAY = 86400
 
-/** "3h ago", "12d 4h ago"; past two months "5 months ago", "2 years ago". */
+/**
+ * "3h ago", "4d 6h ago"; past a week "12 days ago", past two months
+ * "5 months ago", "2 years ago".
+ */
 export const formatAgoLong = (timestamp: number, now: number): string => {
   const days = Math.floor((now - timestamp) / DAY)
-  if (days < 60) return formatAgo(timestamp, now)
+  if (days < 7) return formatAgo(timestamp, now)
+  if (days < 60) return `${days} days ago`
   if (days < 365) return `${Math.floor(days / 30)} months ago`
   const years = Math.floor(days / 365)
   return years === 1 ? 'a year ago' : `${years} years ago`
@@ -376,7 +570,7 @@ export interface OpenList {
  *  - openLists: every list holding those requests, most first (the whole
  *    count, not only the loaded cards).
  *  - live: every dispute open right now.
- *  - decided: every ruling in the 30-day window.
+ * Rulings are all time and come from the ledger (scopedRulings, rulingCard).
  */
 export const buildBoard = (
   data: DashboardData,
@@ -472,10 +666,5 @@ export const buildBoard = (
       ...toCard(activity, now, 'challenged', 'Dispute'),
       detailId: activity.disputeID ? `#${activity.disputeID}` : undefined,
     }))
-  const rulings = data.decided
-    .filter(inScope)
-    .filter((activity) => activity.kind === 'resolution')
-    .filter(unique())
-    .map((activity) => toCard(activity, now, 'decided'))
-  return { open, openLists, windowsKnown, live, decided: rulings }
+  return { open, openLists, windowsKnown, live }
 }

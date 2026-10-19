@@ -1,4 +1,4 @@
-import React, { useId, useState } from 'react'
+import React, { useEffect, useId, useRef, useState } from 'react'
 import styled, { css, keyframes } from 'styled-components'
 import { Link } from 'react-router-dom'
 import {
@@ -12,6 +12,7 @@ import {
   VisuallyHidden,
 } from 'components/curate/primitives'
 import { CurateIcon } from 'components/curate/icons'
+import { VerifiedBadge } from 'components/curate/verified-badge'
 import { formatEther } from 'components/curate/item-light-format'
 import { reveal } from 'components/curate/motion/reveal'
 import { getNativeCurrency } from 'config/chains'
@@ -22,7 +23,7 @@ import {
   formatTimeLeft,
   windowProgress,
 } from 'utils/time'
-import type { DashboardCard } from './view'
+import { formatAgoLong, type DashboardCard } from './view'
 
 /*
  * Happening now: two boxes in the page's scope.
@@ -31,13 +32,13 @@ import type { DashboardCard } from './view'
  *    (the submitter's deposit, which a winning challenger takes), how much
  *    of its window has run and the time left to challenge it.
  *  - Disputes: the ones in court now first, outlined and with a slow
- *    pulse, then the rulings of the last 30 days, quieter.
+ *    pulse, then every ruling the court has issued, all time, newest
+ *    first, quieter. A ruling for the challenger shows the bounty they won.
  */
 
 /** Rows each group shows before "+n more". */
 const OPEN_LIMIT = 6
 const LIVE_LIMIT = 3
-const DECIDED_LIMIT = 4
 
 const integer = new Intl.NumberFormat('en-US')
 const formatInt = (value: number) => integer.format(value)
@@ -269,7 +270,7 @@ const RowTop = styled.div`
   min-width: 0;
 `
 
-const Registry = styled.span`
+const RegistryText = styled.span`
   min-width: 0;
   overflow: hidden;
   color: var(--color-text);
@@ -279,6 +280,32 @@ const Registry = styled.span`
   text-overflow: ellipsis;
   white-space: nowrap;
 `
+
+const RegistryLine = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+`
+
+/** The list's name, with the Kleros Verified seal when it carries one. */
+const Registry = ({
+  card,
+  quiet,
+}: {
+  card: DashboardCard
+  quiet?: boolean
+}) => (
+  <RegistryLine>
+    <RegistryText
+      title={card.registry}
+      style={quiet ? { fontWeight: 500 } : undefined}
+    >
+      {card.registry}
+    </RegistryText>
+    {card.verified && <VerifiedBadge size={14} />}
+  </RegistryLine>
+)
 
 const IdValue = styled.span`
   display: block;
@@ -429,6 +456,77 @@ const Ruling = styled.span`
     font-size: 12px;
     line-height: 16px;
     white-space: nowrap;
+  }
+`
+
+/*
+ * The rulings shown: past about nine rows the list scrolls inside the box,
+ * so "show more" never stretches the page. Focus rings sit inside its clip.
+ */
+const RulingList = styled.div`
+  position: relative;
+  max-height: 540px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+
+  > a:focus-visible {
+    outline-offset: -2px;
+  }
+`
+
+const RulingName = styled.span`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+`
+
+const shimmer = keyframes`
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 0.9; }
+`
+
+/* The identifier line while the entry's card loads. */
+const IdPending = styled.span`
+  display: block;
+  width: min(160px, 70%);
+  height: 10px;
+  margin: 3px 0;
+  border-radius: 999px;
+  background: var(--color-raised);
+  animation: ${shimmer} 1.4s ease-in-out infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+`
+
+/* What the challenger won, before the ruling's age. */
+const WonBounty = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-muted);
+  font-family: var(--font-figure);
+  font-variant-numeric: tabular-nums;
+
+  svg {
+    color: var(--status-window);
+  }
+`
+
+const RulingsFooter = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+
+  > :last-child {
+    margin-left: auto;
+    font-family: var(--font-figure);
+    font-variant-numeric: tabular-nums;
   }
 `
 
@@ -630,7 +728,7 @@ const OpenRow = ({
     <Row to={card.href} title={card.actor ? `by ${card.actor}` : undefined}>
       <Avatar logo={card.logo} />
       <RowTop>
-        <Registry title={card.registry}>{card.registry}</Registry>
+        <Registry card={card} />
         <ChainChip chainId={card.chainId} size="sm" />
       </RowTop>
       <IdLine>
@@ -680,7 +778,26 @@ export interface HappeningFigures {
   unchallengedCapped: boolean
   /** Disputes open right now (the hero's "In court now"). */
   inCourt: number
-  decidedCapped: boolean
+  /** The open-dispute read hit its limit: "In court" is a lower bound. */
+  inCourtCapped: boolean
+}
+
+/** Every ruling in scope, all time, and the rows shown of them. */
+export interface RulingsView {
+  /** The rows shown, newest first. */
+  cards: DashboardCard[]
+  /** Rows whose entry identifiers are still loading. */
+  pending: Set<string>
+  /** Every ruling the court has issued in scope (a refusal included). */
+  total: number
+  /** The ledger stopped at its page limit: total is a lower bound. */
+  capped: boolean
+  /** The ledger did not load on some chain in scope. */
+  partial: boolean
+  /** Shows more rows (absent when every row shows). */
+  onMore?: () => void
+  /** Back to the first rows (absent when only those show). */
+  onFewer?: () => void
 }
 
 /** A list holding open requests, as its chip shows it. */
@@ -696,7 +813,7 @@ export const HappeningNow = ({
   open,
   openLists,
   live,
-  decided,
+  rulings,
   figures,
   now,
   checking,
@@ -706,7 +823,7 @@ export const HappeningNow = ({
   /** The lists holding the open requests, most first. */
   openLists: OpenListChip[]
   live: DashboardCard[]
-  decided: DashboardCard[]
+  rulings: RulingsView
   figures: HappeningFigures
   now: number
   /** The challenge windows are being read again. */
@@ -718,7 +835,6 @@ export const HappeningNow = ({
   const disputesTitleId = useId()
   const [openExpanded, setOpenExpanded] = useState(false)
   const [liveExpanded, setLiveExpanded] = useState(false)
-  const [decidedExpanded, setDecidedExpanded] = useState(false)
   const plus = (capped: boolean) => (capped ? '+' : '')
 
   const known = figures.windowsKnown
@@ -735,9 +851,29 @@ export const HappeningNow = ({
     .map(([chainId, wei]) => formatCoin(wei, Number(chainId)))
 
   const liveShown = liveExpanded ? live : live.slice(0, LIVE_LIMIT)
-  const decidedShown = decidedExpanded
-    ? decided
-    : decided.slice(0, DECIDED_LIMIT)
+
+  // A ledger that did not load on some chain: what loaded is a lower bound.
+  const rulingsTotal =
+    rulings.partial && rulings.total === 0 ? '—' : formatInt(rulings.total)
+  const rulingsPlus =
+    rulings.total > 0 ? plus(rulings.capped || rulings.partial) : ''
+
+  // "Show more" brings the first new ruling into view inside the list.
+  const rulingList = useRef<HTMLDivElement>(null)
+  const shownBefore = useRef(rulings.cards.length)
+  useEffect(() => {
+    const list = rulingList.current
+    const before = shownBefore.current
+    shownBefore.current = rulings.cards.length
+    if (!list || rulings.cards.length <= before || before === 0) return
+    const first = list.children[before] as HTMLElement | undefined
+    if (!first || list.scrollHeight <= list.clientHeight) return
+    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    list.scrollTo({
+      top: first.offsetTop - 4,
+      behavior: still ? 'auto' : 'smooth',
+    })
+  }, [rulings.cards.length])
 
   return (
     <Board>
@@ -859,17 +995,26 @@ export const HappeningNow = ({
               <StatusDot $tone="contested" aria-hidden />
               <PanelTitle id={disputesTitleId}>Disputes</PanelTitle>
             </TitleRow>
-            <Small $faint>In court now · rulings issued, last 30 days</Small>
+            <Small $faint>In court now, then every ruling, all time</Small>
           </Heading>
           <Tally>
             <span>
-              <Count>{formatInt(Math.max(figures.inCourt, live.length))}</Count>
+              <Count>
+                {formatInt(Math.max(figures.inCourt, live.length))}
+                {plus(figures.inCourtCapped)}
+              </Count>
               <Label $tone="faint">In court</Label>
             </span>
-            <span>
+            <span
+              title={
+                rulings.partial
+                  ? 'Some chains’ rulings did not load: at least this many'
+                  : undefined
+              }
+            >
               <Count $quiet>
-                {formatInt(decided.length)}
-                {plus(figures.decidedCapped)}
+                {rulingsTotal}
+                {rulingsPlus}
               </Count>
               <Label $tone="faint">Rulings</Label>
             </span>
@@ -890,7 +1035,7 @@ export const HappeningNow = ({
             >
               <Avatar logo={card.logo} />
               <RowTop>
-                <Registry title={card.registry}>{card.registry}</Registry>
+                <Registry card={card} />
                 <ChainChip chainId={card.chainId} size="sm" />
               </RowTop>
               <Identifier card={card} />
@@ -917,44 +1062,73 @@ export const HappeningNow = ({
         )}
 
         <GroupHead>
-          <Label $tone="faint">Rulings · last 30 days</Label>
+          <Label $tone="faint">Rulings</Label>
+          <Label $tone="faint">Newest first</Label>
         </GroupHead>
-        {decided.length === 0 ? (
-          <Empty>No rulings in the last 30 days</Empty>
+        {rulings.cards.length === 0 ? (
+          <Empty>
+            {rulings.partial
+              ? 'The rulings did not load'
+              : 'No dispute has been ruled on yet'}
+          </Empty>
         ) : (
-          <div>
-            {decidedShown.map((card) => (
+          <RulingList ref={rulingList}>
+            {rulings.cards.map((card) => (
               <DecidedRow key={card.id} to={card.href}>
                 <Avatar logo={card.logo} small />
-                <span style={{ minWidth: 0 }}>
-                  <Registry
-                    title={card.registry}
-                    style={{ display: 'block', fontWeight: 500 }}
-                  >
-                    {card.registry}
-                  </Registry>
-                  <Identifier card={card} />
-                </span>
+                <RulingName>
+                  <Registry card={card} quiet />
+                  {rulings.pending.has(card.id) ? (
+                    <IdPending aria-hidden />
+                  ) : (
+                    <Identifier card={card} />
+                  )}
+                </RulingName>
                 <Ruling>
                   <span>
                     <StatusDot $tone={card.tone} aria-hidden />
                     {card.detail}
                   </span>
-                  <Small $faint>{formatAgo(card.at, now)}</Small>
+                  <Small $faint>
+                    {card.bounty && (
+                      <>
+                        <WonBounty title="The bounty the challenger won, on top of their own deposit back">
+                          <CurateIcon name="bounty" size={12} />
+                          {card.bounty}
+                          <VisuallyHidden> bounty won</VisuallyHidden>
+                        </WonBounty>
+                        {' · '}
+                      </>
+                    )}
+                    <time
+                      dateTime={new Date(card.at * 1000).toISOString()}
+                      title={formatAbsolute(card.at)}
+                    >
+                      {formatAgoLong(card.at, now)}
+                    </time>
+                  </Small>
                 </Ruling>
               </DecidedRow>
             ))}
-          </div>
+          </RulingList>
         )}
-        {decided.length > decidedShown.length && (
-          <More type="button" onClick={() => setDecidedExpanded(true)}>
-            +{formatInt(decided.length - decidedShown.length)} more rulings
-          </More>
-        )}
-        {decidedExpanded && decided.length > DECIDED_LIMIT && (
-          <More type="button" onClick={() => setDecidedExpanded(false)}>
-            Show fewer
-          </More>
+        {(rulings.onMore || rulings.onFewer) && (
+          <RulingsFooter>
+            {rulings.onMore && (
+              <More type="button" onClick={rulings.onMore}>
+                Show more rulings
+              </More>
+            )}
+            {rulings.onFewer && (
+              <More type="button" onClick={rulings.onFewer}>
+                Show fewer
+              </More>
+            )}
+            <Small $faint role="status">
+              {formatInt(rulings.cards.length)} of {rulingsTotal}
+              {rulingsPlus}
+            </Small>
+          </RulingsFooter>
         )}
       </Panel>
     </Board>

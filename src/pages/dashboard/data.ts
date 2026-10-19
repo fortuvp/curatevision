@@ -1,8 +1,8 @@
 import { gql, request } from 'graphql-request'
 import { NETWORKS } from 'config/networks'
 import { subgraphUrl, subgraphUrlPermanent } from 'config/tcr-addresses'
-import { getListOfListsAddresses } from 'config/list-of-lists'
-import { parseIpfs } from 'utils/ipfs-parse'
+import { verifiedSources } from 'components/curate/registry-shared-verified'
+import { readRegistryMetadata } from 'utils/registry-metadata'
 import {
   applyCreationTimes,
   fetchRegistryCreationTimes,
@@ -17,16 +17,25 @@ import {
   DashboardRegistry,
   DashboardUser,
   RegistryKind,
+  RulingRow,
   TrustStatus,
   UnchallengedRow,
 } from './types'
 import { entryCount, openWindows, rowsPlaced, windowsPending } from './view'
 import { readChallengePeriods } from './challenge-windows'
+import { readTokens } from './tokens'
 
 export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 const DAY = 24 * 60 * 60
 const DASHBOARD_QUERY_TIMEOUT_MS = 10_000
-const METADATA_TIMEOUT_MS = 2_000
+/**
+ * How long a load waits for list metadata (titles, logos) from IPFS. Each
+ * read keeps its own timeout and is cached for the session, so a read still
+ * running when the budget ends fills in on the next refresh.
+ */
+const METADATA_BUDGET_MS = 6_000
+/** How long a load waits for the symbols of Stake bounty tokens. */
+const TOKEN_BUDGET_MS = 5_000
 /** How long the challenge-period reads may take before they count as unknown. */
 const CHALLENGE_WINDOWS_BUDGET_MS = 7_000
 const LEADERBOARD_PAGE_SIZE = 1000
@@ -40,8 +49,14 @@ const OPEN_REQUEST_LIMIT = 1000
 const UNCHALLENGED_CARD_LIMIT = 40
 /** Cards read per chain for the requests whose window closes soonest. */
 const CLOSING_SOON_LIMIT = 24
-/** Rulings read per chain over the 30-day window. */
-const DECIDED_LIMIT = 200
+/** Ruling cards (with the entry's identifiers) read per chain with the load. */
+const DECIDED_CARD_LIMIT = 8
+/** Resolved disputes read per page for the all-time ledger. */
+const RULINGS_PAGE_SIZE = 1000
+/** Pages read per chain and kind before the ledger counts as capped. */
+const RULINGS_MAX_PAGES = 50
+/** Disputes open right now read per chain and kind. */
+const OPEN_DISPUTE_LIMIT = 400
 /** Latest requests read per chain and kind for the activity feeds. */
 const LATEST_LIMIT = 20
 const SUPPORTED_CHAIN_IDS = [
@@ -51,9 +66,9 @@ const SUPPORTED_CHAIN_IDS = [
 ]
 
 /**
- * Start of the 30-day window every dashboard figure shares: the chart's
- * first UTC day, so the series, the curators, the challenges and the rulings
- * cover the same 29 full days plus today so far.
+ * Start of the 30-day window every "30 days" figure shares: the chart's
+ * first UTC day, so the series and the curators cover the same 29 full days
+ * plus today so far. Rulings and bounties are all time, not windowed.
  */
 export const windowStart = (nowSeconds: number): number =>
   Math.floor(nowSeconds / DAY) * DAY - 29 * DAY
@@ -124,6 +139,25 @@ const CLASSIC_ITEM = `
 `
 
 /** The cards of chosen requests, by request id (Light and Classic). */
+/*
+ * When an entry of a list of lists was registered: its latest accepted
+ * registration request (a Registered entry has no later one). For the
+ * Kleros Verified lists, the earliest of these is when the list earned
+ * the badge.
+ */
+const REGISTERED_SINCE = `
+  requests(
+    where: {
+      requestType: { _eq: "RegistrationRequested" }
+      resolved: { _eq: true }
+    }
+    order_by: [{ resolutionTime: desc }]
+    limit: 1
+  ) {
+    resolutionTime
+  }
+`
+
 const ENVIO_REQUEST_CARDS_QUERY = gql`
   query EnvioRequestCards($lightIds: [String!]!, $classicIds: [String!]!) {
     light: LRequest(where: { id: { _in: $lightIds } }) {
@@ -228,14 +262,13 @@ const ENVIO_DASHBOARD_QUERY = gql`
       ${CLASSIC_ITEM}
     }
     decidedLight: LRequest(
-      limit: ${DECIDED_LIMIT}
+      limit: ${DECIDED_CARD_LIMIT}
       where: {
         chainId: { _eq: $chainId }
         disputed: { _eq: true }
         resolved: { _eq: true }
-        resolutionTime: { _gte: $since }
       }
-      order_by: [{ resolutionTime: desc }]
+      order_by: [{ resolutionTime: desc }, { id: asc }]
     ) {
       ${REQUEST_FIELDS}
       challengeTime
@@ -245,14 +278,13 @@ const ENVIO_DASHBOARD_QUERY = gql`
       ${LIGHT_ITEM_PREVIEW}
     }
     decidedClassic: Request(
-      limit: ${DECIDED_LIMIT}
+      limit: ${DECIDED_CARD_LIMIT}
       where: {
         chainId: { _eq: $chainId }
         disputed: { _eq: true }
         resolved: { _eq: true }
-        resolutionTime: { _gte: $since }
       }
-      order_by: [{ resolutionTime: desc }]
+      order_by: [{ resolutionTime: desc }, { id: asc }]
     ) {
       ${REQUEST_FIELDS}
       ${CLASSIC_ITEM}
@@ -278,7 +310,7 @@ const ENVIO_DASHBOARD_QUERY = gql`
       deposit
     }
     openLightDisputes: LRequest(
-      limit: 400
+      limit: ${OPEN_DISPUTE_LIMIT}
       where: {
         chainId: { _eq: $chainId }
         disputed: { _eq: true }
@@ -294,7 +326,7 @@ const ENVIO_DASHBOARD_QUERY = gql`
       ${LIGHT_ITEM_PREVIEW}
     }
     openClassicDisputes: Request(
-      limit: 400
+      limit: ${OPEN_DISPUTE_LIMIT}
       where: {
         chainId: { _eq: $chainId }
         disputed: { _eq: true }
@@ -304,32 +336,6 @@ const ENVIO_DASHBOARD_QUERY = gql`
     ) {
       ${REQUEST_FIELDS}
       ${CLASSIC_ITEM}
-    }
-    resolvedLightBounties: LRequest(
-      limit: 240
-      where: {
-        chainId: { _eq: $chainId }
-        disputed: { _eq: true }
-        resolved: { _eq: true }
-        disputeOutcome: { _eq: "Reject" }
-      }
-      order_by: [{ resolutionTime: desc }]
-    ) {
-      id
-      deposit
-    }
-    resolvedClassicBounties: Request(
-      limit: 240
-      where: {
-        chainId: { _eq: $chainId }
-        disputed: { _eq: true }
-        resolved: { _eq: true }
-        disputeOutcome: { _eq: "Reject" }
-      }
-      order_by: [{ resolutionTime: desc }]
-    ) {
-      id
-      deposit
     }
     verifiedClassic: Item(
       limit: 500
@@ -342,6 +348,7 @@ const ENVIO_DASHBOARD_QUERY = gql`
       id
       data
       registry_id
+      ${REGISTERED_SINCE}
     }
     verifiedLight: LItem(
       limit: 500
@@ -354,6 +361,7 @@ const ENVIO_DASHBOARD_QUERY = gql`
       id
       data
       registry_id
+      ${REGISTERED_SINCE}
       props(order_by: { label: asc }) {
         value
         itemType
@@ -391,8 +399,106 @@ const ENVIO_REGISTRY_PAGE_QUERY = gql`
   }
 `
 
+/*
+ * The all-time ledger of rulings: every resolved dispute, a page at a time
+ * until a short page. Only the fields the counts and the bounties need; the
+ * cards with the entries' identifiers load separately (loadRulingCards).
+ */
+const ENVIO_RULINGS_PAGE_QUERY = gql`
+  query EnvioRulingsPage($chainId: Int!, $offset: Int!) {
+    light: LRequest(
+      limit: ${RULINGS_PAGE_SIZE}
+      offset: $offset
+      where: {
+        chainId: { _eq: $chainId }
+        disputed: { _eq: true }
+        resolved: { _eq: true }
+      }
+      order_by: [{ resolutionTime: desc }, { id: asc }]
+    ) {
+      id
+      registry_id
+      requestType
+      deposit
+      challenger
+      disputeOutcome
+      resolutionTime
+    }
+    classic: Request(
+      limit: ${RULINGS_PAGE_SIZE}
+      offset: $offset
+      where: {
+        chainId: { _eq: $chainId }
+        disputed: { _eq: true }
+        resolved: { _eq: true }
+      }
+      order_by: [{ resolutionTime: desc }, { id: asc }]
+    ) {
+      id
+      registry_id
+      requestType
+      deposit
+      challenger
+      disputeOutcome
+      resolutionTime
+    }
+  }
+`
+
+/** Stake challenges the court has closed, by id (no page limit on cursors). */
+const PERMANENT_RULINGS_PAGE_QUERY = gql`
+  query PermanentRulingsPage($after: String!) {
+    challenges(
+      first: ${RULINGS_PAGE_SIZE}
+      where: { resolutionTime_not: null, id_gt: $after }
+      orderBy: id
+      orderDirection: asc
+    ) {
+      id
+      itemStake
+      challenger
+      disputeOutcome
+      resolutionTime
+      item {
+        itemID
+      }
+      registry {
+        id
+        token
+      }
+    }
+  }
+`
+
+/** Stake challenge cards by id, for rulings shown past the loaded ones. */
+const PERMANENT_CHALLENGE_CARDS_QUERY = gql`
+  query PermanentChallengeCards($ids: [ID!]!) {
+    challenges(first: 1000, where: { id_in: $ids }) {
+      id
+      createdAt
+      resolutionTime
+      challenger
+      disputeID
+      disputeOutcome
+      item {
+        itemID
+        metadata {
+          props {
+            label
+            value
+            isIdentifier
+          }
+        }
+        registry {
+          id
+        }
+      }
+    }
+  }
+`
+
 const PERMANENT_DASHBOARD_QUERY = gql`
-  query PermanentDashboard($since: BigInt!) {
+  query PermanentDashboard {
     registries(first: 1000, orderBy: createdAt, orderDirection: desc) {
       id
       token
@@ -437,7 +543,6 @@ const PERMANENT_DASHBOARD_QUERY = gql`
       challenger
       disputeID
       disputeOutcome
-      challengerStake
       item {
         itemID
         metadata {
@@ -453,8 +558,8 @@ const PERMANENT_DASHBOARD_QUERY = gql`
       }
     }
     decidedChallenges: challenges(
-      first: 200
-      where: { resolutionTime_gte: $since }
+      first: ${DECIDED_CARD_LIMIT}
+      where: { resolutionTime_not: null }
       orderBy: resolutionTime
       orderDirection: desc
     ) {
@@ -479,7 +584,7 @@ const PERMANENT_DASHBOARD_QUERY = gql`
       }
     }
     openChallenges: challenges(
-      first: 400
+      first: ${OPEN_DISPUTE_LIMIT}
       where: { resolutionTime: null }
       orderBy: createdAt
       orderDirection: desc
@@ -489,7 +594,6 @@ const PERMANENT_DASHBOARD_QUERY = gql`
       challenger
       disputeID
       disputeOutcome
-      challengerStake
       item {
         itemID
         metadata {
@@ -612,7 +716,6 @@ interface PermanentChallengeRow {
   createdAt?: string | number
   resolutionTime?: string | number | null
   challenger?: string
-  challengerStake?: string
   disputeOutcome?: string
   item?: { registry?: { id?: string } }
   [key: string]: unknown
@@ -628,9 +731,6 @@ export const normalizeAddress = (address: string | undefined | null): string =>
 
 export const shortAddress = (address: string): string =>
   address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Unknown'
-
-const addBigIntStrings = (a: string, b?: string | null): string =>
-  (BigInt(a || '0') + BigInt(b || '0')).toString()
 
 export const formatCompact = (value: number): string =>
   new Intl.NumberFormat('en-US', {
@@ -699,74 +799,52 @@ const registryTitle = (
 const isFallbackRegistryTitle = (registry: DashboardRegistry): boolean =>
   registry.title === registryTitle(registry.address, null, registry.kind)
 
-const readMetaEvidence = async (
-  uri?: string,
-): Promise<Partial<
-  Pick<DashboardRegistry, 'title' | 'description' | 'logoURI'>
-> | null> => {
-  if (!uri) return null
-  // Placeholder URIs (e.g. "/ipfs/dev-…/…json" on test registries) are not
-  // content addresses; the gateway answers 400, so do not ask.
-  const cid = uri
-    .replace(/^ipfs:\/\//, '')
-    .replace(/^\/ipfs\//, '')
-    .split('/')[0]
-  if (!/^(Qm[1-9A-HJ-NP-Za-km-z]{44}|b[a-z2-7]{50,})$/.test(cid)) return null
+/** "-" is what some forms saved for an empty description or title. */
+const isBlank = (value?: string | null): boolean =>
+  !value || !value.trim() || value.trim() === '-'
 
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), METADATA_TIMEOUT_MS)
-
-  try {
-    const response = await fetch(parseIpfs(uri), {
-      signal: controller.signal,
-    })
-    if (!response.ok) return null
-
-    // Some registries point their MetaEvidence at a non-JSON object (e.g. a
-    // dag-cbor node); treat those as "no metadata" instead of throwing.
-    let file: any
-    try {
-      file = await response.json()
-    } catch {
-      return null
-    }
-    const evidence = file?.data ?? file
-    const metadata = evidence?.metadata ?? file?.metadata ?? {}
-    const rawTitle =
-      metadata.tcrTitle ||
-      metadata.title ||
-      evidence.tcrTitle ||
-      evidence.registryTitle
-    const rawDescription =
-      metadata.tcrDescription ||
-      metadata.description ||
-      evidence.tcrDescription ||
-      evidence.description
-    const rawLogo = metadata.logoURI || metadata.logo || evidence.logoURI
-
-    return {
-      title: typeof rawTitle === 'string' ? rawTitle.trim() : undefined,
-      description:
-        typeof rawDescription === 'string' ? rawDescription.trim() : undefined,
-      logoURI: typeof rawLogo === 'string' ? rawLogo.trim() : undefined,
-    }
-  } catch (err) {
-    console.warn('Dashboard metadata fetch failed', err)
-    return null
-  } finally {
-    clearTimeout(timeoutId)
-  }
+/** Resolves to null once `deadline` (ms since epoch) has passed. */
+const byDeadline = <T>(
+  promise: Promise<T>,
+  deadline: number,
+): Promise<T | null> => {
+  let timer: number | undefined
+  return Promise.race<T | null>([
+    promise,
+    new Promise<null>((resolve) => {
+      timer = window.setTimeout(
+        () => resolve(null),
+        Math.max(0, deadline - Date.now()),
+      )
+    }),
+  ]).finally(() => window.clearTimeout(timer))
 }
 
+/**
+ * Title, description and logo from a list's MetaEvidence (any URI shape:
+ * "/ipfs/…", "ipfs/…" with no slash, "ipfs://…"), read once per session by
+ * utils/registry-metadata. Null when there is none or the gateway failed.
+ */
+const readMetaEvidence = (uri?: string) =>
+  readRegistryMetadata(uri).catch(() => null)
+
+/**
+ * Fills in what the indexer lacks (a title known only by address, a blank
+ * or "-" description, the logo) from every list's MetaEvidence. Verified
+ * lists are asked first, then the most active. The load waits at most
+ * METADATA_BUDGET_MS: reads still running then finish in the background and
+ * land in the session cache, so the next refresh has them.
+ */
 const enrichRegistryMetadata = async (
   registries: DashboardRegistry[],
 ): Promise<DashboardRegistry[]> => {
+  const deadline = Date.now() + METADATA_BUDGET_MS
   const candidates = registries
     .filter(
       (registry) =>
         registry.metadataURI &&
         (isFallbackRegistryTitle(registry) ||
-          !registry.description ||
+          isBlank(registry.description) ||
           !registry.logoURI),
     )
     .sort(
@@ -776,38 +854,29 @@ const enrichRegistryMetadata = async (
         (b.lastActivityAt || 0) - (a.lastActivityAt || 0) ||
         b.itemCount - a.itemCount,
     )
-    // Always resolve every verified registry first, then fill the discovery
-    // view with a bounded set of the most relevant unverified metadata.
-    .slice(0, 120)
-
-  const candidateIds = new Set(candidates.map((registry) => registry.id))
-  const cache = new Map<
-    string,
-    Promise<Partial<
-      Pick<DashboardRegistry, 'title' | 'description' | 'logoURI'>
-    > | null>
-  >()
+  const reads = new Map(
+    candidates.map((registry) => [
+      registry.id,
+      byDeadline(readMetaEvidence(registry.metadataURI), deadline),
+    ]),
+  )
 
   return Promise.all(
     registries.map(async (registry) => {
-      if (!registry.metadataURI || !candidateIds.has(registry.id))
-        return registry
-
-      const request =
-        cache.get(registry.metadataURI) ??
-        readMetaEvidence(registry.metadataURI)
-      cache.set(registry.metadataURI, request)
-      const metadata = await request
-      if (!metadata) return registry
-
+      const read = reads.get(registry.id)
+      const metadata = read ? await read : null
+      const description = isBlank(registry.description)
+        ? undefined
+        : registry.description
+      if (!metadata) return { ...registry, description }
       return {
         ...registry,
         title:
-          metadata.title && metadata.title !== '-'
+          isFallbackRegistryTitle(registry) && metadata.title
             ? metadata.title
             : registry.title,
-        description: metadata.description || registry.description,
-        logoURI: metadata.logoURI || registry.logoURI,
+        description: description ?? metadata.description,
+        logoURI: registry.logoURI || metadata.logoURI,
       }
     }),
   )
@@ -1068,23 +1137,38 @@ interface NormalizedChain {
   /** The same requests' ids, lists, submission times and deposits. */
   unchallengedRows: UnchallengedRow[]
   decided: DashboardActivity[]
-  decidedCapped: boolean
   openDisputes: DashboardActivity[]
-  bountyWei: string
+  openDisputesCapped: boolean
   verifiedRegistryAddresses: string[]
+  /**
+   * Envio only: by lowercase list address, when each Kleros Verified list
+   * earned the badge (its earliest registration on a list of lists).
+   */
+  verifiedSince?: Record<string, number>
 }
 
 const normalizeEnvio = (payload: any, chainId: number): NormalizedChain => {
   const verifiedAddresses = new Set<string>()
-  for (const address of getListOfListsAddresses(chainId))
+  // The shared Kleros Verified rule (registry-shared-verified.ts): the
+  // chain's list of lists and the lists registered on it; a list holds the
+  // badge since its registration there.
+  for (const address of verifiedSources(chainId))
     verifiedAddresses.add(normalizeAddress(address))
 
+  const verifiedSince: Record<string, number> = {}
   for (const item of [
     ...(payload.verifiedClassic ?? []),
     ...(payload.verifiedLight ?? []),
   ]) {
     const address = extractRegistryAddress(item.data, item.props)
-    if (address) verifiedAddresses.add(address)
+    if (!address) continue
+    verifiedAddresses.add(address)
+    const registeredAt = toNumber(item.requests?.[0]?.resolutionTime)
+    if (registeredAt > 0)
+      verifiedSince[address] = Math.min(
+        verifiedSince[address] ?? registeredAt,
+        registeredAt,
+      )
   }
 
   const registries: DashboardRegistry[] = []
@@ -1160,13 +1244,6 @@ const normalizeEnvio = (payload: any, chainId: number): NormalizedChain => {
     if (requestEntity.disputed) registry.disputeCount += 1
   }
 
-  let bountyWei = '0'
-  for (const bounty of [
-    ...(payload.resolvedLightBounties ?? []),
-    ...(payload.resolvedClassicBounties ?? []),
-  ])
-    bountyWei = addBigIntStrings(bountyWei, bounty.deposit)
-
   const toActivities = (light: string, classic: string) => [
     ...(payload[light] ?? []).map((row: DashboardRequestRow) =>
       requestToActivity(row, 'light'),
@@ -1224,12 +1301,12 @@ const normalizeEnvio = (payload: any, chainId: number): NormalizedChain => {
         kind: row.kind,
       })),
     decided,
-    decidedCapped:
-      (payload.decidedLight ?? []).length >= DECIDED_LIMIT ||
-      (payload.decidedClassic ?? []).length >= DECIDED_LIMIT,
     openDisputes: toActivities('openLightDisputes', 'openClassicDisputes'),
-    bountyWei,
+    openDisputesCapped:
+      (payload.openLightDisputes ?? []).length >= OPEN_DISPUTE_LIMIT ||
+      (payload.openClassicDisputes ?? []).length >= OPEN_DISPUTE_LIMIT,
     verifiedRegistryAddresses: [...verifiedAddresses],
+    verifiedSince,
   }
 }
 
@@ -1305,17 +1382,6 @@ const normalizePermanent = (
     if (registry) registry.disputeCount += 1
   }
 
-  const bountyWei = (payload.challenges ?? [])
-    .filter(
-      (challenge: PermanentChallengeRow) =>
-        challenge.disputeOutcome === 'Reject',
-    )
-    .reduce(
-      (sum: string, challenge: PermanentChallengeRow) =>
-        addBigIntStrings(sum, challenge.challengerStake),
-      '0',
-    )
-
   const toActivity = (challenge: PermanentChallengeRow) =>
     permanentChallengeToActivity(challenge, chainId, registryMap)
 
@@ -1331,9 +1397,9 @@ const normalizePermanent = (
     unchallengedCapped: false,
     unchallengedRows: [],
     decided: (payload.decidedChallenges ?? []).map(toActivity),
-    decidedCapped: (payload.decidedChallenges ?? []).length >= DECIDED_LIMIT,
     openDisputes: (payload.openChallenges ?? []).map(toActivity),
-    bountyWei,
+    openDisputesCapped:
+      (payload.openChallenges ?? []).length >= OPEN_DISPUTE_LIMIT,
     verifiedRegistryAddresses: [...verifiedRegistryAddresses],
   }
 }
@@ -1676,7 +1742,6 @@ const dedupeRegistries = (
 const buildMetrics = (
   registries: DashboardRegistry[],
   users: DashboardUser[],
-  bountyByChain: Record<number, string>,
 ): DashboardMetrics => ({
   registries: registries.length,
   verifiedRegistries: registries.filter((r) => r.trustStatus === 'verified')
@@ -1694,7 +1759,6 @@ const buildMetrics = (
     0,
   ),
   curators: users.length,
-  bountyByChain,
 })
 
 const safeRequest = async <T>(
@@ -1751,6 +1815,203 @@ const readRemainingRegistries = async (
     }),
   )
   return payload
+}
+
+/* ---------- Rulings: the all-time ledger ---------- */
+
+/** A Light or Classic resolved dispute as the ledger reads it. */
+interface LedgerRequestRow {
+  id: string
+  registry_id?: string
+  requestType?: string
+  deposit?: string | null
+  challenger?: string | null
+  disputeOutcome?: string | null
+  resolutionTime?: string | number
+}
+
+/** A resolved Stake challenge as the ledger reads it. */
+interface LedgerChallengeRow {
+  id: string
+  itemStake?: string | null
+  challenger?: string | null
+  disputeOutcome?: string | null
+  resolutionTime?: string | number | null
+  item?: { itemID?: string } | null
+  registry?: { id?: string; token?: string } | null
+}
+
+const requestRuling = (
+  row: LedgerRequestRow,
+  chainId: number,
+  kind: 'light' | 'classic',
+): RulingRow => {
+  const challengerWon = row.disputeOutcome === 'Reject'
+  return {
+    id: `${kind}-${row.id}`,
+    chainId,
+    kind,
+    registry: normalizeAddress(row.registry_id),
+    itemID: row.id.split('@')[0] || undefined,
+    resolvedAt: toNumber(row.resolutionTime),
+    outcome:
+      disputeOutcomeOf({ ...row, disputed: true, resolved: true }) ??
+      'no-ruling',
+    challengerWon,
+    challenger: normalizeAddress(row.challenger) || undefined,
+    // A winning challenger gets their own payment back plus the
+    // requester's base deposit (the arbitration cost paid the court).
+    bounty: challengerWon ? String(row.deposit ?? '0') : '0',
+  }
+}
+
+const challengeRuling = (
+  row: LedgerChallengeRow,
+  chainId: number,
+): RulingRow => {
+  const challengerWon = row.disputeOutcome === 'Reject'
+  return {
+    id: `permanent-challenge-${chainId}-${row.id}`,
+    chainId,
+    kind: 'permanent',
+    registry: normalizeAddress(row.registry?.id),
+    itemID: row.item?.itemID,
+    resolvedAt: toNumber(row.resolutionTime),
+    outcome:
+      row.disputeOutcome === 'Accept'
+        ? 'kept'
+        : challengerWon
+          ? 'removed'
+          : 'no-ruling',
+    challengerWon,
+    challenger: normalizeAddress(row.challenger) || undefined,
+    // Stake Curate: a successful challenger recovers their deposit and
+    // earns the entry's entire stake.
+    bounty: challengerWon ? String(row.itemStake ?? '0') : '0',
+    token: normalizeAddress(row.registry?.token) || undefined,
+  }
+}
+
+/**
+ * One chain's ledger: every Light, Classic and Stake dispute the court has
+ * closed, newest first, read page by page to the end. Null when a page did
+ * not load (the figures would be partial).
+ */
+const readRulings = async (
+  chainId: number,
+): Promise<{ rows: RulingRow[]; capped: boolean } | null> => {
+  const envio = (async () => {
+    const rows = new Map<string, RulingRow>()
+    for (let page = 0; page < RULINGS_MAX_PAGES; page += 1) {
+      const payload = await safeRequest<{
+        light?: LedgerRequestRow[]
+        classic?: LedgerRequestRow[]
+      }>(subgraphUrl[chainId], ENVIO_RULINGS_PAGE_QUERY, {
+        chainId,
+        offset: page * RULINGS_PAGE_SIZE,
+      })
+      if (!payload) return null
+      const light = payload.light ?? []
+      const classic = payload.classic ?? []
+      // A ruling landing between two pages shifts the rest by one: the
+      // repeat is dropped by id, nothing is skipped.
+      for (const row of light)
+        rows.set(`light-${row.id}`, requestRuling(row, chainId, 'light'))
+      for (const row of classic)
+        rows.set(`classic-${row.id}`, requestRuling(row, chainId, 'classic'))
+      if (
+        light.length < RULINGS_PAGE_SIZE &&
+        classic.length < RULINGS_PAGE_SIZE
+      )
+        return { rows: [...rows.values()], capped: false }
+    }
+    return { rows: [...rows.values()], capped: true }
+  })()
+  const stake = (async () => {
+    const url = subgraphUrlPermanent[chainId]
+    if (!url) return { rows: [], capped: false }
+    const rows: RulingRow[] = []
+    let after = ''
+    for (let page = 0; page < RULINGS_MAX_PAGES; page += 1) {
+      const payload = await safeRequest<{ challenges?: LedgerChallengeRow[] }>(
+        url,
+        PERMANENT_RULINGS_PAGE_QUERY,
+        { after },
+      )
+      if (!payload) return null
+      const challenges = payload.challenges ?? []
+      rows.push(...challenges.map((row) => challengeRuling(row, chainId)))
+      if (challenges.length < RULINGS_PAGE_SIZE) return { rows, capped: false }
+      after = challenges[challenges.length - 1].id
+    }
+    return { rows, capped: true }
+  })()
+  const [requests, challenges] = await Promise.all([envio, stake])
+  if (!requests || !challenges) return null
+  return {
+    rows: [...requests.rows, ...challenges.rows].sort(
+      (a, b) => b.resolvedAt - a.resolvedAt || a.id.localeCompare(b.id),
+    ),
+    capped: requests.capped || challenges.capped,
+  }
+}
+
+/**
+ * The cards (registry, entry identifiers, outcome) of rulings past the ones
+ * the load read, for "show more": one query per chain and indexer. Rows
+ * whose card did not load are left out; the caller keeps showing them from
+ * the ledger alone.
+ */
+export const loadRulingCards = async (
+  rows: RulingRow[],
+): Promise<DashboardActivity[]> => {
+  const chains = [...new Set(rows.map((row) => row.chainId))]
+  const cards = await Promise.all(
+    chains.flatMap((chainId) => {
+      const onChain = rows.filter((row) => row.chainId === chainId)
+      const requestIds = (kind: 'light' | 'classic') =>
+        onChain
+          .filter((row) => row.kind === kind)
+          .map((row) => row.id.slice(kind.length + 1))
+      const lightIds = requestIds('light')
+      const classicIds = requestIds('classic')
+      const stakePrefix = `permanent-challenge-${chainId}-`
+      const stakeIds = onChain
+        .filter((row) => row.kind === 'permanent')
+        .map((row) => row.id.slice(stakePrefix.length))
+      return [
+        lightIds.length + classicIds.length > 0
+          ? safeRequest<any>(subgraphUrl[chainId], ENVIO_REQUEST_CARDS_QUERY, {
+              lightIds,
+              classicIds,
+            }).then((payload): DashboardActivity[] =>
+              payload
+                ? [
+                    ...(payload.light ?? []).map((row: DashboardRequestRow) =>
+                      requestToActivity(row, 'light'),
+                    ),
+                    ...(payload.classic ?? []).map((row: DashboardRequestRow) =>
+                      requestToActivity(row, 'classic'),
+                    ),
+                  ]
+                : [],
+            )
+          : Promise.resolve([]),
+        stakeIds.length > 0
+          ? safeRequest<any>(
+              subgraphUrlPermanent[chainId],
+              PERMANENT_CHALLENGE_CARDS_QUERY,
+              { ids: stakeIds },
+            ).then((payload): DashboardActivity[] =>
+              (payload?.challenges ?? []).map((challenge: any) =>
+                permanentChallengeToActivity(challenge, chainId, new Map()),
+              ),
+            )
+          : Promise.resolve([]),
+      ]
+    }),
+  )
+  return cards.flat()
 }
 
 /** The app's load: every chain, list metadata, creation-time refresh. */
@@ -1874,6 +2135,17 @@ export const loadDashboardData = async ({
   const cachedCreation = readCachedCreationTimes(chains)
   if (refreshCreationTimes)
     void fetchRegistryCreationTimes(chains).catch(() => undefined)
+
+  // The Stake lists (another indexer) load alongside the main query.
+  const permanentRead = Promise.all(
+    chains.map((chainId) =>
+      safeRequest<any>(
+        subgraphUrlPermanent[chainId],
+        PERMANENT_DASHBOARD_QUERY,
+      ),
+    ),
+  )
+
   const envioResults = await Promise.all(
     chains.map(async (chainId) => {
       const payload = await safeRequest<any>(
@@ -1882,7 +2154,7 @@ export const loadDashboardData = async ({
         {
           chainId,
           since,
-          verifiedSources: getListOfListsAddresses(chainId),
+          verifiedSources: verifiedSources(chainId),
         },
       )
       if (!payload) failed.add(chainId)
@@ -1895,6 +2167,19 @@ export const loadDashboardData = async ({
           )
         : null
     }),
+  )
+
+  // Once the main query is in (the heaviest: nothing competes with it on
+  // its indexer), the 30-day curator pages and the all-time rulings ledger
+  // run together, alongside the list metadata.
+  const leaderboardRead = fetchCuratorLeaderboard(since, chains, failed)
+  const rulingsRead = Promise.all(
+    chains.map((chainId) =>
+      readRulings(chainId).then((ledger) => {
+        if (!ledger) failed.add(chainId)
+        return ledger
+      }),
+    ),
   )
 
   // Chain reads run alongside the Stake and curator queries below, and
@@ -1912,23 +2197,17 @@ export const loadDashboardData = async ({
     }),
   )
 
-  const permanentResults = await Promise.all(
-    chains.map(async (chainId, index) => {
-      const payload = await safeRequest<any>(
-        subgraphUrlPermanent[chainId],
-        PERMANENT_DASHBOARD_QUERY,
-        { since: String(since) },
-      )
-      const verifiedRegistryAddresses = new Set(
-        envioResults[index]?.verifiedRegistryAddresses ??
-          getListOfListsAddresses(chainId),
-      )
-      if (!payload) failed.add(chainId)
-      return payload
-        ? normalizePermanent(payload, chainId, since, verifiedRegistryAddresses)
-        : null
-    }),
-  )
+  const permanentResults = (await permanentRead).map((payload, index) => {
+    const chainId = chains[index]
+    const verifiedRegistryAddresses = new Set(
+      envioResults[index]?.verifiedRegistryAddresses ??
+        verifiedSources(chainId),
+    )
+    if (!payload) failed.add(chainId)
+    return payload
+      ? normalizePermanent(payload, chainId, since, verifiedRegistryAddresses)
+      : null
+  })
 
   const allResults = [...envioResults, ...permanentResults].filter(
     Boolean,
@@ -1937,10 +2216,12 @@ export const loadDashboardData = async ({
   const merged = dedupeRegistries(
     allResults.flatMap((result) => result.registries),
   )
-  const registries = applyCreationTimes(
-    enrichMetadata ? await enrichRegistryMetadata(merged) : merged,
-    cachedCreation,
-  ).sort(
+  const [enriched, leaderboard, ledgers] = await Promise.all([
+    enrichMetadata ? enrichRegistryMetadata(merged) : merged,
+    leaderboardRead,
+    rulingsRead,
+  ])
+  const registries = applyCreationTimes(enriched, cachedCreation).sort(
     (a, b) =>
       Number(b.trustStatus === 'verified') -
         Number(a.trustStatus === 'verified') ||
@@ -1948,6 +2229,19 @@ export const loadDashboardData = async ({
       b.itemCount - a.itemCount ||
       (b.lastActivityAt || 0) - (a.lastActivityAt || 0),
   )
+
+  // When each Kleros Verified list earned the badge (the lists of lists
+  // themselves have no registration: they grant it).
+  chains.forEach((chainId, index) => {
+    const since = envioResults[index]?.verifiedSince ?? {}
+    for (const registry of registries)
+      if (
+        registry.chainId === chainId &&
+        registry.trustStatus === 'verified' &&
+        since[registry.address]
+      )
+        registry.verifiedAt = since[registry.address]
+  })
 
   const newestFirst = (rows: DashboardActivity[]) =>
     rows
@@ -1969,8 +2263,9 @@ export const loadDashboardData = async ({
       openByRegistry.get(`${registry.chainId}:${registry.address}`) ?? 0
 
   const unchallengedCount: DashboardData['unchallengedCount'] = {}
-  const decidedCapped: DashboardData['decidedCapped'] = {}
-  const bountyByChain: Record<number, string> = {}
+  const openDisputesCapped: DashboardData['openDisputesCapped'] = {}
+  const rulings: DashboardData['rulings'] = {}
+  const rulingsCapped: DashboardData['rulingsCapped'] = {}
   chains.forEach((chainId, index) => {
     const envio = envioResults[index]
     const permanent = permanentResults[index]
@@ -1978,16 +2273,30 @@ export const loadDashboardData = async ({
       count: envio?.unchallengedCount ?? 0,
       capped: !!envio?.unchallengedCapped,
     }
-    decidedCapped[chainId] =
-      !!envio?.decidedCapped || !!permanent?.decidedCapped
-    bountyByChain[chainId] = addBigIntStrings(
-      envio?.bountyWei ?? '0',
-      permanent?.bountyWei ?? '0',
-    )
+    openDisputesCapped[chainId] =
+      !!envio?.openDisputesCapped || !!permanent?.openDisputesCapped
+    const ledger = ledgers[index]
+    if (!ledger) return
+    rulings[chainId] = ledger.rows
+    rulingsCapped[chainId] = ledger.capped
   })
 
-  const { users, series, seriesByChain, seriesTruncated } =
-    await fetchCuratorLeaderboard(since, chains, failed)
+  // Symbols of the tokens Stake bounties were paid in (known ones need no read).
+  const bountyTokens = new Map<string, { chainId: number; token: string }>()
+  for (const rows of Object.values(rulings))
+    for (const row of rows)
+      if (row.token && row.challengerWon)
+        bountyTokens.set(`${row.chainId}:${row.token}`, {
+          chainId: row.chainId,
+          token: row.token,
+        })
+  const tokens =
+    (await withBudget(
+      readTokens([...bountyTokens.values()]),
+      TOKEN_BUDGET_MS,
+    )) ?? {}
+
+  const { users, series, seriesByChain, seriesTruncated } = leaderboard
 
   const windows = await windowsRead
   const unchallengedRows: DashboardData['unchallengedRows'] = {}
@@ -2018,10 +2327,13 @@ export const loadDashboardData = async ({
     challengePeriods,
     closingSoon,
     decided: newestFirst(allResults.flatMap((result) => result.decided)),
-    decidedCapped,
+    rulings,
+    rulingsCapped,
+    tokens,
     openDisputes,
+    openDisputesCapped,
     users,
-    metrics: buildMetrics(registries, users, bountyByChain),
+    metrics: buildMetrics(registries, users),
     failedChains: [...failed],
   }
 }
