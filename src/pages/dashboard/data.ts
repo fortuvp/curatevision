@@ -1693,12 +1693,22 @@ const readRemainingRegistries = async (payload: any, chainId: number) => {
   return payload
 }
 
-export const fetchDashboardData = async (): Promise<DashboardData> => {
+/** The app's load: also refreshes list creation times in the background. */
+export const fetchDashboardData = (): Promise<DashboardData> =>
+  loadDashboardData({ refreshCreationTimes: true })
+
+export const loadDashboardData = async ({
+  refreshCreationTimes,
+}: {
+  /** Scan chain logs in the background for list creation times. */
+  refreshCreationTimes: boolean
+}): Promise<DashboardData> => {
   const since = windowStart(Math.floor(Date.now() / 1000))
   // Creation blocks come from chain logs (cached once read). Use what is
   // cached now and refresh in the background; never block the page on it.
   const cachedCreation = readCachedCreationTimes(SUPPORTED_CHAIN_IDS)
-  void fetchRegistryCreationTimes(SUPPORTED_CHAIN_IDS).catch(() => undefined)
+  if (refreshCreationTimes)
+    void fetchRegistryCreationTimes(SUPPORTED_CHAIN_IDS).catch(() => undefined)
   const envioResults = await Promise.all(
     SUPPORTED_CHAIN_IDS.map(async (chainId) => {
       const payload = await safeRequest<any>(

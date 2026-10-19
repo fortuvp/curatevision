@@ -1,11 +1,15 @@
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import svgr from 'vite-plugin-svgr'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
 import tsconfigPaths from 'vite-tsconfig-paths'
 
-// The standalone landing page lives in public/landing/. Static hosts serve
-// /landing/ as its index; the dev server would hand it to the SPA instead.
+const root = dirname(fileURLToPath(import.meta.url))
+
+// The standalone landing page is landing/index.html (assets in public/landing/).
+// Static hosts serve /landing/ as its index; the dev server needs the hint.
 const landingIndex = (): Plugin => ({
   name: 'landing-index',
   configureServer(server) {
@@ -44,6 +48,13 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'build',
       sourcemap: true,
+      rollupOptions: {
+        // The app, and the standalone landing page served at /landing/.
+        input: {
+          main: resolve(root, 'index.html'),
+          landing: resolve(root, 'landing/index.html'),
+        },
+      },
     },
     server: {
       port: 3000,

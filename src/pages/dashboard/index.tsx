@@ -44,6 +44,8 @@ import {
   entryCount,
   kindLabel,
   registryHref,
+  scopedFigures,
+  scopedSeries,
   sortRegistries,
   validChain,
   type ChainFilter,
@@ -601,63 +603,15 @@ const Dashboard = () => {
   }, [data, now, chains])
 
   /** Every figure on the page describes the same scope. */
-  const figures = useMemo(() => {
-    if (!data) return undefined
-    let curators = 0
-    let challenges = 0
-    let decided = 0
-    let won = 0
-    for (const user of data.users) {
-      let active = false
-      for (const [id, stats] of Object.entries(user.chains))
-        if (chains.includes(Number(id))) {
-          active = true
-          challenges += stats.challenges
-          decided += stats.decidedChallenges
-          won += stats.successfulChallenges
-        }
-      if (active) curators += 1
-    }
-    let unchallenged = 0
-    let unchallengedCapped = false
-    for (const chainId of chains) {
-      unchallenged += data.unchallengedCount[chainId]?.count ?? 0
-      unchallengedCapped ||= !!data.unchallengedCount[chainId]?.capped
-    }
-    return {
-      registries: scoped.length,
-      verified: scoped.filter((r) => r.trustStatus === 'verified').length,
-      entries: scoped.reduce((sum, r) => sum + entryCount(r), 0),
-      // Stake Curate has no requests (its counter is listed items).
-      requestsOpen: scoped
-        .filter((r) => r.kind !== 'permanent')
-        .reduce((sum, r) => sum + r.pendingCount, 0),
-      inCourt: data.openDisputes.filter((a) => chains.includes(a.chainId))
-        .length,
-      unchallenged,
-      unchallengedCapped,
-      decidedCapped: chains.some((chainId) => data.decidedCapped[chainId]),
-      curators,
-      challenges,
-      decided,
-      won,
-    }
-  }, [data, scoped, chains])
+  const figures = useMemo(
+    () => (data ? scopedFigures(data, chains) : undefined),
+    [data, chains],
+  )
 
-  const series = useMemo(() => {
-    if (!data) return []
-    return data.series.map((day, index) => {
-      const sum = { ...day, submissions: 0, removals: 0, challenges: 0 }
-      for (const chainId of chains) {
-        const other = data.seriesByChain[chainId]?.[index]
-        if (!other) continue
-        sum.submissions += other.submissions
-        sum.removals += other.removals
-        sum.challenges += other.challenges
-      }
-      return sum
-    })
-  }, [data, chains])
+  const series = useMemo(
+    () => (data ? scopedSeries(data, chains) : []),
+    [data, chains],
+  )
   const seriesRequests = series.reduce(
     (sum, d) => sum + d.submissions + d.removals,
     0,

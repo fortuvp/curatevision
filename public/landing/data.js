@@ -1,7 +1,8 @@
 // A frozen snapshot of public Curate data (on-chain, Ethereum and Gnosis
 // mainnets), the same one as docs/design/dashboard-variants/snapshot.json.
-// Every figure on the landing page is read from this object, and the page
-// labels each one with `snapshotAt` or the series' window, never "now".
+// The landing page shows live figures (src/landing/boot.ts) and falls back to
+// this object when the indexers do not answer in time; it then labels each
+// figure with `snapshotAt` or the series' window, never "now".
 // series30d: one row per UTC day; requests = submissions + removal requests
 // made that day; challenges = challenges made that day against requests from
 // this 30-day window (each one opened a dispute in Kleros Court).

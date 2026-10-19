@@ -136,7 +136,7 @@
               <span class="chip" data-fig="scope">Ethereum and Gnosis</span>
             </div>
             <div class="featured-meta">
-              <span data-fig="stamp">Snapshot of public on-chain data</span>
+              <span data-fig="stamp">Public on-chain data</span>
               <a class="text-link featured-live" href="/">
                 Live figures in the app
                 <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M5 11l6-6M6 5h5v5" /></svg>
@@ -303,6 +303,9 @@
       </footer>
     </div>
 
+    <!-- Live figures from the indexers (same query as the app's dashboard);
+         data.js is the dated snapshot the page falls back to. -->
+    <script type="module" src="/src/landing/boot.ts"></script>
     <script src="/landing/data.js"></script>
     <script src="/landing/landing.js"></script>
   </body>
