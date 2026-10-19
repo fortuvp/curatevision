@@ -121,7 +121,9 @@ const RightGroup = styled.div`
   justify-content: flex-end;
   gap: 6px;
   flex: 1;
-  min-width: 0;
+  /* never narrower than its controls: the nav moves aside instead of
+     sliding under them */
+  min-width: max-content;
 `
 
 const MobileNavMenu = styled.nav`
@@ -194,8 +196,13 @@ const StakeTag = styled.span`
   text-transform: uppercase;
 `
 
+/*
+ * Labels give way before the centred nav can collide with them: the
+ * Connect label goes on phones and between 901 and 1099px (the nav is back
+ * but the bar is still narrow), the chain name below 1280px.
+ */
 const ConnectLabel = styled.span`
-  @media (max-width: 600px) {
+  @media (max-width: 600px), (min-width: 901px) and (max-width: 1099px) {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -206,7 +213,7 @@ const ConnectLabel = styled.span`
 `
 
 const ChainLabel = styled.span`
-  @media (max-width: 600px) {
+  @media (max-width: 600px), (min-width: 901px) and (max-width: 1279px) {
     display: none;
   }
 `
@@ -504,6 +511,11 @@ const AppBar = () => {
                 aria-haspopup="menu"
                 aria-expanded={chainDropdownOpen}
                 title={isBrowse ? 'Filter registries by chain' : 'Chain'}
+                aria-label={
+                  isBrowse
+                    ? `Filter registries by chain: ${browseChainLabel}`
+                    : `Chain: ${currentChainInfo?.name || 'Select chain'}`
+                }
               >
                 {currentChainInfo ? (
                   <ChainLogo
