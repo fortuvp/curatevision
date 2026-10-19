@@ -42,8 +42,8 @@ export const BarChipButton = styled.button`
   background: var(--glass);
   box-shadow: inset 0 1px 0 var(--glass-highlight);
   color: var(--color-text);
-  font-family: var(--font-mono);
-  font-size: 12px;
+  font-family: var(--font-sans);
+  font-size: 13px;
   line-height: 16px;
   font-weight: 500;
   white-space: nowrap;

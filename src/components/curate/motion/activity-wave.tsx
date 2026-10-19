@@ -181,7 +181,8 @@ export const ActivityWave = ({
   const downMax = nice(Math.max(1, ...down))
   const x = (i: number) => (count <= 1 ? 0 : (i / (count - 1)) * width)
   const yUp = (v: number) => mid - (v / upMax) * (mid - 14)
-  const yDown = (v: number) => mid + (v / downMax) * (height - mid - 6)
+  // the lower half keeps an 18px gutter at the bottom for its scale label
+  const yDown = (v: number) => mid + (v / downMax) * (height - mid - 24)
   const pts = up.map((v, i) => [x(i), yUp(v)] as [number, number])
   const line = smoothPath(pts)
   const area = `${line} L ${width} ${mid} L 0 ${mid} Z`
@@ -252,7 +253,7 @@ export const ActivityWave = ({
         />
         <text
           x={width}
-          y={height + 12}
+          y={height - 4}
           textAnchor="end"
           fill="var(--color-faint)"
           fontSize="11"
