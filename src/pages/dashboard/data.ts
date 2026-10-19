@@ -1510,6 +1510,8 @@ const pageRows = (payload: any, keys: string[]) =>
 
 const fetchCuratorLeaderboard = async (
   since: number,
+  chains: number[],
+  failed: Set<number>,
 ): Promise<{
   users: DashboardUser[]
   series: DashboardDay[]
@@ -1517,8 +1519,12 @@ const fetchCuratorLeaderboard = async (
   seriesTruncated: boolean
 }> => {
   const lastPage = LEADERBOARD_MAX_PAGES - 1
+  const noteFailure = (chainId: number) => {
+    failed.add(chainId)
+    return null
+  }
   const pages = await Promise.all(
-    SUPPORTED_CHAIN_IDS.flatMap((chainId) =>
+    chains.flatMap((chainId) =>
       Array.from({ length: LEADERBOARD_MAX_PAGES }).flatMap((_, page) => [
         safeRequest<any>(subgraphUrl[chainId], ENVIO_CURATOR_PAGE_QUERY, {
           chainId,
@@ -1535,7 +1541,7 @@ const fetchCuratorLeaderboard = async (
                   pageRows(payload, ['lightRequests', 'classicRequests']) >=
                     LEADERBOARD_PAGE_SIZE,
               }
-            : null,
+            : noteFailure(chainId),
         ),
         safeRequest<any>(
           subgraphUrlPermanent[chainId],
@@ -1555,7 +1561,7 @@ const fetchCuratorLeaderboard = async (
                 events: permanentPageEvents(payload, since, chainId),
                 full: false,
               }
-            : null,
+            : noteFailure(chainId),
         ),
       ]),
     ),
@@ -1573,7 +1579,7 @@ const fetchCuratorLeaderboard = async (
     users: mergeUsers(valid.map((page) => page.users)),
     series: buildSeries(events, since),
     seriesByChain: Object.fromEntries(
-      SUPPORTED_CHAIN_IDS.map((chainId) => [
+      chains.map((chainId) => [
         chainId,
         buildSeries(
           events.filter((event) => event.chainId === chainId),
@@ -1665,7 +1671,11 @@ const safeRequest = async <T>(
  * The first page of each registry kind comes with the dashboard query; when
  * it is full, read on until a short page, so no list drops out of the totals.
  */
-const readRemainingRegistries = async (payload: any, chainId: number) => {
+const readRemainingRegistries = async (
+  payload: any,
+  chainId: number,
+  onFail: () => void = () => undefined,
+) => {
   const pages: [string, string][] = [
     ['lregistries', ENVIO_LREGISTRY_PAGE_QUERY],
     ['registries', ENVIO_REGISTRY_PAGE_QUERY],
@@ -1683,6 +1693,7 @@ const readRemainingRegistries = async (payload: any, chainId: number) => {
           chainId,
           offset: page * REGISTRY_PAGE_SIZE,
         })
+        if (!next) onFail()
         const more: unknown[] = next?.[key] ?? []
         rows.push(...more)
         last = next ? more.length : 0
@@ -1693,24 +1704,32 @@ const readRemainingRegistries = async (payload: any, chainId: number) => {
   return payload
 }
 
-/** The app's load: also refreshes list creation times in the background. */
+/** The app's load: every chain, list metadata, creation-time refresh. */
 export const fetchDashboardData = (): Promise<DashboardData> =>
   loadDashboardData({ refreshCreationTimes: true })
 
 export const loadDashboardData = async ({
   refreshCreationTimes,
+  chains = SUPPORTED_CHAIN_IDS,
+  enrichMetadata = true,
 }: {
   /** Scan chain logs in the background for list creation times. */
   refreshCreationTimes: boolean
+  /** The chains to read (the landing page reads the mainnets only). */
+  chains?: number[]
+  /** Read missing list metadata from IPFS (titles, logos). */
+  enrichMetadata?: boolean
 }): Promise<DashboardData> => {
   const since = windowStart(Math.floor(Date.now() / 1000))
+  // Chains where any query failed or timed out: their figures are partial.
+  const failed = new Set<number>()
   // Creation blocks come from chain logs (cached once read). Use what is
   // cached now and refresh in the background; never block the page on it.
-  const cachedCreation = readCachedCreationTimes(SUPPORTED_CHAIN_IDS)
+  const cachedCreation = readCachedCreationTimes(chains)
   if (refreshCreationTimes)
-    void fetchRegistryCreationTimes(SUPPORTED_CHAIN_IDS).catch(() => undefined)
+    void fetchRegistryCreationTimes(chains).catch(() => undefined)
   const envioResults = await Promise.all(
-    SUPPORTED_CHAIN_IDS.map(async (chainId) => {
+    chains.map(async (chainId) => {
       const payload = await safeRequest<any>(
         subgraphUrl[chainId],
         ENVIO_DASHBOARD_QUERY,
@@ -1720,9 +1739,12 @@ export const loadDashboardData = async ({
           verifiedSources: getListOfListsAddresses(chainId),
         },
       )
+      if (!payload) failed.add(chainId)
       return payload
         ? normalizeEnvio(
-            await readRemainingRegistries(payload, chainId),
+            await readRemainingRegistries(payload, chainId, () =>
+              failed.add(chainId),
+            ),
             chainId,
           )
         : null
@@ -1730,7 +1752,7 @@ export const loadDashboardData = async ({
   )
 
   const permanentResults = await Promise.all(
-    SUPPORTED_CHAIN_IDS.map(async (chainId, index) => {
+    chains.map(async (chainId, index) => {
       const payload = await safeRequest<any>(
         subgraphUrlPermanent[chainId],
         PERMANENT_DASHBOARD_QUERY,
@@ -1740,6 +1762,7 @@ export const loadDashboardData = async ({
         envioResults[index]?.verifiedRegistryAddresses ??
           getListOfListsAddresses(chainId),
       )
+      if (!payload) failed.add(chainId)
       return payload
         ? normalizePermanent(payload, chainId, since, verifiedRegistryAddresses)
         : null
@@ -1750,10 +1773,11 @@ export const loadDashboardData = async ({
     Boolean,
   ) as NormalizedChain[]
 
+  const merged = dedupeRegistries(
+    allResults.flatMap((result) => result.registries),
+  )
   const registries = applyCreationTimes(
-    await enrichRegistryMetadata(
-      dedupeRegistries(allResults.flatMap((result) => result.registries)),
-    ),
+    enrichMetadata ? await enrichRegistryMetadata(merged) : merged,
     cachedCreation,
   ).sort(
     (a, b) =>
@@ -1786,7 +1810,7 @@ export const loadDashboardData = async ({
   const unchallengedCount: DashboardData['unchallengedCount'] = {}
   const decidedCapped: DashboardData['decidedCapped'] = {}
   const bountyByChain: Record<number, string> = {}
-  SUPPORTED_CHAIN_IDS.forEach((chainId, index) => {
+  chains.forEach((chainId, index) => {
     const envio = envioResults[index]
     const permanent = permanentResults[index]
     unchallengedCount[chainId] = {
@@ -1802,7 +1826,7 @@ export const loadDashboardData = async ({
   })
 
   const { users, series, seriesByChain, seriesTruncated } =
-    await fetchCuratorLeaderboard(since)
+    await fetchCuratorLeaderboard(since, chains, failed)
 
   return {
     generatedAt: Date.now(),
@@ -1821,5 +1845,6 @@ export const loadDashboardData = async ({
     openDisputes,
     users,
     metrics: buildMetrics(registries, users, bountyByChain),
+    failedChains: [...failed],
   }
 }

@@ -250,7 +250,46 @@
 
   /* ---------- Figures: live from the indexers, or the dated snapshot ---------- */
 
+  // Each draw is a generation: when live figures replace the snapshot, the
+  // snapshot's pending animations and observers stand down.
+  let generation = 0
+  const watchInView = whenInView
+  const runTween = tween
+
   const boot = (data) => {
+    const gen = ++generation
+    const current = () => gen === generation
+    const whenInView = (element, callback, threshold) =>
+      watchInView(
+        element,
+        () => {
+          if (current()) callback()
+        },
+        threshold,
+      )
+    const tween = (options) =>
+      runTween({
+        ...options,
+        onFrame: (p) => {
+          if (current()) options.onFrame(p)
+        },
+        onDone: () => {
+          if (current() && options.onDone) options.onDone()
+        },
+      })
+    if (gen > 1) {
+      // Fresh hosts: the previous draw's listeners and observers stay on the
+      // old elements.
+      for (const selector of [
+        '[data-chart]',
+        '[data-gauge]',
+        '[data-mini-ring]',
+      ]) {
+        const old = $(selector)
+        if (old) old.replaceWith(old.cloneNode(false))
+      }
+      $('[data-chart-table] tbody')?.replaceChildren()
+    }
     const isCount = (value) => Number.isFinite(value) && value >= 0
     const series = Array.isArray(data?.series30d)
       ? data.series30d.filter(
@@ -323,12 +362,24 @@
     }
 
     const featured = $('[data-featured]')
-    if (!hasSeries && featured) {
-      featured.dataset.emptyState = ''
+    if (featured) {
       const empty = $('[data-empty]', featured)
-      if (empty) empty.hidden = false
+      if (hasSeries) delete featured.dataset.emptyState
+      else featured.dataset.emptyState = ''
+      if (empty) empty.hidden = hasSeries
       // No figures: a snapshot time beside them would contradict the message.
-      for (const node of $$('[data-fig="stamp"]', featured)) node.hidden = true
+      for (const node of $$('[data-fig="stamp"]', featured))
+        node.hidden = !hasSeries
+    }
+    // The link to the app says "live" only while the page shows a snapshot.
+    for (const link of $$('.featured-live')) {
+      const label = [...link.childNodes].find(
+        (child) => child.nodeType === 3 && child.textContent.trim(),
+      )
+      if (label)
+        label.textContent = live
+          ? 'Open the dashboard '
+          : 'Live figures in the app '
     }
 
     /** Rolls each digit on its own column, then settles into plain text. */
@@ -376,7 +427,7 @@
       )
       setTimeout(
         () => {
-          node.textContent = text
+          if (current()) node.textContent = text
         },
         1100 + stacks.length * 45 + 150,
       )
@@ -398,6 +449,8 @@
 
     for (const node of $$('[data-fig]')) {
       const value = figures[node.dataset.fig]
+      const roleRow = node.closest('.role-figure')
+      if (roleRow && value !== undefined) roleRow.hidden = false
       if (value === undefined) {
         // A role row without its figure reads better than a lone dash.
         const roleFigure = node.closest('.role-figure')
@@ -1331,18 +1384,20 @@
     }
   }
 
-  // src/landing/boot.ts starts the live query; it resolves to null on failure
-  // or after a few seconds, and the dated snapshot in data.js stands in. Module
+  // The dated snapshot (data.js) is drawn at once and labelled as such; the
+  // live query src/landing/boot.ts starts replaces it when it answers in
+  // full, and resolves to null on any failure or after a few seconds. Module
   // scripts run before DOMContentLoaded, so the promise is there by then.
   let figuresStarted = false
   const startFigures = () => {
     if (figuresStarted) return
     figuresStarted = true
-    const snapshot = () => boot(globalThis.CURATE_LANDING_DATA)
+    boot(globalThis.CURATE_LANDING_DATA)
     const pending = globalThis.CURATE_LANDING_LIVE
     if (pending && typeof pending.then === 'function')
-      pending.then((live) => (live ? boot(live) : snapshot())).catch(snapshot)
-    else snapshot()
+      pending
+        .then((live) => (live ? boot(live) : undefined))
+        .catch(() => undefined)
   }
   if (doc.readyState === 'loading')
     doc.addEventListener('DOMContentLoaded', startFigures, { once: true })

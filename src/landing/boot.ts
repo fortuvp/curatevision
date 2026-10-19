@@ -40,10 +40,17 @@ const scopeName = (chains: number[]) =>
     .join(' and ')
 
 const readLive = async (): Promise<LandingData | null> => {
-  const data = await loadDashboardData({ refreshCreationTimes: false })
   const chains = MAINNET_CHAIN_IDS
+  // Mainnets only, no list metadata from IPFS: the page needs counts.
+  const data = await loadDashboardData({
+    refreshCreationTimes: false,
+    chains,
+    enrichMetadata: false,
+  })
+  // Any failed or timed-out query makes the figures partial: rather than
+  // label partial numbers as live, the page draws the dated snapshot.
+  if (data.failedChains.length > 0) return null
   const series = scopedSeries(data, chains)
-  // An empty load means the indexers did not answer: use the snapshot.
   if (series.length < 2 || data.registries.length === 0) return null
   const figures = scopedFigures(data, chains)
   return {

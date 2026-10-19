@@ -10,15 +10,24 @@ const root = dirname(fileURLToPath(import.meta.url))
 
 // The standalone landing page is landing/index.html (assets in public/landing/).
 // Static hosts serve /landing/ as its index; the dev server needs the hint.
+const landingRewrite = (
+  req: { url?: string },
+  _res: unknown,
+  next: () => void,
+) => {
+  const [path, query] = (req.url ?? '').split('?')
+  if (path === '/landing' || path === '/landing/')
+    req.url = `/landing/index.html${query ? `?${query}` : ''}`
+  next()
+}
+
 const landingIndex = (): Plugin => ({
   name: 'landing-index',
   configureServer(server) {
-    server.middlewares.use((req, _res, next) => {
-      const [path, query] = (req.url ?? '').split('?')
-      if (path === '/landing' || path === '/landing/')
-        req.url = `/landing/index.html${query ? `?${query}` : ''}`
-      next()
-    })
+    server.middlewares.use(landingRewrite)
+  },
+  configurePreviewServer(server) {
+    server.middlewares.use(landingRewrite)
   },
 })
 
