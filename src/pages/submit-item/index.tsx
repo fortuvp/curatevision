@@ -3,11 +3,12 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
 } from 'react'
 import type { BigNumber } from 'ethers'
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import ErrorPage from 'pages/error-page'
 import useCheckLightCurate from 'hooks/use-check-light-curate'
 import useTcrNetwork from 'hooks/use-tcr-network'
@@ -44,8 +45,23 @@ import { useDepositSubmit, usePermanentSubmit } from './use-submit-actions'
  * previous page had.
  */
 
-const NO_INITIAL_VALUES: unknown[] = []
 const NO_DISABLED_FIELDS: boolean[] = []
+
+/**
+ * Values a shared ?action= link carried (the registry forwards them here as
+ * the query string), in column order, as the previous submit dialog read
+ * them. The theme preview parameter is not a value.
+ */
+const useLinkValues = (): unknown[] => {
+  const { search } = useLocation()
+  return useMemo(() => {
+    const values: string[] = []
+    new URLSearchParams(search).forEach((value, key) => {
+      if (key !== 'cv-theme') values.push(value)
+    })
+    return values
+  }, [search])
+}
 
 const useRegistryPath = () => {
   const { chainId, tcrAddress } = useParams<{
@@ -94,6 +110,7 @@ const DepositSubmitPage = ({
 }) => {
   const navigate = useNavigate()
   const registryPath = useRegistryPath()
+  const linkValues = useLinkValues()
   const chainId = useUrlChainId()
   const currency = useNativeCurrency()
   const { balance } = useNativeBalance()
@@ -240,7 +257,7 @@ const DepositSubmitPage = ({
             : 'This list has no challenge period; your deposit comes back once the request is executed.'
       }
       columns={columns}
-      initialValues={NO_INITIAL_VALUES}
+      initialValues={linkValues}
       disabledFields={NO_DISABLED_FIELDS}
       policyURI={policyURI}
       terms={terms}
@@ -309,6 +326,7 @@ const LightSubmitPage = () => {
 const PermanentSubmitPage = () => {
   const navigate = useNavigate()
   const registryPath = useRegistryPath()
+  const linkValues = useLinkValues()
   const chainId = useUrlChainId()
   const { tcrAddress } = useParams<{ tcrAddress: string }>()
   const { graphqlBatcher } = useGraphqlBatcher()
@@ -560,7 +578,7 @@ const PermanentSubmitPage = () => {
           : `Listed against a stake in ${symbol} that stays locked while it is on the list, plus an arbitration deposit in ${nativeCurrency}.`
       }
       columns={columns}
-      initialValues={NO_INITIAL_VALUES}
+      initialValues={linkValues}
       disabledFields={NO_DISABLED_FIELDS}
       policyURI={metadata?.policyURI}
       terms={terms}
