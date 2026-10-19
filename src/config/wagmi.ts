@@ -33,5 +33,10 @@ export const appKitModal = projectId
       features: {
         analytics: false,
       },
+      // The wallet modal opens from inside the app's dialogs (z-index up
+      // to 1070), so it must stack above all of them.
+      themeVariables: {
+        '--w3m-z-index': 2000,
+      },
     })
   : null
