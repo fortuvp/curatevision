@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react'
 import styled, { css } from 'styled-components'
-import type { Address } from 'viem'
 import { smallScreenStyle } from 'styles/small-screen-style'
 
 interface ISeerExtraDetails {

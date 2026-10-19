@@ -508,11 +508,15 @@ const SubmissionForm = withFormik<
 >({
   mapPropsToValues: ({ columns, initialValues }) =>
     columns.reduce((acc: Record<string, string>, curr: Column, i: number) => {
-      const defaultValue = initialValues
-        ? initialValues[i]
-        : curr.type === 'number'
-          ? ''
-          : typeDefaultValues[curr.type]
+      // An empty initialValues array (e.g. ?action=submit) must not
+      // pre-fill every field with "undefined".
+      const initial = initialValues?.[i]
+      const defaultValue =
+        initial !== undefined && initial !== null
+          ? initial
+          : curr.type === 'number'
+            ? ''
+            : typeDefaultValues[curr.type]
 
       return {
         ...acc,
@@ -575,7 +579,8 @@ const SubmissionForm = withFormik<
         }),
         {},
       )
-    if (Object.keys(errors as Record<string, string>).length > 0) throw errors
+    // Formik 2 applies returned errors; a thrown object is treated as a crash.
+    return errors as Record<string, string>
   },
 })(_SubmissionForm)
 

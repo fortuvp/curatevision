@@ -46,6 +46,15 @@ const GlobalStyle = createGlobalStyle`
     --lh-data: 18px;
     --fs-label: 11px;
     --lh-label: 16px;
+    --fs-micro: 10px;
+    --fs-meta: 12px;
+    --lh-meta: 16px;
+    --fs-title-sm: 20px;
+    --lh-title-sm: 26px;
+    --fs-title-md: 24px;
+    --lh-title-md: 30px;
+    --fs-title-lg: 26px;
+    --lh-title-lg: 32px;
     --fs-figure: clamp(28px, 1.6vw + 18px, 40px);
     --lh-figure: 1.05;
     --tracking-label: 0.06em;
@@ -63,8 +72,11 @@ const GlobalStyle = createGlobalStyle`
     --font-size-xs: 12px;
 
     /* Shape and space */
+    --radius-xs: 6px;
     --radius-sm: 8px;
+    --radius-control: 10px;
     --radius: 12px;
+    --radius-well: 14px;
     --radius-lg: 18px;
     --radius-xl: 24px;
     --radius-pill: 999px;

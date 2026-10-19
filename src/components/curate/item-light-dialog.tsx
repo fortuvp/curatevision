@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useId, useRef } from 'react'
+import React, { useEffect, useId, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import styled, { keyframes } from 'styled-components'
 import { IconButton, Label } from './primitives'
@@ -190,17 +190,19 @@ export const Dialog = ({
   const panelRef = useRef<HTMLDivElement>(null)
   const titleId = useId()
 
-  const onKeyDown = useCallback(
-    (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    },
-    [onClose],
-  )
+  // Pages re-render every second (countdowns) and pass a new onClose each
+  // time; read it through a ref so the focus effect runs only when the
+  // dialog opens or closes, never while someone is typing.
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
 
   useEffect(() => {
     if (!open) return
     const previous = document.activeElement as HTMLElement | null
     const { overflow } = document.body.style
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onCloseRef.current()
+    }
     document.body.style.overflow = 'hidden'
     document.addEventListener('keydown', onKeyDown)
     panelRef.current?.focus({ preventScroll: true })
@@ -209,7 +211,7 @@ export const Dialog = ({
       document.removeEventListener('keydown', onKeyDown)
       previous?.focus?.()
     }
-  }, [open, onKeyDown])
+  }, [open])
 
   if (!open) return null
 
