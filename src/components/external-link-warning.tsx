@@ -110,7 +110,7 @@ const ExternalLinkWarning = ({
   return (
     <Modal
       visible={visible}
-      title="Leaving CurateVision"
+      title="Leaving Kleros Curate"
       onCancel={onCancel}
       width={480}
       centered
