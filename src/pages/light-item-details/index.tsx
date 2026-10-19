@@ -27,7 +27,8 @@ import {
   hasPendingRequest,
   itemToStatusCode,
 } from 'utils/item-status'
-import { formatAbsolute, formatAgo } from 'utils/time'
+import { formatAbsolute } from 'utils/time'
+import { formatSince } from 'pages/item-details/format-since'
 import { STALE_TIME } from 'consts'
 import { parseIpfs } from 'utils/ipfs-parse'
 import { truncateAtWord } from 'utils/truncate-at-word'
@@ -765,7 +766,7 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
                   {facts.isRegistration ? 'Submitted' : 'Removal requested'}
                 </Label>
                 <dd title={formatAbsolute(facts.submissionTime)}>
-                  {formatAgo(facts.submissionTime, now)}
+                  {formatSince(facts.submissionTime, now)}
                 </dd>
               </div>
               {request.requester && (

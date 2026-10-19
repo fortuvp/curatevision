@@ -13,11 +13,18 @@ export * from './verified-rule'
 
 /**
  * The sets for several chains in React: `pending` until every chain has
- * answered or failed, `failed` lists the chains that did not answer.
+ * answered or failed, `failed` lists the chains that did not answer, and
+ * `retry` asks those again.
  */
 export const useVerifiedSets = (
   chainIds: number[],
-): { sets: VerifiedSets; pending: boolean; failed: number[] } => {
+): {
+  sets: VerifiedSets
+  pending: boolean
+  failed: number[]
+  /** Asks the chains that failed again. */
+  retry: () => void
+} => {
   const results = useQueries({
     queries: chainIds.map((chainId) => verifiedRegistriesQuery(chainId)),
   })
@@ -41,6 +48,11 @@ export const useVerifiedSets = (
     failed: chainIds.filter(
       (_, index) => results[index].isError && !results[index].data,
     ),
+    retry: () => {
+      results.forEach((result) => {
+        if (result.isError) void result.refetch()
+      })
+    },
   }
 }
 

@@ -666,7 +666,7 @@ const SubmitModal: React.FC<{
           {
             title: 'If someone challenges: jurors decide',
             branch: true,
-            body: `The challenger stakes ${challengerText} and pays the arbitration cost. If your ${name} follows the listing policy, jurors side with you: it stays listed and your stake grows by the challenger's${multiplierKnown ? ` (${challengerText})` : ''}, all of it yours when you withdraw. The bounty for a ${name} that breaks the policy is its stake and arbitration deposit. If the jurors refuse to rule, both stakes come back, the arbitration deposit is split, and the ${name} is withdrawn.`,
+            body: `The challenger stakes ${challengerText} and pays the arbitration cost. If your ${name} follows the listing policy and jurors agree, it stays listed and your stake grows by the challenger's${multiplierKnown ? ` (${challengerText})` : ''}, all of it yours when you withdraw. The bounty for a ${name} that breaks the policy is its whole stake. If the jurors refuse to rule, both stakes come back, the arbitration deposit is split, and the ${name} is withdrawn.`,
           },
         ]}
         confirmLabel={typeof title === 'string' ? title : `Submit ${name}`}

@@ -264,11 +264,24 @@ export const filterRegistries = (
   })
 }
 
+/** 1 for a list with no entry yet, 0 otherwise: empty lists sort last. */
+const emptyLast = (registry: DashboardRegistry): number =>
+  entryCount(registry) === 0 ? 1 : 0
+
+/**
+ * The explorer's order. Lists with no entry yet come after the lists that
+ * have some, except by name or by creation date, where the reader asked
+ * for that order itself.
+ */
 export const sortRegistries = (
   registries: DashboardRegistry[],
   sort: BrowseSort,
 ): DashboardRegistry[] =>
   [...registries].sort((a, b) => {
+    if (sort !== 'name' && sort !== 'recent-creation') {
+      const empty = emptyLast(a) - emptyLast(b)
+      if (empty) return empty
+    }
     // 'activity' keeps its URL value; it ranks by open requests right now.
     if (sort === 'activity')
       return (

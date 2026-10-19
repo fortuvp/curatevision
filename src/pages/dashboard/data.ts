@@ -2224,6 +2224,12 @@ export const loadDashboardData = async ({
   const since = windowStart(Math.floor(Date.now() / 1000))
   // Chains where any query failed or timed out: their figures are partial.
   const failed = new Set<number>()
+  // Chains whose lists did not load: a subset of `failed`.
+  const listsFailed = new Set<number>()
+  const listsMissing = (chainId: number) => {
+    failed.add(chainId)
+    listsFailed.add(chainId)
+  }
   // Creation blocks come from chain logs (cached once read). Use what is
   // cached now and refresh in the background; never block the page on it.
   const cachedCreation = readCachedCreationTimes(chains)
@@ -2251,11 +2257,11 @@ export const loadDashboardData = async ({
           listsOfLists: getListOfListsAddresses(chainId),
         },
       )
-      if (!payload) failed.add(chainId)
+      if (!payload) listsMissing(chainId)
       return payload
         ? normalizeEnvio(
             await readRemainingRegistries(payload, chainId, () =>
-              failed.add(chainId),
+              listsMissing(chainId),
             ),
             chainId,
           )
@@ -2297,7 +2303,7 @@ export const loadDashboardData = async ({
       envioResults[index]?.verifiedRegistryAddresses ??
         getListOfListsAddresses(chainId),
     )
-    if (!payload) failed.add(chainId)
+    if (!payload) listsMissing(chainId)
     return payload
       ? normalizePermanent(payload, chainId, since, verifiedRegistryAddresses)
       : null
@@ -2429,5 +2435,6 @@ export const loadDashboardData = async ({
     users,
     metrics: buildMetrics(registries, users),
     failedChains: [...failed],
+    listFailedChains: [...listsFailed],
   }
 }

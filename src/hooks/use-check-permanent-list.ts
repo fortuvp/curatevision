@@ -9,11 +9,17 @@ const useCheckPermanentList = (
   address: string | null,
   chainId: number | string | null,
   shouldCheck: boolean = true,
-): { isPermanentList: boolean; checking: boolean; error: boolean } => {
+): {
+  isPermanentList: boolean
+  checking: boolean
+  error: boolean
+  retry: () => void
+} => {
   const {
     isLoading: loading,
     data,
     error: queryError,
+    refetch,
   } = useQuery({
     queryKey: ['permanentRegistryExistence', address, chainId],
     queryFn: () => {
@@ -35,7 +41,12 @@ const useCheckPermanentList = (
     [loading, address, data],
   )
 
-  return { isPermanentList, checking: loading, error: !!queryError }
+  return {
+    isPermanentList,
+    checking: loading,
+    error: !!queryError,
+    retry: () => void refetch(),
+  }
 }
 
 export default useCheckPermanentList

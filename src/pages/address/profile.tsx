@@ -751,7 +751,7 @@ export const ProfilePanel = ({
               {!quiet && (
                 <FiguresRow>
                   <HeadlineFigure>
-                    <Label $tone="faint">Entries submitted</Label>
+                    <Label $tone="faint">Entries submitted · all time</Label>
                     {loading ? (
                       <SkeletonBlock
                         $width="140px"

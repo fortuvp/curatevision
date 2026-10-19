@@ -10,6 +10,7 @@ import { ErrorBoundaryContext } from 'react-error-boundary'
 import useDocumentHead from 'hooks/use-document-head'
 import { CurateIcon } from 'components/curate/icons'
 import {
+  Button,
   ButtonLink,
   Label,
   Page,
@@ -287,6 +288,10 @@ const Unseen = styled.span`
 `
 
 const Action = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
   margin-top: 14px;
 
   a svg {
@@ -306,6 +311,8 @@ interface ErrorPageProps {
   tip?: string | React.ReactNode | null
   /** Runs before the way home navigates (e.g. to reset a crashed view). */
   onHome?: () => void
+  /** A failed read that may answer now: offers "Try again" beside home. */
+  onRetry?: () => void
 }
 
 /** "noindex" while a 4xx page is shown; the previous value comes back after. */
@@ -376,7 +383,14 @@ const useFitViewport = () => {
   return [stage, style] as const
 }
 
-const ErrorPage = ({ code, title, message, tip, onHome }: ErrorPageProps) => {
+const ErrorPage = ({
+  code,
+  title,
+  message,
+  tip,
+  onHome,
+  onRetry,
+}: ErrorPageProps) => {
   const [stageRef, stageStyle] = useFitViewport()
   // Set only when this page is an error boundary's fallback.
   const boundary = useContext(ErrorBoundaryContext)
@@ -456,7 +470,16 @@ const ErrorPage = ({ code, title, message, tip, onHome }: ErrorPageProps) => {
         )}
         {tip && <Tip style={next()}>{tip}</Tip>}
         <Action style={next()}>
-          <ButtonLink to="/" $variant="primary" onClick={handleHome}>
+          {onRetry && (
+            <Button type="button" $variant="primary" onClick={onRetry}>
+              Try again
+            </Button>
+          )}
+          <ButtonLink
+            to="/"
+            $variant={onRetry ? 'secondary' : 'primary'}
+            onClick={handleHome}
+          >
             Go to the dashboard
             <CurateIcon name="chevron-down" size={15} />
           </ButtonLink>

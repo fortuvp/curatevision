@@ -2635,8 +2635,10 @@ main,
   color: var(--color-text);
 }
 
+/* One theme switch at a time: the bar's icons, or on phones (where the bar
+   hides them) this one in the footer. */
 .foot-theme {
-  display: flex;
+  display: none;
   align-items: center;
   gap: 12px;
 }
@@ -2933,6 +2935,7 @@ main,
   }
 
   .foot-theme {
+    display: flex;
     flex-wrap: wrap;
   }
 }

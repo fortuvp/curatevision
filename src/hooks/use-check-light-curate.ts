@@ -14,6 +14,8 @@ const useCheckLightCurate = (): {
   isPermanentCurate: boolean
   checking: boolean
   error: boolean
+  /** Asks again whichever check failed. */
+  retry: () => void
 } => {
   const { tcrAddress } = useParams<{
     tcrAddress: string
@@ -24,6 +26,7 @@ const useCheckLightCurate = (): {
     isLoading: loading,
     data,
     error: queryError,
+    refetch,
   } = useQuery({
     queryKey: ['tcrExistence', tcrAddress, chainId],
     queryFn: async () => {
@@ -54,6 +57,7 @@ const useCheckLightCurate = (): {
     isPermanentList,
     checking: permanentChecking,
     error: permanentError,
+    retry: permanentRetry,
   } = useCheckPermanentList(tcrAddress ?? null, chainId, envioFoundNothing)
 
   return {
@@ -62,6 +66,10 @@ const useCheckLightCurate = (): {
     isPermanentCurate: isPermanentList,
     checking: loading || (envioFoundNothing && permanentChecking),
     error: !!queryError || (envioFoundNothing && permanentError),
+    retry: () => {
+      if (queryError) void refetch()
+      else if (permanentError) permanentRetry()
+    },
   }
 }
 

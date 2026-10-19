@@ -51,15 +51,20 @@ const formatCoin = (wei: bigint | string, chainId: number): string => {
   }`
 }
 
-/** CAIP-10 values read as "0x94bA…8a2f · Robinhood Chain"; others pass through. */
-const readableIdentifier = (value: string): string => {
+const shortKey = (value: string) =>
+  value.length > 14 ? `${value.slice(0, 6)}…${value.slice(-4)}` : value
+
+/**
+ * CAIP-10 values read as "0x94bA…8a2f" on "Robinhood Chain"; a bare hex key
+ * is shortened like an address; anything else passes through.
+ */
+const readableIdentifier = (
+  value: string,
+): { text: string; network?: string } => {
   const rich = parseRichAddress(value)
-  if (!rich) return value
-  const short =
-    rich.address.length > 14
-      ? `${rich.address.slice(0, 6)}…${rich.address.slice(-4)}`
-      : rich.address
-  return `${short} · ${rich.reference.name}`
+  if (rich)
+    return { text: shortKey(rich.address), network: rich.reference.name }
+  return { text: /^(0x)?[0-9a-f]{32,}$/i.test(value) ? shortKey(value) : value }
 }
 
 const beat = keyframes`
@@ -317,6 +322,22 @@ const IdValue = styled.span`
   line-height: 16px;
   text-overflow: ellipsis;
   white-space: nowrap;
+
+  /* A network name goes whole to the next line rather than being cut. */
+  &[data-networks] {
+    white-space: normal;
+
+    > span {
+      margin-inline-end: 8px;
+      white-space: nowrap;
+    }
+
+    > [data-network] {
+      display: inline-block;
+      color: var(--color-faint);
+      font-family: var(--font-sans);
+    }
+  }
 `
 
 /* The identifier, and the bounty on the right. */
@@ -687,17 +708,25 @@ const Identifier = ({
 }) => {
   const [first, second] = card.identifiers
   if (!first) return <span />
-  const text =
-    withSecond && second
-      ? `${readableIdentifier(second.value)} · ${readableIdentifier(first.value)}`
-      : readableIdentifier(first.value)
+  const parts = (withSecond && second ? [second, first] : [first]).map(
+    (identifier) => readableIdentifier(identifier.value),
+  )
+  const networks = parts.some((part) => part.network)
   return (
     <IdValue
+      data-networks={networks ? '' : undefined}
       title={card.identifiers
         .map((identifier) => `${identifier.label}: ${identifier.value}`)
         .join('\n')}
     >
-      {text}
+      {networks
+        ? parts.map((part, index) => (
+            <React.Fragment key={index}>
+              <span>{part.text}</span>
+              {part.network && <span data-network>{part.network}</span>}
+            </React.Fragment>
+          ))
+        : parts.map((part) => part.text).join(' · ')}
     </IdValue>
   )
 }
@@ -734,7 +763,7 @@ const OpenRow = ({
       <IdLine>
         <Identifier card={card} withSecond={withSecond} />
         {card.deposit !== undefined && (
-          <Bounty title="The submitter’s deposit: a successful challenger wins it and gets their own deposit back">
+          <Bounty title="The bounty: the collateral a successful challenger earns, on top of their own deposit back">
             <CurateIcon name="bounty" size={14} />
             {formatCoin(card.deposit, card.chainId)}
             <VisuallyHidden> bounty</VisuallyHidden>
@@ -890,7 +919,8 @@ export const HappeningNow = ({
               <PanelTitle id={openTitleId}>Open for verification</PanelTitle>
             </TitleRow>
             <Small $faint>
-              Challenge one that breaks its list’s rules and win its deposit
+              Each is collateralised: anyone who shows it breaks its list’s
+              rules can claim the bounty
             </Small>
             {checking && (
               <Checking role="status">Checking challenge windows…</Checking>
@@ -903,11 +933,11 @@ export const HappeningNow = ({
                 {plus(figures.unchallengedCapped)}
               </Count>
               <Label $tone="faint">
-                {known ? 'In window' : 'Not challenged'}
+                {known ? 'Open now' : 'Not challenged'}
               </Label>
             </span>
             {known && bounties.length > 0 && (
-              <span title="The deposits of the requests in their window: each goes to whoever challenges that request and wins">
+              <span title="The collateral behind the requests open now: each is the bounty for whoever challenges that request and wins">
                 <Count $quiet>
                   {bounties.join(' · ')}
                   {plus(figures.unchallengedCapped)}

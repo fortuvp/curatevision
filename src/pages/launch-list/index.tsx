@@ -25,7 +25,7 @@ import { Lifecycle, axisScale, type LifecycleSpec } from './lifecycle'
 
 /*
  * Launch a list (route /launch/:chainId): a choice between the two list
- * types that can be created today, Standard (Light Curate) and Stake (Stake
+ * types that can be created today, Light (Light Curate) and Stake (Stake
  * Curate), on the chain from the URL. The two cards are the options of one
  * radio group and neither is chosen at first: the rim previews on hover and
  * focus and stays on the chosen card, whose foot then offers its factory.
@@ -49,7 +49,7 @@ const TESTNETS: number[] = [NETWORKS.sepolia]
 const HOUR = 60 * 60
 
 /*
- * The Standard wizard's defaults. They live inside the factory's state hook
+ * The Light wizard's defaults. They live inside the factory's state hook
  * (pages/factory/index.tsx, initialWizardState) and are not exported, so
  * they are mirrored here: keep the two in sync. The Stake defaults are
  * imported from the Stake factory.
@@ -67,7 +67,7 @@ const CONTACT_HREF =
 
 const KINDS = {
   standard: {
-    name: 'Standard list',
+    name: 'Light list',
     href: (chainId: number) => `/factory/${chainId}`,
     preload: preloadFactory,
   },
@@ -109,7 +109,7 @@ const STANDARD_LIFE: LifecycleSpec = {
   ],
   endLabel: 'Removed',
   funds: { lane: 'Deposit locked', until: 0, label: 'Back in full' },
-  description: `Standard list, default periods: an entry can be challenged during its ${formatDurationLong(challengePeriod)} challenge period, while its deposit is locked. If nobody challenges, it is registered and the deposit is back in full. Once registered, it can be challenged again only if someone requests its removal, during another ${formatDurationLong(challengePeriod)} period, after which it is removed.`,
+  description: `Light list, default periods: an entry can be challenged during its ${formatDurationLong(challengePeriod)} challenge period, while its deposit is locked. If nobody challenges, it is registered and the deposit is back in full. Once registered, it can be challenged again only if someone requests its removal, during another ${formatDurationLong(challengePeriod)} period, after which it is removed.`,
 }
 
 const STAKE_LIFE: LifecycleSpec = {
@@ -232,7 +232,7 @@ const PickDot = styled.span`
  * what it does ("Choose"), which becomes the raised, lit thumb ("Selected")
  * once chosen. The input is visually hidden but keeps the keyboard: Tab
  * enters the group, the arrows move and choose, Space chooses. Its name is
- * the visible verb plus the card's title ("Choose Standard list").
+ * the visible verb plus the card's title ("Choose Light list").
  */
 const Pick = styled.label`
   position: relative;
@@ -857,7 +857,7 @@ const LaunchListPage = () => {
 
   useDocumentHead(
     'Launch a list | Kleros Curate',
-    'Create a Kleros Curate list: a Standard list, where a submitter’s deposit comes back after the challenge period, or a Stake list, where the stake stays locked while the entry is listed and a challenger can earn it at any time. Classic lists can no longer be created.',
+    'Create a Kleros Curate list: a Light list, where a submitter’s deposit comes back after the challenge period, or a Stake list, where the stake stays locked while the entry is listed and a challenger can earn it at any time. Classic lists can no longer be created.',
   )
 
   return (

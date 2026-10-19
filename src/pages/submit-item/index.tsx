@@ -514,7 +514,7 @@ const PermanentSubmitPage = () => {
             title: 'Jurors side with the challenger',
             status: 'Removed',
             figure: [`−${stake}`, `−${cost}`],
-            note: "the stake and arbitration deposit are the challenger's bounty",
+            note: 'the stake is the challenger’s bounty; the arbitration deposit repays their court fee',
           },
         ],
       },
@@ -608,8 +608,14 @@ const PermanentSubmitPage = () => {
 
 const SubmitItem = () => {
   const { tcrAddress } = useParams<{ tcrAddress: string }>()
-  const { isLightCurate, isClassicCurate, isPermanentCurate, checking, error } =
-    useCheckLightCurate()
+  const {
+    isLightCurate,
+    isClassicCurate,
+    isPermanentCurate,
+    checking,
+    error,
+    retry,
+  } = useCheckLightCurate()
   useTcrNetwork()
 
   if (checking) return <SubmitPageSkeleton />
@@ -617,8 +623,9 @@ const SubmitItem = () => {
     return (
       <ErrorPage
         code="Error"
-        title="Subgraph unavailable"
-        message="Curate could not verify this registry type from the configured GTCR subgraphs. Please retry in a moment."
+        title="This list did not load"
+        message="The indexer did not answer."
+        onRetry={retry}
       />
     )
 
@@ -626,8 +633,8 @@ const SubmitItem = () => {
     return (
       <ErrorPage
         code="Error"
-        title="Registry Not Found"
-        message="This registry could not be found on any subgraph. The subgraph endpoint may be down or the registry address may be invalid."
+        title="List not found"
+        message="No Curate list answers at this address on this chain."
       />
     )
 

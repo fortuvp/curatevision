@@ -1044,8 +1044,8 @@ const Dashboard = () => {
           Lists anyone can challenge. <em>Settled by jurors.</em>
         </Headline>
         <Lede style={{ ['--i' as string]: 2 }}>
-          Challenge a submission that breaks its list’s policy and win its
-          deposit if jurors agree.
+          Challenge a submission that breaks its list’s policy and earn its
+          bounty if jurors agree.
         </Lede>
         <Actions style={{ ['--i' as string]: 3 }}>
           <ButtonLink to={`/browse?${browseScope}`} $variant="primary">

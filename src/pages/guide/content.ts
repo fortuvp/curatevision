@@ -582,8 +582,7 @@ export const GLOSSARY: {
   },
   {
     term: 'Light Curate',
-    definition:
-      'The default kind, called Standard here. Only an IPFS reference is stored on chain, so costs stay low.',
+    definition: 'Only an IPFS reference is stored on chain, so costs stay low.',
   },
   {
     term: 'Classic Curate',

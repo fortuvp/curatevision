@@ -831,8 +831,14 @@ export const ActivitySection = ({
       <SectionHead>
         <SectionTitle>
           Activity
+          {/* A cut list says so here, beside the filter counts it feeds,
+              which then count only these. */}
           {!loading && activities.length > 0 && (
-            <small>{formatInt(activities.length)}</small>
+            <small>
+              {truncated
+                ? `Latest ${formatInt(activities.length)}`
+                : formatInt(activities.length)}
+            </small>
           )}
         </SectionTitle>
         <SegmentedControl

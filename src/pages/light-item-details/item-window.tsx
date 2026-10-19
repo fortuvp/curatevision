@@ -5,12 +5,8 @@ import {
   STATUS_CODE,
   SUBGRAPH_RULING,
 } from 'utils/item-status'
-import {
-  formatAbsolute,
-  formatAgo,
-  formatDate,
-  formatDuration,
-} from 'utils/time'
+import { formatAbsolute, formatAgo, formatDate } from 'utils/time'
+import { formatSince } from 'pages/item-details/format-since'
 import { CurateIcon } from 'components/curate/icons'
 import { Chip, Label } from 'components/curate/primitives'
 import { AnimatedNumber } from 'components/curate/motion/animated-number'
@@ -399,11 +395,8 @@ const rulingLine = (ruling: string | null, requesterName: string) =>
       ? 'Jurors ruled for the challenger'
       : 'Jurors refused to rule'
 
-const sinceLine = (since: number, now: number) => {
-  const seconds = Math.max(0, now - since)
-  const days = Math.floor(seconds / 86400)
-  return days >= 2 ? `${days} days ago` : `${formatDuration(seconds)} ago`
-}
+// The same relative form as the hero beside it and the other item pages.
+const sinceLine = formatSince
 
 export const WindowPanel = ({
   item,

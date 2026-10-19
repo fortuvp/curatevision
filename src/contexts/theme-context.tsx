@@ -476,12 +476,13 @@ const THEMES: Record<ThemeName, Theme> = {
   kleros: klerosTheme,
 }
 
-export const THEME_MODES: { value: ThemeMode; label: string; hint: string }[] =
+// Only System needs a hint: the others are named by their label and icon.
+export const THEME_MODES: { value: ThemeMode; label: string; hint?: string }[] =
   [
     { value: 'system', label: 'System', hint: 'Matches your device' },
-    { value: 'light', label: 'Light', hint: 'Light background' },
-    { value: 'dark', label: 'Dark', hint: 'Dark background' },
-    { value: 'kleros', label: 'Kleros', hint: 'Kleros purple' },
+    { value: 'light', label: 'Light' },
+    { value: 'dark', label: 'Dark' },
+    { value: 'kleros', label: 'Kleros' },
   ]
 
 const isThemeMode = (value: unknown): value is ThemeMode =>

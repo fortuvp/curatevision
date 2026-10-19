@@ -202,6 +202,19 @@ const LivePill = styled.span`
     color: var(--color-primary-hover);
     font-weight: 500;
   }
+
+  /* Some indexer did not answer: the figures are partial, not live. The
+     longer line may wrap on a phone. */
+  &[data-partial] {
+    height: auto;
+    min-height: 32px;
+    padding-block: 5px;
+    white-space: normal;
+
+    b {
+      color: var(--color-warning);
+    }
+  }
 `
 
 /** The pulsing dot: only while the data is present and the last fetch worked. */
@@ -1328,9 +1341,10 @@ const ArrowIcon = ({ size = 16 }: { size?: number }) => (
   </svg>
 )
 
-type Freshness = 'live' | 'stale' | 'connecting' | 'down'
+type Freshness = 'live' | 'partial' | 'stale' | 'connecting' | 'down'
 
 const FRESHNESS_TONE: Record<Exclude<Freshness, 'live'>, StatusTone> = {
+  partial: 'contested',
   stale: 'contested',
   connecting: 'neutral',
   down: 'off',
@@ -1342,31 +1356,40 @@ const FRESHNESS_TONE: Record<Exclude<Freshness, 'live'>, StatusTone> = {
  */
 const FreshnessPill = ({
   state,
+  missing,
   updatedAt,
   now,
   index,
 }: {
   state: Freshness
+  /** The chains whose data did not load, named, when `state` is partial. */
+  missing?: string
   updatedAt?: number
   now: number
   index: number
 }) => {
   const ago = updatedAt ? `Updated ${formatAgo(updatedAt, now)}` : ''
   return (
-    <LivePill style={{ ['--i' as string]: index }}>
+    <LivePill
+      style={{ ['--i' as string]: index }}
+      data-partial={state === 'partial' ? '' : undefined}
+    >
       {state === 'live' ? (
         <Pulse aria-hidden />
       ) : (
         <StatusDot $tone={FRESHNESS_TONE[state]} aria-hidden />
       )}
       {state === 'live' && <b>Live</b>}
+      {state === 'partial' && <b>Partial</b>}
       {state === 'live'
         ? ago
-        : state === 'stale'
-          ? `${ago} · last refresh failed`
-          : state === 'connecting'
-            ? 'Connecting to the indexers'
-            : 'Indexers not answering'}
+        : state === 'partial'
+          ? `Some ${missing} data did not load`
+          : state === 'stale'
+            ? `${ago} · last refresh failed`
+            : state === 'connecting'
+              ? 'Connecting to the indexers'
+              : 'Indexers not answering'}
     </LivePill>
   )
 }
@@ -1541,9 +1564,25 @@ const BrowsePage = () => {
   )
   // A chain in scope whose lists of lists did not answer: its lists are in
   // neither count, so neither count is given.
-  const trustUnknown = verifiedSets.failed.some((chainId) =>
+  const trustFailed = verifiedSets.failed.filter((chainId) =>
     inScope(chains, chainId),
   )
+  const trustUnknown = trustFailed.length > 0
+  // A chain in scope whose lists did not load: its lists and entries are
+  // missing, so no count is given rather than a low one.
+  const listsMissing = (data?.listFailedChains ?? []).filter((chainId) =>
+    inScope(chains, chainId),
+  )
+  const countsUnknown = trustUnknown || listsMissing.length > 0
+  const partialChains = [...new Set([...listsMissing, ...trustFailed])]
+  // The chains the list below lacks: their lists, or (for Kleros Verified
+  // or Community) which of their lists are which.
+  const missingChains = trust === 'all' ? listsMissing : partialChains
+  const missingNames = listFormat(missingChains.map(chainName))
+  const retryMissing = () => {
+    if (listsMissing.length > 0) void query.refetch()
+    verifiedSets.retry()
+  }
 
   const latest = useMemo(
     () =>
@@ -1630,7 +1669,9 @@ const BrowsePage = () => {
     data && !unanswered
       ? query.isError
         ? 'stale'
-        : 'live'
+        : partialChains.length > 0
+          ? 'partial'
+          : 'live'
       : failed
         ? 'down'
         : 'connecting'
@@ -1646,6 +1687,7 @@ const BrowsePage = () => {
         </div>
         <FreshnessPill
           state={freshness}
+          missing={listFormat(partialChains.map(chainName))}
           updatedAt={data ? Math.floor(data.generatedAt / 1000) : undefined}
           now={now}
           index={1}
@@ -1677,10 +1719,10 @@ const BrowsePage = () => {
                 <BigFigure>
                   <AnimatedNumber
                     value={
-                      loading || trustUnknown ? undefined : figures.verified
+                      loading || countsUnknown ? undefined : figures.verified
                     }
                   />
-                  {!loading && !trustUnknown && (
+                  {!loading && !countsUnknown && (
                     <small>{figures.verified === 1 ? 'list' : 'lists'}</small>
                   )}
                 </BigFigure>
@@ -1714,7 +1756,7 @@ const BrowsePage = () => {
                           </Tooltip>
                         </li>
                       ))}
-                      {!trustUnknown &&
+                      {!countsUnknown &&
                         figures.verified > shownShowcase.length && (
                           <li>
                             <MoreLists>
@@ -1738,10 +1780,17 @@ const BrowsePage = () => {
               {[
                 {
                   label: COMMUNITY_LISTS_LABEL,
-                  value: trustUnknown ? undefined : figures.community,
+                  value: countsUnknown ? undefined : figures.community,
                 },
-                { label: 'Entries', value: figures.entries },
-                { label: 'Open requests', value: figures.openRequests },
+                {
+                  label: 'Entries',
+                  value: listsMissing.length > 0 ? undefined : figures.entries,
+                },
+                {
+                  label: 'Open requests',
+                  value:
+                    listsMissing.length > 0 ? undefined : figures.openRequests,
+                },
               ].map((figure) => (
                 <InlineStat key={figure.label}>
                   <Label $tone="faint">{figure.label}</Label>
@@ -1867,6 +1916,23 @@ const BrowsePage = () => {
                 The indexers did not answer. Check your connection and try
                 again.
               </EmptyState>
+            </Surface>
+          ) : registries.length === 0 && missingChains.length > 0 ? (
+            <Surface $padding="none">
+              <EmptyState
+                icon="registry"
+                title={`${missingNames} lists did not load`}
+                action={
+                  <Button
+                    type="button"
+                    $variant="secondary"
+                    $size="sm"
+                    onClick={retryMissing}
+                  >
+                    Try again
+                  </Button>
+                }
+              />
             </Surface>
           ) : registries.length === 0 && otherTrust && otherMatches > 0 ? (
             <Surface $padding="none">

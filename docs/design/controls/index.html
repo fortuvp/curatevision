@@ -1145,7 +1145,7 @@
             the app.
           </p>
           <p class="sample-note">
-            Sample content: the counts 36 and 201 are the Verified and Discovery figures Browse showed on 19 Oct 2026,
+            Sample content: the counts 36 and 201 are the Kleros Verified and Community figures Browse showed on 19 Oct 2026,
             and <span class="nowrap">0x7a3f…c41e</span> is a made-up address.
           </p>
         </div>
@@ -1223,8 +1223,8 @@
           </div>
           <div class="a-seg" role="radiogroup" aria-label="Trust" data-seg="a">
             <span class="thumb" aria-hidden="true"></span>
-            <button type="button" role="radio" aria-checked="true">Verified <span class="n">36</span></button>
-            <button type="button" role="radio" aria-checked="false">Discovery <span class="n">201</span></button>
+            <button type="button" role="radio" aria-checked="true">Kleros Verified <span class="n">36</span></button>
+            <button type="button" role="radio" aria-checked="false">Community <span class="n">201</span></button>
           </div>
         </div>
         <div class="cell"><span class="tag">B · Ink</span>
@@ -1235,8 +1235,8 @@
           </div>
           <div class="b-seg" role="radiogroup" aria-label="Trust" data-seg="b">
             <span class="beam" aria-hidden="true"></span>
-            <button type="button" role="radio" aria-checked="true">Verified<span class="n">36</span></button>
-            <button type="button" role="radio" aria-checked="false">Discovery<span class="n">201</span></button>
+            <button type="button" role="radio" aria-checked="true">Kleros Verified<span class="n">36</span></button>
+            <button type="button" role="radio" aria-checked="false">Community<span class="n">201</span></button>
           </div>
         </div>
         <div class="cell"><span class="tag">C · Aurora</span>
@@ -1247,8 +1247,8 @@
           </div>
           <div class="c-seg" role="radiogroup" aria-label="Trust" data-seg="c">
             <span class="thumb" aria-hidden="true"></span>
-            <button type="button" role="radio" aria-checked="true">Verified<span class="n">36</span></button>
-            <button type="button" role="radio" aria-checked="false">Discovery<span class="n">201</span></button>
+            <button type="button" role="radio" aria-checked="true">Kleros Verified<span class="n">36</span></button>
+            <button type="button" role="radio" aria-checked="false">Community<span class="n">201</span></button>
           </div>
         </div>
       </section>
@@ -1280,10 +1280,11 @@
           <div class="a-pop" role="listbox" aria-label="Sort, open" data-static="a">
             <span class="hl" aria-hidden="true" style="transform: translateY(42px)"></span>
             <div role="option" aria-selected="true">Latest activity <svg class="glyph check"><use href="#check" /></svg></div>
-            <div role="option" aria-selected="false">Most entries <svg class="glyph check"><use href="#check" /></svg></div>
+            <div role="option" aria-selected="false">Newest lists <svg class="glyph check"><use href="#check" /></svg></div>
             <div role="option" aria-selected="false">Most open requests <svg class="glyph check"><use href="#check" /></svg></div>
-            <div role="option" aria-selected="false">Newest list <svg class="glyph check"><use href="#check" /></svg></div>
-            <div role="option" aria-selected="false">Name, A to Z <svg class="glyph check"><use href="#check" /></svg></div>
+            <div role="option" aria-selected="false">Most entries <svg class="glyph check"><use href="#check" /></svg></div>
+            <div role="option" aria-selected="false">Most in court <svg class="glyph check"><use href="#check" /></svg></div>
+            <div role="option" aria-selected="false">Name A to Z <svg class="glyph check"><use href="#check" /></svg></div>
           </div>
         </div>
         <div class="cell tall"><span class="tag">B · Ink</span>
@@ -1292,10 +1293,11 @@
           </div>
           <div class="b-pop" role="listbox" aria-label="Sort, open">
             <div role="option" aria-selected="true">Latest activity</div>
-            <div role="option" aria-selected="false">Most entries</div>
+            <div role="option" aria-selected="false">Newest lists</div>
             <div role="option" aria-selected="false">Most open requests</div>
-            <div role="option" aria-selected="false">Newest list</div>
-            <div role="option" aria-selected="false">Name, A to Z</div>
+            <div role="option" aria-selected="false">Most entries</div>
+            <div role="option" aria-selected="false">Most in court</div>
+            <div role="option" aria-selected="false">Name A to Z</div>
           </div>
         </div>
         <div class="cell tall"><span class="tag">C · Aurora</span>
@@ -1304,10 +1306,11 @@
           </div>
           <div class="c-pop" role="listbox" aria-label="Sort, open">
             <div role="option" aria-selected="true">Latest activity <svg class="glyph"><use href="#check" /></svg></div>
-            <div role="option" aria-selected="false">Most entries</div>
+            <div role="option" aria-selected="false">Newest lists</div>
             <div role="option" aria-selected="false">Most open requests</div>
-            <div role="option" aria-selected="false">Newest list</div>
-            <div role="option" aria-selected="false">Name, A to Z</div>
+            <div role="option" aria-selected="false">Most entries</div>
+            <div role="option" aria-selected="false">Most in court</div>
+            <div role="option" aria-selected="false">Name A to Z</div>
           </div>
         </div>
       </section>
@@ -1406,7 +1409,7 @@
         })
 
         // Interactive dropdowns: each trigger opens a copy of its static list.
-        var OPTIONS = ['Latest activity', 'Most entries', 'Most open requests', 'Newest list', 'Name, A to Z']
+        var OPTIONS = ['Latest activity', 'Newest lists', 'Most open requests', 'Most entries', 'Most in court', 'Name A to Z']
         document.querySelectorAll('[data-select]').forEach(function (wrap) {
           var kind = wrap.dataset.select
           var trigger = wrap.querySelector('button')

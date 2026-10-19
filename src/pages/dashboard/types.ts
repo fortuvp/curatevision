@@ -155,6 +155,11 @@ export interface DashboardData {
   generatedAt: number
   /** Chains where a query failed or timed out: their figures are partial. */
   failedChains: number[]
+  /**
+   * Chains whose lists did not load (the Light and Classic or the Stake
+   * read): their lists and entry counts are missing, not zero.
+   */
+  listFailedChains?: number[]
   /** Start of the 30-day window (unix seconds, 00:00 UTC of the first day). */
   since: number
   /** Daily requests over the window, oldest first; the last day is today so far. */

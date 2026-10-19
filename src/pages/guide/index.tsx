@@ -606,8 +606,8 @@ const Guide = () => {
 
           <GuideSection id="launching" heading="Policy, schema, parameters">
             <Prose>
-              Anyone can deploy a list on Light Curate, which the app calls
-              Standard, or on Stake Curate. Classic Curate is being deprecated.
+              Anyone can deploy a list on Light Curate or on Stake Curate.
+              Classic Curate is being deprecated.
             </Prose>
             <DefinitionGrid label="What you decide" items={DECISIONS} />
             <Prose $quiet>
