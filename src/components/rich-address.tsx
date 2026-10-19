@@ -1,14 +1,15 @@
 import React from 'react'
 import styled from 'styled-components'
 import { Tooltip } from 'components/ui'
-import { ChromeAddress } from 'components/curate/chrome-address'
-import { StatusDot, truncateMiddle } from 'components/curate/primitives'
+import { ChromeAddress, Unseen } from 'components/curate/chrome-address'
+import { Small, StatusDot, truncateMiddle } from 'components/curate/primitives'
 import { parseRichAddress } from '../utils/rich-address'
 
 /*
  * A multichain address ("eip155:100:0x…"): the network label as a small pill,
  * the address in mono linking to that network's explorer, plus copy. An
- * address that fails its network's format is marked with a warning dot.
+ * address that fails its network's format is marked with a warning dot and
+ * the word "Invalid", never by colour alone.
  */
 
 const Unknown = styled.span`
@@ -34,6 +35,17 @@ const Flagged = styled.span`
   max-width: 100%;
 `
 
+/** Dot and word stay together, ahead of the address they qualify. */
+const Verdict = styled.span`
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  /* Words, not data: sans even inside a mono cell. */
+  font-family: var(--font-sans);
+  white-space: nowrap;
+`
+
 const RichAddress: React.FC<{ crude: string }> = ({ crude }) => {
   const richAddress = parseRichAddress(crude)
   if (richAddress === null)
@@ -49,7 +61,13 @@ const RichAddress: React.FC<{ crude: string }> = ({ crude }) => {
     return (
       <Tooltip title="This address is not valid">
         <Flagged>
-          <StatusDot $tone="contested" aria-hidden />
+          <Verdict>
+            <StatusDot $tone="contested" aria-hidden />
+            <Small $muted>
+              Invalid
+              <Unseen> address for this network:</Unseen>
+            </Small>
+          </Verdict>
           <ChromeAddress
             address={address}
             href={link}

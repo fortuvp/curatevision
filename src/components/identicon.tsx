@@ -12,7 +12,7 @@ import useNativeCurrency from 'hooks/native-currency'
 import { Button, Label, Small, Stack } from 'components/curate/primitives'
 import { CurateIcon } from 'components/curate/icons'
 import ETHAddress from './eth-address'
-import ETHAmount from './eth-amount'
+import TokenAmount from './token-amount'
 
 const { randomBytes } = ethers.utils
 
@@ -89,6 +89,16 @@ const Balance = styled.span`
   font-weight: 500;
   letter-spacing: -0.035em;
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+`
+
+/** The currency after the figure: half its size, quiet, on its baseline. */
+const BalanceUnit = styled.span`
+  margin-left: 0.2em;
+  color: var(--color-muted);
+  font-size: 0.5em;
+  font-weight: 400;
+  letter-spacing: 0;
 `
 
 const Disconnect = styled.button`
@@ -305,7 +315,9 @@ const Identicon = ({ className, large }: IdenticonProps) => {
           <MenuSection $gap={6}>
             <Label $tone="faint">Balance</Label>
             <Balance>
-              <ETHAmount amount={balance} displayUnit={` ${nativeCurrency}`} />
+              {/* Rounded to 4 decimals: wei would print up to 18. */}
+              <TokenAmount amount={balance} precision={4} />
+              {balance && <BalanceUnit>{nativeCurrency}</BalanceUnit>}
             </Balance>
             <ETHAddress address={account} />
           </MenuSection>

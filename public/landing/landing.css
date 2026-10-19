@@ -815,7 +815,15 @@ main,
   padding: 22px 28px 20px;
   border: 1.5px solid transparent;
   border-radius: var(--radius-xl);
+  /* The chart's head is the light source: a soft wash centred on it (set
+     from landing.js), clipped by the rim rather than by the chart's box. */
   background:
+    radial-gradient(
+        360px 220px at var(--hx, -999px) var(--hy, -999px),
+        color-mix(in srgb, var(--color-primary) 9%, transparent),
+        transparent 70%
+      )
+      padding-box,
     linear-gradient(var(--color-surface), var(--color-surface)) padding-box,
     linear-gradient(
         120deg,
@@ -1047,12 +1055,6 @@ main,
   position: relative;
   min-width: 0;
   padding: 12px 0 6px;
-  /* The light source is the data: a soft wash that follows the line's head. */
-  background: radial-gradient(
-    360px 220px at var(--hx, 100%) var(--hy, 70%),
-    color-mix(in srgb, var(--color-primary) 9%, transparent),
-    transparent 70%
-  );
 }
 
 .chart {

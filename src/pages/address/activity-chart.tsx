@@ -235,10 +235,15 @@ export const ActivityChart = ({
   useEffect(() => {
     const node = ref.current
     if (!node) return
-    setWidth(Math.round(node.getBoundingClientRect().width))
+    // A zero width (the block hidden or mid-relayout for a moment) keeps the
+    // last real one: dropping the plot would replay its draw-in from nothing.
+    const measure = (next: number) => {
+      if (next > 0) setWidth(Math.round(next))
+    }
+    measure(node.getBoundingClientRect().width)
     if (typeof ResizeObserver === 'undefined') return
     const observer = new ResizeObserver(([entry]) =>
-      setWidth(Math.round(entry.contentRect.width)),
+      measure(entry.contentRect.width),
     )
     observer.observe(node)
     return () => observer.disconnect()

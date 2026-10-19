@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { withFormik, type FormikProps } from 'formik'
-import * as yup from 'yup'
+import React, { useCallback, useEffect, useId, useMemo, useState } from 'react'
+import styled from 'styled-components'
+import { useField, withFormik, type FormikProps } from 'formik'
 import { useDebounce } from 'use-debounce'
 import { ethers } from 'ethers'
 import { toast } from 'react-toastify'
@@ -12,32 +12,34 @@ import useTokenSymbol from 'hooks/token-symbol'
 import useUrlChainId from 'hooks/use-url-chain-id'
 import { klerosAddresses } from 'config/tcr-addresses'
 import { NETWORKS_INFO } from 'config/networks'
-import { Explainer } from 'components/curate/explainer'
 import {
-  Body,
   Data,
   Label,
+  Row,
   SkeletonBlock,
   Small,
   Stack,
-  Subheading,
+  StatusDot,
+  truncateMiddle,
 } from 'components/curate/primitives'
 import KlerosParams from './kleros-params'
 import {
-  Field,
+  AmountInput,
+  DecimalsWarning,
+  Divider,
+  ErrorText,
   FieldGrid,
-  FormSection,
-  FullWidth,
-  Input,
-  MonoInput,
-  Range,
-  RangeRow,
-  SectionHead,
-  SwitchInput,
-  SwitchRow,
-  SwitchText,
-  UnitInput,
-  UploadCard,
+  FormField,
+  NarrowOnly,
+  Note,
+  RangeInput,
+  SliderEnds,
+  StepBody,
+  StepHeader,
+  SwitchField,
+  TextField,
+  TextLink,
+  UploadField,
 } from './controls'
 import {
   EXAMPLE_POLICY_URL,
@@ -48,20 +50,65 @@ import {
   STAKE_SLIDER,
   WIZARD_DEFAULTS,
 } from './defaults'
-import { formatNative } from './format'
+import {
+  formatMaybe,
+  groupAmount,
+  oneTokenTyped,
+  plainDecimal,
+  stakeReading,
+} from './format'
+import { tcrSchemaFor, type FactorySection } from './schemas'
 import type { StepProps, TcrState } from '.'
 
 /*
- * Step 1 of the Stake Curate factory: the list's identity, logo and policy,
- * the stake token and minimum stake, the court, and the advanced periods,
- * addresses and appeal multipliers. The deposit is shown as its two parts,
- * an ERC-20 stake and a native arbitration deposit, never as one sum.
+ * The list step of the Stake factory, one section per visual step: name,
+ * description, logo, policy, the stake token, then the minimum stake with
+ * the court (and the advanced periods, roles and multipliers), and the item
+ * name. Values sync into the cached wizard state as they change; Next
+ * submits the form and only the open section's schema runs.
  */
 
-const { getAddress } = ethers.utils
+const { getAddress, isAddress } = ethers.utils
 
 type TCRFormValues = Omit<TcrState, 'transactions'>
-type TCRParamsProps = StepProps & FormikProps<TCRFormValues>
+type TCRParamsOuterProps = StepProps & {
+  factorySection?: FactorySection
+  /** Open with the advanced options shown (an Edit from the review). */
+  startAdvanced?: boolean
+}
+type TCRParamsProps = TCRParamsOuterProps & FormikProps<TCRFormValues>
+
+const SECTION_COPY: Record<FactorySection, { heading: string; lede: string }> =
+  {
+    title: {
+      heading: 'Name the list',
+      lede: 'Short and plain: it shows on cards, in notifications and on the list of lists.',
+    },
+    description: {
+      heading: 'Describe what belongs on it',
+      lede: 'One sentence on the entries the list holds and what makes them eligible.',
+    },
+    logo: {
+      heading: 'Add a logo',
+      lede: 'It identifies the list wherever the list appears.',
+    },
+    policy: {
+      heading: 'Attach the listing policy',
+      lede: 'The document jurors and challengers apply to every entry.',
+    },
+    token: {
+      heading: 'Choose the stake token',
+      lede: 'The ERC-20 every submitter locks while an entry is listed. It cannot be changed after deployment.',
+    },
+    stake: {
+      heading: 'Set the stake and the court',
+      lede: 'The stake stays locked while an entry is listed; a successful challenger takes it.',
+    },
+    custom: {
+      heading: 'Name the entries',
+      lede: 'The word that replaces “item” across the interface, as in “Submit a sock”.',
+    },
+  }
 
 const rejectLogo = (file: File): string => {
   if (!LOGO_TYPES.has(file.type)) return 'Use a PNG, SVG, WebP or JPEG image.'
@@ -77,47 +124,196 @@ const rejectPolicy = (file: File): string => {
   return ''
 }
 
-const APPEAL_STEPS = [
-  {
-    title: 'Appeals need fees and a stake',
-    body: 'To appeal, each side pays the juror fees for the next round plus an extra stake. The stake of the side that loses pays the people who funded the winning side.',
-  },
-  {
-    title: 'The multipliers set the stake',
-    body: 'Each stake is a share of the juror fees for the appeal: a multiplier of 10% makes the stake 10% of those fees. The winner, loser and shared multipliers apply to the side the court favours, the other side, and a round with no ruling.',
-  },
-  {
-    title: 'Larger or smaller',
-    body: 'Large multipliers reward funders but can make appeals too expensive to reach; small ones keep appeals cheap but may not attract funders. The further the winner and loser multipliers are apart, the more the side with the smaller one is favoured.',
-  },
-]
+/* ---------- Token read-out ---------- */
+
+const TokenCard = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 20px;
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  background: var(--color-raised);
+
+  @media (max-width: 520px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+`
+
+const TokenSymbol = styled.span`
+  display: block;
+  color: var(--color-text);
+  font-family: var(--font-figure);
+  font-size: 30px;
+  line-height: 34px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  overflow-wrap: anywhere;
+`
+
+const TokenFacts = styled.dl`
+  display: flex;
+  gap: 20px;
+  margin: 0;
+
+  div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  dd {
+    margin: 0;
+  }
+`
+
+const TokenWarning = styled(ErrorText)`
+  align-items: flex-start;
+
+  &::before {
+    margin-top: 6px;
+  }
+`
+
+/**
+ * What the chain says is at the typed address: the ERC-20's symbol and
+ * decimals, or why none could be read. Read only; it never blocks Next.
+ */
+const TokenReadout = ({
+  address,
+  symbol,
+  decimals,
+  loading,
+}: {
+  address: string
+  symbol: string
+  decimals: number
+  loading: boolean
+}) => {
+  const trimmed = address.trim()
+  if (!trimmed) return null
+  const valid = isAddress(trimmed)
+  const found = valid && !loading && symbol !== 'tokens'
+  return (
+    <TokenCard role="status" aria-live="polite">
+      <Stack $gap={6} style={{ minWidth: 0 }}>
+        <Row $gap={8}>
+          <StatusDot
+            $tone={found ? 'registered' : valid && loading ? 'window' : 'off'}
+            aria-hidden
+          />
+          <Label $tone="muted">
+            {!valid
+              ? 'Not an address'
+              : loading
+                ? 'Reading the token'
+                : found
+                  ? 'ERC-20 found'
+                  : 'No ERC-20 read at this address'}
+          </Label>
+        </Row>
+        {valid && loading ? (
+          <SkeletonBlock $height="34px" $width="120px" />
+        ) : found ? (
+          <TokenSymbol>{symbol}</TokenSymbol>
+        ) : (
+          <Small $muted>
+            {valid
+              ? 'Check the address and the network: the token must be on this chain.'
+              : 'An address is 0x followed by 40 hexadecimal characters.'}
+          </Small>
+        )}
+        {found && decimals !== 18 && (
+          <TokenWarning>
+            {symbol} uses {decimals} decimals, but the factory encodes the
+            minimum stake with 18
+            {oneTokenTyped(decimals)
+              ? `: to require 1 ${symbol}, type ${oneTokenTyped(decimals)}.`
+              : '.'}
+          </TokenWarning>
+        )}
+      </Stack>
+      {found && (
+        <TokenFacts>
+          <div>
+            <Label as="dt" $tone="muted">
+              Decimals
+            </Label>
+            <dd>
+              <Data>{decimals}</Data>
+            </dd>
+          </div>
+          <div>
+            <Label as="dt" $tone="muted">
+              Contract
+            </Label>
+            <dd>
+              <Data $muted $weight={400} title={trimmed}>
+                {truncateMiddle(trimmed, 6, 4)}
+              </Data>
+            </dd>
+          </div>
+        </TokenFacts>
+      )}
+    </TokenCard>
+  )
+}
+
+/* ---------- Appeal note ---------- */
+
+const multiple = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 })
+
+/** The appeal multipliers in one note, with the example computed from the loser field. */
+const AppealStakeNote = () => {
+  const [field] = useField<unknown>('loserStakeMultiplier')
+  const loser = Number(field.value)
+  const valid = field.value !== '' && Number.isFinite(loser) && loser >= 0
+  return (
+    <Note>
+      <Small $muted>
+        To appeal, each side pays the next round’s juror fees plus a stake, a
+        share of those fees; the losing side’s stake rewards whoever funded the
+        winner.
+      </Small>
+      <Small>
+        Total appeal fee for one side = juror fees + juror fees × stake
+        multiplier.
+        {valid &&
+          ` At ${multiple.format(loser)}%, the side the court ruled against pays ${multiple.format(1 + loser / 100)}× the juror fees.`}
+      </Small>
+    </Note>
+  )
+}
+
+/* ---------- The step ---------- */
 
 const TCRParams = (props: TCRParamsProps) => {
   const {
     handleSubmit,
     formId,
+    factorySection,
+    startAdvanced,
     errors,
     touched,
     values,
     setFieldValue,
-    getFieldProps,
+    setFieldTouched,
     setTcrState,
     defaultArbLabel,
     defaultArbDataLabel,
     defaultGovernorLabel,
     defaultStakeTokenLabel,
   } = props
+  const ids = useId()
   const nativeCurrency = useNativeCurrency()
   const { uploadFile } = useAtlasProvider()
   const [uploading, setUploading] = useState<{
     tcrLogo?: boolean
     tcrPrimaryDocument?: boolean
   }>({})
-  const [advancedOptions, setAdvancedOptions] = useState(false)
-  const [depositVal, setDepositVal] = useState(() => {
-    const stored = Number(values.submissionMinDeposit)
-    return Number.isNaN(stored) ? WIZARD_DEFAULTS.submissionMinDeposit : stored
-  })
+  const [advancedOptions, setAdvancedOptions] = useState(!!startAdvanced)
+  // The typed text while the amount box has focus; the stored value otherwise.
+  const [depositDraft, setDepositDraft] = useState<string | null>(null)
   const chainId = useUrlChainId()
   const chainName =
     chainId === null
@@ -133,9 +329,11 @@ const TCRParams = (props: TCRParamsProps) => {
     arbitratorExtraData: values.arbitratorExtraData,
     library: chainProvider,
   })
-  const { symbol: tokenSymbol, loading: loadingSymbol } = useTokenSymbol(
-    values.tokenAddress || undefined,
-  )
+  const {
+    symbol: tokenSymbol,
+    decimals: tokenDecimals,
+    loading: loadingSymbol,
+  } = useTokenSymbol(values.tokenAddress || undefined)
   const setArbitratorExtraData = useCallback(
     (val: string) => setFieldValue('arbitratorExtraData', val),
     [setFieldValue],
@@ -149,10 +347,17 @@ const TCRParams = (props: TCRParamsProps) => {
     }
   }, [debouncedArbitrator, klerosAddress])
 
+  // The page owns where the wizard is: the step fields are not synced back.
   useEffect(() => {
+    const {
+      currStep: _currStep,
+      visualStep: _visualStep,
+      maxVisualStep: _maxVisualStep,
+      ...fields
+    } = values
     setTcrState((previousState) => ({
       ...previousState,
-      ...values,
+      ...fields,
     }))
   }, [values, setTcrState])
 
@@ -167,6 +372,7 @@ const TCRParams = (props: TCRParamsProps) => {
         const fileURI = await uploadFile(file, role)
         if (!fileURI) throw new Error('Failed to upload file to IPFS.')
         setFieldValue(field, fileURI)
+        setFieldTouched(field, true, false)
         toast.success('File uploaded successfully.')
       } catch (err) {
         console.error(err)
@@ -175,253 +381,198 @@ const TCRParams = (props: TCRParamsProps) => {
         setUploading((previous) => ({ ...previous, [field]: false }))
       }
     },
-    [setFieldValue, uploadFile],
+    [setFieldTouched, setFieldValue, uploadFile],
   )
 
   const onChangeDepositVal = useCallback(
     (value: number) => {
       if (Number.isNaN(value)) return
-      setDepositVal(value)
       setFieldValue('submissionMinDeposit', value)
     },
     [setFieldValue],
   )
 
-  const fieldError = (name: keyof TCRFormValues): string | undefined =>
-    touched[name] && errors[name] ? String(errors[name]) : undefined
-
-  const symbolKnown =
+  const show = (section: FactorySection) =>
+    !factorySection || factorySection === section
+  const copy = factorySection ? SECTION_COPY[factorySection] : null
+  const stored = Number(values.submissionMinDeposit)
+  const sliderValue = Number.isFinite(stored)
+    ? Math.min(STAKE_SLIDER.max, Math.max(STAKE_SLIDER.min, stored))
+    : WIZARD_DEFAULTS.submissionMinDeposit
+  const depositText = depositDraft ?? plainDecimal(values.submissionMinDeposit)
+  const tokenFound =
     !!values.tokenAddress && !loadingSymbol && tokenSymbol !== 'tokens'
-  const stakeShown = Number(values.submissionMinDeposit)
+  const enforcedStake = groupAmount(
+    stakeReading(values.submissionMinDeposit, tokenFound ? tokenDecimals : 18)
+      .enforced,
+  )
+  const decimalsWarning = tokenFound ? (
+    <DecimalsWarning
+      value={values.submissionMinDeposit}
+      symbol={tokenSymbol}
+      decimals={tokenDecimals}
+    />
+  ) : null
+  const costText = formatMaybe(arbitrationCost)
 
   return (
     <form id={formId} noValidate onSubmit={handleSubmit}>
-      <Stack $gap={24}>
-        <FormSection>
-          <SectionHead>
-            <Label>Step 1 of 3</Label>
-            <Subheading>List parameters</Subheading>
-            <Body $muted>
-              What the list is called, what it holds and what it costs to add
-              an entry. Defaults are filled in; change what you need.
-            </Body>
-          </SectionHead>
-          <FieldGrid>
-            <Field
-              id="tcrTitle"
-              label="Title"
-              help="Short: it appears in notifications and on cards. At most 40 characters."
-              error={fieldError('tcrTitle')}
-            >
-              {(aria) => (
-                <Input {...aria} type="text" {...getFieldProps('tcrTitle')} />
-              )}
-            </Field>
-            <Field
-              id="tcrDescription"
-              label="Description"
-              help="One sentence on what belongs in the list. At most 255 characters."
-              error={fieldError('tcrDescription')}
-            >
-              {(aria) => (
-                <Input
-                  {...aria}
-                  type="text"
-                  {...getFieldProps('tcrDescription')}
-                />
-              )}
-            </Field>
-            <Field
-              id="itemName"
-              label="Item name"
-              help='A noun for one entry. It replaces the word "item" everywhere, as in "Submit a sock". At most 20 characters.'
-              error={fieldError('itemName')}
-            >
-              {(aria) => (
-                <Input {...aria} type="text" {...getFieldProps('itemName')} />
-              )}
-            </Field>
-            <Field
-              id="itemNamePlural"
-              label="Plural item name"
-              help='Its plural, as in "socks". At most 20 characters.'
-              error={fieldError('itemNamePlural')}
-            >
-              {(aria) => (
-                <Input
-                  {...aria}
-                  type="text"
-                  {...getFieldProps('itemNamePlural')}
-                />
-              )}
-            </Field>
-          </FieldGrid>
-        </FormSection>
+      <StepBody>
+        <StepHeader
+          heading={copy ? copy.heading : 'List parameters'}
+          lede={copy?.lede}
+        />
 
-        <FormSection>
-          <SectionHead>
-            <Label>Logo and policy</Label>
-            <Body $muted>
-              Uploads go through Atlas, so they ask for a wallet connection and
-              a sign-in.
-            </Body>
-          </SectionHead>
-          <FieldGrid>
-            <UploadCard
-              id="tcr-logo"
-              label="List logo"
-              help="A square image with a transparent background."
-              hint={`PNG, SVG, WebP or JPEG, up to ${LOGO_MAX_MB} MB.`}
-              accept={[...LOGO_TYPES].join(',')}
-              kind="image"
-              value={values.tcrLogo}
-              uploading={!!uploading.tcrLogo}
-              reject={rejectLogo}
-              onPick={(file) => upload('tcrLogo', Roles.Logo, file)}
-              error={fieldError('tcrLogo')}
-            />
-            <UploadCard
-              id="primary-document"
-              label="Acceptance criteria (primary document)"
-              help={
-                <>
-                  The policy jurors and challengers apply to every submission.{' '}
-                  <a
-                    href={EXAMPLE_POLICY_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    See an example policy
-                  </a>
-                  .
-                </>
-              }
-              hint={`PDF, up to ${POLICY_MAX_MB} MB.`}
-              accept={POLICY_TYPE}
-              kind="file"
-              value={values.tcrPrimaryDocument}
-              uploading={!!uploading.tcrPrimaryDocument}
-              reject={rejectPolicy}
-              onPick={(file) =>
-                upload('tcrPrimaryDocument', Roles.Policy, file)
-              }
-              error={fieldError('tcrPrimaryDocument')}
-            />
-          </FieldGrid>
-        </FormSection>
+        {show('title') && (
+          <TextField
+            name="tcrTitle"
+            label="Name"
+            help="At most 40 characters."
+          />
+        )}
 
-        <FormSection>
-          <SectionHead>
-            <Label>Deposit</Label>
-            <Body $muted>
-              A submitter locks a stake in the list token for as long as the
-              entry is listed and pays the court&apos;s arbitration deposit in{' '}
-              {nativeCurrency}. A low stake invites wrong entries; a high one
-              keeps submitters away.
-            </Body>
-          </SectionHead>
-          <FieldGrid>
-            <FullWidth>
-              <Field
-                id="tokenAddress"
-                label="Stake token address"
-                help={
-                  defaultStakeTokenLabel
-                    ? `The ERC-20 submitters stake. Pre-filled with ${defaultStakeTokenLabel} on ${chainName}.${symbolKnown ? ` Detected ${tokenSymbol}.` : ''}`
-                    : `The ERC-20 submitters stake. There is no default on ${chainName}; enter the token's address.${symbolKnown ? ` Detected ${tokenSymbol}.` : ''}`
-                }
-                error={fieldError('tokenAddress')}
-              >
-                {(aria) => (
-                  <MonoInput
-                    {...aria}
-                    type="text"
-                    placeholder="0x…"
-                    spellCheck={false}
-                    autoComplete="off"
-                    autoCapitalize="none"
-                    {...getFieldProps('tokenAddress')}
-                  />
-                )}
-              </Field>
-            </FullWidth>
-            {!advancedOptions && (
-              <FullWidth>
-                <Field
-                  id="depositSlider"
-                  label="Minimum stake"
-                  help="What a submitter locks at least. Drag towards the cheap end to bring more submissions, towards the safe end to make wrong entries worth challenging."
-                  error={fieldError('submissionMinDeposit')}
+        {show('description') && (
+          <TextField
+            name="tcrDescription"
+            label="Description"
+            help="At most 255 characters; shown under the name."
+          />
+        )}
+
+        {show('logo') && (
+          <UploadField
+            id={`${ids}-logo`}
+            label="List logo"
+            help="A square image, ideally with a transparent background."
+            hint={`PNG, SVG, WebP or JPEG · under ${LOGO_MAX_MB} MB`}
+            kind="image"
+            accept={[...LOGO_TYPES].join(',')}
+            value={values.tcrLogo}
+            uploading={!!uploading.tcrLogo}
+            error={errors.tcrLogo}
+            showError={!!touched.tcrLogo}
+            what="the logo"
+            reject={rejectLogo}
+            onPick={(file) => upload('tcrLogo', Roles.Logo, file)}
+          />
+        )}
+
+        {show('policy') && (
+          <UploadField
+            id={`${ids}-policy`}
+            label="Listing policy (PDF)"
+            help={
+              <>
+                The acceptance criteria every submission is judged by.{' '}
+                <TextLink
+                  href={EXAMPLE_POLICY_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
                 >
-                  {(aria) => (
-                    <RangeRow>
-                      <Small $muted>Cheapest</Small>
-                      <Range
-                        type="range"
-                        aria-label="Minimum stake slider"
-                        min={STAKE_SLIDER.min}
-                        max={STAKE_SLIDER.max}
-                        step={STAKE_SLIDER.step}
-                        value={depositVal}
-                        onChange={(event) =>
-                          onChangeDepositVal(Number(event.target.value))
-                        }
-                      />
-                      <Small $muted>Safest</Small>
-                      <UnitInput
-                        {...aria}
-                        unit={tokenSymbol}
-                        min={STAKE_SLIDER.min}
-                        max={STAKE_SLIDER.max}
-                        step={STAKE_SLIDER.step}
-                        value={depositVal}
-                        onChange={(event) =>
-                          onChangeDepositVal(Number(event.target.value))
-                        }
-                      />
-                    </RangeRow>
-                  )}
-                </Field>
-              </FullWidth>
-            )}
-            <FullWidth>
-              <Stack $gap={4} aria-label="What a submitter sends">
-                <Small>
-                  <Data>
-                    {Number.isNaN(stakeShown)
-                      ? values.submissionMinDeposit
-                      : stakeShown}{' '}
-                    {tokenSymbol}
-                  </Data>{' '}
-                  <Small $muted>stake, locked while the item is listed</Small>
-                </Small>
-                <Small>
-                  {arbitrationCost ? (
-                    <Data>
-                      {formatNative(arbitrationCost)} {nativeCurrency}
-                    </Data>
-                  ) : (
-                    <SkeletonBlock
-                      $width="96px"
-                      $height="18px"
-                      style={{
-                        display: 'inline-block',
-                        verticalAlign: 'middle',
-                      }}
-                    />
-                  )}{' '}
-                  <Small $muted>arbitration deposit</Small>
-                </Small>
-              </Stack>
-            </FullWidth>
-          </FieldGrid>
-        </FormSection>
+                  See an example policy
+                </TextLink>
+              </>
+            }
+            hint={`PDF · under ${POLICY_MAX_MB} MB`}
+            kind="pdf"
+            accept={POLICY_TYPE}
+            value={values.tcrPrimaryDocument}
+            uploading={!!uploading.tcrPrimaryDocument}
+            error={errors.tcrPrimaryDocument}
+            showError={!!touched.tcrPrimaryDocument}
+            what="the policy"
+            reject={rejectPolicy}
+            onPick={(file) => upload('tcrPrimaryDocument', Roles.Policy, file)}
+          />
+        )}
 
-        <FormSection>
-          <SectionHead>
-            <Label>Court</Label>
-          </SectionHead>
-          {isKlerosArbitrator ? (
+        {show('token') && (
+          <TextField
+            name="tokenAddress"
+            label="Stake token address"
+            mono
+            placeholder="0x…"
+            help={
+              defaultStakeTokenLabel
+                ? `Pre-filled with ${defaultStakeTokenLabel} on ${chainName}.`
+                : `There is no default on ${chainName}; enter the token's address.`
+            }
+          />
+        )}
+
+        {show('token') && (
+          <TokenReadout
+            address={values.tokenAddress ?? ''}
+            symbol={tokenSymbol}
+            decimals={tokenDecimals}
+            loading={loadingSymbol}
+          />
+        )}
+
+        {show('stake') && !advancedOptions && (
+          <FormField
+            id={`${ids}-stake`}
+            label="Minimum stake"
+            help="What a submitter locks at least; they may stake more."
+            error={errors.submissionMinDeposit as string | undefined}
+            showError={!!touched.submissionMinDeposit}
+          >
+            {(a11y) => (
+              <Stack $gap={8}>
+                <Row $gap={14}>
+                  <RangeInput
+                    type="range"
+                    aria-label="Minimum stake slider"
+                    min={STAKE_SLIDER.min}
+                    max={STAKE_SLIDER.max}
+                    step={STAKE_SLIDER.step}
+                    value={sliderValue}
+                    onChange={(event) => {
+                      setDepositDraft(null)
+                      onChangeDepositVal(Number(event.target.value))
+                    }}
+                  />
+                  <AmountInput
+                    {...a11y}
+                    type="text"
+                    inputMode="decimal"
+                    value={depositText}
+                    onChange={(event) => {
+                      setDepositDraft(event.target.value)
+                      if (event.target.value.trim() !== '')
+                        onChangeDepositVal(Number(event.target.value))
+                    }}
+                    onBlur={() => setDepositDraft(null)}
+                  />
+                  <Small $muted style={{ minWidth: 40 }}>
+                    {tokenSymbol}
+                  </Small>
+                </Row>
+                <SliderEnds>
+                  <Small $faint>Lower: more submissions</Small>
+                  <Small $faint>Higher: wrong entries cost more</Small>
+                </SliderEnds>
+                {decimalsWarning}
+                <NarrowOnly>
+                  <Small $muted>
+                    A submitter locks at least{' '}
+                    <Small>
+                      {enforcedStake ?? '—'} {tokenSymbol}
+                    </Small>{' '}
+                    and a{' '}
+                    <Small>
+                      {costText ?? '…'} {nativeCurrency}
+                    </Small>{' '}
+                    arbitration deposit.
+                  </Small>
+                </NarrowOnly>
+              </Stack>
+            )}
+          </FormField>
+        )}
+
+        {show('stake') &&
+          (isKlerosArbitrator ? (
             <KlerosParams
               arbitratorExtraData={values.arbitratorExtraData}
               klerosAddress={debouncedArbitrator}
@@ -430,352 +581,150 @@ const TCRParams = (props: TCRParamsProps) => {
               library={chainProvider}
             />
           ) : (
-            <Field
-              id="arbitratorExtraData"
+            <TextField
+              name="arbitratorExtraData"
               label="Arbitrator extra data"
+              placeholder="0x…"
+              mono
               help={`Passed to the arbitrator with every dispute (ERC-792). ${defaultArbDataLabel ?? ''}`}
-              error={fieldError('arbitratorExtraData')}
-            >
-              {(aria) => (
-                <MonoInput
-                  {...aria}
-                  type="text"
-                  placeholder="0x…"
-                  spellCheck={false}
-                  autoComplete="off"
-                  {...getFieldProps('arbitratorExtraData')}
-                />
-              )}
-            </Field>
-          )}
-        </FormSection>
-
-        <FormSection>
-          <SwitchRow htmlFor="advancedOptions">
-            <SwitchText>
-              Advanced options
-              <Small $muted>
-                Periods, governor and arbitrator addresses, challenger stake
-                and appeal multipliers.
-              </Small>
-            </SwitchText>
-            <SwitchInput
-              id="advancedOptions"
-              type="checkbox"
-              role="switch"
-              checked={advancedOptions}
-              onChange={() => setAdvancedOptions((toggle) => !toggle)}
             />
-          </SwitchRow>
-        </FormSection>
+          ))}
 
-        {advancedOptions && (
-          <FormSection>
-            <FieldGrid>
-              <Field
-                id="submissionMinDeposit"
-                label="Minimum submission stake"
-                help="The least a submitter can stake on an entry. A successful challenger takes it."
-                error={fieldError('submissionMinDeposit')}
-              >
-                {(aria) => (
-                  <UnitInput
-                    {...aria}
-                    unit={tokenSymbol}
-                    step={0.0001}
-                    min={0}
-                    placeholder={String(WIZARD_DEFAULTS.submissionMinDeposit)}
-                    {...getFieldProps('submissionMinDeposit')}
-                  />
-                )}
-              </Field>
-              <Field
-                id="submissionPeriodDuration"
-                label="Submission period"
-                help="How long a new entry must go unchallenged before it counts as accepted."
-                error={fieldError('submissionPeriodDuration')}
-              >
-                {(aria) => (
-                  <UnitInput
-                    {...aria}
-                    unit="hours"
-                    step={1}
-                    min={0}
-                    placeholder={String(
-                      WIZARD_DEFAULTS.submissionPeriodDuration,
-                    )}
-                    {...getFieldProps('submissionPeriodDuration')}
-                  />
-                )}
-              </Field>
-              <Field
-                id="reinclusionPeriodDuration"
-                label="Reinclusion period"
-                help="How long an entry that jurors kept must go unchallenged before it counts as accepted again."
-                error={fieldError('reinclusionPeriodDuration')}
-              >
-                {(aria) => (
-                  <UnitInput
-                    {...aria}
-                    unit="hours"
-                    step={1}
-                    min={0}
-                    placeholder={String(
-                      WIZARD_DEFAULTS.reinclusionPeriodDuration,
-                    )}
-                    {...getFieldProps('reinclusionPeriodDuration')}
-                  />
-                )}
-              </Field>
-              <Field
-                id="withdrawingPeriodDuration"
-                label="Withdrawing period"
-                help="How long a submitter waits between asking to withdraw an entry and getting the stake back."
-                error={fieldError('withdrawingPeriodDuration')}
-              >
-                {(aria) => (
-                  <UnitInput
-                    {...aria}
-                    unit="hours"
-                    step={1}
-                    min={0}
-                    placeholder={String(
-                      WIZARD_DEFAULTS.withdrawingPeriodDuration,
-                    )}
-                    {...getFieldProps('withdrawingPeriodDuration')}
-                  />
-                )}
-              </Field>
-              <Field
-                id="arbitrationParamsCooldown"
-                label="Arbitration parameters cooldown"
-                help="How long a new policy or new arbitration settings wait before they apply."
-                error={fieldError('arbitrationParamsCooldown')}
-              >
-                {(aria) => (
-                  <UnitInput
-                    {...aria}
-                    unit="hours"
-                    step={1}
-                    min={0}
-                    placeholder={String(
-                      WIZARD_DEFAULTS.arbitrationParamsCooldown,
-                    )}
-                    {...getFieldProps('arbitrationParamsCooldown')}
-                  />
-                )}
-              </Field>
-              <Field
-                id="challengeStakeMultiplier"
-                label="Challenger stake"
-                help="The challenger's stake as a share of the entry's stake. It comes back if the challenge wins and joins the entry's stake if it loses."
-                error={fieldError('challengeStakeMultiplier')}
-              >
-                {(aria) => (
-                  <UnitInput
-                    {...aria}
-                    unit="%"
-                    step={1}
-                    min={0}
-                    placeholder={String(
-                      WIZARD_DEFAULTS.challengeStakeMultiplier,
-                    )}
-                    {...getFieldProps('challengeStakeMultiplier')}
-                  />
-                )}
-              </Field>
-              <Field
-                id="governorAddress"
-                label="Governor"
-                help={`Can change the periods, deposits and policy, and hand the role to another address. Default: ${defaultGovernorLabel ?? 'none'}.`}
-                error={fieldError('governorAddress')}
-              >
-                {(aria) => (
-                  <MonoInput
-                    {...aria}
-                    type="text"
-                    placeholder="0x…"
-                    spellCheck={false}
-                    autoComplete="off"
-                    autoCapitalize="none"
-                    {...getFieldProps('governorAddress')}
-                  />
-                )}
-              </Field>
-              <Field
-                id="arbitratorAddress"
-                label="Arbitrator"
-                help={`The contract that rules on challenges. Default: ${defaultArbLabel ?? 'none'}; any ERC-792 arbitrator works.`}
-                error={fieldError('arbitratorAddress')}
-              >
-                {(aria) => (
-                  <MonoInput
-                    {...aria}
-                    type="text"
-                    placeholder="0x…"
-                    spellCheck={false}
-                    autoComplete="off"
-                    autoCapitalize="none"
-                    {...getFieldProps('arbitratorAddress')}
-                  />
-                )}
-              </Field>
-            </FieldGrid>
-
-            <Explainer
-              id="factory-permanent-appeals"
-              eyebrow="Appeals"
-              heading="How appeal stakes work"
-              steps={APPEAL_STEPS}
-            />
-
-            <FieldGrid>
-              <Field
-                id="sharedStakeMultiplier"
-                label="Shared stake multiplier"
-                help="Both sides, when there is no winner or loser (the arbitrator refused to rule)."
-                error={fieldError('sharedStakeMultiplier')}
-              >
-                {(aria) => (
-                  <UnitInput
-                    {...aria}
-                    unit="%"
-                    step={1}
-                    min={0}
-                    placeholder={String(WIZARD_DEFAULTS.sharedStakeMultiplier)}
-                    {...getFieldProps('sharedStakeMultiplier')}
-                  />
-                )}
-              </Field>
-              <Field
-                id="winnerStakeMultiplier"
-                label="Winner stake multiplier"
-                help="The side the court currently favours."
-                error={fieldError('winnerStakeMultiplier')}
-              >
-                {(aria) => (
-                  <UnitInput
-                    {...aria}
-                    unit="%"
-                    step={1}
-                    min={0}
-                    placeholder={String(WIZARD_DEFAULTS.winnerStakeMultiplier)}
-                    {...getFieldProps('winnerStakeMultiplier')}
-                  />
-                )}
-              </Field>
-              <Field
-                id="loserStakeMultiplier"
-                label="Loser stake multiplier"
-                help="The side the court currently rules against."
-                error={fieldError('loserStakeMultiplier')}
-              >
-                {(aria) => (
-                  <UnitInput
-                    {...aria}
-                    unit="%"
-                    step={1}
-                    min={0}
-                    placeholder={String(WIZARD_DEFAULTS.loserStakeMultiplier)}
-                    {...getFieldProps('loserStakeMultiplier')}
-                  />
-                )}
-              </Field>
-            </FieldGrid>
-            <Small $muted>
-              Total appeal fee for one side = juror fees + juror fees × stake
-              multiplier.
-            </Small>
-          </FormSection>
+        {show('stake') && (
+          <SwitchField
+            id={`${ids}-advanced`}
+            label="Advanced options"
+            help="Periods, challenger stake, governor and arbitrator, appeal multipliers."
+            checked={advancedOptions}
+            onChange={setAdvancedOptions}
+          />
         )}
-      </Stack>
+
+        {show('stake') && advancedOptions && (
+          <Stack $gap={24}>
+            <Divider label="Stake" />
+            <FieldGrid $alignEnd>
+              <TextField
+                name="submissionMinDeposit"
+                label="Minimum submission stake"
+                numeric
+                unit={tokenSymbol}
+                placeholder={String(WIZARD_DEFAULTS.submissionMinDeposit)}
+                help="The least a submitter can stake. A successful challenger takes it."
+                trailing={decimalsWarning}
+              />
+              <TextField
+                name="challengeStakeMultiplier"
+                label="Challenger stake"
+                numeric
+                unit="%"
+                placeholder={String(WIZARD_DEFAULTS.challengeStakeMultiplier)}
+                help="A share of the entry's stake. Back to the challenger on a win; added to the entry's stake on a loss."
+              />
+            </FieldGrid>
+            <Divider label="Periods" />
+            <FieldGrid $alignEnd>
+              <TextField
+                name="submissionPeriodDuration"
+                label="Submission period"
+                numeric
+                unit="hours"
+                placeholder={String(WIZARD_DEFAULTS.submissionPeriodDuration)}
+                help="Unchallenged this long, a new entry counts as accepted."
+              />
+              <TextField
+                name="reinclusionPeriodDuration"
+                label="Reinclusion period"
+                numeric
+                unit="hours"
+                placeholder={String(WIZARD_DEFAULTS.reinclusionPeriodDuration)}
+                help="The same, for an entry the jurors kept."
+              />
+              <TextField
+                name="withdrawingPeriodDuration"
+                label="Withdrawing period"
+                numeric
+                unit="hours"
+                placeholder={String(WIZARD_DEFAULTS.withdrawingPeriodDuration)}
+                help="From asking to withdraw to getting the stake back."
+              />
+              <TextField
+                name="arbitrationParamsCooldown"
+                label="Arbitration parameters cooldown"
+                numeric
+                unit="hours"
+                placeholder={String(WIZARD_DEFAULTS.arbitrationParamsCooldown)}
+                help="How long a new policy or arbitration settings wait to apply."
+              />
+            </FieldGrid>
+            <Divider label="Roles" />
+            <TextField
+              name="governorAddress"
+              label="Governor"
+              placeholder="0x…"
+              mono
+              help={`Can change the periods, deposits and policy, and hand the role to another address. Default: ${defaultGovernorLabel ?? 'none'}.`}
+            />
+            <TextField
+              name="arbitratorAddress"
+              label="Arbitrator"
+              placeholder="0x…"
+              mono
+              help={`The contract that rules on challenges. Default: ${defaultArbLabel ?? 'none'}; any ERC-792 arbitrator works.`}
+            />
+            <Divider label="Appeal stakes" />
+            <AppealStakeNote />
+            <FieldGrid $columns={3} $alignEnd>
+              <TextField
+                name="sharedStakeMultiplier"
+                label="Shared"
+                numeric
+                unit="%"
+                placeholder={String(WIZARD_DEFAULTS.sharedStakeMultiplier)}
+                help="Both sides, when the arbitrator refused to rule."
+              />
+              <TextField
+                name="winnerStakeMultiplier"
+                label="Winner"
+                numeric
+                unit="%"
+                placeholder={String(WIZARD_DEFAULTS.winnerStakeMultiplier)}
+                help="The side the court currently favours."
+              />
+              <TextField
+                name="loserStakeMultiplier"
+                label="Loser"
+                numeric
+                unit="%"
+                placeholder={String(WIZARD_DEFAULTS.loserStakeMultiplier)}
+                help="The side the court currently rules against."
+              />
+            </FieldGrid>
+          </Stack>
+        )}
+
+        {show('custom') && (
+          <FieldGrid>
+            <TextField
+              name="itemName"
+              label="Item name"
+              help="One entry, at most 20 characters."
+            />
+            <TextField
+              name="itemNamePlural"
+              label="Plural"
+              help="Several entries, at most 20 characters."
+            />
+          </FieldGrid>
+        )}
+      </StepBody>
     </form>
   )
 }
 
-const validationSchema = yup.object().shape({
-  tcrTitle: yup
-    .string()
-    .required('A title is required.')
-    .max(40, 'Title must be less than 40 characters long.'),
-  tcrDescription: yup
-    .string()
-    .required('A description is required.')
-    .max(255, 'Description must be less than 255 characters long.'),
-  arbitratorAddress: yup
-    .string()
-    .required('An arbitrator address is required.')
-    .max(42, 'Ethereum addresses are 42 characters long.'),
-  arbitratorExtraData: yup
-    .string()
-    .required('The arbitrator extra data is required.'),
-  governorAddress: yup
-    .string()
-    .required('A governor address is required.')
-    .max(42, 'Ethereum addresses are 42 characters long.'),
-  tokenAddress: yup
-    .string()
-    .required('A stake token address is required.')
-    .max(42, 'Ethereum addresses are 42 characters long.'),
-  itemName: yup
-    .string()
-    .required('An item name is required.')
-    .max(20, 'The item name must be less than 20 characters long.'),
-  itemNamePlural: yup
-    .string()
-    .required('The plural of the item name is required.')
-    .max(20, 'The item name must be less than 20 characters long.'),
-  submissionMinDeposit: yup
-    .number()
-    .typeError('Amount should be a number.')
-    .required('A value is required.')
-    .min(0, 'The amount must not be negative.'),
-  submissionPeriodDuration: yup
-    .number()
-    .typeError('Amount should be a number.')
-    .required('A value is required.')
-    .min(0, 'The amount must not be negative.'),
-  reinclusionPeriodDuration: yup
-    .number()
-    .typeError('Amount should be a number.')
-    .required('A value is required.')
-    .min(0, 'The amount must not be negative.'),
-  withdrawingPeriodDuration: yup
-    .number()
-    .typeError('Amount should be a number.')
-    .required('A value is required.')
-    .min(0, 'The amount must not be negative.'),
-  arbitrationParamsCooldown: yup
-    .number()
-    .typeError('Amount should be a number.')
-    .required('A value is required.')
-    .min(0, 'The amount must not be negative.'),
-  tcrPrimaryDocument: yup.string().required('A primary document is required.'),
-  tcrLogo: yup.string().required('A logo is required.'),
-  challengeStakeMultiplier: yup
-    .number()
-    .typeError('Amount should be a number.')
-    .min(0, 'The stake multiplier cannot be negative.')
-    .required('A value is required'),
-  sharedStakeMultiplier: yup
-    .number()
-    .typeError('Amount should be a number.')
-    .min(0, 'The stake multiplier cannot be negative.')
-    .required('A value is required'),
-  winnerStakeMultiplier: yup
-    .number()
-    .typeError('Amount should be a number.')
-    .min(0, 'The stake multiplier cannot be negative.')
-    .required('A value is required'),
-  loserStakeMultiplier: yup
-    .number()
-    .typeError('Amount should be a number.')
-    .min(0, 'The stake multiplier cannot be negative.')
-    .required('A value is required'),
-})
-
-export default withFormik<StepProps, TCRFormValues>({
-  validationSchema,
+export default withFormik<TCRParamsOuterProps, TCRFormValues>({
+  validationSchema: ({ factorySection }: TCRParamsOuterProps) =>
+    tcrSchemaFor(factorySection),
   mapPropsToValues: ({ tcrState }) => {
     const { transactions: _transactions, ...values } = tcrState
     return values

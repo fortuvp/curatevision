@@ -6,7 +6,7 @@ import { figureData, joinClassNames } from './kit-styles'
  * Progress rail, v2: a 6px pill. The unfunded part is hatched, the filled
  * part carries a status role with a soft glow (window while running,
  * registered when done, off on failure) and draws in from zero on mount.
- * While a run is active a bright head marks its leading edge. A caller may
+ * While a run is active a soft bloom marks its leading edge. A caller may
  * hand in its own strokeColor. The fill is the measure: percent complete.
  */
 /* Negative insets keep the glow and the head unclipped while it draws. */
@@ -69,7 +69,9 @@ const Fill = styled.div<{
   transition: width var(--dur-figure) var(--ease-out);
   animation: ${drawIn} var(--dur-figure) var(--ease-out) 120ms backwards;
 
-  ${({ $status, $percent }) =>
+  /* A running bar marks its leading edge with a soft bloom in its own
+     colour: light, not a knob, so a read-only bar never looks draggable. */
+  ${({ $status, $strokeColor, $percent }) =>
     $status === 'active' &&
     $percent > 0 &&
     css`
@@ -77,15 +79,27 @@ const Fill = styled.div<{
         content: '';
         position: absolute;
         top: 50%;
-        right: -2px;
-        width: 10px;
-        height: 10px;
+        right: -8px;
+        width: 16px;
+        height: 16px;
         border-radius: var(--radius-pill);
-        background: var(--color-surface);
-        box-shadow:
-          0 0 0 2px var(--status-window),
-          0 0 12px var(--status-window);
+        background: radial-gradient(
+          closest-side,
+          color-mix(
+            in srgb,
+            ${fillColor($status, $strokeColor)} 70%,
+            var(--color-text)
+          ),
+          color-mix(
+              in srgb,
+              ${fillColor($status, $strokeColor)} 45%,
+              transparent
+            )
+            45%,
+          transparent
+        );
         transform: translateY(-50%);
+        pointer-events: none;
       }
     `}
 

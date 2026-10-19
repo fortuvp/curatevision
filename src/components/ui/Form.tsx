@@ -1,6 +1,6 @@
 import React from 'react'
 import styled, { css } from 'styled-components'
-import { joinClassNames } from './kit-styles'
+import { joinClassNames, kitType } from './kit-styles'
 
 const StyledForm = styled.form<{ $layout?: string }>`
   ${({ $layout }) =>
@@ -26,28 +26,44 @@ const StyledForm = styled.form<{ $layout?: string }>`
 
 /*
  * Field block, v2: a 12/500 label above the field, the control, then one help
- * line. An error tints the field's hairline and ring in the danger role and
- * the help line names the problem; success tints them in the registered role.
+ * line. An error tints the field's hairline in the danger role (full colour
+ * plus a 1px ring and a soft halo on focus) and the help line names the
+ * problem; success does the same in the registered role.
+ *
+ * A bare input inside an addon group or a number field is not the field:
+ * its group carries the border, so those inputs are left out here.
  */
+const bareInput =
+  ':is(input, textarea):not(.ui-input-group *):not(.ui-input-number *)'
+
 const statusField = (color: string) => css`
-  .ui-form-item-control input,
-  .ui-form-item-control textarea,
-  .ui-form-item-control .ui-select-trigger {
+  .ui-form-item-control ${bareInput}, .ui-form-item-control .ui-select-trigger {
     border-color: color-mix(in srgb, ${color} 60%, transparent) !important;
   }
 
-  && .ui-form-item-control :is(input, textarea).ui-input.ui-input,
-  && .ui-form-item-control .ui-input-group,
+  &&
+    .ui-form-item-control
+    ${bareInput}.ui-input.ui-input,
+    &&
+    .ui-form-item-control
+    .ui-input-group,
   && .ui-form-item-control .ui-input-number,
   && .ui-form-item-control .ui-select-trigger {
     border-color: color-mix(in srgb, ${color} 60%, transparent) !important;
   }
 
-  && .ui-form-item-control :is(input, textarea).ui-input.ui-input:focus,
-  && .ui-form-item-control .ui-input-group:focus-within,
+  &&
+    .ui-form-item-control
+    ${bareInput}.ui-input.ui-input:focus,
+    &&
+    .ui-form-item-control
+    .ui-input-group:focus-within,
   && .ui-form-item-control .ui-input-number:focus-within,
   && .ui-form-item-control .ui-select-trigger[aria-expanded='true'] {
-    box-shadow: 0 0 0 4px color-mix(in srgb, ${color} 16%, transparent) !important;
+    border-color: ${color} !important;
+    box-shadow:
+      0 0 0 1px ${color},
+      0 0 0 5px color-mix(in srgb, ${color} 16%, transparent) !important;
   }
 `
 
@@ -56,6 +72,15 @@ const FormItemWrapper = styled.div<{ $validateStatus?: string }>`
   flex-direction: column;
   margin-bottom: 18px;
 
+  /* Outside a horizontal kit form the label sits above: no colon. */
+  .ui-form-item-colon {
+    display: none;
+  }
+
+  .ui-form-horizontal & .ui-form-item-colon {
+    display: inline;
+  }
+
   ${({ $validateStatus }) =>
     $validateStatus === 'error' && statusField('var(--color-danger)')}
 
@@ -63,14 +88,17 @@ const FormItemWrapper = styled.div<{ $validateStatus?: string }>`
     $validateStatus === 'success' && statusField('var(--color-success)')}
 `
 
+/*
+ * The label is one run of text, so a long one wraps naturally. A label above
+ * its field needs no colon (sentence case, no punctuation); the colon shows
+ * only beside the field in a horizontal form.
+ */
 const Label = styled.label<{ $required?: boolean }>`
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+  display: block;
   margin-bottom: 8px;
   color: var(--color-muted);
-  font-size: 12px;
-  line-height: 16px;
+  font-size: ${kitType.meta};
+  line-height: ${kitType.metaLine};
   font-weight: 500;
   letter-spacing: 0.01em;
 
@@ -79,6 +107,7 @@ const Label = styled.label<{ $required?: boolean }>`
     css`
       &::before {
         content: '*';
+        margin-right: 4px;
         color: var(--color-danger);
       }
     `}
@@ -92,8 +121,8 @@ const HelpText = styled.div<{ $isError?: boolean }>`
   margin-top: 6px;
   color: ${({ $isError }) =>
     $isError ? 'var(--color-danger)' : 'var(--color-faint)'};
-  font-size: 12px;
-  line-height: 16px;
+  font-size: ${kitType.meta};
+  line-height: ${kitType.metaLine};
   transition: color var(--dur-hover) var(--ease-out);
 `
 
@@ -176,7 +205,11 @@ const FormItem: React.FC<FormItemProps> = ({
     {label && (
       <Label className="ui-form-item-label" $required={required}>
         {label}
-        {colon && ':'}
+        {colon && (
+          <span className="ui-form-item-colon" aria-hidden="true">
+            :
+          </span>
+        )}
       </Label>
     )}
     <ControlWrapper className="ui-form-item-control">{children}</ControlWrapper>

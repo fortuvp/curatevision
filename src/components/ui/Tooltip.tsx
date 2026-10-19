@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import styled, { keyframes } from 'styled-components'
+import { kitRadius, kitType } from './kit-styles'
 
 type Placement = 'top' | 'bottom' | 'left' | 'right'
 
@@ -16,7 +17,7 @@ const tipIn = keyframes`
 `
 
 /*
- * Glass tip: a small blurred surface with a hairline, radius 10, no arrow.
+ * Tip: a small solid raised surface with a hairline, radius 10, no arrow.
  * It fades and grows in with the individual scale property, so it composes
  * with the inline placement transform.
  */
@@ -27,16 +28,14 @@ const TooltipBubble = styled.div`
   max-width: 280px;
   padding: 7px 11px;
   border: 1px solid var(--glass-border);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--color-surface) 82%, transparent);
+  border-radius: ${kitRadius.control};
+  background: var(--color-surface);
   box-shadow:
     inset 0 1px 0 var(--glass-highlight),
     var(--shadow-overlay);
-  backdrop-filter: blur(16px) saturate(150%);
-  -webkit-backdrop-filter: blur(16px) saturate(150%);
   color: var(--color-text);
-  font-size: 12px;
-  line-height: 17px;
+  font-size: ${kitType.meta};
+  line-height: ${kitType.metaLine};
   pointer-events: none;
   animation: ${tipIn} 160ms var(--ease-out) both;
 

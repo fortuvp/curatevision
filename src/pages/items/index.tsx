@@ -1,13 +1,17 @@
 import React, {
+  Suspense,
+  lazy,
   useCallback,
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
 import styled from 'styled-components'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, type UseQueryResult } from '@tanstack/react-query'
+import { ErrorBoundary } from 'react-error-boundary'
 import { request } from 'graphql-request'
 import localforage from 'localforage'
 import { BigNumber, ethers } from 'ethers'
@@ -41,6 +45,7 @@ import {
   jurorsAndCourtIDFromExtraData,
 } from 'utils/string'
 import { truncateAtWord } from 'utils/truncate-at-word'
+import { errorToast } from 'utils/wrap-with-toast'
 import {
   Button,
   EmptyState,
@@ -70,22 +75,41 @@ import {
 } from 'components/curate/entry-status'
 import type { ExplainerStep } from 'components/curate/explainer'
 import type { V2Field } from 'components/curate/v2'
+import { reveal } from 'components/curate/motion/reveal'
+import { ClassicLifetime } from 'components/curate/registry-classic-lifetime'
 import ErrorPage from '../error-page'
-import SubmitModal from '../item-details/modals/submit'
-import SubmitConnectModal from '../item-details/modals/submit-connect'
+
+// The submission forms load on first use: they are heavy and most visits to
+// a list never open one (Submit goes to the full submission page). React.lazy
+// caches a rejected import, so each attempt gets fresh lazy components: after
+// a failed load the next request to open the form imports again.
+const lazyForms = (attempt: number) => ({
+  attempt,
+  SubmitModal: lazy(() => import('../item-details/modals/submit')),
+  SubmitConnectModal: lazy(
+    () => import('../item-details/modals/submit-connect'),
+  ),
+})
 
 /*
- * Classic Curate registry page. Same composition as the Light page
- * (RegistryHeader, RegistryToolbar, EntryList, Pagination, submit modals) on
- * the Classic data path: items are read straight from the subgraph with
- * graphql-request and decoded on the client with gtcrDecode. Every figure on
- * the page comes from the loaded items or the registry's on-chain parameters.
+ * Classic Curate registry page. Same composition as the Light page: the
+ * portfolio header (counts, the registered share as a ring, the one action
+ * with its exact deposit), the list's lifetime beside the one deprecation
+ * sentence, then the toolbar and the entries. Items are read straight from
+ * the subgraph with graphql-request and decoded on the client with
+ * gtcrDecode. The header counts, the chip counts and the totals come from
+ * the whole list (the unfiltered query, shared with the router's prefetch);
+ * when that list reaches the query limit they show as lower bounds or not at
+ * all. The rows come from the filtered query. Every figure comes from the
+ * loaded items or the on-chain parameters.
  */
 
 const MAX_ENTITIES = 1000
 const ITEMS_PER_PAGE = 40
 const NSFW_FILTER_KEY = 'NSFW_FILTER_KEY'
 const KIND_LABEL = 'Classic Curate'
+
+const integer = new Intl.NumberFormat('en-US')
 
 /** Statuses hidden behind a reveal while the sensitive-content filter is on. */
 const HIDDEN_STATUS_CODES = new Set([
@@ -98,6 +122,7 @@ const HIDDEN_STATUS_CODES = new Set([
 
 /** URL filter keys shown as chips, in plain language with their status role. */
 const FILTER_CHIPS: { key: string; label: string; tone: StatusTone }[] = [
+  { key: FILTER_KEYS.ABSENT, label: 'Rejected or removed', tone: 'off' },
   { key: FILTER_KEYS.REGISTERED, label: 'Registered', tone: 'registered' },
   { key: FILTER_KEYS.SUBMITTED, label: 'Submitted', tone: 'window' },
   {
@@ -115,8 +140,13 @@ const FILTER_CHIPS: { key: string; label: string; tone: StatusTone }[] = [
     label: 'Challenged removals',
     tone: 'contested',
   },
-  { key: FILTER_KEYS.ABSENT, label: 'Rejected or removed', tone: 'off' },
 ]
+
+/** URL parameters that are list state, not field values of a ?action= link. */
+const LIST_STATE_KEYS = new Set<string>([
+  ...Object.values(FILTER_KEYS),
+  'cv-theme',
+])
 
 /** A dispute round exactly as the subgraph returns it (numbers as strings). */
 interface RawRound {
@@ -150,6 +180,109 @@ interface RawItem {
 
 interface ClassicItemsResult {
   items: RawItem[]
+}
+
+interface ClassicItemsVariables {
+  offset: number
+  limit: number
+  order_by: { latestRequestSubmissionTime: 'asc' | 'desc' }[]
+  where: Record<string, unknown>
+}
+
+const fetchClassicItems = (
+  chainId: number | null | undefined,
+  variables: ClassicItemsVariables,
+) => {
+  const url = chainId ? subgraphUrl[chainId] : undefined
+  if (!url) throw new Error(`No subgraph URL for chain ${chainId}`)
+  return request<ClassicItemsResult>(
+    url,
+    CLASSIC_REGISTRY_ITEMS_QUERY,
+    variables,
+  )
+}
+
+/**
+ * The router prefetches the same query through the batcher, which swallows
+ * subgraph errors and caches an empty result. When that is what the cache
+ * holds, refetch once with this page's fetcher (which throws, so the query
+ * retries and can reach its error state) instead of waiting for the next
+ * 30s poll behind a skeleton.
+ */
+const useRefetchWhenEmpty = (
+  query: UseQueryResult<ClassicItemsResult>,
+  variables: ClassicItemsVariables,
+) => {
+  const tried = useRef<string | undefined>(undefined)
+  const key = JSON.stringify(variables)
+  const empty = query.isSuccess && !query.data?.items
+  const { isFetching, refetch } = query
+  useEffect(() => {
+    if (!empty || isFetching || tried.current === key) return
+    tried.current = key
+    // The rows and the header can share one cache entry: join, don't restart.
+    refetch({ cancelRefetch: false })
+  }, [empty, isFetching, key, refetch])
+}
+
+/** Whole-list counts for the header and the chips, from the unfiltered query. */
+interface ListOverview {
+  total: number
+  /** False when the list hit the query limit: counts are lower bounds. */
+  complete: boolean
+  registered: number
+  /** Entries per status filter, keyed like FILTER_KEYS (same predicates as the rows query). */
+  byFilter: Record<string, number>
+  openRequests: number
+  inCourt: number
+  /** Unix seconds of each entry's latest request. */
+  latestRequests: number[]
+}
+
+const overviewOf = (items: RawItem[]): ListOverview => {
+  const byFilter: Record<string, number> = Object.fromEntries(
+    FILTER_CHIPS.map((chip) => [chip.key, 0]),
+  )
+  const bump = (key: string) => {
+    byFilter[key] += 1
+  }
+  const latestRequests: number[] = []
+  items.forEach((item) => {
+    // A pending request's item is disputed exactly when its latest request is.
+    const latest = item.requests?.[0]
+    if (item.status === CONTRACT_STATUS.ABSENT) bump(FILTER_KEYS.ABSENT)
+    else if (item.status === CONTRACT_STATUS.REGISTERED)
+      bump(FILTER_KEYS.REGISTERED)
+    else if (item.status === CONTRACT_STATUS.REGISTRATION_REQUESTED)
+      bump(
+        latest?.disputed
+          ? FILTER_KEYS.CHALLENGED_SUBMISSIONS
+          : FILTER_KEYS.SUBMITTED,
+      )
+    else if (item.status === CONTRACT_STATUS.REMOVAL_REQUESTED)
+      bump(
+        latest?.disputed
+          ? FILTER_KEYS.CHALLENGED_REMOVALS
+          : FILTER_KEYS.REMOVAL_REQUESTED,
+      )
+    const submitted = Number(latest?.submissionTime)
+    if (submitted > 0) latestRequests.push(submitted)
+  })
+  const inCourt =
+    byFilter[FILTER_KEYS.CHALLENGED_SUBMISSIONS] +
+    byFilter[FILTER_KEYS.CHALLENGED_REMOVALS]
+  return {
+    total: items.length,
+    complete: items.length < MAX_ENTITIES,
+    registered: byFilter[FILTER_KEYS.REGISTERED],
+    byFilter,
+    openRequests:
+      byFilter[FILTER_KEYS.SUBMITTED] +
+      byFilter[FILTER_KEYS.REMOVAL_REQUESTED] +
+      inCourt,
+    inCourt,
+    latestRequests,
+  }
 }
 
 /** A loaded item: its request data for the status machine and its decoded fields. */
@@ -237,12 +370,57 @@ const pendingFirst = (a: DecodedEntry, b: DecodedEntry) => {
   return 0
 }
 
-const Note = styled.p`
-  margin: 16px 0 0;
-  max-width: 68ch;
+const InfoIcon = () => (
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 16 16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    aria-hidden
+  >
+    <circle cx="8" cy="8" r="6.25" />
+    <path d="M8 7.25v3.5" />
+    <circle cx="8" cy="5.1" r="0.4" fill="currentColor" />
+  </svg>
+)
+
+/* The one deprecation sentence and the list's lifetime, on the frame: no
+   panel, no banner, just a hairline under it before the toolbar. */
+const Legacy = styled.div`
+  ${reveal}
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 32px;
+  margin-top: 20px;
+  padding: 0 28px 20px;
+  border-bottom: 1px solid var(--glass-border);
+
+  @media (max-width: 860px) {
+    padding: 0 4px 18px;
+  }
+`
+
+const Deprecation = styled.p`
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex: 1 1 340px;
+  max-width: 64ch;
+  margin: 0;
   color: var(--color-muted);
   font-size: var(--fs-small);
   line-height: var(--lh-small);
+
+  svg {
+    flex: 0 0 auto;
+    margin-top: 2px;
+    color: var(--color-faint);
+  }
 `
 
 const ListFooter = styled.div`
@@ -296,6 +474,8 @@ const Items = () => {
   const [submissionFormOpen, setSubmissionFormOpen] = useState<
     boolean | undefined
   >()
+  const [formAttempt, setFormAttempt] = useState(0)
+  const forms = useMemo(() => lazyForms(formAttempt), [formAttempt])
   const [nsfwFilterOn, setNSFWFilter] = useState(true)
   const [itemSearch, setItemSearch] = useState('')
   const [queryItemParams, setQueryItemParams] = useState<string[] | undefined>()
@@ -320,6 +500,12 @@ const Items = () => {
   const orderDirection = oldestFirst ? 'asc' : 'desc'
   const currentPage = Math.max(1, Number(page) || 1)
   const offset = (currentPage - 1) * ITEMS_PER_PAGE
+  // Rows load in windows of MAX_ENTITIES that start on a window boundary,
+  // and a page is a slice of its window after the pending-first sort, so the
+  // pages partition the list: nothing repeats, nothing is skipped. On most
+  // lists the one window is the whole list, and without filters it is the
+  // same query as the header's.
+  const windowStart = Math.floor(offset / MAX_ENTITIES) * MAX_ENTITIES
 
   const itemsWhere = useMemo(() => {
     // Build conditions array for multi-select support
@@ -382,32 +568,51 @@ const Items = () => {
     })()
   }, [])
 
-  const queryVariables = useMemo(
+  const queryVariables = useMemo<ClassicItemsVariables>(
     () => ({
-      offset,
+      offset: windowStart,
       limit: MAX_ENTITIES,
       order_by: [{ latestRequestSubmissionTime: orderDirection }],
       where: itemsWhere,
     }),
-    [offset, orderDirection, itemsWhere],
+    [windowStart, orderDirection, itemsWhere],
   )
 
   const itemsQuery = useQuery({
     queryKey: ['classicItems', queryVariables],
-    queryFn: () => {
-      const url = subgraphUrl[chainId!]
-      if (!url) throw new Error(`No subgraph URL for chain ${chainId}`)
-      return request<ClassicItemsResult>(
-        url,
-        CLASSIC_REGISTRY_ITEMS_QUERY,
-        queryVariables,
-      )
-    },
+    queryFn: () => fetchClassicItems(chainId, queryVariables),
     enabled: !!chainId,
     staleTime: STALE_TIME,
     refetchInterval: 30_000, // Poll subgraph every 30s for status changes
   })
+  useRefetchWhenEmpty(itemsQuery, queryVariables)
   const loadedItems = itemsQuery.data?.items
+
+  // The whole list, newest first, for the header counts. Without filters on
+  // the first page this is the same query (and cache entry) as the rows and
+  // as the router's prefetch, so it costs nothing extra.
+  const overviewVariables = useMemo<ClassicItemsVariables>(
+    () => ({
+      offset: 0,
+      limit: MAX_ENTITIES,
+      order_by: [{ latestRequestSubmissionTime: 'desc' }],
+      where: { registry_id: { _eq: tcrAddress?.toLowerCase() } },
+    }),
+    [tcrAddress],
+  )
+  const overviewQuery = useQuery({
+    queryKey: ['classicItems', overviewVariables],
+    queryFn: () => fetchClassicItems(chainId, overviewVariables),
+    enabled: !!chainId && !!tcrAddress,
+    staleTime: STALE_TIME,
+    refetchInterval: 30_000,
+  })
+  useRefetchWhenEmpty(overviewQuery, overviewVariables)
+  const overviewItems = overviewQuery.data?.items
+  const overview = useMemo(
+    () => (overviewItems ? overviewOf(overviewItems) : undefined),
+    [overviewItems],
+  )
 
   // The subgraph rows reshaped into what the status machine and the item
   // pages expect (a basic useQuery plus a memo, no effect chains).
@@ -494,33 +699,41 @@ const Items = () => {
     })
   }, [metaEvidence, tcrAddress, encodedItems])
 
-  // Search covers everything loaded; a page is one slice of the loaded set
-  // (the query's offset already starts at this page), pending requests first.
+  // Search covers the whole loaded window; otherwise a page is its slice of
+  // the window, pending requests first.
   const searching = itemSearch.trim() !== ''
   const matchingItems = useMemo(
     () => items?.filter((entry) => entryMatchesSearch(entry, itemSearch)),
     [items, itemSearch],
   )
+  const pageStart = offset - windowStart
   const visibleItems = useMemo(() => {
     if (!matchingItems) return undefined
-    // Promote pending requests across every loaded row, then take the page.
+    // Promote pending requests across the window, then take the page.
     const ordered = [...matchingItems].sort(pendingFirst)
-    return searching ? ordered : ordered.slice(0, ITEMS_PER_PAGE)
-  }, [matchingItems, searching])
+    return searching
+      ? ordered
+      : ordered.slice(pageStart, pageStart + ITEMS_PER_PAGE)
+  }, [matchingItems, searching, pageStart])
 
-  // Check if there an action in the URL.
-  useEffect(() => {
+  // A ?action= link opens the submission form. Every other parameter is a
+  // field value, in column order, except list state (filters, sort, page)
+  // and the app-wide theme preview (?cv-theme=). The form opens when the
+  // link itself changes, not when a chip, the sort or the page does.
+  const actionLink = useMemo(() => {
     const params = new URLSearchParams(search)
-    if (!params.get('action')) return
-
-    const initialValues: string[] = []
+    if (!params.get('action')) return undefined
+    const values: string[] = []
     params.forEach((value, key) => {
-      if (key !== 'action') initialValues.push(value)
+      if (key !== 'action' && !LIST_STATE_KEYS.has(key)) values.push(value)
     })
-
-    setQueryItemParams(initialValues)
-    setSubmissionFormOpen(true)
+    return JSON.stringify(values)
   }, [search])
+  useEffect(() => {
+    if (actionLink === undefined) return
+    setQueryItemParams(JSON.parse(actionLink) as string[])
+    setSubmissionFormOpen(true)
+  }, [actionLink])
 
   const { metadata, fileURI } = metaEvidence || {}
   const { tcrTitle, tcrDescription, logoURI } = metadata || {}
@@ -628,23 +841,20 @@ const Items = () => {
       />
     )
 
-  // Counts from the loaded items, exactly as the old page computed them.
-  const loadedCount = loadedItems?.length
-  const removedCount = loadedItems?.filter(
-    (item: RawItem) => item.status === 'Absent',
-  ).length
-  // The subgraph returns disputeID "0" for requests that were never
-  // disputed, so a bare truthiness check would count every item.
-  const disputedCount = loadedItems?.filter((item: RawItem) =>
-    item.requests?.some(
-      (request: RawRequest) =>
-        request.disputed || (!!request.disputeID && request.disputeID !== '0'),
-    ),
-  ).length
+  // Whole-list counts, the same three the Light and Stake headers show. A
+  // list past the query limit was counted from its newest entries only, so
+  // every count is a lower bound ("1,000+").
+  const countText = (value: number) =>
+    overview
+      ? `${integer.format(value)}${overview.complete ? '' : '+'}`
+      : undefined
   const stats: RegistryStat[] = [
-    { label: 'Entries loaded', value: loadedCount },
-    { label: 'Rejected or removed · loaded', value: removedCount },
-    { label: 'Disputed · loaded', value: disputedCount },
+    { label: 'Entries', value: overview && countText(overview.total) },
+    {
+      label: 'Open requests',
+      value: overview && countText(overview.openRequests),
+    },
+    { label: 'In court', value: overview && countText(overview.inCourt) },
   ]
 
   const periodSeconds = challengePeriodDuration
@@ -733,6 +943,11 @@ const Items = () => {
       value: addressValue(governor),
       hint: 'Can change the deposits, the challenge period, the court and the policy.',
     },
+    {
+      label: 'Rejected or removed',
+      value: overview && countText(overview.byFilter[FILTER_KEYS.ABSENT]),
+      hint: 'Included in the Entries count.',
+    },
   ]
 
   const article = getArticleFor(itemName)
@@ -786,11 +1001,17 @@ const Items = () => {
     navigate({ search: `?${params.toString()}` })
   }
 
+  // Each chip carries its status's count when the whole list is loaded.
+  const exactCounts = overview?.complete ? overview.byFilter : undefined
   const chips: FilterChip[] = FILTER_CHIPS.map((chip) => ({
     ...chip,
+    label: exactCounts
+      ? `${chip.label} ${integer.format(exactCounts[chip.key])}`
+      : chip.label,
     checked: Boolean(queryOptions[chip.key]),
   }))
-  const filtersActive = searching || chips.some((chip) => chip.checked)
+  const checkedChips = chips.filter((chip) => chip.checked)
+  const filtersActive = searching || checkedChips.length > 0
   const clearFilters = () => {
     setItemSearch('')
     navigate({ search: '' })
@@ -798,7 +1019,19 @@ const Items = () => {
 
   const loading = itemsQuery.isLoading || !metadata || !items
   const loadedTotal = loadedItems?.length ?? 0
-  const knownTotal = offset + loadedTotal
+  const knownTotal = windowStart + loadedTotal
+  // The entries the filters select, from the same whole-list counts as the
+  // header (the chip predicates do not overlap, so they add up). Unknown
+  // when the list is past the query limit.
+  const exactTotal = exactCounts
+    ? checkedChips.length === 0
+      ? overview?.total
+      : checkedChips.reduce((sum, chip) => sum + exactCounts[chip.key], 0)
+    : undefined
+  const listTotal = exactTotal ?? knownTotal
+  // A full window may have a next one: one more page reaches it.
+  const pageTotal =
+    exactTotal ?? knownTotal + (loadedTotal >= MAX_ENTITIES ? 1 : 0)
   const shownFrom = offset + 1
   const shownTo = offset + entries.length
 
@@ -818,7 +1051,11 @@ const Items = () => {
         kindLabel={KIND_LABEL}
         itemName={itemWord}
         primaryLabel={`Submit ${article} ${itemWord}`}
-        primaryAmount={submitTotal}
+        primaryAmount={
+          submitTotal ? (
+            <span title={breakdown(submissionBaseDeposit)}>{submitTotal}</span>
+          ) : undefined
+        }
         onPrimary={openSubmit}
         policyURI={fileURI}
         onOpenPolicy={
@@ -830,13 +1067,27 @@ const Items = () => {
         explainerId={`registry-classic-${tcrAddress.toLowerCase()}`}
         explainerHeading="One deposit, a challenge window, a court if needed."
         explainerSteps={explainerSteps}
-        loading={!metaEvidence}
+        loading={!metaEvidence || overviewQuery.isLoading}
+        registeredCount={overview?.complete ? overview.registered : undefined}
+        totalCount={overview?.complete ? overview.total : undefined}
       />
 
-      <Note>
-        Classic Curate is deprecated: this list keeps working, but new lists use
-        Light Curate.
-      </Note>
+      <Legacy style={{ '--i': 1 } as React.CSSProperties}>
+        <Deprecation>
+          <InfoIcon />
+          Classic Curate is deprecated: this list keeps working, but new lists
+          use Light Curate.
+        </Deprecation>
+        {overview && (
+          <ClassicLifetime
+            times={overview.latestRequests}
+            complete={overview.complete}
+            now={now}
+            itemName={itemWord}
+            itemNamePlural={itemNamePlural}
+          />
+        )}
+      </Legacy>
 
       <RegistryToolbar
         search={itemSearch}
@@ -853,7 +1104,7 @@ const Items = () => {
         nsfwFilter={nsfwFilterOn}
         onNsfwChange={toggleNSFWFilter}
         shown={entries.length}
-        total={loadedTotal}
+        total={listTotal}
       />
 
       {itemsQuery.error ? (
@@ -908,40 +1159,56 @@ const Items = () => {
               ? `${entries.length} of ${loadedTotal} loaded ${itemNamePlural} match`
               : entries.length === 0
                 ? `No ${itemNamePlural} on page ${currentPage}`
-                : `${capitalizeFirstLetter(itemNamePlural)} ${shownFrom}–${shownTo} of ${knownTotal} loaded`}
+                : `${capitalizeFirstLetter(itemNamePlural)} ${shownFrom}–${shownTo} of ${integer.format(listTotal)}${exactTotal === undefined ? ' loaded' : ''}`}
           </Small>
-          {!searching && (knownTotal > ITEMS_PER_PAGE || offset > 0) && (
+          {!searching && (pageTotal > ITEMS_PER_PAGE || offset > 0) && (
             <Pagination
               current={currentPage}
               pageSize={ITEMS_PER_PAGE}
-              total={knownTotal}
+              total={pageTotal}
               onChange={goToPage}
             />
           )}
         </ListFooter>
       )}
 
-      {metaEvidence && metadata && (
-        <>
-          {isConnectedTCR ? (
-            <SubmitConnectModal
-              visible={submissionFormOpen}
-              onCancel={() => setSubmissionFormOpen(false)}
-              tcrAddress={tcrAddress}
-              gtcrView={gtcrView}
-            />
-          ) : (
-            <SubmitModal
-              visible={submissionFormOpen}
-              onCancel={() => setSubmissionFormOpen(false)}
-              submissionDeposit={submissionDeposit}
-              challengePeriodDuration={challengePeriodDuration}
-              tcrAddress={tcrAddress}
-              metaEvidence={metaEvidence}
-              initialValues={queryItemParams}
-            />
-          )}
-        </>
+      {/* A form that fails to load (a stale chunk after a deploy) says so
+          once and closes, leaving the list usable. Nothing renders it again
+          until the form is asked for again (a new ?action= link), and that
+          request imports it afresh. */}
+      {metaEvidence && metadata && submissionFormOpen !== undefined && (
+        <ErrorBoundary
+          key={forms.attempt}
+          fallback={null}
+          onError={() => {
+            errorToast(
+              'Could not load the submission form. Reload the page and try again.',
+            )
+            setSubmissionFormOpen(undefined)
+            setFormAttempt((attempt) => attempt + 1)
+          }}
+        >
+          <Suspense fallback={null}>
+            {isConnectedTCR ? (
+              <forms.SubmitConnectModal
+                visible={submissionFormOpen}
+                onCancel={() => setSubmissionFormOpen(false)}
+                tcrAddress={tcrAddress}
+                gtcrView={gtcrView}
+              />
+            ) : (
+              <forms.SubmitModal
+                visible={submissionFormOpen}
+                onCancel={() => setSubmissionFormOpen(false)}
+                submissionDeposit={submissionDeposit}
+                challengePeriodDuration={challengePeriodDuration}
+                tcrAddress={tcrAddress}
+                metaEvidence={metaEvidence}
+                initialValues={queryItemParams}
+              />
+            )}
+          </Suspense>
+        </ErrorBoundary>
       )}
     </Page>
   )

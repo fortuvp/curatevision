@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react'
 import styled, { css } from 'styled-components'
 import { KitIcon } from './kit-icons'
-import { ghostIconButton, joinClassNames } from './kit-styles'
+import { ghostIconButton, joinClassNames, kitType } from './kit-styles'
 
 const typeColor: Record<string, string> = {
   secondary: 'var(--color-muted)',
@@ -57,14 +57,14 @@ const titleSizes: Record<number, ReturnType<typeof css>> = {
   `,
   2: css`
     font-family: var(--font-display);
-    font-size: 26px;
-    line-height: 32px;
+    font-size: ${kitType.titleLg};
+    line-height: ${kitType.titleLgLine};
     letter-spacing: -0.025em;
   `,
   3: css`
     font-family: var(--font-display);
-    font-size: 20px;
-    line-height: 26px;
+    font-size: ${kitType.titleSm};
+    line-height: ${kitType.titleSmLine};
     letter-spacing: -0.02em;
   `,
   4: css`

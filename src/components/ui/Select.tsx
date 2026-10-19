@@ -3,6 +3,7 @@ import React, {
   useRef,
   useEffect,
   useCallback,
+  useLayoutEffect,
   useMemo,
   useId,
   Children,
@@ -27,6 +28,15 @@ import {
  * radius 12, the chosen row tinted and checked). Keyboard works throughout
  * (arrows, Enter, Escape), and the panel flips above when there is no room.
  */
+/* Panel geometry: 40px rows with a 2px gap, 6px padding and a hairline. */
+const PANEL_MAX = 296
+const PANEL_MIN = 120
+const PANEL_GAP = 6
+const VIEWPORT_EDGE = 8
+const OPTION_ROW = 42
+const SEARCH_ROW = 46
+const PANEL_CHROME = 14
+
 const SelectWrapper = styled.div`
   display: inline-block;
   max-width: 100%;
@@ -48,7 +58,8 @@ const SelectTrigger = styled.button<{ $focused?: boolean }>`
   cursor: pointer;
   user-select: none;
 
-  &:hover:not(:disabled) {
+  /* Hover never outranks focus or the open state. */
+  &:hover:not(:disabled):not(:focus-visible):not([aria-expanded='true']) {
     ${fieldHover}
   }
 
@@ -109,7 +120,7 @@ const Spinner = styled.span`
 const DropdownStyled = styled.div<{ $up?: boolean }>`
   position: fixed;
   z-index: 1050;
-  max-height: 296px;
+  max-height: ${PANEL_MAX}px;
   padding: 6px;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -268,10 +279,12 @@ const Select: SelectComponent = ({
     bottom?: number
     left: number
     width: number
+    maxHeight: number
   }>({
     top: 0,
     left: 0,
     width: 0,
+    maxHeight: PANEL_MAX,
   })
 
   // Sync controlled value
@@ -305,25 +318,54 @@ const Select: SelectComponent = ({
     })
   }, [options, search, showSearch])
 
-  // Place the panel under the trigger (fixed, so it escapes clipped parents)
+  // Until the panel has rendered, estimate its height from the rows it holds.
+  const estimatedHeight = Math.min(
+    PANEL_MAX,
+    (showSearch ? SEARCH_ROW : 0) +
+      Math.max(1, filteredOptions.length) * OPTION_ROW +
+      PANEL_CHROME,
+  )
+  const estimateRef = useRef(estimatedHeight)
+  estimateRef.current = estimatedHeight
+
+  // Place the panel under the trigger (fixed, so it escapes clipped parents).
+  // It opens upward only when its real height does not fit below and there
+  // is more room above; when neither side fits it is capped to the room.
   const updateDropdownPosition = useCallback(() => {
     if (!triggerRef.current) return
     const rect = triggerRef.current.getBoundingClientRect()
-    const below = window.innerHeight - rect.bottom
-    // Open upward only when the panel would not fit below and fits better above.
-    if (below < 240 && rect.top > below)
+    const below = window.innerHeight - rect.bottom - PANEL_GAP - VIEWPORT_EDGE
+    const above = rect.top - PANEL_GAP - VIEWPORT_EDGE
+    const panel = dropdownRef.current
+    const needed = Math.min(
+      PANEL_MAX,
+      panel ? panel.scrollHeight + 2 : estimateRef.current,
+    )
+    const up = below < needed && above > below
+    const maxHeight = Math.max(
+      PANEL_MIN,
+      Math.min(PANEL_MAX, up ? above : below),
+    )
+    if (up)
       setDropdownPos({
-        bottom: window.innerHeight - rect.top + 6,
+        bottom: window.innerHeight - rect.top + PANEL_GAP,
         left: rect.left,
         width: rect.width,
+        maxHeight,
       })
     else
       setDropdownPos({
-        top: rect.bottom + 6,
+        top: rect.bottom + PANEL_GAP,
         left: rect.left,
         width: rect.width,
+        maxHeight,
       })
   }, [])
+
+  // Re-place the panel once it has rendered and whenever its rows change.
+  useLayoutEffect(() => {
+    if (open) updateDropdownPosition()
+  }, [open, filteredOptions.length, updateDropdownPosition])
 
   const close = useCallback(() => {
     setOpen(false)
@@ -507,6 +549,7 @@ const Select: SelectComponent = ({
               bottom: dropdownPos.bottom,
               left: dropdownPos.left,
               width: dropdownPos.width,
+              maxHeight: dropdownPos.maxHeight,
               ...dropdownStyle,
             }}
           >

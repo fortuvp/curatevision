@@ -24,7 +24,6 @@ import { wagmiConfig } from 'config/wagmi'
 import {
   Body,
   Button,
-  Data,
   Label,
   Row,
   Small,
@@ -33,11 +32,13 @@ import {
 } from 'components/curate/primitives'
 import { WhatHappensNext } from 'components/curate/what-happens-next'
 import {
+  DialogColumns,
   FormBlock,
   GateHelper,
   ModalShell,
   ModalSkeleton,
   PolicyText,
+  StepRow,
   applyMultiplier,
   multiplierPercent,
   nativeText,
@@ -206,33 +207,39 @@ const SubmissionForm = withFormik<
         }),
         {},
       )
-    if (Object.keys(errors as Record<string, string>).length > 0) throw errors
+    // Formik 2 applies returned errors; a thrown object is treated as a crash.
+    return errors as Record<string, string>
   },
 })(_SubmissionForm)
 
 const StakeField = styled.label`
   display: flex;
   flex-direction: column;
-  gap: 6px;
-`
-
-const StakeInput = styled.div`
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
   gap: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--glass-border);
 `
 
-const StepRow = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  padding: 12px 14px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  background: var(--color-raised);
+/* The amount in the field, the token as a suffix inside it. */
+const StakeInput = styled.div`
+  position: relative;
+
+  input {
+    padding-right: 72px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  span {
+    position: absolute;
+    top: 50%;
+    right: 14px;
+    color: var(--color-faint);
+    font-size: var(--fs-small);
+    line-height: var(--lh-small);
+    font-weight: 500;
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
 `
 
 const SubmitModal: React.FC<{
@@ -542,139 +549,148 @@ const SubmitModal: React.FC<{
     hasEnoughBalance &&
     !hasEnoughAllowance
 
+  const form = (
+    <Stack $gap={16}>
+      <Body $muted>
+        {tcrTitle ? `Add a ${name} to ${tcrTitle}. ` : `Add a ${name}. `}
+        Every field becomes part of the public entry.
+        {policyURI && (
+          <>
+            {' '}
+            <ListingCriteriaLink fileURI={policyURI}>
+              <PolicyText as="span">Read the listing policy.</PolicyText>
+            </ListingCriteriaLink>
+          </>
+        )}
+      </Body>
+
+      <FormBlock>
+        <SubmissionForm
+          columns={columns ?? []}
+          postSubmit={postSubmit}
+          initialValues={initialValues}
+          disabledFields={disabledFields ?? []}
+          deployedWithFactory={deployedWithFactory}
+          deployedWithLightFactory={deployedWithLightFactory}
+          deployedWithPermanentFactory={deployedWithPermanentFactory}
+          onFieldsComplete={setFieldsComplete}
+        />
+      </FormBlock>
+
+      <StakeField>
+        <Label>Token stake</Label>
+        <StakeInput>
+          <TextInput
+            type="text"
+            inputMode="decimal"
+            value={stakeInput}
+            onChange={(event) => {
+              setStakeTouched(true)
+              setStakeInput(event.target.value)
+            }}
+            aria-invalid={Boolean(stakeError)}
+            aria-describedby="stake-help"
+          />
+          <span aria-hidden>{tokenSymbol}</span>
+        </StakeInput>
+        <Small $muted id="stake-help">
+          {stakeError
+            ? stakeError
+            : multiplierKnown
+              ? `Minimum ${minText}. A bigger stake makes a challenge dearer: a challenger matches ${multiplierPercent(challengeStakeMultiplier)} of it.`
+              : `Minimum ${minText}. A bigger stake makes a challenge dearer.`}
+        </Small>
+      </StakeField>
+    </Stack>
+  )
+
+  const receiptColumn = (
+    <Stack $gap={12}>
+      {showApprove && (
+        <StepRow>
+          <Small>
+            Step 1 of 2 · Allow the list to take your {tokenSymbol}. One
+            transaction, then the submission.
+          </Small>
+          <Button
+            type="button"
+            $variant="primary"
+            $size="sm"
+            $block
+            disabled={isApproving}
+            onClick={handleApprove}
+          >
+            {isApproving ? 'Waiting for your wallet…' : `Approve ${stakeText}`}
+          </Button>
+        </StepRow>
+      )}
+      {gate.ready && hasEnoughAllowance && (
+        <Small $muted role="status">
+          {tokenSymbol} approved. Step 2 of 2 stakes it and sends the
+          arbitration deposit.
+        </Small>
+      )}
+
+      <WhatHappensNext
+        receipt={[
+          { label: `Token stake (minimum ${minText})`, value: stakeText },
+          { label: 'Arbitration deposit', value: depositText },
+        ]}
+        total={`${stakeText} + ${depositText}`}
+        steps={[
+          {
+            title: 'You stake and deposit',
+            body: `${stakeText} and ${depositText} leave your wallet in one transaction, locked while the ${name} is listed.`,
+          },
+          {
+            title: acceptsAtOnce
+              ? 'Accepted at once'
+              : submissionWindow
+                ? `Submission period of ${submissionWindow}`
+                : 'Submission period',
+            body: acceptsAtOnce
+              ? `This list has no submission period: the ${name} is accepted on submission, and stays challengeable while listed.`
+              : `Anyone can challenge from now. If nobody does${submissionWindow ? ` within ${submissionWindow}` : ''}, the ${name} is accepted, and stays challengeable while listed.`,
+          },
+          {
+            title: 'Nobody challenges: withdraw whenever you want',
+            body: `Start a withdrawal${withdrawingWindow ? `, wait ${withdrawingWindow}` : ''}, then execute it. ${stakeText} and ${depositText} come back in full.`,
+          },
+          {
+            title: 'Someone challenges: jurors decide',
+            branch: true,
+            body: `The challenger stakes ${challengerText} and pays the arbitration cost. Win and your stake grows by theirs${multiplierKnown ? ` (${challengerText})` : ''}; lose and they take your ${stakeText} and ${depositText}. If the jurors refuse to rule, both stakes come back, the arbitration deposit is split, and the ${name} is withdrawn.`,
+          },
+        ]}
+        confirmLabel={`Submit ${name}`}
+        onConfirm={confirm}
+        confirmDisabled={Boolean(blocker)}
+        confirmBlocker={blocker}
+        loading={isSubmitting}
+        policy={
+          policyURI ? (
+            <>
+              Jurors decide against the{' '}
+              <ListingCriteriaLink fileURI={policyURI}>
+                <PolicyText as="span">listing policy</PolicyText>
+              </ListingCriteriaLink>
+              .
+            </>
+          ) : undefined
+        }
+      />
+      <GateHelper gate={gate} />
+    </Stack>
+  )
+
   const content =
     !metadata || !submissionDeposit ? (
       <ModalSkeleton />
     ) : (
-      <Stack $gap={16}>
-        <Body $muted>
-          {tcrTitle ? `Add a ${name} to ${tcrTitle}. ` : `Add a ${name}. `}
-          Every field below becomes part of the public entry.
-          {policyURI && (
-            <>
-              {' '}
-              <ListingCriteriaLink fileURI={policyURI}>
-                <PolicyText as="span">
-                  Read the listing policy first.
-                </PolicyText>
-              </ListingCriteriaLink>
-            </>
-          )}
-        </Body>
-
-        <FormBlock>
-          <SubmissionForm
-            columns={columns ?? []}
-            postSubmit={postSubmit}
-            initialValues={initialValues}
-            disabledFields={disabledFields ?? []}
-            deployedWithFactory={deployedWithFactory}
-            deployedWithLightFactory={deployedWithLightFactory}
-            deployedWithPermanentFactory={deployedWithPermanentFactory}
-            onFieldsComplete={setFieldsComplete}
-          />
-        </FormBlock>
-
-        <StakeField>
-          <Label>Token stake</Label>
-          <StakeInput>
-            <TextInput
-              type="text"
-              inputMode="decimal"
-              value={stakeInput}
-              onChange={(event) => {
-                setStakeTouched(true)
-                setStakeInput(event.target.value)
-              }}
-              aria-invalid={Boolean(stakeError)}
-              aria-describedby="stake-help"
-            />
-            <Data>{tokenSymbol}</Data>
-          </StakeInput>
-          <Small $muted id="stake-help">
-            {stakeError
-              ? stakeError
-              : multiplierKnown
-                ? `Minimum ${minText}. You may stake more; a bigger stake makes a challenge dearer (a challenger matches ${multiplierPercent(challengeStakeMultiplier)} of it).`
-                : `Minimum ${minText}. You may stake more; a bigger stake makes a challenge dearer.`}
-          </Small>
-        </StakeField>
-
-        {showApprove && (
-          <StepRow>
-            <Small>
-              Step 1 of 2 · Allow the list to take your stake. One transaction.
-            </Small>
-            <Button
-              type="button"
-              $variant="primary"
-              $size="sm"
-              disabled={isApproving}
-              onClick={handleApprove}
-            >
-              {isApproving
-                ? 'Waiting for your wallet…'
-                : `Approve ${stakeText}`}
-            </Button>
-          </StepRow>
-        )}
-        {gate.ready && hasEnoughAllowance && (
-          <Small $muted role="status">
-            {tokenSymbol} approved. Step 2 of 2 stakes it and sends the
-            arbitration deposit.
-          </Small>
-        )}
-
-        <WhatHappensNext
-          receipt={[
-            { label: `Token stake (minimum ${minText})`, value: stakeText },
-            { label: 'Arbitration deposit', value: depositText },
-          ]}
-          total={`${stakeText} + ${depositText}`}
-          steps={[
-            {
-              title: 'You stake and deposit',
-              body: `${stakeText} in ${tokenSymbol} and ${depositText} leave your wallet in one transaction. Both stay locked for as long as the ${name} is listed.`,
-            },
-            {
-              title: acceptsAtOnce
-                ? 'Accepted at once'
-                : submissionWindow
-                  ? `Submission period of ${submissionWindow}`
-                  : 'Submission period',
-              body: acceptsAtOnce
-                ? `This list has no submission period: the ${name} is accepted as soon as it is submitted. It can be challenged at any time, for as long as it is listed.`
-                : `Anyone can challenge from the moment you submit. If nobody does${submissionWindow ? ` within ${submissionWindow}` : ''}, the ${name} is accepted. It can still be challenged later, for as long as it is listed.`,
-            },
-            {
-              title: 'Nobody challenges: withdraw whenever you want',
-              body: `Start a withdrawal${withdrawingWindow ? `, wait ${withdrawingWindow}` : ''}, then execute it. ${stakeText} and ${depositText} come back in full.`,
-            },
-            {
-              title: 'Someone challenges: jurors decide',
-              branch: true,
-              body: `The challenger stakes ${challengerText} and pays the arbitration cost. If you win, your stake grows by the challenger's stake${multiplierKnown ? ` (${challengerText})` : ''}. If you lose, the challenger takes your ${stakeText} and your ${depositText}. If the jurors refuse to rule, both stakes come back, the arbitration deposit is split, and the ${name} is withdrawn.`,
-            },
-          ]}
-          confirmLabel={`Submit ${name}`}
-          onConfirm={confirm}
-          confirmDisabled={Boolean(blocker)}
-          confirmBlocker={blocker}
-          loading={isSubmitting}
-          policy={
-            policyURI ? (
-              <>
-                Jurors decide against the{' '}
-                <ListingCriteriaLink fileURI={policyURI}>
-                  <PolicyText as="span">listing policy</PolicyText>
-                </ListingCriteriaLink>
-                .
-              </>
-            ) : undefined
-          }
-        />
-        <GateHelper gate={gate} />
-      </Stack>
+      <DialogColumns>
+        {form}
+        {receiptColumn}
+      </DialogColumns>
     )
 
   if (embedded)
@@ -693,7 +709,9 @@ const SubmitModal: React.FC<{
     <ModalShell
       open={visible}
       title={title ?? `Submit ${capitalizeFirstLetter(name)}`}
+      eyebrow={tcrTitle}
       onClose={close}
+      width="lg"
     >
       {content}
     </ModalShell>

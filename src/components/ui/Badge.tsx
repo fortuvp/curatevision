@@ -4,9 +4,10 @@ import {
   figureData,
   haloDot,
   joinClassNames,
+  kitType,
+  type Tone,
   toneColor,
   toneFor,
-  type Tone,
 } from './kit-styles'
 
 const Wrapper = styled.span`
@@ -33,7 +34,7 @@ const CountBadge = styled.sup<{ $dot?: boolean }>`
   box-shadow: 0 0 10px -2px var(--color-primary);
   color: var(--color-on-primary);
   font-family: var(--font-figure);
-  font-size: 10px;
+  font-size: ${kitType.micro};
   line-height: 1;
   font-weight: 600;
   font-variant-numeric: tabular-nums;

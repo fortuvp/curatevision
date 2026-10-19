@@ -1,14 +1,18 @@
 import React from 'react'
 import styled, { css, keyframes } from 'styled-components'
 import { KitIcon } from './kit-icons'
-import { joinClassNames } from './kit-styles'
+import { joinClassNames, kitType } from './kit-styles'
 
 /*
  * Stepper, v2: 28px round nodes joined by a 2px track. The track fills in the
  * action color behind every finished step and the fill slides along to the
  * current node, which glows; finished nodes carry a check, waiting nodes stay
  * hollow. The fill is the measure: how far through the steps you are.
+ * Horizontal on wide screens; under 600px a horizontal stepper stacks
+ * vertically (SPEC 7.4) so its titles never collide.
  */
+const NARROW = '(max-width: 599px)'
+
 const StepsWrapper = styled.div<{ $direction?: string }>`
   display: flex;
   width: 100%;
@@ -21,6 +25,11 @@ const StepsWrapper = styled.div<{ $direction?: string }>`
           flex-direction: row;
           align-items: flex-start;
           gap: 10px;
+
+          @media ${NARROW} {
+            flex-direction: column;
+            gap: 0;
+          }
         `}
 `
 
@@ -61,6 +70,25 @@ const StepItem = styled.div<{ $isLast?: boolean; $direction?: string }>`
             grid-area: body;
             padding-right: 12px;
             padding-top: 10px;
+          }
+
+          /* Narrow: node over its track on the left, words beside them. */
+          @media ${NARROW} {
+            flex: 0 0 auto;
+            grid-template-areas:
+              'node body'
+              'tail body';
+            grid-template-rows: auto 1fr;
+            align-items: start;
+            column-gap: 12px;
+
+            > .ui-steps-tail {
+              justify-self: center;
+            }
+
+            > :not(.ui-steps-icon):not(.ui-steps-tail) {
+              padding: 4px 0 18px;
+            }
           }
         `}
 `
@@ -110,7 +138,7 @@ const StepCircle = styled.div<{ $status?: string }>`
   border: 1px solid;
   border-radius: var(--radius-pill);
   font-family: var(--font-figure);
-  font-size: 12px;
+  font-size: ${kitType.meta};
   line-height: 1;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
@@ -169,6 +197,20 @@ const StepTail = styled.div<{ $direction?: string; $done?: boolean }>`
             transform-origin: left;
             transform: scaleX(${$done ? 1 : 0});
           }
+
+          @media ${NARROW} {
+            align-self: stretch;
+            width: 2px;
+            height: auto;
+            min-width: 0;
+            min-height: 16px;
+            margin: 6px 0;
+
+            &::after {
+              transform-origin: top;
+              transform: scaleY(${$done ? 1 : 0});
+            }
+          }
         `}
 
   @media (prefers-reduced-motion: reduce) {
@@ -198,21 +240,27 @@ const StepBody = styled.div<{ $direction?: string }>`
     `}
 `
 
+/* Titles wrap rather than run into the next step. */
 const StepTitle = styled.span<{ $status?: string }>`
   color: ${({ $status }) =>
     $status === 'wait' ? 'var(--color-muted)' : 'var(--color-text)'};
   font-size: var(--fs-small);
-  line-height: 20px;
+  line-height: var(--lh-small);
   font-weight: 500;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
   transition: color var(--dur-control) var(--ease-out);
 `
 
 const StepDescription = styled.div`
   max-width: 180px;
   color: var(--color-faint);
-  font-size: 12px;
-  line-height: 16px;
+  font-size: ${kitType.meta};
+  line-height: ${kitType.metaLine};
+
+  @media ${NARROW} {
+    max-width: none;
+  }
 `
 
 interface StepProps {

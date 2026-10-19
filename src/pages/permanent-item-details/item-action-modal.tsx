@@ -41,7 +41,9 @@ const ItemActionModal = ({
   const policyURI = r?.arbitrationSettings?.[0]?.metadata?.policyURI
   const submitMetadata = metaEvidence?.metadata
     ? {
-        title: String(metaEvidence.metadata.title ?? ''),
+        title: String(
+          metaEvidence.metadata.tcrTitle ?? metaEvidence.metadata.title ?? '',
+        ),
         itemName: metaEvidence.metadata.itemName ?? '',
         policyURI: String(metaEvidence.metadata.policyURI ?? ''),
       }

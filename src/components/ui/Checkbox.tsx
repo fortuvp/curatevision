@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react'
 import styled, { keyframes } from 'styled-components'
 import { KitIcon } from './kit-icons'
-import { joinClassNames, kitTransition } from './kit-styles'
+import { joinClassNames, kitRadius, kitTransition } from './kit-styles'
 
 const Wrapper = styled.label<{ $disabled?: boolean }>`
   position: relative;
@@ -43,7 +43,7 @@ const Indicator = styled.span<{ $checked?: boolean }>`
       $checked
         ? 'color-mix(in srgb, var(--color-primary) 60%, transparent)'
         : 'var(--color-border-strong)'};
-  border-radius: 6px;
+  border-radius: ${kitRadius.xs};
   background: ${({ $checked }) =>
     $checked ? 'var(--color-primary-fill)' : 'var(--color-raised)'};
   box-shadow: ${({ $checked }) =>

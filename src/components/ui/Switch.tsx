@@ -97,7 +97,7 @@ const SwitchButton = styled.button<{ $checked: boolean; $size?: string }>`
 
 const InnerText = styled.span<{ $checked: boolean; $size?: string }>`
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: var(--fs-label);
   line-height: 1;
   font-weight: 500;
   color: ${({ $checked }) =>

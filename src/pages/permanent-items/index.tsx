@@ -62,18 +62,28 @@ import type { V2Field } from 'components/curate/v2'
 import {
   Button,
   Data,
+  EmptyState,
+  Grid,
   Page,
+  SkeletonBlock,
   Small,
+  Stack,
+  Surface,
   truncateMiddle,
 } from 'components/curate/primitives'
 import { CurateIcon } from 'components/curate/icons'
+import { useStakeSummary } from 'components/curate/registry-stake-summary'
+import type { StakeLane } from 'components/curate/registry-stake-summary'
+import { StakeInsights } from 'components/curate/registry-stake-insights'
 import ErrorPage from '../error-page'
 
 /*
  * Stake Curate registry page. The registry is read first (its periods and
  * multipliers are needed to derive statuses), then the items for the current
- * filters and page. The UI is RegistryHeader (identity, action, stats,
- * parameters, explainer), RegistryToolbar, EntryList and Pagination.
+ * filters and page, and a summary of every entry for the counts and the
+ * drawings. The UI is RegistryHeader (identity, action, figures, parameters,
+ * explainer), the three drawings (listing history, where the entries stand,
+ * challenges), RegistryToolbar, EntryList and Pagination.
  */
 
 const NSFW_FILTER_KEY = 'NSFW_FILTER_KEY'
@@ -126,10 +136,17 @@ const integer = new Intl.NumberFormat('en-US')
 const formatInt = (value: number) => integer.format(value)
 
 /**
- * The Stake Curate subgraph reports negative counters on some lists. A
- * negative count is a broken counter, not a number to show.
+ * The Stake Curate subgraph reports negative counters on some lists (one
+ * reports -2 submitted). A negative count is a broken counter, not a number
+ * to show.
  */
 const isCount = (value: number) => Number.isFinite(value) && value >= 0
+
+/** Each status filter chip with its count, while the count is known. */
+const withCount = (label: string, count?: number) =>
+  count !== undefined && Number.isFinite(count)
+    ? `${label} ${formatInt(count)}`
+    : label
 
 const itemFields = (item: StakeItem): V2Field[] =>
   item.metadata?.props ?? item.props ?? []
@@ -199,6 +216,10 @@ const ExplorerLink = styled.a`
 
 const Notice = styled.div`
   margin-bottom: 12px;
+`
+
+const Entries = styled.section`
+  min-width: 0;
 `
 
 const ListFooter = styled.div`
@@ -370,9 +391,15 @@ const StakeRegistry = () => {
     arbitratorExtraData: arbitrationSetting?.arbitratorExtraData,
     library,
   })
-  const { symbol: tokenSymbol, decimals: tokenDecimals } = useTokenSymbol(
-    registry?.token,
-  )
+  const {
+    symbol: tokenSymbol,
+    decimals: tokenDecimals,
+    loading: tokenLoading,
+  } = useTokenSymbol(registry?.token)
+  // Amounts wait for the token's decimals and symbol: formatted with the
+  // defaults (18, "tokens") they would be wrong on any other token.
+  const tokenReady = !!registry?.token && !tokenLoading
+  const tokenName = tokenReady ? tokenSymbol : 'the list token'
 
   // The sensitive-content setting is shared with the other registry pages.
   useEffect(() => {
@@ -386,36 +413,84 @@ const StakeRegistry = () => {
     localforage.setItem(NSFW_FILTER_KEY, checked)
   }, [])
 
-  const counts = useMemo(
-    () => ({
-      submitted: Number(registry?.numberOfSubmitted ?? 0),
-      absent: Number(registry?.numberOfAbsent ?? 0),
-      disputed: Number(registry?.numberOfDisputed ?? 0),
-    }),
-    [registry],
-  )
+  // Every entry of the list, for exact counts and the drawings.
+  const {
+    summary,
+    loading: summaryLoading,
+    failed: summaryFailed,
+  } = useStakeSummary({ chainId, registryId, registry, timestamp })
+  const fullSummary = summary && !summary.partial ? summary : undefined
 
-  const countsKnown =
-    isCount(counts.submitted) &&
-    isCount(counts.absent) &&
-    isCount(counts.disputed)
+  // The counts the page shows; undefined means unknown, shown as '—'. With
+  // the whole list in hand they are counted from the entries. Otherwise they
+  // are the subgraph's counters, which drift on some lists: one negative
+  // counter makes every bucket unreliable, so only their raw sum stands
+  // (each status change moves one entry from one counter to another).
+  const counts = useMemo((): {
+    listed?: number
+    disputed?: number
+    absent?: number
+    total?: number
+  } => {
+    if (fullSummary)
+      return {
+        listed: fullSummary.buckets.listed,
+        disputed: fullSummary.buckets.disputed,
+        absent: fullSummary.buckets.absent,
+        total: fullSummary.total,
+      }
+    if (!registry) return {}
+    const submitted = Number(registry.numberOfSubmitted)
+    const absentCount = Number(registry.numberOfAbsent)
+    const disputedCount = Number(registry.numberOfDisputed)
+    const sum = submitted + absentCount + disputedCount
+    const total = isCount(sum) ? sum : undefined
+    if (!isCount(submitted) || !isCount(absentCount) || !isCount(disputedCount))
+      return { total }
+    return {
+      listed: submitted,
+      disputed: disputedCount,
+      absent: absentCount,
+      total,
+    }
+  }, [fullSummary, registry])
 
-  const itemCount = useMemo(() => {
-    if (!registry) return 0
-    const hasAnyFilter = absent || registered || disputed
-    if (!hasAnyFilter) return counts.submitted + counts.absent + counts.disputed
-    let sum = 0
-    if (absent) sum += counts.absent
-    if (registered) sum += counts.submitted
-    if (disputed) sum += counts.disputed
-    return sum
-  }, [registry, absent, registered, disputed, counts])
+  // Hold the figures back while the summary loads, so a drifted counter
+  // never flashes before the real count.
+  const countsReady = !!registry && !summaryLoading
 
   // The batcher resolves failed requests to {}, so guard the items field.
-  const items: StakeItem[] = useMemo(
-    () => itemsQuery.data?.items ?? [],
-    [itemsQuery.data],
-  )
+  const pageItems = itemsQuery.data?.items as StakeItem[] | undefined
+  const items: StakeItem[] = useMemo(() => pageItems ?? [], [pageItems])
+
+  // Entries matching the status filters, from the counts above; undefined
+  // when a bucket it needs is unknown.
+  const filteredCount = useMemo((): number | undefined => {
+    if (!absent && !registered && !disputed) return counts.total
+    const parts = [
+      absent ? counts.absent : 0,
+      registered ? counts.listed : 0,
+      disputed ? counts.disputed : 0,
+    ]
+    if (parts.some((part) => part === undefined)) return undefined
+    return parts.reduce<number>((sum, part) => sum + (part ?? 0), 0)
+  }, [absent, registered, disputed, counts])
+
+  // How many entries match, undefined when unknown. A short page is the last
+  // one, so it gives the exact total; a full page proves at least that many.
+  // An empty page past the first proves nothing, so the counts stand in.
+  const pageStartIndex = (currentPage - 1) * ITEMS_PER_PAGE
+  const pageLength = pageItems?.length
+  const itemCount = useMemo((): number | undefined => {
+    if (!registry) return undefined
+    if (pageLength === undefined) return filteredCount
+    if (pageLength === 0) return currentPage === 1 ? 0 : filteredCount
+    if (pageLength < ITEMS_PER_PAGE) return pageStartIndex + pageLength
+    return filteredCount === undefined
+      ? undefined
+      : Math.max(filteredCount, pageStartIndex + pageLength)
+  }, [registry, pageLength, currentPage, pageStartIndex, filteredCount])
+
   const visibleItems = useMemo(
     () => items.filter((item) => matchesSearch(item, itemSearch)),
     [items, itemSearch],
@@ -488,7 +563,7 @@ const StakeRegistry = () => {
             {
               ...stakeColumn,
               value:
-                onList && item.stake
+                onList && item.stake && tokenReady
                   ? `${formatToken(item.stake, tokenDecimals)} ${tokenSymbol}`
                   : '',
             },
@@ -508,6 +583,7 @@ const StakeRegistry = () => {
       tcrAddress,
       tokenDecimals,
       tokenSymbol,
+      tokenReady,
       stakeColumn,
       reveal,
     ],
@@ -518,22 +594,25 @@ const StakeRegistry = () => {
     [baseColumns, stakeColumn],
   )
 
+  // The chips carry their counts, as the Light page's do, once the counts
+  // are settled and trusted (undefined otherwise).
+  const chipCount = (value?: number) => (countsReady ? value : undefined)
   const chips: FilterChip[] = [
     {
       key: P_FILTER_KEYS.REGISTERED,
-      label: 'Listed',
+      label: withCount('Listed', chipCount(counts.listed)),
       tone: 'registered',
       checked: !!registered,
     },
     {
       key: P_FILTER_KEYS.DISPUTED,
-      label: 'Disputed',
+      label: withCount('Disputed', chipCount(counts.disputed)),
       tone: 'contested',
       checked: !!disputed,
     },
     {
       key: P_FILTER_KEYS.ABSENT,
-      label: 'Rejected or removed',
+      label: withCount('Rejected or removed', chipCount(counts.absent)),
       tone: 'off',
       checked: !!absent,
     },
@@ -550,14 +629,15 @@ const StakeRegistry = () => {
     navigate({ search: `?${params.toString()}` })
   }
 
-  const minStake = registry?.submissionMinDeposit ? (
-    <TokenAmount
-      amount={registry.submissionMinDeposit}
-      tokenDecimals={tokenDecimals}
-      precision={3}
-      displayUnit={` ${tokenSymbol}`}
-    />
-  ) : undefined
+  const minStake =
+    registry?.submissionMinDeposit && tokenReady ? (
+      <TokenAmount
+        amount={registry.submissionMinDeposit}
+        tokenDecimals={tokenDecimals}
+        precision={3}
+        displayUnit={` ${tokenSymbol}`}
+      />
+    ) : undefined
   const arbitrationDeposit = arbitrationCost.arbitrationCost ? (
     <ETHAmount
       amount={arbitrationCost.arbitrationCost}
@@ -586,24 +666,48 @@ const StakeRegistry = () => {
     }
   }, [arbitratorExtraData])
 
-  // RegistryHeader prints '—' for an undefined value: unknown, not zero.
-  const countValue = (value: number) =>
-    registry && countsKnown ? formatInt(value) : undefined
+  // RegistryHeader prints '—' (or a skeleton) for an undefined value.
+  const countValue = (value?: number) =>
+    countsReady && value !== undefined ? formatInt(value) : undefined
 
   const stats: RegistryStat[] = [
-    {
-      label: 'Entries',
-      value: countValue(counts.submitted + counts.absent + counts.disputed),
-    },
-    { label: 'Listed', value: countValue(counts.submitted) },
+    { label: 'Entries', value: countValue(counts.total) },
+    { label: 'Listed', value: countValue(counts.listed) },
     { label: 'Disputed', value: countValue(counts.disputed) },
+    // Summed from every entry, so only with the whole list; the slot holds
+    // its place while the summary and the token's decimals load.
+    ...(fullSummary || summaryLoading
+      ? [
+          {
+            label: 'Locked stake',
+            value:
+              fullSummary && tokenReady
+                ? `${formatToken(fullSummary.locked.toString(), tokenDecimals)} ${tokenSymbol}`
+                : undefined,
+          },
+        ]
+      : []),
   ]
+
+  // The button names the whole deposit only once both parts are known. If
+  // the arbitration cost cannot be read, it names the minimum stake as such
+  // and the note says what is added on top.
+  const arbitrationFailed = !!arbitrationCost.error && !arbitrationDeposit
+  const primaryAmount =
+    minStake && arbitrationDeposit ? (
+      <>
+        {minStake} + {arbitrationDeposit}
+      </>
+    ) : minStake && arbitrationFailed ? (
+      minStake
+    ) : undefined
+  const depositFallback = !!minStake && !arbitrationDeposit && arbitrationFailed
 
   const parameters: RegistryParameter[] = [
     {
       label: 'Minimum stake',
       value: minStake,
-      hint: `Locked in ${tokenSymbol} for as long as the ${itemName} is listed. You can stake more than the minimum.`,
+      hint: `Locked in ${tokenName} for as long as the ${itemName} is listed. You can stake more than the minimum.`,
     },
     {
       label: 'Arbitration deposit',
@@ -618,7 +722,7 @@ const StakeRegistry = () => {
           ? `${registry.challengeStakeMultiplier} (raw multiplier)`
           : undefined,
       hint: challengePercent
-        ? `Locked in ${tokenSymbol} by the challenger, who also pays the arbitration cost to the court. If the challenge fails it is added to the entry's stake.`
+        ? `Locked in ${tokenName} by the challenger, who also pays the arbitration cost to the court. If the challenge fails it is added to the entry's stake.`
         : "Share of the entry's stake, in basis points; the percentage appears once the contract divisor has loaded.",
     },
     {
@@ -720,6 +824,19 @@ const StakeRegistry = () => {
     },
   ]
 
+  // The drawings never name an entry the list itself hides.
+  const laneHidden = (lane: StakeLane) =>
+    nsfwFilterOn &&
+    !revealed.has(lane.id) &&
+    (lane.statusCode === undefined
+      ? lane.tone === 'off'
+      : HIDDEN_STATUSES.has(lane.statusCode))
+
+  const openLane = (lane: StakeLane) => {
+    if (chainId && tcrAddress)
+      navigate(`/tcr/${chainId}/${tcrAddress}/${lane.id}`)
+  }
+
   if (!chainId || !tcrAddress)
     return (
       <ErrorPage
@@ -744,8 +861,37 @@ const StakeRegistry = () => {
   const verified = getListOfListsAddresses(chainId).includes(
     tcrAddress.toLowerCase(),
   )
-  const pageStart = (currentPage - 1) * ITEMS_PER_PAGE + 1
-  const pageEnd = Math.min(currentPage * ITEMS_PER_PAGE, itemCount)
+  const pageStart = pageStartIndex + 1
+  // A page past the end of the list: it came back empty.
+  const outOfRange = !itemsLoading && pageLength === 0 && currentPage > 1
+  // A full page with an unknown total: at least this many, maybe more.
+  const fullPageFloor =
+    itemCount === undefined && pageLength === ITEMS_PER_PAGE
+      ? pageStartIndex + ITEMS_PER_PAGE
+      : undefined
+  const footerTotal = itemCount ?? fullPageFloor
+  const pageEnd = Math.min(currentPage * ITEMS_PER_PAGE, footerTotal ?? 0)
+  const showFooter =
+    !itemsLoading &&
+    !outOfRange &&
+    footerTotal !== undefined &&
+    footerTotal > 0 &&
+    pageStart <= footerTotal
+  const toolbarTotal =
+    itemCount ?? (outOfRange ? 0 : pageStartIndex + items.length)
+  const noun = (count: number) => (count === 1 ? itemName : itemNamePlural)
+  const outOfRangeLine =
+    itemCount === undefined
+      ? 'This page is past the end of the list.'
+      : itemCount === 0
+        ? `No ${itemNamePlural} match${
+            absent || registered || disputed ? ' these filters' : ' yet'
+          }.`
+        : absent || registered || disputed
+          ? `${formatInt(itemCount)} ${noun(itemCount)} ${
+              itemCount === 1 ? 'matches' : 'match'
+            } these filters, all on earlier pages.`
+          : `This list has ${formatInt(itemCount)} ${noun(itemCount)}, all on earlier pages.`
 
   return (
     <Page>
@@ -761,14 +907,12 @@ const StakeRegistry = () => {
         kindLabel={KIND_LABEL}
         itemName={itemName}
         primaryLabel={`Submit ${itemName}`}
-        primaryAmount={
-          minStake && arbitrationDeposit ? (
-            <>
-              {minStake} + {arbitrationDeposit}
-            </>
-          ) : (
-            minStake
-          )
+        primaryAmount={primaryAmount}
+        depositLabel={depositFallback ? 'Minimum stake' : undefined}
+        depositNote={
+          depositFallback
+            ? `Plus an arbitration deposit in ${nativeCurrency} that could not be read just now. Both stay locked while your ${itemName} is listed and come back when you withdraw, unless a challenge succeeds.`
+            : undefined
         }
         onPrimary={openSubmit}
         policyURI={policyURI}
@@ -778,7 +922,17 @@ const StakeRegistry = () => {
         explainerId={`registry-stake-${tcrAddress.toLowerCase()}`}
         explainerHeading="Your stake stays locked, and a challenge can come at any time."
         explainerSteps={explainerSteps}
-        loading={loading}
+        loading={loading || summaryLoading}
+      />
+
+      <StakeInsights
+        summary={summaryFailed ? undefined : summary}
+        loading={loading || summaryLoading}
+        now={now}
+        itemName={itemName}
+        itemNamePlural={itemNamePlural}
+        isHidden={laneHidden}
+        onOpen={openLane}
       />
 
       <RegistryToolbar
@@ -795,8 +949,8 @@ const StakeRegistry = () => {
         onLayoutChange={setLayout}
         nsfwFilter={nsfwFilterOn}
         onNsfwChange={toggleNsfwFilter}
-        shown={entries.length}
-        total={countsKnown ? itemCount : items.length}
+        shown={itemsLoading ? 0 : entries.length}
+        total={toolbarTotal}
       />
 
       {columnsQuery.isError && (
@@ -808,43 +962,87 @@ const StakeRegistry = () => {
         </Notice>
       )}
 
-      <EntryList
-        layout={layout}
-        entries={entries}
-        columns={listColumns}
-        now={now}
-        itemName={itemName}
-        itemNamePlural={itemNamePlural}
-        loading={itemsLoading}
-        emptyAction={
-          <Button
-            type="button"
-            $variant="primary"
-            $size="sm"
-            onClick={openSubmit}
-          >
-            <CurateIcon name="submit" size={14} />
-            Submit {itemName}
-          </Button>
-        }
-      />
+      <Entries
+        aria-label={capitalizeFirstLetter(itemNamePlural)}
+        aria-busy={itemsLoading}
+      >
+        {itemsLoading ? (
+          layout === 'cards' ? (
+            <Grid $min={260}>
+              {Array.from({ length: 6 }).map((_, index) => (
+                <SkeletonBlock key={index} $height="180px" />
+              ))}
+            </Grid>
+          ) : (
+            <Stack $gap={8}>
+              {Array.from({ length: 6 }).map((_, index) => (
+                <SkeletonBlock key={index} $height="56px" />
+              ))}
+            </Stack>
+          )
+        ) : outOfRange ? (
+          <Surface $padding="none">
+            <EmptyState
+              icon="list"
+              title={`No ${itemNamePlural} on page ${formatInt(currentPage)}`}
+              action={
+                <Button
+                  type="button"
+                  $variant="secondary"
+                  $size="sm"
+                  onClick={() => setPage(1)}
+                >
+                  Back to page 1
+                </Button>
+              }
+            >
+              {outOfRangeLine}
+            </EmptyState>
+          </Surface>
+        ) : (
+          <EntryList
+            layout={layout}
+            entries={entries}
+            columns={listColumns}
+            now={now}
+            itemName={itemName}
+            itemNamePlural={itemNamePlural}
+            emptyAction={
+              <Button
+                type="button"
+                $variant="primary"
+                $size="sm"
+                onClick={openSubmit}
+              >
+                <CurateIcon name="submit" size={14} />
+                Submit {itemName}
+              </Button>
+            }
+          />
+        )}
 
-      {countsKnown && itemCount > 0 && (
-        <ListFooter>
-          <Small $muted>
-            {formatInt(pageStart)}–{formatInt(pageEnd)} of{' '}
-            {formatInt(itemCount)} {itemNamePlural}
-          </Small>
-          {itemCount > ITEMS_PER_PAGE && (
-            <Pagination
-              current={currentPage}
-              pageSize={ITEMS_PER_PAGE}
-              total={itemCount}
-              onChange={setPage}
-            />
-          )}
-        </ListFooter>
-      )}
+        {showFooter && footerTotal !== undefined && (
+          <ListFooter>
+            <Small $muted>
+              {formatInt(pageStart)}–{formatInt(pageEnd)} of{' '}
+              {fullPageFloor !== undefined ? 'at least ' : ''}
+              {formatInt(footerTotal)} {itemNamePlural}
+            </Small>
+            {(footerTotal > ITEMS_PER_PAGE || fullPageFloor !== undefined) && (
+              <Pagination
+                current={currentPage}
+                pageSize={ITEMS_PER_PAGE}
+                // An unknown total offers one more page; an empty one
+                // leads back to page 1.
+                total={
+                  fullPageFloor !== undefined ? fullPageFloor + 1 : footerTotal
+                }
+                onChange={setPage}
+              />
+            )}
+          </ListFooter>
+        )}
+      </Entries>
     </Page>
   )
 }

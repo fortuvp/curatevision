@@ -1,6 +1,6 @@
 import React from 'react'
 import styled, { css } from 'styled-components'
-import { joinClassNames, skeletonBlock } from './kit-styles'
+import { joinClassNames, kitRadius, skeletonBlock } from './kit-styles'
 
 /*
  * List, v2: rows of 52px (44 small, 64 large) split by inset hairlines; a
@@ -11,7 +11,7 @@ const ListWrapper = styled.div<{ $bordered?: boolean }>`
   font-size: var(--fs-body);
   line-height: var(--lh-body);
   background: transparent;
-  border-radius: 14px;
+  border-radius: ${kitRadius.well};
 
   ${({ $bordered }) =>
     $bordered &&
@@ -65,7 +65,7 @@ const ListItemWrapper = styled.li<{ $size?: string; $split?: boolean }>`
   display: flex;
   align-items: center;
   gap: 16px;
-  border-radius: 12px;
+  border-radius: var(--radius);
   transition: background var(--dur-hover) var(--ease-out);
   ${({ $size }) => sizeMap[$size || 'default'] || sizeMap.default}
 

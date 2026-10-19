@@ -1,6 +1,6 @@
 import React, { Children, useMemo } from 'react'
 import styled, { css } from 'styled-components'
-import { joinClassNames, kitLabel } from './kit-styles'
+import { joinClassNames, kitLabel, kitRadius, kitType } from './kit-styles'
 
 interface DescriptionsItemProps {
   label?: React.ReactNode
@@ -23,8 +23,8 @@ const Title = styled.div`
   margin-bottom: 14px;
   color: var(--color-text);
   font-family: var(--font-display);
-  font-size: 20px;
-  line-height: 26px;
+  font-size: ${kitType.titleSm};
+  line-height: ${kitType.titleSmLine};
   font-weight: 500;
   letter-spacing: -0.02em;
 `
@@ -36,7 +36,7 @@ const Title = styled.div`
 const BorderedTableWrapper = styled.div`
   overflow-x: auto;
   border: 1px solid var(--glass-border);
-  border-radius: 14px;
+  border-radius: ${kitRadius.well};
   background: var(--color-raised);
 `
 

@@ -1,7 +1,6 @@
-import React, { useCallback, useRef, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import styled from 'styled-components'
-import type { Address } from 'viem'
-import { BigNumber } from 'ethers'
+import type { BigNumber } from 'ethers'
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
 import { simulateContract } from '@wagmi/core'
 import _gtcr from 'assets/abis/PermanentGTCR.json'
@@ -9,182 +8,309 @@ import useNow from 'hooks/use-now'
 import useTokenSymbol from 'hooks/token-symbol'
 import useNativeCurrency from 'hooks/native-currency'
 import useUrlChainId from 'hooks/use-url-chain-id'
-import { klerosAddresses } from 'config/tcr-addresses'
-import { getAddressPage } from 'utils/network-utils'
-import { formatAbsolute, formatDurationLong } from 'utils/time'
 import {
-  CONTRACT_STATUS,
-  STATUS_CODE,
-  SUBGRAPH_RULING,
-  itemToStatusCode,
-} from 'utils/permanent-item-status'
+  formatAbsolute,
+  formatDate,
+  formatDuration,
+  formatDurationLong,
+} from 'utils/time'
+import { STATUS_CODE } from 'utils/permanent-item-status'
 import { wrapWithToast, errorToast } from 'utils/wrap-with-toast'
 import { parseWagmiError } from 'utils/parse-wagmi-error'
 import { wagmiConfig } from 'config/wagmi'
 import { CurateIcon } from 'components/curate/icons'
 import {
-  Body,
   Button,
   ButtonAnchor,
-  Data,
-  Figure,
-  Hairline,
   Label,
   SkeletonBlock,
   Small,
   Stack,
   Surface,
 } from 'components/curate/primitives'
-import { CountdownCard } from 'components/curate/countdown-card'
-import ItemActionButton, {
-  isPassiveStatus,
-} from 'components/permanent-item-action-button'
+import { EntryStatus, stakeEntryStatus } from 'components/curate/entry-status'
+import { StickyActionBar } from 'components/curate/item-light-action-bar'
+import { CountUpText } from 'components/curate/registry-shared-count'
+import ItemActionButton from 'components/permanent-item-action-button'
+import { scrollToEvidenceComposer } from 'components/permanent-request-timelines'
+import { AddressLink } from 'components/curate/item-stake-address'
 import ItemActionModal from './item-action-modal'
 import WithdrawModal from './modals/withdraw'
 import AppealFundingCard from './crowdfunding-card'
-import {
-  Stepper,
-  withdrawalSteps,
-  type WithdrawalStage,
-} from './withdrawal-stepper'
+import { WithdrawalStepper } from './withdrawal-stepper'
 import {
   GateHelper,
   applyMultiplier,
+  formatTokenAmount,
   multiplierPercent,
   nativeText,
   tokenText,
   useActionGate,
 } from './modals/shell'
+import {
+  otherSide,
+  rulingLine,
+  stakeFacts,
+  stakeStatusCode,
+  toNum,
+  type StakeItem,
+  type StakeRegistry,
+} from './facts'
+
+export type { StakeChallenge, StakeItem, StakeRegistry } from './facts'
+export { rulingSentence } from './facts'
 
 /*
- * The right rail of the Stake Curate item page: the window that is open
- * right now as a countdown, the withdrawal as a three-step stepper, the
- * stake at risk and the arbitration deposit, the one action with its exact
- * amounts, and the court link. On phones the action repeats in a sticky bar.
+ * The right rail of the Stake item page. The action card leads with what
+ * is at stake as one large figure in the list's token, how much of it a
+ * challenger must match, the one action with its exact amounts in both
+ * assets, then the facts behind it. Under it, the withdrawal as a
+ * three-node stepper and, while an appeal is open, the funding of each
+ * side. While jurors decide it asks for evidence instead of showing a dead
+ * button. On phones the one action moves to the shared sticky bar (status
+ * plus that action), so each control appears once.
  */
 
-/** Challenge fields the item query selects. */
-export interface StakeChallenge extends SubgraphChallenge {
-  disputeID: string
-  challenger: string
-  challengerStake?: string
-  disputeOutcome?: string | null
-  createdAt?: string | null
-  creationTx?: string | null
-  resolutionTime?: string | null
-  resolutionTx?: string | null
-  arbitrationSetting: { arbitratorExtraData: string }
-}
+const Card = styled(Surface)`
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+`
 
-/** A registry row where the fields the rail needs are known to be present. */
-export interface StakeRegistry extends SubgraphRegistry {
-  id: Address
-  token: Address
-  arbitrator: { id: Address }
-}
+const Head = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+`
 
-/** A Stake Curate item as the item query returns it. */
-export interface StakeItem extends SubgraphItem {
-  itemID: string
-  submitter: string
-  stake: string
-  includedAt: string
-  arbitrationDeposit?: string
-  withdrawingTimestamp: string
-  challenges: StakeChallenge[]
-  registry?: StakeRegistry
-  columns?: Column[]
-}
+const Amount = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  color: var(--color-text);
+  font-family: var(--font-figure);
+  font-size: 44px;
+  line-height: 1;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 
-const toNum = (value: unknown): number => {
-  const n = Number(value ?? 0)
-  return Number.isFinite(n) ? n : 0
-}
-
-const RailStack = styled(Stack)`
-  position: sticky;
-  top: calc(var(--app-bar-height) + 16px);
-
-  @media (max-width: 1100px) {
-    position: static;
+  small {
+    color: var(--color-muted);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: 0;
   }
 `
 
-const ActionStack = styled(Stack)`
+const Sub = styled.span`
+  margin-top: -4px;
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  font-variant-numeric: tabular-nums;
+`
+
+const Prompt = styled.p`
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+`
+
+/* The stake at risk as the whole track; the fill is the challenger's share. */
+const ShareTrack = styled.div`
+  position: relative;
+  height: 8px;
+  margin-top: 4px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: repeating-linear-gradient(
+    135deg,
+    var(--color-raised) 0 3px,
+    transparent 3px 7px
+  );
+  box-shadow: inset 0 0 0 1px var(--glass-border);
+`
+
+const ShareFill = styled.span`
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: var(--radius-pill);
+  background: var(--status-contested);
+  box-shadow: 0 0 12px
+    color-mix(in srgb, var(--status-contested) 55%, transparent);
+  transition:
+    width 900ms var(--ease-out),
+    min-width 900ms var(--ease-out);
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+`
+
+const ShareLegend = styled.ul`
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--color-muted);
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  i {
+    width: 7px;
+    height: 7px;
+    border-radius: var(--radius-pill);
+    background: var(--status-contested);
+  }
+
+  b {
+    color: var(--color-text);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+`
+
+const Rows = styled.dl`
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  border-top: 1px solid var(--glass-border);
+
+  div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--glass-border);
+  }
+
+  div:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  dt {
+    color: var(--color-muted);
+    font-size: var(--fs-small);
+    line-height: var(--lh-small);
+  }
+
+  dd {
+    margin: 0;
+    min-width: 0;
+    color: var(--color-text);
+    font-size: var(--fs-small);
+    line-height: var(--lh-small);
+    font-weight: 500;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+
+  dd > a {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--color-primary);
+    text-decoration: none;
+  }
+
+  dd > a:hover {
+    text-decoration: underline;
+  }
+`
+
+const WithdrawalTop = styled.div`
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+`
+
+const WithdrawalState = styled.span`
+  color: var(--color-text);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+`
+
+/* Above 720px the card holds the action; on phones the sticky bar does. */
+const DesktopAction = styled.div`
+  display: flex;
+  flex-direction: column;
+
   @media (max-width: 720px) {
     display: none;
   }
 `
 
-/*
- * The phone action bar is fixed to the bottom of the screen: as a grid item
- * a sticky element is boxed into its own grid area and never moves. A spacer
- * in flow, sized to the measured bar, keeps the last content above it.
- */
-const MobileBar = styled.div`
-  display: none;
-
+/* Collapses on phones when the action it holds moved to the bar. */
+const ActionGroup = styled(Stack)`
   @media (max-width: 720px) {
-    position: fixed;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    z-index: 5;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 12px var(--horizontal-padding) 16px;
-    border-top: 1px solid var(--color-border);
-    background: var(--color-surface);
+    &:not(:has(> :not(${DesktopAction}))) {
+      display: none;
+    }
   }
 `
 
-const MobileSpacer = styled.div<{ $height: number }>`
-  display: none;
-
-  @media (max-width: 720px) {
-    display: block;
-    height: ${({ $height }) => $height}px;
-  }
-`
-
-/** Measures the fixed bar so the spacer always matches it, whatever it holds. */
-const useMeasuredHeight = (): [
-  number,
-  (node: HTMLDivElement | null) => void,
-] => {
-  const [height, setHeight] = useState(0)
-  const observer = useRef<ResizeObserver | null>(null)
-  const ref = useCallback((node: HTMLDivElement | null) => {
-    observer.current?.disconnect()
-    observer.current = null
-    if (!node) return
-    const measure = () => setHeight(node.getBoundingClientRect().height)
-    measure()
-    if (typeof ResizeObserver === 'undefined') return
-    observer.current = new ResizeObserver(measure)
-    observer.current.observe(node)
+/** The challenger's share of the stake, as a bar that grows in. */
+const ChallengerShare = ({
+  share,
+  amountText,
+  percentText,
+  verb,
+  stakeText,
+}: {
+  share: number
+  amountText: string
+  percentText: string
+  verb: string
+  stakeText: string
+}) => {
+  const [shown, setShown] = useState(false)
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setShown(true))
+    return () => cancelAnimationFrame(frame)
   }, [])
-  return [height, ref]
-}
-
-const LinkRow = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-`
-
-export const rulingSentence = (ruling: string | null | undefined): string => {
-  switch (ruling) {
-    case SUBGRAPH_RULING.NONE:
-      return 'The arbitrator refused to rule.'
-    case SUBGRAPH_RULING.ACCEPT:
-      return 'The arbitrator ruled for the submitter.'
-    case SUBGRAPH_RULING.REJECT:
-      return 'The arbitrator ruled for the challenger.'
-    default:
-      return 'No ruling yet.'
-  }
+  const width = Math.round(Math.min(1, Math.max(0, share)) * 100)
+  return (
+    <div
+      role="img"
+      aria-label={`A challenger ${verb} ${amountText}, ${percentText} of the ${stakeText} at stake`}
+    >
+      <ShareTrack aria-hidden>
+        <ShareFill
+          style={{
+            width: shown ? `${width}%` : '0%',
+            minWidth: shown && width > 0 ? 8 : 0,
+          }}
+        />
+      </ShareTrack>
+      <ShareLegend aria-hidden>
+        <li>
+          <i />
+          Challenger {verb} <b>{amountText}</b>
+        </li>
+        <li>{percentText} of the stake</li>
+      </ShareLegend>
+    </div>
+  )
 }
 
 interface ItemStatusCardProps {
@@ -216,7 +342,6 @@ const ItemStatusCard = ({
   const nativeCurrency = useNativeCurrency()
   const [withdrawModalOpen, setWithdrawModalOpen] = useState(false)
   const [executing, setExecuting] = useState(false)
-  const [barHeight, barRef] = useMeasuredHeight()
   const { symbol: tokenSymbol, decimals: tokenDecimals } = useTokenSymbol(
     registry?.token,
   )
@@ -224,83 +349,73 @@ const ItemStatusCard = ({
 
   const statusCode =
     item && timestamp && registry
-      ? itemToStatusCode(item, timestamp, registry)
+      ? stakeStatusCode(item, timestamp, registry)
       : undefined
 
   if (!item || !timestamp || !registry || statusCode === undefined)
     return (
-      <RailStack $gap={16} aria-busy="true" aria-label="Loading status">
-        <SkeletonBlock $height="132px" />
-        <SkeletonBlock $height="96px" />
-        <SkeletonBlock $height="56px" />
-      </RailStack>
+      <Card $padding="standard" aria-busy="true" aria-label="Loading status">
+        <SkeletonBlock $height="16px" $width="50%" />
+        <SkeletonBlock $height="44px" $width="60%" />
+        <SkeletonBlock $height="44px" />
+      </Card>
     )
 
+  const view = stakeEntryStatus(item, timestamp, registry)
+  const facts = stakeFacts({ item, registry, statusCode, chainId })
+  const {
+    offList,
+    withdrawingAt,
+    withdrawingPeriod,
+    withdrawReadyAt,
+    isWithdrawable,
+    withdrawalStage,
+    challenge,
+    round,
+    disputeID,
+    hasDispute,
+    appealHalf,
+    appealEnd,
+    appealable,
+    refusedToRule,
+    fundedSide,
+    underDispute,
+    inCourt,
+    loserName,
+    winnerName,
+    courtHref,
+    courtHost,
+    challengedAt,
+  } = facts
   const itemName = metaEvidence?.metadata?.itemName || 'item'
-  const offList =
-    statusCode === STATUS_CODE.REJECTED ||
-    statusCode === STATUS_CODE.REMOVED ||
-    statusCode === STATUS_CODE.WITHDRAWN
-  const includedAt = toNum(item.includedAt)
-  const reincluded = item.status === CONTRACT_STATUS.REINCLUDED
-  const period = toNum(
-    reincluded ? registry.reinclusionPeriod : registry.submissionPeriod,
-  )
-  const acceptedAt = includedAt + period
-  const withdrawingAt = toNum(item.withdrawingTimestamp)
-  const withdrawingPeriod = toNum(registry.withdrawingPeriod)
-  const withdrawReadyAt = withdrawingAt + withdrawingPeriod
-  const isWithdrawing = !offList && withdrawingAt > 0
-  const isWithdrawable = !offList && withdrawingAt === 0
   const isSubmitter =
     !!account &&
     !!item.submitter &&
     account.toLowerCase() === item.submitter.toLowerCase()
 
-  const challenge = item.challenges?.[0]
-  const round = challenge?.rounds?.[0]
-  const disputeID = challenge?.disputeID
-  const appealStart = toNum(round?.appealPeriodStart)
-  const appealEnd = toNum(round?.appealPeriodEnd)
-  const appealHalf = appealStart + (appealEnd - appealStart) / 2
-  const appealable =
-    statusCode === STATUS_CODE.CROWDFUNDING ||
-    statusCode === STATUS_CODE.CROWDFUNDING_WINNER
-  // With no ruling there is no loser: the contract lets either side fund
-  // with the shared multiplier until the period ends, with no half cutoff.
-  const refusedToRule = round?.ruling === SUBGRAPH_RULING.NONE
-  const loserPhase = !refusedToRule && now < appealHalf
-  const underDispute =
-    statusCode === STATUS_CODE.DISPUTED ||
-    statusCode === STATUS_CODE.WAITING_ARBITRATOR ||
-    appealable
-
-  const arbitrator = registry.arbitrator.id
-  const kleros = chainId ? klerosAddresses[chainId] : undefined
-  const courtHref =
-    disputeID && kleros?.arbitrator.toLowerCase() === arbitrator.toLowerCase()
-      ? kleros.uiURL.replace(':disputeID', disputeID.toString())
-      : disputeID
-        ? getAddressPage({ networkId: chainId ?? 0, address: arbitrator })
-        : undefined
-
   const stakeText = tokenText(item.stake, tokenDecimals, tokenSymbol)
-  const minStakeText = tokenText(
-    registry.submissionMinDeposit ?? 0,
-    tokenDecimals,
-    tokenSymbol,
-  )
+  const minStake = registry.submissionMinDeposit ?? 0
+  const minStakeText = tokenText(minStake, tokenDecimals, tokenSymbol)
   const depositText = item.arbitrationDeposit
     ? nativeText(item.arbitrationDeposit, nativeCurrency)
     : undefined
-  const challengerStake = applyMultiplier(
-    item.stake,
-    registry.challengeStakeMultiplier,
-  )
+  const multiplier = registry.challengeStakeMultiplier
+  const challengerStake = applyMultiplier(item.stake, multiplier)
   const challengerText = tokenText(challengerStake, tokenDecimals, tokenSymbol)
   const costText = arbitrationCost
     ? nativeText(arbitrationCost, nativeCurrency)
     : undefined
+  // While disputed the challenger's stake is on record; before, it is the
+  // list's share of the entry's stake.
+  const stakedByChallenger =
+    underDispute && challenge?.challengerStake
+      ? BigInt(String(challenge.challengerStake))
+      : challengerStake
+  const stakeWei = BigInt(String(item.stake || 0))
+  const challengerShare =
+    stakeWei > 0n
+      ? Number((stakedByChallenger * 10_000n) / stakeWei) / 10_000
+      : 0
 
   const executeWithdrawal = async () => {
     if (!walletClient || !publicClient) return
@@ -347,74 +462,147 @@ const ItemStatusCard = ({
     }
   }
 
-  const amounts =
+  const challengeable =
     statusCode === STATUS_CODE.PENDING || statusCode === STATUS_CODE.ACCEPTED
+  const amounts = challengeable
+    ? costText
+      ? `${challengerText} + ${costText}`
+      : challengerText
+    : offList
       ? costText
-        ? `${challengerText} + ${costText}`
-        : challengerText
-      : offList
-        ? costText
-          ? `${minStakeText} + ${costText}`
-          : minStakeText
-        : undefined
+        ? `${minStakeText} + ${costText}`
+        : minStakeText
+      : undefined
   const directAction = statusCode === STATUS_CODE.PENDING_WITHDRAWAL
   const actionBlocker =
     directAction && !executeGate.ready ? executeGate.blocker : undefined
 
-  const withdrawalStage: WithdrawalStage =
-    statusCode === STATUS_CODE.WITHDRAWN
-      ? 'withdrawn'
-      : statusCode === STATUS_CODE.PENDING_WITHDRAWAL
-        ? 'ready'
-        : isWithdrawing
-          ? 'withdrawing'
-          : 'listed'
-  const withdrawingWindow = withdrawingPeriod
+  const actionButton = (id?: string) =>
+    inCourt ? null : (
+      <ItemActionButton
+        id={id}
+        statusCode={statusCode}
+        itemName={itemName}
+        itemID={item.itemID}
+        onClick={onAction}
+        type="primary"
+        amounts={amounts}
+        disabled={Boolean(actionBlocker)}
+        blocker={actionBlocker}
+        loading={executing}
+        block
+      />
+    )
+
+  /* ---------- The figure ---------- */
+
+  const figureLabel = offList
+    ? 'Stake to resubmit'
+    : directAction
+      ? 'Returns to the submitter'
+      : 'Stake at risk'
+  const figureAmount = offList ? minStake : item.stake
+  const figureSub = offList
+    ? costText
+      ? `Minimum, plus ${costText} arbitration deposit`
+      : 'Minimum stake'
+    : depositText
+      ? `Plus ${depositText} arbitration deposit`
+      : undefined
+
+  // The loser can be fully funded before the half: then the winner's clock
+  // runs, as in the second half.
+  const loserFunded = fundedSide === loserName
+  const prompt = appealable
+    ? refusedToRule
+      ? fundedSide
+        ? `Jurors refused to rule. The ${fundedSide} funded an appeal; the ${otherSide(fundedSide)} has ${formatDuration(appealEnd - now)} to fund too, or loses.`
+        : `Jurors refused to rule. If one side fully funds an appeal by ${formatAbsolute(appealEnd)}, the other must fund too or loses.`
+      : statusCode === STATUS_CODE.CROWDFUNDING && !loserFunded
+        ? `The ${loserName} has ${formatDuration(appealHalf - now)} to fund an appeal, or the ruling stands.`
+        : `The ${loserName} funded the appeal. The ${winnerName} has ${formatDuration(appealEnd - now)} to fund too, or loses.`
+    : statusCode === STATUS_CODE.DISPUTED
+      ? 'Jurors read the evidence before they vote. If you know something they should, add it now.'
+      : statusCode === STATUS_CODE.WAITING_ARBITRATOR
+        ? fundedSide && now >= appealEnd
+          ? `${rulingLine(round?.ruling)}. The ${fundedSide} funded the appeal alone, so the ${fundedSide} wins when the ruling is enforced.`
+          : `${rulingLine(round?.ruling)}. Nothing to sign until the ruling is enforced.`
+        : undefined
+
+  const courtLink =
+    disputeID && courtHref ? (
+      <a
+        href={courtHref}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={`Case ${disputeID}${courtHost ? ` on ${courtHost}` : ''}`}
+      >
+        Case {disputeID}
+        <CurateIcon name="external" size={12} />
+      </a>
+    ) : disputeID ? (
+      <>Case {disputeID}</>
+    ) : null
+  const courtAsButton = statusCode === STATUS_CODE.DISPUTED && !!courtHref
+
+  const submissionPeriod = toNum(registry.submissionPeriod)
+
+  /* ---------- Withdrawal ---------- */
+
+  const showWithdrawal = !offList || statusCode === STATUS_CODE.WITHDRAWN
+  // The contract blocks the execution while disputed and settles the
+  // withdrawal with the ruling, so its clock stops meaning anything: the
+  // drawing holds where it was when the dispute began.
+  const paused = underDispute && withdrawalStage === 'withdrawing'
+  const clock = paused
+    ? Math.max(withdrawingAt, Math.min(now, challengedAt || now))
+    : now
+  const elapsed =
+    withdrawingPeriod > 0
+      ? Math.min(1, Math.max(0, (clock - withdrawingAt) / withdrawingPeriod))
+      : 1
+  const periodShort = withdrawingPeriod
+    ? formatDuration(withdrawingPeriod)
+    : undefined
+  const periodLong = withdrawingPeriod
     ? formatDurationLong(withdrawingPeriod)
     : undefined
-  const stepper = (
-    <Stepper
-      label="Withdrawal steps"
-      steps={withdrawalSteps(withdrawalStage, {
-        withdraw:
-          withdrawalStage === 'listed'
-            ? isSubmitter
-              ? 'Only you, the submitter, can start it.'
-              : 'Only the submitter can start it.'
-            : `Started ${formatAbsolute(withdrawingAt)}`,
-        withdrawing:
-          withdrawalStage === 'withdrawing'
-            ? underDispute
-              ? `Paused by the dispute: if the jurors keep the ${itemName} it is withdrawn at once; if they remove it the withdrawal is void.`
-              : `Still challengeable until ${formatAbsolute(withdrawReadyAt)}`
-            : withdrawingWindow
-              ? `${withdrawingWindow}, during which the ${itemName} can still be challenged.`
-              : undefined,
-        execute:
-          withdrawalStage === 'withdrawn'
-            ? 'Stake and deposit returned to the submitter.'
-            : depositText
-              ? `Anyone can execute it. ${stakeText} + ${depositText} return to the submitter.`
-              : `Anyone can execute it. ${stakeText} returns to the submitter.`,
-      })}
-    />
-  )
+  const withdrawalState =
+    withdrawalStage === 'listed'
+      ? 'Not started'
+      : paused
+        ? 'Paused by the dispute'
+        : withdrawalStage === 'withdrawing'
+          ? `${formatDuration(withdrawReadyAt - now)} left`
+          : withdrawalStage === 'ready'
+            ? 'Ready to execute'
+            : 'Completed'
+  const withdrawalLine =
+    withdrawalStage === 'listed'
+      ? `${isSubmitter ? 'Only you, the submitter, can start it' : 'Only the submitter can start it'}.${
+          periodLong
+            ? ` The ${itemName} stays listed and challengeable for ${periodLong} after.`
+            : ''
+        }`
+      : withdrawalStage === 'withdrawing'
+        ? paused
+          ? `It resolves with the ruling: if the jurors keep the ${itemName} it is withdrawn at once; if they remove it, the withdrawal is void.`
+          : `Still challengeable until ${formatAbsolute(withdrawReadyAt)}.`
+        : withdrawalStage === 'ready'
+          ? `Anyone can execute it: ${depositText ? `${stakeText} + ${depositText}` : stakeText} return to the submitter.`
+          : 'Stake and arbitration deposit returned to the submitter.'
+  const withdrawalLabel = `Withdrawal: ${
+    withdrawalStage === 'listed'
+      ? 'not started'
+      : paused
+        ? `started ${formatAbsolute(withdrawingAt)}, paused by the dispute at ${Math.round(elapsed * 100)}% of the ${periodLong ?? 'withdrawing period'}; it resolves with the ruling`
+        : withdrawalStage === 'withdrawing'
+          ? `started ${formatAbsolute(withdrawingAt)}, ${Math.round(elapsed * 100)}% of the ${periodLong ?? 'withdrawing period'} elapsed, executable from ${formatAbsolute(withdrawReadyAt)}`
+          : withdrawalStage === 'ready'
+            ? `ready to execute since ${formatAbsolute(withdrawReadyAt)}`
+            : 'completed'
+  }`
 
-  const actionButton = (id?: string) => (
-    <ItemActionButton
-      id={id}
-      statusCode={statusCode}
-      itemName={itemName}
-      itemID={item.itemID}
-      onClick={onAction}
-      type="primary"
-      amounts={amounts}
-      disabled={Boolean(actionBlocker)}
-      blocker={actionBlocker}
-      loading={executing}
-      block
-    />
-  )
   const withdrawButton =
     isWithdrawable && isSubmitter ? (
       <Button
@@ -427,229 +615,245 @@ const ItemStatusCard = ({
       </Button>
     ) : null
 
+  const barAction =
+    statusCode === STATUS_CODE.DISPUTED ? (
+      <Button
+        type="button"
+        $variant="primary"
+        $block
+        onClick={scrollToEvidenceComposer}
+      >
+        Add evidence
+      </Button>
+    ) : (
+      actionButton('item-action-button-mobile')
+    )
+
   return (
     <>
-      <RailStack $gap={16} aria-label="Status and actions">
-        {statusCode === STATUS_CODE.PENDING && (
-          <CountdownCard
-            title={reincluded ? 'Reinclusion period' : 'Submission period'}
-            start={includedAt}
-            deadline={acceptedAt}
-            now={now}
-            tone="window"
-            verb="until accepted"
-            passedLabel="Accepted"
-            hint={`Anyone can challenge during this period. The ${itemName} is accepted when it ends, and stays challengeable while listed.`}
-          />
-        )}
-
-        {statusCode === STATUS_CODE.ACCEPTED && (
-          <Surface $padding="compact" role="group" aria-label="Accepted">
-            <Stack $gap={6}>
-              <Label>Accepted</Label>
-              <Data title={formatAbsolute(acceptedAt)}>
-                since {formatAbsolute(acceptedAt)}
-              </Data>
-              <Small $muted>
-                Listed. It can be challenged at any time while its stake is
-                locked.
-              </Small>
-            </Stack>
-          </Surface>
-        )}
-
-        {statusCode === STATUS_CODE.DISPUTED && (
-          <Surface $padding="compact" role="group" aria-label="Disputed">
-            <Stack $gap={6}>
-              <Label>Disputed</Label>
-              <Data>Jurors deciding</Data>
-              <Small $muted>
-                Dispute #{disputeID}. Both sides can add evidence below while
-                the case runs.
-              </Small>
-            </Stack>
-          </Surface>
-        )}
-
-        {appealable && (
-          <CountdownCard
-            title="Appeal period"
-            start={appealStart}
-            deadline={loserPhase ? appealHalf : appealEnd}
-            now={now}
-            tone="contested"
-            verb={loserPhase ? 'for the loser to fund' : 'to fund'}
-            passedLabel="Appeal closing"
-            hint={
-              refusedToRule ? (
-                <>
-                  {rulingSentence(round?.ruling)} Either side can fund until{' '}
-                  {formatAbsolute(appealEnd)}.
-                </>
-              ) : (
-                <>
-                  {rulingSentence(round?.ruling)} The loser&apos;s half ends{' '}
-                  {formatAbsolute(appealHalf)}; the period ends{' '}
-                  {formatAbsolute(appealEnd)}.
-                </>
-              )
-            }
-          />
-        )}
-        {appealable && (
-          <AppealFundingCard
-            item={item}
-            registry={registry}
-            timestamp={timestamp}
-            appealCost={appealCost}
-          />
-        )}
-
-        {statusCode === STATUS_CODE.WAITING_ARBITRATOR && (
-          <Surface $padding="compact" role="group" aria-label="Awaiting ruling">
-            <Stack $gap={6}>
-              <Label>Awaiting ruling</Label>
-              {now < appealEnd ? (
-                refusedToRule ? (
-                  <>
-                    <Data>Appeal period closing</Data>
-                    <Small $muted>
-                      {rulingSentence(round?.ruling)} The period ends{' '}
-                      {formatAbsolute(appealEnd)}; the ruling is enforced on
-                      the {itemName} once the arbitrator executes it.
-                    </Small>
-                  </>
-                ) : (
-                  <>
-                    <Data>Loser did not fund the appeal</Data>
-                    <Small $muted>
-                      {rulingSentence(round?.ruling)} The ruling stands and is
-                      enforced once the period ends{' '}
-                      {formatAbsolute(appealEnd)}.
-                    </Small>
-                  </>
-                )
-              ) : (
-                <>
-                  <Data>Appeal period over</Data>
-                  <Small $muted>
-                    {rulingSentence(round?.ruling)} The ruling is enforced on
-                    the {itemName} once the arbitrator executes it.
-                  </Small>
-                </>
+      <Card
+        id="item-status-card"
+        $padding="standard"
+        role="region"
+        aria-label="What you can do"
+      >
+        {inCourt && view && <EntryStatus status={view} now={now} />}
+        <Head>
+          <Label $tone="faint">{figureLabel}</Label>
+          <Amount title={tokenText(figureAmount, tokenDecimals, tokenSymbol)}>
+            <CountUpText
+              value={formatTokenAmount(figureAmount, tokenDecimals)}
+            />
+            <small>{tokenSymbol}</small>
+          </Amount>
+          {figureSub && <Sub>{figureSub}</Sub>}
+          {!offList && !directAction && stakeWei > 0n && (
+            <ChallengerShare
+              share={challengerShare}
+              amountText={tokenText(
+                stakedByChallenger,
+                tokenDecimals,
+                tokenSymbol,
               )}
-            </Stack>
-          </Surface>
-        )}
-
-        {offList && (
-          <Surface $padding="compact" role="group" aria-label="Off the list">
-            <Stack $gap={6}>
-              <Label>
-                {statusCode === STATUS_CODE.WITHDRAWN
-                  ? 'Withdrawn'
-                  : statusCode === STATUS_CODE.REMOVED
-                    ? 'Removed'
-                    : 'Rejected'}
-              </Label>
-              <Small $muted>
-                {statusCode === STATUS_CODE.WITHDRAWN
-                  ? `Withdrawn by the submitter. It can be resubmitted with a new stake of at least ${minStakeText}.`
-                  : `Off the list after a ruling. It can be resubmitted with a new stake of at least ${minStakeText}.`}
-              </Small>
-            </Stack>
-          </Surface>
-        )}
-
-        {withdrawalStage === 'withdrawing' &&
-        (statusCode === STATUS_CODE.PENDING ||
-          statusCode === STATUS_CODE.ACCEPTED) ? (
-          <CountdownCard
-            title="Withdrawal period"
-            start={withdrawingAt}
-            deadline={withdrawReadyAt}
-            now={now}
-            tone="neutral"
-            verb="until it can be executed"
-            passedLabel="Ready to execute"
-            action={stepper}
-          />
-        ) : (
-          !offList && (
-            <Surface $padding="compact" role="group" aria-label="Withdrawal">
-              <Stack $gap={12}>
-                <Label>Withdrawal</Label>
-                {stepper}
-              </Stack>
-            </Surface>
-          )
-        )}
-
-        <Surface $padding="compact" role="group" aria-label="Stake">
-          <Stack $gap={8}>
-            <Label>{offList ? 'Stake to resubmit' : 'Stake at risk'}</Label>
-            <Figure>{offList ? minStakeText : stakeText}</Figure>
-            {!offList && depositText && (
-              <Small $muted>Arbitration deposit {depositText}</Small>
-            )}
-            {offList && costText && (
-              <Small $muted>Arbitration deposit {costText}</Small>
-            )}
-            <Hairline />
-            <Small $muted>
-              {offList
-                ? `A challenger must stake ${multiplierPercent(registry.challengeStakeMultiplier)} of the stake${costText ? ` and pay the arbitration cost of ${costText}` : ''}.`
-                : `A challenger must stake ${challengerText} (${multiplierPercent(registry.challengeStakeMultiplier)} of the stake)${costText ? ` and pay the arbitration cost of ${costText}` : ''}.`}
-            </Small>
-          </Stack>
-        </Surface>
-
-        <ActionStack $gap={8}>
-          {actionButton()}
-          {withdrawButton}
-          {directAction && <GateHelper gate={executeGate} />}
-          {isPassiveStatus(statusCode) && (
-            <Body $muted>
-              Nothing to sign right now. You can still add evidence below.
-            </Body>
+              percentText={
+                underDispute && challenge?.challengerStake
+                  ? `${Math.round(challengerShare * 100)}%`
+                  : multiplierPercent(multiplier)
+              }
+              verb={underDispute ? 'staked' : 'stakes'}
+              stakeText={stakeText}
+            />
           )}
-          <LinkRow>
+        </Head>
+
+        {prompt && <Prompt>{prompt}</Prompt>}
+
+        {statusCode === STATUS_CODE.DISPUTED ? (
+          <ActionGroup $gap={8}>
+            <DesktopAction>
+              <Button
+                type="button"
+                $variant="primary"
+                $block
+                onClick={scrollToEvidenceComposer}
+              >
+                <CurateIcon name="policy" size={16} />
+                Add evidence
+              </Button>
+            </DesktopAction>
             {courtHref && (
               <ButtonAnchor
+                $variant="secondary"
+                $block
                 href={courtHref}
                 target="_blank"
                 rel="noopener noreferrer"
-                $variant="secondary"
-                $size="sm"
               >
-                <CurateIcon name="court" size={14} />
-                {disputeID ? `Dispute #${disputeID}` : 'Court'}
-                <CurateIcon name="external" size={12} />
+                Follow case {disputeID} in court
+                <CurateIcon name="external" size={14} />
               </ButtonAnchor>
             )}
-          </LinkRow>
-        </ActionStack>
-      </RailStack>
+          </ActionGroup>
+        ) : (
+          !inCourt && (
+            <ActionGroup $gap={8}>
+              <DesktopAction>{actionButton()}</DesktopAction>
+              {directAction && <GateHelper gate={executeGate} />}
+            </ActionGroup>
+          )
+        )}
 
-      <MobileSpacer
-        aria-hidden
-        $height={barHeight > 0 ? barHeight + 8 : withdrawButton ? 128 : 104}
-      />
-      <MobileBar ref={barRef}>
-        {actionButton('item-action-button-mobile')}
-        {withdrawButton}
-        {directAction &&
-          !executeGate.ready &&
-          (executeGate.helper ? (
-            <GateHelper gate={executeGate} />
-          ) : (
-            <Small $muted role="status">
-              {actionBlocker}
-            </Small>
-          ))}
-      </MobileBar>
+        {(challengeable || underDispute || offList) && (
+          <Rows>
+            {challengeable && costText && (
+              <div>
+                <dt>Arbitration cost</dt>
+                <dd>{costText}</dd>
+              </div>
+            )}
+            {(challengeable || underDispute) && (
+              <div>
+                <dt
+                  title={`The ${itemName}'s stake and its arbitration deposit. A successful challenger also gets their own stake back.`}
+                >
+                  A successful challenger wins
+                </dt>
+                <dd>
+                  {depositText ? `${stakeText} + ${depositText}` : stakeText}
+                </dd>
+              </div>
+            )}
+            {offList && (
+              <>
+                <div>
+                  <dt>Submission period</dt>
+                  <dd
+                    title={
+                      submissionPeriod
+                        ? formatDurationLong(submissionPeriod)
+                        : 'Accepted at once'
+                    }
+                  >
+                    {submissionPeriod
+                      ? formatDuration(submissionPeriod)
+                      : 'None'}
+                  </dd>
+                </div>
+                {periodShort && (
+                  <div>
+                    <dt>Withdrawing period</dt>
+                    <dd title={periodLong}>{periodShort}</dd>
+                  </div>
+                )}
+              </>
+            )}
+            {hasDispute &&
+              round &&
+              (appealable ||
+                statusCode === STATUS_CODE.WAITING_ARBITRATOR ||
+                offList) && (
+                <div>
+                  <dt>{appealable ? 'Current ruling' : 'Ruling'}</dt>
+                  <dd>
+                    {offList && challenge?.disputeOutcome
+                      ? rulingLine(challenge.disputeOutcome)
+                      : rulingLine(round.ruling)}
+                  </dd>
+                </div>
+              )}
+            {hasDispute &&
+              courtLink &&
+              !courtAsButton &&
+              (underDispute || offList) && (
+                <div>
+                  <dt>Court case</dt>
+                  <dd>{courtLink}</dd>
+                </div>
+              )}
+            {hasDispute && (underDispute || offList) && (
+              <div>
+                <dt>Arbitrator</dt>
+                <dd>
+                  <AddressLink address={registry.arbitrator.id} />
+                </dd>
+              </div>
+            )}
+          </Rows>
+        )}
+      </Card>
 
-      {!isPassiveStatus(statusCode) && (
+      {appealable && (
+        <AppealFundingCard
+          item={item}
+          registry={registry}
+          timestamp={timestamp}
+          appealCost={appealCost}
+        />
+      )}
+
+      {showWithdrawal && (
+        <Card
+          $padding="standard"
+          role="region"
+          aria-label="Withdrawal"
+          style={{ gap: 20 }}
+        >
+          <WithdrawalTop>
+            <Label $tone="faint">Withdrawal</Label>
+            <WithdrawalState
+              title={
+                withdrawalStage === 'withdrawing' && !paused
+                  ? `Executable from ${formatAbsolute(withdrawReadyAt)}`
+                  : undefined
+              }
+            >
+              {withdrawalState}
+            </WithdrawalState>
+          </WithdrawalTop>
+          <WithdrawalStepper
+            stage={withdrawalStage}
+            elapsed={elapsed}
+            paused={paused}
+            label={withdrawalLabel}
+            notes={[
+              withdrawalStage === 'listed' ? (
+                'Submitter only'
+              ) : withdrawingAt ? (
+                <span title={formatAbsolute(withdrawingAt)}>
+                  {formatDate(withdrawingAt)}
+                </span>
+              ) : undefined,
+              paused
+                ? `Paused at ${Math.round(elapsed * 100)}%`
+                : withdrawalStage === 'withdrawing' && periodShort
+                  ? `${Math.round(elapsed * 100)}% of ${periodShort}`
+                  : periodShort,
+              withdrawalStage === 'ready' ? (
+                <span title={formatAbsolute(withdrawReadyAt)}>
+                  since {formatDate(withdrawReadyAt)}
+                </span>
+              ) : withdrawalStage === 'withdrawn' && facts.endedAt ? (
+                <span title={formatAbsolute(facts.endedAt)}>
+                  {formatDate(facts.endedAt)}
+                </span>
+              ) : (
+                'Anyone, gas only'
+              ),
+            ]}
+          />
+          <Small $muted>{withdrawalLine}</Small>
+          {withdrawButton}
+        </Card>
+      )}
+
+      {view && (
+        <StickyActionBar
+          status={<EntryStatus status={view} now={now} />}
+          action={barAction}
+        />
+      )}
+
+      {!inCourt && (
         <ItemActionModal
           statusCode={statusCode}
           itemName={itemName}

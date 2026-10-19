@@ -6,12 +6,13 @@ import styled, {
 } from 'styled-components'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import type { IconProp } from '@fortawesome/fontawesome-svg-core'
-import { joinClassNames } from './kit-styles'
+import { joinClassNames, kitRadius, motionOk } from './kit-styles'
 
 /*
  * Button, v2: primary (blue fill with a soft glow and grain), secondary
  * (raised glass), ghost, link and danger (soft danger tint). Height 40, 32
  * small, radius 10, labels at 500. Press dips to 97% and springs back.
+ * Disabled turns neutral with its label at full contrast.
  * `type` keeps the legacy names and maps them onto those looks; indigo is
  * never used on buttons. A pending action runs a thin shimmer along the
  * bottom edge instead of a spinner.
@@ -30,8 +31,9 @@ const variantMap: Record<string, Variant> = {
   danger: 'danger',
 }
 
-const enabled =
-  '&:not(:disabled):not([aria-disabled="true"]):not([data-loading="true"])'
+const enabledState =
+  ':not(:disabled):not([aria-disabled="true"]):not([data-loading="true"])'
+const enabled = `&${enabledState}`
 
 const variantStyles: Record<Variant, FlattenSimpleInterpolation> = {
   primary: css`
@@ -86,7 +88,9 @@ const variantStyles: Record<Variant, FlattenSimpleInterpolation> = {
     }
   `,
   link: css`
+    /* Inline links stay compact but keep a 24px touch target. */
     height: auto;
+    min-height: 24px;
     padding-inline: 0;
     border-color: transparent;
     background: transparent;
@@ -144,7 +148,7 @@ const ButtonScope = styled.span<{
     border-radius: ${({ $shape }) =>
       $shape === 'round' || $shape === 'circle'
         ? 'var(--radius-pill)'
-        : '10px'};
+        : kitRadius.control};
     font-family: var(--font-sans);
     font-size: var(--fs-body);
     line-height: var(--lh-body);
@@ -165,18 +169,38 @@ const ButtonScope = styled.span<{
     ${({ $variant }) => variantStyles[$variant]}
   }
 
-  > .gtcr-v2-button${enabled}:active {
-    transform: scale(0.97);
-    transition-duration: var(--dur-press);
-    transition-timing-function: var(--ease-out);
-  }
+  /* Press dips to 97% and springs back; no movement under reduced motion. */
+  ${motionOk(css`
+    > .gtcr-v2-button${enabledState}:active {
+      transform: scale(0.97);
+      transition-duration: var(--dur-press);
+      transition-timing-function: var(--ease-out);
+    }
+  `)}
 
-  > .gtcr-v2-button:disabled,
-  > .gtcr-v2-button[aria-disabled='true'] {
-    cursor: not-allowed;
-    opacity: 0.45;
-    filter: none;
+  /*
+   * Disabled keeps its label fully legible (it often names the blocker,
+   * "Connect wallet to submit"): a neutral raised look in the muted text
+   * role, no fill colour, no glow, no fade.
+   */
+  > .gtcr-v2-button:disabled:not([data-loading='true']),
+  > .gtcr-v2-button[aria-disabled='true']:not([data-loading='true']) {
+    border-color: ${({ $variant }) =>
+      $variant === 'link' || $variant === 'ghost'
+        ? 'transparent'
+        : 'var(--glass-border)'};
+    background: ${({ $variant }) =>
+      $variant === 'link' || $variant === 'ghost'
+        ? 'transparent'
+        : 'var(--color-raised)'};
+    color: var(--color-muted);
     box-shadow: none;
+    filter: none;
+    cursor: not-allowed;
+
+    &::after {
+      content: none;
+    }
   }
 
   > .gtcr-v2-button[data-loading='true'] {

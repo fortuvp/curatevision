@@ -4,8 +4,51 @@ import { css, keyframes } from 'styled-components'
  * Shared styles for the UI kit, v2 (the glow stage). Only token roles from
  * src/styles/global-styles.ts are used: no raw colors anywhere in the kit.
  * Labels are small uppercase sans, figures are Geist with tabular numbers,
- * floating panels are glass like the app bar's menus, fields are raised.
+ * floating panels are solid raised surfaces (blur belongs to the app bar,
+ * the toolbar and the modal backdrop only), fields are raised.
  */
+
+/*
+ * Steps the global scale does not have yet. Each one reads the token name
+ * proposed for global-styles.ts and falls back to today's value, so the kit
+ * picks the token up as soon as it lands there.
+ */
+export const kitRadius = {
+  /** 6px: checkbox boxes, stepper handles. */
+  xs: 'var(--radius-xs, 6px)',
+  /** 10px: buttons and tooltips. */
+  control: 'var(--radius-control, 10px)',
+  /** 14px: wells, list and alert surfaces, drop zones. */
+  well: 'var(--radius-well, 14px)',
+} as const
+
+export const kitType = {
+  /** 10px: badge counts. */
+  micro: 'var(--fs-micro, 10px)',
+  /** 12/16: field labels, help lines, tags, tips. */
+  meta: 'var(--fs-meta, 12px)',
+  metaLine: 'var(--lh-meta, 16px)',
+  /** 20/26: card, panel and dialog titles. */
+  titleSm: 'var(--fs-title-sm, 20px)',
+  titleSmLine: 'var(--lh-title-sm, 26px)',
+  /** 24/30: result titles. */
+  titleMd: 'var(--fs-title-md, 24px)',
+  titleMdLine: 'var(--lh-title-md, 30px)',
+  /** 26/32: level-2 headings. */
+  titleLg: 'var(--fs-title-lg, 26px)',
+  titleLgLine: 'var(--lh-title-lg, 32px)',
+} as const
+
+/*
+ * Movement on hover and press (lifts, dips, grows) is dropped under reduced
+ * motion; colour, border and glow still change (SPEC 5.9). Wrap any
+ * transform that only decorates an interaction in this.
+ */
+export const motionOk = (rules: ReturnType<typeof css>) => css`
+  @media (prefers-reduced-motion: no-preference) {
+    ${rules}
+  }
+`
 
 export type Tone = 'registered' | 'window' | 'contested' | 'off' | 'neutral'
 
@@ -34,16 +77,14 @@ export const kitTransition = (...properties: string[]) =>
     .map((property) => `${property} var(--dur-hover) var(--ease-out)`)
     .join(', ')
 
-/** Glass panel like the app bar's menus: 18px radius, hairline, top highlight. */
+/** Raised panel for menus and popovers: solid fill, 18px radius, hairline, top highlight. */
 export const overlayPanel = css`
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+  background: var(--color-surface);
   box-shadow:
     inset 0 1px 0 var(--glass-highlight),
     var(--shadow-overlay);
-  backdrop-filter: blur(20px) saturate(150%);
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
   color: var(--color-text);
 `
 
@@ -84,7 +125,7 @@ export const menuRow = css`
   transition: ${kitTransition('background', 'color')};
 `
 
-/** Raised field: 44px, radius 12, hairline; the focus ring is soft and blue. */
+/** Raised field: 44px, radius 12, hairline; focus is a 2px blue edge with a soft halo. */
 export const fieldSurface = css`
   border: 1px solid var(--glass-border);
   border-radius: var(--radius);
@@ -97,10 +138,18 @@ export const fieldHover = css`
   border-color: var(--color-border-strong);
 `
 
+/*
+ * Focus: the hairline turns the full action colour and a 1px ring doubles
+ * it (a 2px edge that clears 3:1 on every surface), with the soft halo
+ * outside it.
+ */
+export const fieldFocusRing =
+  '0 0 0 1px var(--color-primary), 0 0 0 5px var(--color-primary-soft)'
+
 export const fieldFocus = css`
-  border-color: color-mix(in srgb, var(--color-primary) 65%, transparent);
+  border-color: var(--color-primary);
   background: color-mix(in srgb, var(--color-primary) 5%, var(--color-raised));
-  box-shadow: 0 0 0 4px var(--color-primary-soft);
+  box-shadow: ${fieldFocusRing};
   outline: none;
 `
 

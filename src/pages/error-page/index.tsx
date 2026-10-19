@@ -1,5 +1,6 @@
-import React from 'react'
+import React, { useContext } from 'react'
 import styled, { keyframes } from 'styled-components'
+import { ErrorBoundaryContext } from 'react-error-boundary'
 import { CurateIcon } from 'components/curate/icons'
 import {
   ButtonLink,
@@ -14,6 +15,10 @@ import { reveal } from 'components/curate/motion/reveal'
  * out of a horizon of light; one line says what happened (the caller's
  * message, if it has one, sits quietly under it); one action leads home. A
  * 404 also names the path that was asked for, so the reader can see a typo.
+ *
+ * As the app's crash screen (an error boundary's fallback) the way home
+ * also clears the boundary: otherwise the URL would change while the same
+ * error stayed on screen.
  */
 
 const rise = keyframes`
@@ -262,9 +267,29 @@ interface ErrorPageProps {
   title?: string | null
   message?: string | null
   tip?: string | React.ReactNode | null
+  /** Runs before the way home navigates (e.g. to reset a crashed view). */
+  onHome?: () => void
 }
 
-const ErrorPage = ({ code, title, message, tip }: ErrorPageProps) => {
+const ErrorPage = ({ code, title, message, tip, onHome }: ErrorPageProps) => {
+  // Set only when this page is an error boundary's fallback.
+  const boundary = useContext(ErrorBoundaryContext)
+  const goHome =
+    onHome ?? (boundary?.didCatch ? () => boundary.resetErrorBoundary() : null)
+  // Only a plain click navigates here; a new tab leaves this view as it is.
+  const handleHome = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    if (
+      !goHome ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    )
+      return
+    goHome()
+  }
+
   const shownCode = code || '404'
   const notFound = shownCode === '404'
   const numeric = /^\d{3}$/.test(shownCode)
@@ -322,7 +347,7 @@ const ErrorPage = ({ code, title, message, tip }: ErrorPageProps) => {
         )}
         {tip && <Tip style={next()}>{tip}</Tip>}
         <Action style={next()}>
-          <ButtonLink to="/" $variant="primary">
+          <ButtonLink to="/" $variant="primary" onClick={handleHome}>
             Go to the dashboard
             <CurateIcon name="chevron-down" size={15} />
           </ButtonLink>

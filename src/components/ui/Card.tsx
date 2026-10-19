@@ -1,11 +1,17 @@
 import React from 'react'
 import styled, { css } from 'styled-components'
-import { joinClassNames, kitTransition, skeletonBlock } from './kit-styles'
+import {
+  joinClassNames,
+  kitTransition,
+  kitType,
+  motionOk,
+  skeletonBlock,
+} from './kit-styles'
 
 /*
  * Card, v2: the glass surface (18px radius, hairline, top highlight). The
  * head is a display-type title over a hairline; hoverable cards lift 1px
- * and brighten their border.
+ * (not under reduced motion) and brighten their border.
  */
 const StyledCard = styled.div<{ $bordered?: boolean; $hoverable?: boolean }>`
   position: relative;
@@ -31,8 +37,13 @@ const StyledCard = styled.div<{ $bordered?: boolean; $hoverable?: boolean }>`
         box-shadow:
           inset 0 1px 0 var(--glass-highlight),
           var(--shadow-card-hover);
-        transform: translateY(-1px);
       }
+
+      ${motionOk(css`
+        &:hover {
+          transform: translateY(-1px);
+        }
+      `)}
     `}
 `
 
@@ -59,8 +70,8 @@ const CardHeadTitle = styled.div`
   overflow: hidden;
   color: var(--color-text);
   font-family: var(--font-display);
-  font-size: 20px;
-  line-height: 26px;
+  font-size: ${kitType.titleSm};
+  line-height: ${kitType.titleSmLine};
   font-weight: 500;
   letter-spacing: -0.02em;
   white-space: nowrap;

@@ -1,10 +1,4 @@
-import React, {
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useState,
-} from 'react'
+import React, { useCallback, useEffect, useId, useMemo, useState } from 'react'
 import type { BigNumber } from 'ethers'
 import { useAccount, usePublicClient, useWalletClient, useChainId } from 'wagmi'
 import { simulateContract } from '@wagmi/core'
@@ -19,27 +13,25 @@ import { uploadEvidence } from 'utils/upload-evidence'
 import { wrapWithToast, errorToast } from 'utils/wrap-with-toast'
 import { parseWagmiError } from 'utils/parse-wagmi-error'
 import { wagmiConfig } from 'config/wagmi'
-import {
-  Body,
-  Button,
-  Label,
-  Small,
-  Stack,
-  Subheading,
-} from 'components/curate/primitives'
+import { Body, Button, Small, Stack } from 'components/curate/primitives'
 import { WhatHappensNext } from 'components/curate/what-happens-next'
 import {
+  DialogColumns,
   FormBlock,
   GateHelper,
   ModalShell,
   ModalSkeleton,
   MULTIPLIER_DIVISOR,
   PolicyText,
+  StepRow,
   applyMultiplier,
   nativeText,
   tokenText,
   useActionGate,
 } from './shell'
+
+const capitalize = (text: string) =>
+  text ? text.charAt(0).toUpperCase() + text.slice(1) : text
 
 /*
  * Challenge a Stake Curate item. The challenger stakes a share of the item's
@@ -266,7 +258,8 @@ const ChallengeModal = ({
   }
 
   const confirm = () => {
-    const form = document.getElementById(formId)
+    // useId ids hold colons, so the selector is escaped.
+    const form = document.querySelector(`#${CSS.escape(formId)}`)
     if (form instanceof HTMLFormElement) form.requestSubmit()
   }
 
@@ -304,88 +297,92 @@ const ChallengeModal = ({
     <ModalShell
       open={visible}
       title={title ?? `Challenge ${name}`}
+      eyebrow={capitalize(name)}
       onClose={close}
+      width="lg"
     >
       {arbitrationCost ? (
-        <Stack $gap={16}>
-          <Body $muted>
-            Explain to the jurors why this {name} breaks the{' '}
-            <ListingCriteriaLink fileURI={fileURI}>
-              <PolicyText as="span">listing policy</PolicyText>
-            </ListingCriteriaLink>
-            . Your justification is published as evidence.
-          </Body>
+        <DialogColumns>
+          <Stack $gap={16}>
+            <Body>
+              Tell the jurors why this {name} breaks the{' '}
+              <ListingCriteriaLink fileURI={fileURI}>
+                <PolicyText as="span">listing policy</PolicyText>
+              </ListingCriteriaLink>
+              . Your justification is published as evidence.
+            </Body>
+            <FormBlock>
+              <EvidenceForm onSubmit={challengeRequest} formID={formId} />
+            </FormBlock>
+          </Stack>
 
-          <FormBlock>
-            <Subheading as="h3">Justification</Subheading>
-            <EvidenceForm onSubmit={challengeRequest} formID={formId} />
-          </FormBlock>
-
-          {showApprove && (
-            <Stack $gap={8}>
-              <Label>Step 1 of 2</Label>
-              <Small $muted>
-                Allow the list to take your stake. One transaction, then the
-                challenge itself.
+          <Stack $gap={12}>
+            {showApprove && (
+              <StepRow>
+                <Small>
+                  Step 1 of 2 · Allow the list to take your {tokenSymbol}. One
+                  transaction, then the challenge itself.
+                </Small>
+                <Button
+                  type="button"
+                  $variant="primary"
+                  $size="sm"
+                  $block
+                  disabled={isApproving}
+                  onClick={handleApprove}
+                >
+                  {isApproving
+                    ? 'Waiting for your wallet…'
+                    : `Approve ${stakeText}`}
+                </Button>
+              </StepRow>
+            )}
+            {gate.ready && hasEnoughAllowance && (
+              <Small $muted role="status">
+                {tokenSymbol} approved. Step 2 of 2 stakes it and opens the
+                dispute.
               </Small>
-              <Button
-                type="button"
-                $variant="primary"
-                $size="sm"
-                disabled={isApproving}
-                onClick={handleApprove}
-              >
-                {isApproving
-                  ? 'Waiting for your wallet…'
-                  : `Approve ${stakeText}`}
-              </Button>
-            </Stack>
-          )}
-          {gate.ready && hasEnoughAllowance && (
-            <Small $muted role="status">
-              {tokenSymbol} approved. Step 2 of 2 stakes it and opens the
-              dispute.
-            </Small>
-          )}
+            )}
 
-          <WhatHappensNext
-            receipt={[
-              { label: 'Challenge stake', value: stakeText },
-              { label: 'Arbitration cost', value: costText },
-            ]}
-            total={`${stakeText} + ${costText}`}
-            steps={[
-              {
-                title: 'You stake and pay the arbitration cost',
-                body: `${stakeText} is locked as your stake and ${costText} pays the jurors. The ${name} becomes Disputed at once.`,
-              },
-              {
-                title: 'Jurors decide',
-                body: 'Both sides can add evidence while the case runs. A ruling can be appealed by funding the next round.',
-              },
-              {
-                title: 'You win',
-                body: `You receive the ${name}'s stake of ${itemStakeText}, your ${stakeText} back and ${depositText}. The ${name} leaves the list.`,
-              },
-              {
-                title: 'You lose',
-                branch: true,
-                body: `Your ${stakeText} is added to the ${name}'s stake and the ${costText} is not returned. The ${name} stays listed.`,
-              },
-              {
-                title: 'Jurors refuse to rule',
-                branch: true,
-                body: `Your ${stakeText} comes back, you receive ${halfDepositText}, and the ${name} is withdrawn from the list.`,
-              },
-            ]}
-            confirmLabel={`Challenge ${name}`}
-            onConfirm={confirm}
-            confirmDisabled={Boolean(blocker)}
-            confirmBlocker={blocker}
-            loading={isChallenging}
-          />
-          <GateHelper gate={gate} />
-        </Stack>
+            <WhatHappensNext
+              receipt={[
+                { label: 'Challenge stake', value: stakeText },
+                { label: 'Arbitration cost', value: costText },
+              ]}
+              total={`${stakeText} + ${costText}`}
+              steps={[
+                {
+                  title: 'You stake and pay the arbitration cost',
+                  body: `${stakeText} is locked as your stake and ${costText} pays the jurors. The ${name} becomes Disputed at once.`,
+                },
+                {
+                  title: 'Jurors decide',
+                  body: 'Both sides can add evidence while the case runs. A ruling can be appealed by funding the next round.',
+                },
+                {
+                  title: 'You win',
+                  body: `You receive the ${name}'s stake of ${itemStakeText}, your ${stakeText} back and ${depositText}. The ${name} leaves the list.`,
+                },
+                {
+                  title: 'You lose',
+                  branch: true,
+                  body: `Your ${stakeText} is added to the ${name}'s stake and the ${costText} is not returned. The ${name} stays listed.`,
+                },
+                {
+                  title: 'Jurors refuse to rule',
+                  branch: true,
+                  body: `Your ${stakeText} comes back, you receive ${halfDepositText}, and the ${name} is withdrawn from the list.`,
+                },
+              ]}
+              confirmLabel={`Challenge ${name}`}
+              onConfirm={confirm}
+              confirmDisabled={Boolean(blocker)}
+              confirmBlocker={blocker}
+              loading={isChallenging}
+            />
+            <GateHelper gate={gate} />
+          </Stack>
+        </DialogColumns>
       ) : (
         <ModalSkeleton />
       )}

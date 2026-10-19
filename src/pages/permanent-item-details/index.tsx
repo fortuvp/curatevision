@@ -4,7 +4,6 @@ import { useParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ethers, BigNumber } from 'ethers'
 import { abi as _IArbitrator } from '@kleros/erc-792/build/contracts/IArbitrator.json'
-import { ItemTypes } from '@kleros/gtcr-encoder'
 import useUrlChainId from 'hooks/use-url-chain-id'
 import useDocumentHead from 'hooks/use-document-head'
 import useNow from 'hooks/use-now'
@@ -20,156 +19,357 @@ import { STALE_TIME } from 'consts'
 import { parseIpfs } from 'utils/ipfs-parse'
 import { capitalizeFirstLetter } from 'utils/string'
 import { truncateAtWord } from 'utils/truncate-at-word'
-import { formatAbsolute, formatDurationLong } from 'utils/time'
-import {
-  CONTRACT_STATUS,
-  STATUS_CODE,
-  itemToStatusCode,
-} from 'utils/permanent-item-status'
-import DisplaySelector from 'components/display-selector'
+import { formatAbsolute, formatAgo, formatDurationLong } from 'utils/time'
+import { STATUS_CODE } from 'utils/permanent-item-status'
+import ItemDetailsCard from 'components/item-details-card'
 import PolicyUpdatedBadge from 'components/policy-updated-badge'
+import RequestTimelines from 'components/permanent-request-timelines'
 import { AddressLink } from 'components/curate/item-stake-address'
 import { CurateIcon } from 'components/curate/icons'
 import {
-  Body,
-  Button,
   ChainChip,
-  Data,
-  EmptyState,
-  Heading,
-  KeyValueList,
   Label,
   Page,
-  PanelHeader,
-  PanelTitle,
-  Row,
-  Section,
   SkeletonBlock,
-  Small,
-  SplitGrid,
-  Stack,
   Surface,
-  truncateMiddle,
 } from 'components/curate/primitives'
 import { EntryStatus, stakeEntryStatus } from 'components/curate/entry-status'
 import { Explainer } from 'components/curate/explainer'
-import RequestTimelines from 'components/permanent-request-timelines'
+import { AnimatedNumber } from 'components/curate/motion/animated-number'
+import { reveal } from 'components/curate/motion/reveal'
+import {
+  FieldValue,
+  hasValue,
+  identifierFields,
+  isImageField,
+  titleField,
+  type EntryField,
+} from 'components/curate/item-light-fields'
+import { StickyActionBarSpacer } from 'components/curate/item-light-action-bar'
 import ErrorPage from '../error-page'
-import ItemStatusCard, {
-  rulingSentence,
+import ItemStatusCard from './item-status-card'
+import { StakeWindowPanel } from './item-window'
+import { multiplierPercent, nativeText, tokenText } from './modals/shell'
+import {
+  stakeFacts,
+  stakeStatusCode,
+  toNum,
   type StakeItem,
   type StakeRegistry,
-} from './item-status-card'
-import { multiplierPercent, nativeText, tokenText } from './modals/shell'
+} from './facts'
 
 /*
- * Stake Curate item page (DESIGN.md): breadcrumb, identifiers with the
- * entry status, the fields as a key/value list, the request's parties and
- * amounts, the history with evidence; a right rail with the open window as
- * a countdown, the withdrawal stepper, the stake at risk and the one action.
- * Data plumbing (query, IPFS, arbitration cost, appeal cost) is unchanged.
+ * Stake Curate item page, on the Light item composition. A breadcrumb, then
+ * the hero (the one featured panel): the entry's identifiers set large with
+ * its status, and on the right whatever clock is running (submission
+ * period, withdrawal period, appeal period, the court case, or the date it
+ * settled). Under it, two columns: the fields and the history on the left;
+ * on the right the action card led by the stake at risk, the withdrawal
+ * stepper and the appeal funding (a bottom bar on phones). Every figure
+ * comes from the subgraph, the list contract and the clock.
  */
 
 const Crumbs = styled.nav`
   display: flex;
-  align-items: center;
   flex-wrap: wrap;
-  gap: 6px;
-  color: var(--color-muted);
+  align-items: center;
+  gap: 8px;
+  color: var(--color-faint);
   font-size: var(--fs-small);
   line-height: var(--lh-small);
+  ${reveal}
 
   a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     color: var(--color-muted);
     text-decoration: none;
+    transition: color var(--motion);
   }
 
   a:hover {
-    color: var(--color-primary);
-    text-decoration: underline;
+    color: var(--color-text);
+  }
+
+  span[aria-current] {
+    color: var(--color-text);
   }
 `
 
-const Header = styled.header`
+/* Desktop: identity and stats on the left, the clock on the right. When it
+   stacks, the clock comes straight after the identity. */
+const Hero = styled(Surface)`
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 16px 24px;
-  align-items: start;
-  margin-top: 16px;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-rows: 1fr auto;
+  grid-template-areas:
+    'main side'
+    'stats side';
+  margin-top: 20px;
+  ${reveal}
 
-  @media (max-width: 720px) {
+  @media (max-width: 1000px) {
     grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    grid-template-areas:
+      'main'
+      'side'
+      'stats';
   }
 `
 
-const HeaderCopy = styled.div`
+const HeroMain = styled.div`
+  grid-area: main;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 18px;
   min-width: 0;
+  padding: 32px 36px 20px;
+
+  @media (max-width: 720px) {
+    padding: 22px 18px 18px;
+  }
 `
 
-const ItemHeading = styled(Heading)`
-  overflow-wrap: anywhere;
-`
+const HeroStats = styled.div`
+  grid-area: stats;
+  min-width: 0;
+  padding: 0 36px 28px;
 
-const Fields = styled(KeyValueList)`
-  gap: 12px 24px;
-
-  dt {
-    padding-top: 1px;
+  @media (max-width: 1000px) {
+    padding-top: 4px;
   }
 
   @media (max-width: 720px) {
-    grid-template-columns: 1fr;
-    gap: 4px 0;
-
-    dd {
-      margin-bottom: 8px;
-    }
+    padding: 4px 18px 20px;
   }
 `
 
-const IdRow = styled.span`
-  display: inline-flex;
+const HeroSide = styled.div`
+  grid-area: side;
+  min-width: 0;
+  padding: 28px 28px 24px;
+  border-left: 1px solid var(--glass-border);
+
+  @media (max-width: 1000px) {
+    border-top: 1px solid var(--glass-border);
+    border-left: 0;
+  }
+
+  @media (max-width: 720px) {
+    padding: 22px 18px 20px;
+  }
+`
+
+const Eyebrow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
+  gap: 8px 12px;
+`
+
+const Identity = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
   min-width: 0;
 `
 
-/* Same 24px copy affordance as the address links in the request panel. */
-const CopyButton = styled.button`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-faint);
-  cursor: pointer;
+const Logo = styled.img`
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  background: var(--color-raised);
+  object-fit: contain;
 
-  &:hover {
-    color: var(--color-text);
-    background: var(--color-raised);
+  @media (max-width: 720px) {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
   }
 `
 
-const toNum = (value: unknown): number => {
-  const n = Number(value ?? 0)
-  return Number.isFinite(n) ? n : 0
+const Title = styled.h1<{ $size: 'lg' | 'md' | 'sm' }>`
+  margin: 0;
+  min-width: 0;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: ${({ $size }) =>
+    $size === 'lg'
+      ? 'clamp(30px, 1.6vw + 18px, 40px)'
+      : $size === 'md'
+        ? 'clamp(24px, 1vw + 16px, 32px)'
+        : 'clamp(20px, 0.6vw + 14px, 26px)'};
+  line-height: 1.08;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+
+  a {
+    color: inherit;
+  }
+`
+
+const KeyRow = styled.dl`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 28px;
+  margin: 0;
+
+  div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  dt {
+    color: var(--color-faint);
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  dd {
+    margin: 0;
+    min-width: 0;
+    color: var(--color-text);
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+    overflow-wrap: anywhere;
+  }
+`
+
+const StatusRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+`
+
+const Stats = styled.dl`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 40px;
+  margin: 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--glass-border);
+
+  div {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  dd {
+    margin: 0;
+    color: var(--color-text);
+    font-size: 18px;
+    line-height: 22px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+`
+
+const Columns = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 24px;
+  align-items: start;
+  margin-top: 24px;
+
+  @media (max-width: 1100px) {
+    grid-template-columns: 1fr;
+  }
+`
+
+const Main = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+
+  > * {
+    ${reveal}
+  }
+
+  > :nth-child(1) {
+    --i: 3;
+  }
+
+  > :nth-child(2) {
+    --i: 4;
+  }
+
+  > :nth-child(3) {
+    --i: 5;
+  }
+
+  > :nth-child(4) {
+    --i: 6;
+  }
+`
+
+/* Sticky under the floating app bar. */
+const Rail = styled.aside`
+  position: sticky;
+  top: calc(var(--app-bar-height) + 24px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+
+  > * {
+    ${reveal}
+    --i: 2;
+  }
+
+  @media (max-width: 1100px) {
+    position: static;
+    order: -1;
+  }
+`
+
+const PolicyButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px 0 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-raised);
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    color var(--motion),
+    border-color var(--motion);
+
+  &:hover {
+    border-color: var(--color-border-strong);
+    color: var(--color-text);
+  }
+`
+
+/** The size the title is set at, so long identifiers stay readable. */
+const titleSize = (text: string): 'lg' | 'md' | 'sm' =>
+  text.length > 90 ? 'sm' : text.length > 44 ? 'md' : 'lg'
+
+/** A logo or picture among the fields, shown next to the title. */
+const logoOf = (fields: EntryField[]): string | undefined => {
+  const image = fields.find((field) => isImageField(field) && hasValue(field))
+  if (!image) return undefined
+  const value = String(image.value)
+  return /^https?:\/\//i.test(value) ? value : parseIpfs(value)
 }
-
-const isIdentifier = (column: Column): boolean => Boolean(column.isIdentifier)
-
-const displayValue = (value: unknown): string | number | boolean | null =>
-  value === undefined || value === null
-    ? null
-    : typeof value === 'object'
-      ? JSON.stringify(value)
-      : (value as string | number | boolean)
 
 interface ItemDetailsProps {
   itemID: string
@@ -186,7 +386,6 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
     { values?: Record<string, unknown> } | undefined
   >()
   const [ipfsError, setIpfsError] = useState(false)
-  const [idCopied, setIdCopied] = useState(false)
   const timestamp = useContext(WalletContext)?.timestamp
   const [modalOpen, setModalOpen] = useState(false)
   const { graphqlBatcher } = useGraphqlBatcher()
@@ -252,7 +451,9 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
       const response = await fetch(parseIpfs(arbSetting.metaEvidenceURI))
       const file = await response.json()
       setMetaEvidence(file)
-    })()
+    })().catch((err: unknown) => {
+      console.error('Could not get the list metadata', err)
+    })
   }, [registry])
 
   const decodedItem = useMemo(() => {
@@ -262,15 +463,7 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
     const orderDecodedData = (
       columns: Column[],
       values: Record<string, unknown> | undefined,
-    ) => {
-      const labels = columns.map((column) => column.label)
-      const ordered: unknown[] = []
-      for (const label of labels) {
-        const value = values?.[label]
-        ordered.push(value)
-      }
-      return ordered
-    }
+    ) => columns.map((column) => values?.[column.label])
 
     return {
       ...item, // Spread to convert from array to object.
@@ -292,7 +485,7 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
 
   const statusCode = useMemo(() => {
     if (!item || !timestamp || !registry) return null
-    return itemToStatusCode(item, timestamp, registry)
+    return stakeStatusCode(item, timestamp, registry) ?? null
   }, [item, timestamp, registry])
 
   const entryStatus = useMemo(
@@ -300,8 +493,24 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
     [item, timestamp, registry],
   )
 
-  const getStatusPhrase = (statusCode: number | null | undefined) => {
-    switch (statusCode) {
+  const fields = useMemo<EntryField[]>(
+    () =>
+      columns
+        ? columns.map((column, index) => ({
+            ...column,
+            value: decodedData?.[index],
+          }))
+        : [],
+    [columns, decodedData],
+  )
+  const primaryField = useMemo(() => titleField(fields), [fields])
+  const otherIdentifiers = useMemo(
+    () => identifierFields(fields).filter((field) => field !== primaryField),
+    [fields, primaryField],
+  )
+
+  const getStatusPhrase = (code: number | null | undefined) => {
+    switch (code) {
       case STATUS_CODE.ACCEPTED:
         return 'is verified to be safe'
       case STATUS_CODE.PENDING:
@@ -351,17 +560,6 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
   const fieldsUnavailable = Boolean(
     item && metadata && !decodedItem && (ipfsError || !metadata.columns),
   )
-
-  const copyItemId = () => {
-    navigator.clipboard
-      ?.writeText(itemID)
-      .then(() => {
-        setIdCopied(true)
-        window.setTimeout(() => setIdCopied(false), 1500)
-        return true
-      })
-      .catch(() => setIdCopied(false))
-  }
 
   // Check if there is some action on the URL and, if so, run it.
   useEffect(() => {
@@ -415,243 +613,232 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
   const Name = capitalizeFirstLetter(name)
   const registryHref = `/tcr/${chainId}/${tcrAddress}`
   const policyURI = registry?.arbitrationSettings?.[0]?.metadata?.policyURI
-  const identifierColumns = (columns ?? []).filter(isIdentifier)
-  const identifiers = identifierColumns
-    .map((column) => {
-      const index = (columns ?? []).indexOf(column)
-      const value = decodedData?.[index]
-      return value === undefined || value === null || value === ''
-        ? undefined
-        : String(value)
-    })
-    .filter((value): value is string => Boolean(value))
-  const heading =
-    identifiers.length > 0
-      ? identifiers.join(' · ')
-      : loading
-        ? undefined
-        : Name
+  const logo = logoOf(fields)
+  const titleText =
+    primaryField && hasValue(primaryField) ? String(primaryField.value) : Name
 
-  const challenge = item?.challenges?.[0]
-  const round = challenge?.rounds?.[0]
-  const disputed = item?.status === CONTRACT_STATUS.DISPUTED
-  const appealable =
-    statusCode === STATUS_CODE.CROWDFUNDING ||
-    statusCode === STATUS_CODE.CROWDFUNDING_WINNER
-  const includedAt = toNum(item?.includedAt)
+  const facts =
+    item && registry && statusCode !== null
+      ? stakeFacts({ item, registry, statusCode, chainId })
+      : undefined
+  const challenge = facts?.challenge
+  const challengeInSubmission =
+    !!facts &&
+    !!challenge?.challenger &&
+    facts.hasDispute &&
+    toNum(challenge.createdAt) >= facts.submissionStart
+  const evidenceCount = facts
+    ? (item?.evidences ?? []).filter(
+        (evidence) => toNum(evidence.timestamp) >= facts.submissionStart,
+      ).length
+    : 0
+
+  // The fields card shows why the fields cannot be read.
+  const cardItem = fieldsUnavailable
+    ? {
+        ...(item as StakeItem),
+        errors: [
+          ipfsError
+            ? `The ${name}'s data could not be loaded from IPFS.`
+            : `This list's metadata declares no fields, so the ${name} cannot be displayed.`,
+        ],
+      }
+    : decodedItem
 
   const minStake = registry?.submissionMinDeposit
   const explainerSteps = [
     {
       title: 'A stake backs every entry',
       body: registry
-        ? `The submitter locks at least ${tokenText(minStake ?? 0, tokenDecimals, tokenSymbol)} in the list's token${
+        ? `At least ${tokenText(minStake ?? 0, tokenDecimals, tokenSymbol)} in the list's token${
             arbitrationCost.arbitrationCost
-              ? ` plus an arbitration deposit of ${nativeText(arbitrationCost.arbitrationCost, nativeCurrency)}`
+              ? ` plus ${nativeText(arbitrationCost.arbitrationCost, nativeCurrency)} for arbitration`
               : ' plus an arbitration deposit'
-          }. Both stay locked for as long as the ${name} is listed.`
-        : `The submitter locks a token stake and an arbitration deposit. Both stay locked for as long as the ${name} is listed.`,
+          }, locked while the ${name} is listed.`
+        : `A token stake and an arbitration deposit, locked while the ${name} is listed.`,
     },
     {
       title: 'Anyone can challenge, at any time',
       body: registry
-        ? `A challenger stakes ${multiplierPercent(registry.challengeStakeMultiplier)} of the entry's stake and pays the arbitration cost; Kleros jurors decide. The winner takes the loser's stake. ${
+        ? `The challenger stakes ${multiplierPercent(registry.challengeStakeMultiplier)} of the stake and pays the arbitration cost; the winner takes the loser's stake. ${
             toNum(registry.submissionPeriod) > 0
-              ? `During the first ${formatDurationLong(toNum(registry.submissionPeriod))} the ${name} shows as Pending, then Accepted.`
-              : `This list has no submission period: a new ${name} is accepted at once.`
+              ? `Pending for ${formatDurationLong(toNum(registry.submissionPeriod))}, then accepted.`
+              : `Accepted at once: this list has no submission period.`
           }`
-        : `A challenger stakes a share of the entry's stake and pays the arbitration cost; Kleros jurors decide. The winner takes the loser's stake.`,
+        : `The challenger stakes a share of the stake and pays the arbitration cost; the winner takes the loser's stake.`,
     },
     {
       title: 'Withdraw to get the stake back',
       body: registry
         ? `The submitter starts a withdrawal${
             toNum(registry.withdrawingPeriod) > 0
-              ? `, waits ${formatDurationLong(toNum(registry.withdrawingPeriod))},`
+              ? `, waits ${formatDurationLong(toNum(registry.withdrawingPeriod))}`
               : ''
-          } then anyone executes it and the stake and deposit return. The ${name} can still be challenged while withdrawing.`
-        : `The submitter starts a withdrawal, waits the withdrawing period, then anyone executes it and the stake and deposit return.`,
+          }, then anyone executes it. Still challengeable while withdrawing.`
+        : `The submitter starts a withdrawal, waits the withdrawing period, then anyone executes it.`,
     },
   ]
 
   return (
     <Page>
       <Crumbs aria-label="Breadcrumb">
-        <Link to="/">Curate</Link>
-        <span aria-hidden>›</span>
-        <Link to={registryHref}>{tcrTitle ?? 'Registry'}</Link>
-        <span aria-hidden>›</span>
-        <span>{Name}</span>
+        <Link to={registryHref}>
+          <CurateIcon name="registry" size={14} />
+          {tcrTitle || 'Registry'}
+        </Link>
+        <span aria-hidden>/</span>
+        <span aria-current="page">{Name}</span>
       </Crumbs>
 
-      <Header>
-        <HeaderCopy>
-          <Label>
-            {tcrTitle ? `${tcrTitle} · ${name}` : 'Stake Curate entry'}
-          </Label>
-          {heading ? (
-            <ItemHeading>{heading}</ItemHeading>
-          ) : (
-            <SkeletonBlock $height="28px" $width="60%" />
+      <Hero
+        as="section"
+        $featured
+        $padding="none"
+        aria-label={`${Name} overview`}
+        style={{ ['--i' as string]: 1 }}
+      >
+        <HeroMain>
+          <Eyebrow>
+            <Label $tone="faint">
+              {metadata ? Name : 'Stake Curate entry'}
+            </Label>
+            {chainId && <ChainChip chainId={chainId} size="sm" />}
+          </Eyebrow>
+          <Identity>
+            {logo && <Logo src={logo} alt="" />}
+            {loading && !fieldsUnavailable ? (
+              <SkeletonBlock $height="40px" $width="min(420px, 100%)" />
+            ) : (
+              <Title $size={titleSize(titleText)}>
+                {primaryField ? (
+                  <FieldValue field={primaryField} detailed />
+                ) : (
+                  Name
+                )}
+              </Title>
+            )}
+          </Identity>
+          {otherIdentifiers.length > 0 && (
+            <KeyRow>
+              {otherIdentifiers.map((field, index) => (
+                <div key={`${field.label}-${index}`}>
+                  <dt>{field.label}</dt>
+                  <dd>
+                    <FieldValue field={field} />
+                  </dd>
+                </div>
+              ))}
+            </KeyRow>
           )}
-          <Row $gap={12} $wrap>
+          <StatusRow>
             {entryStatus ? (
               <EntryStatus status={entryStatus} now={now} />
             ) : (
-              <SkeletonBlock $height="18px" $width="120px" />
+              <SkeletonBlock $height="18px" $width="220px" />
             )}
-            {chainId && <ChainChip chainId={chainId} />}
-            <IdRow>
-              <Data $muted $weight={400} title={itemID}>
-                ID {truncateMiddle(itemID, 8, 6)}
-              </Data>
-              <CopyButton
+            {policyURI && (
+              <PolicyButton
                 type="button"
-                onClick={copyItemId}
-                aria-label={idCopied ? 'Copied' : 'Copy item ID'}
-                title={idCopied ? 'Copied' : 'Copy item ID'}
+                onClick={() => openAttachment(parseIpfs(policyURI), true)}
               >
-                <CurateIcon name={idCopied ? 'check' : 'copy'} size={14} />
-              </CopyButton>
-            </IdRow>
-          </Row>
-        </HeaderCopy>
-        {policyURI && (
-          <Button
-            type="button"
-            $variant="secondary"
-            $size="sm"
-            onClick={() => openAttachment(parseIpfs(policyURI), true)}
-          >
-            <CurateIcon name="policy" size={14} />
-            Listing policy
-            <PolicyUpdatedBadge registryAddress={tcrAddress} />
-          </Button>
-        )}
-      </Header>
-
-      <Section>
-        <Explainer
-          id="stake-curate-item"
-          eyebrow="How this list works"
-          heading="A stake keeps every entry honest"
-          intro={`Stake Curate keeps a token stake locked while the ${name} is listed, so a challenge is possible at any time.`}
-          steps={explainerSteps}
-        />
-      </Section>
-
-      <Section>
-        <SplitGrid $rail={360}>
-          <Stack $gap={24}>
-            <Surface $padding="standard" aria-label="Fields">
-              <PanelHeader>
-                <PanelTitle>{Name} fields</PanelTitle>
-                {columns && (
-                  <Label $tone="faint">{columns.length} fields</Label>
-                )}
-              </PanelHeader>
-              {fieldsUnavailable ? (
-                <EmptyState title={`${Name} data unavailable`}>
-                  {ipfsError
-                    ? `The ${name}'s data could not be loaded from IPFS.`
-                    : `This list's metadata declares no fields, so the ${name} cannot be displayed.`}
-                </EmptyState>
-              ) : loading || !columns ? (
-                <Stack $gap={10} aria-busy="true">
-                  <SkeletonBlock $height="18px" $width="70%" />
-                  <SkeletonBlock $height="18px" $width="50%" />
-                  <SkeletonBlock $height="18px" $width="60%" />
-                </Stack>
-              ) : (
-                <Fields>
-                  {columns.map((column, index) => (
-                    <React.Fragment key={column.label}>
-                      <dt title={column.description}>{column.label}</dt>
-                      <dd>
-                        <DisplaySelector
-                          type={column.type || ItemTypes.TEXT}
-                          value={displayValue(decodedData?.[index])}
-                          allowedFileTypes={column.allowedFileTypes}
-                          linkImage
-                        />
-                      </dd>
-                    </React.Fragment>
-                  ))}
-                </Fields>
-              )}
-            </Surface>
-
-            <Surface $padding="standard" aria-label="Request">
-              <PanelHeader>
-                <PanelTitle>Request</PanelTitle>
-              </PanelHeader>
-              {item && registry ? (
-                <Fields>
-                  <dt>Submitter</dt>
+                <CurateIcon name="policy" size={14} />
+                Listing policy
+                <PolicyUpdatedBadge registryAddress={tcrAddress} />
+              </PolicyButton>
+            )}
+          </StatusRow>
+        </HeroMain>
+        <HeroSide>
+          {item && facts && statusCode !== null ? (
+            <StakeWindowPanel
+              item={item}
+              facts={facts}
+              statusCode={statusCode}
+              now={now}
+            />
+          ) : (
+            <SkeletonBlock
+              $height="216px"
+              $width="216px"
+              style={{ margin: '0 auto', borderRadius: '50%' }}
+            />
+          )}
+        </HeroSide>
+        <HeroStats>
+          {item && facts ? (
+            <Stats>
+              <div>
+                <Label as="dt" $tone="faint">
+                  {facts.reincluded ? 'Reincluded' : 'Submitted'}
+                </Label>
+                <dd title={formatAbsolute(facts.includedAt)}>
+                  {facts.includedAt ? formatAgo(facts.includedAt, now) : '—'}
+                </dd>
+              </div>
+              {item.submitter && (
+                <div>
+                  <Label as="dt" $tone="faint">
+                    By
+                  </Label>
                   <dd>
                     <AddressLink address={item.submitter} />
                   </dd>
-                  <dt>Included</dt>
-                  <dd>
-                    <Data $weight={400}>
-                      {includedAt ? formatAbsolute(includedAt) : '—'}
-                    </Data>
-                  </dd>
-                  <dt>Stake</dt>
-                  <dd>
-                    <Data>
-                      {tokenText(item.stake, tokenDecimals, tokenSymbol)}
-                    </Data>
-                  </dd>
-                  {item.arbitrationDeposit && (
-                    <>
-                      <dt>Arbitration deposit</dt>
-                      <dd>
-                        <Data>
-                          {nativeText(item.arbitrationDeposit, nativeCurrency)}
-                        </Data>
-                      </dd>
-                    </>
-                  )}
-                  {challenge &&
-                    disputed &&
-                    Number(challenge.disputeID) !== 0 && (
-                      <>
-                        <dt>Challenger</dt>
-                        <dd>
-                          <AddressLink address={challenge.challenger} />
-                        </dd>
-                        <dt>Dispute</dt>
-                        <dd>
-                          <Data>#{challenge.disputeID}</Data>
-                        </dd>
-                        <dt>Arbitrator</dt>
-                        <dd>
-                          <AddressLink address={registry.arbitrator.id} />
-                        </dd>
-                      </>
-                    )}
-                  {disputed && appealable && (
-                    <>
-                      <dt>Current ruling</dt>
-                      <dd>
-                        <Body>{rulingSentence(round?.ruling)}</Body>
-                        <Small $muted>Appealable until the period ends.</Small>
-                      </dd>
-                    </>
-                  )}
-                </Fields>
-              ) : (
-                <Stack $gap={10} aria-busy="true">
-                  <SkeletonBlock $height="18px" $width="50%" />
-                  <SkeletonBlock $height="18px" $width="40%" />
-                </Stack>
+                </div>
               )}
-            </Surface>
+              {challengeInSubmission && challenge && (
+                <div>
+                  <Label as="dt" $tone="faint">
+                    Challenged by
+                  </Label>
+                  <dd>
+                    <AddressLink address={challenge.challenger} />
+                  </dd>
+                </div>
+              )}
+              {/* While jurors decide the court panel leads with the same count. */}
+              {!facts.inCourt && (
+                <div>
+                  <Label as="dt" $tone="faint">
+                    Evidence
+                  </Label>
+                  <dd>
+                    <AnimatedNumber value={evidenceCount} />
+                  </dd>
+                </div>
+              )}
+              <div>
+                <Label as="dt" $tone="faint">
+                  Submissions
+                </Label>
+                <dd>
+                  <AnimatedNumber value={item.submissions?.length ?? 1} />
+                </dd>
+              </div>
+            </Stats>
+          ) : (
+            <SkeletonBlock $height="44px" />
+          )}
+        </HeroStats>
+      </Hero>
 
-            <RequestTimelines item={item} metaEvidence={metaEvidence} />
-          </Stack>
+      <Columns>
+        <Main>
+          <ItemDetailsCard
+            columns={columns ?? metadata?.columns}
+            item={cardItem}
+            title="Fields"
+            loading={Boolean(loading) && !fieldsUnavailable}
+          />
+          <RequestTimelines item={item} metaEvidence={metaEvidence} />
+          <Explainer
+            id="stake-curate-item"
+            eyebrow="How this list works"
+            heading="A stake keeps every entry honest."
+            steps={explainerSteps}
+          />
+        </Main>
 
+        <Rail aria-label="Actions">
           <ItemStatusCard
             item={decodedItem ?? item}
             registry={registry}
@@ -662,8 +849,9 @@ const ItemDetails = ({ itemID, search }: ItemDetailsProps) => {
             appealCost={appealCost ?? undefined}
             arbitrationCost={arbitrationCost.arbitrationCost}
           />
-        </SplitGrid>
-      </Section>
+        </Rail>
+      </Columns>
+      <StickyActionBarSpacer aria-hidden />
     </Page>
   )
 }

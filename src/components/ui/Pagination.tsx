@@ -14,20 +14,43 @@ import {
   figureData,
   joinClassNames,
   kitTransition,
+  motionOk,
 } from './kit-styles'
 
 /*
  * Pagination, v2: ghost pills with tabular figures. The current page sits in
  * a tinted pill that slides from page to page; previous and next are round.
+ * The pager always stays on one line: under 480px it keeps only the first,
+ * current and last pages (with ellipses), and the size changer takes its
+ * own row.
  */
+const COMPACT_QUERY = '(max-width: 479px)'
+
 const Wrapper = styled.nav`
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  user-select: none;
+`
+
+/* The pill row; the sliding indicator is positioned against it. */
+const Pager = styled.div`
   position: relative;
   isolation: isolate;
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 4px;
-  user-select: none;
+  min-width: 0;
+`
+
+const SizeRow = styled.div`
+  display: flex;
+
+  @media ${COMPACT_QUERY} {
+    flex-basis: 100%;
+  }
 `
 
 /* The tinted pill behind the current page; it glides when the page changes. */
@@ -79,9 +102,11 @@ const pageButtonBase = css`
     background: var(--color-raised);
   }
 
-  &:active:not(:disabled) {
-    transform: scale(0.95);
-  }
+  ${motionOk(css`
+    &:active:not(:disabled) {
+      transform: scale(0.95);
+    }
+  `)}
 
   &:disabled {
     cursor: not-allowed;
@@ -121,7 +146,6 @@ const Ellipsis = styled.span`
 const SizeChanger = styled.select`
   ${fieldSurface}
   height: 36px;
-  margin-left: 8px;
   padding: 0 12px;
   border-radius: var(--radius-pill);
   font-size: var(--fs-small);
@@ -159,27 +183,51 @@ const SimpleInput = styled.input`
   }
 `
 
+/*
+ * First, last, the current page and `siblings` pages either side of it,
+ * with an ellipsis wherever pages are skipped.
+ */
 const getPageNumbers = (
   current: number,
   total: number,
+  siblings = 1,
 ): (number | string)[] => {
-  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  if (total <= 5 + 2 * siblings)
+    return Array.from({ length: total }, (_, i) => i + 1)
 
   const pages: (number | string)[] = []
   pages.push(1)
 
-  if (current > 3) pages.push('left-ellipsis')
+  if (current - siblings > 2) pages.push('left-ellipsis')
 
-  const start = Math.max(2, current - 1)
-  const end = Math.min(total - 1, current + 1)
+  const start = Math.max(2, current - siblings)
+  const end = Math.min(total - 1, current + siblings)
 
   for (let i = start; i <= end; i++) pages.push(i)
 
-  if (current < total - 2) pages.push('right-ellipsis')
+  if (current + siblings < total - 1) pages.push('right-ellipsis')
 
   if (total > 1) pages.push(total)
 
   return pages
+}
+
+/* True while the viewport is phone-narrow; follows resizes. */
+const useCompact = (): boolean => {
+  const [compact, setCompact] = useState(
+    () =>
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia(COMPACT_QUERY).matches,
+  )
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return undefined
+    const query = window.matchMedia(COMPACT_QUERY)
+    const onChange = () => setCompact(query.matches)
+    onChange()
+    query.addEventListener('change', onChange)
+    return () => query.removeEventListener('change', onChange)
+  }, [])
+  return compact
 }
 
 interface PaginationProps {
@@ -256,13 +304,14 @@ const Pagination: React.FC<PaginationProps> = ({
     [itemRender],
   )
 
+  const compact = useCompact()
   const pages = useMemo(
-    () => getPageNumbers(current, totalPages),
-    [current, totalPages],
+    () => getPageNumbers(current, totalPages, compact ? 0 : 1),
+    [current, totalPages, compact],
   )
 
   // Measure the current page button so the tinted pill can slide to it.
-  const navRef = useRef<HTMLElement>(null)
+  const navRef = useRef<HTMLDivElement>(null)
   const firstMeasure = useRef(true)
   const [pill, setPill] = useState<{
     x: number
@@ -290,6 +339,10 @@ const Pagination: React.FC<PaginationProps> = ({
     measurePill(firstMeasure.current)
     firstMeasure.current = false
   }, [current, totalPages, simple, measurePill])
+  // Switching between the full and compact range moves every pill.
+  useLayoutEffect(() => {
+    if (!simple) measurePill(true)
+  }, [compact, simple, measurePill])
   // A window resize can rewrap the pills: follow them without animating.
   useEffect(() => {
     if (simple) return undefined
@@ -341,97 +394,103 @@ const Pagination: React.FC<PaginationProps> = ({
 
   return (
     <Wrapper
-      ref={navRef}
       style={style}
       className={joinClassNames('ui-pagination', className)}
       aria-label="Pagination"
-      data-sliding={pill ? 'true' : undefined}
     >
-      {pill && (
-        <Indicator
-          aria-hidden
-          $instant={pill.instant}
-          style={{
-            width: pill.width,
-            transform: `translate(${pill.x}px, ${pill.y}px)`,
-          }}
-        />
-      )}
-      <PageButton
-        type="button"
-        className="ui-pagination-prev"
-        disabled={current <= 1}
-        onClick={() => goTo(current - 1)}
-        aria-label="Previous page"
+      <Pager
+        ref={navRef}
+        className="ui-pagination-pager"
+        data-sliding={pill ? 'true' : undefined}
       >
-        {renderItem(
-          current - 1,
-          'prev',
-          <KitIcon name="chevron-left" size={14} />,
+        {pill && (
+          <Indicator
+            aria-hidden
+            $instant={pill.instant}
+            style={{
+              width: pill.width,
+              transform: `translate(${pill.x}px, ${pill.y}px)`,
+            }}
+          />
         )}
-      </PageButton>
+        <PageButton
+          type="button"
+          className="ui-pagination-prev"
+          disabled={current <= 1}
+          onClick={() => goTo(current - 1)}
+          aria-label="Previous page"
+        >
+          {renderItem(
+            current - 1,
+            'prev',
+            <KitIcon name="chevron-left" size={14} />,
+          )}
+        </PageButton>
 
-      {pages.map((page, idx) => {
-        if (typeof page === 'string')
-          return (
-            <Ellipsis
-              key={page + idx}
-              className="ui-pagination-ellipsis"
-              aria-hidden
-            >
-              …
-            </Ellipsis>
-          )
-
-        return (
-          <React.Fragment key={page}>
-            {renderItem(
-              page,
-              'page',
-              <PageButton
-                type="button"
-                className={joinClassNames(
-                  'ui-pagination-item',
-                  page === current && 'active',
-                )}
-                aria-current={page === current ? 'page' : undefined}
-                aria-label={`Page ${page}`}
-                onClick={() => goTo(page)}
+        {pages.map((page, idx) => {
+          if (typeof page === 'string')
+            return (
+              <Ellipsis
+                key={page + idx}
+                className="ui-pagination-ellipsis"
+                aria-hidden
               >
-                {page}
-              </PageButton>,
-            )}
-          </React.Fragment>
-        )
-      })}
+                …
+              </Ellipsis>
+            )
 
-      <PageButton
-        type="button"
-        className="ui-pagination-next"
-        disabled={current >= totalPages}
-        onClick={() => goTo(current + 1)}
-        aria-label="Next page"
-      >
-        {renderItem(
-          current + 1,
-          'next',
-          <KitIcon name="chevron-right" size={14} />,
-        )}
-      </PageButton>
+          return (
+            <React.Fragment key={page}>
+              {renderItem(
+                page,
+                'page',
+                <PageButton
+                  type="button"
+                  className={joinClassNames(
+                    'ui-pagination-item',
+                    page === current && 'active',
+                  )}
+                  aria-current={page === current ? 'page' : undefined}
+                  aria-label={`Page ${page}`}
+                  onClick={() => goTo(page)}
+                >
+                  {page}
+                </PageButton>,
+              )}
+            </React.Fragment>
+          )
+        })}
+
+        <PageButton
+          type="button"
+          className="ui-pagination-next"
+          disabled={current >= totalPages}
+          onClick={() => goTo(current + 1)}
+          aria-label="Next page"
+        >
+          {renderItem(
+            current + 1,
+            'next',
+            <KitIcon name="chevron-right" size={14} />,
+          )}
+        </PageButton>
+      </Pager>
 
       {showSizeChanger && (
-        <SizeChanger
-          className="ui-pagination-size"
-          value={pageSize}
-          onChange={handleSizeChange}
-          aria-label="Items per page"
-        >
-          {pageSizeOptions.map((opt) => (
-            <option key={opt} value={opt}>
-              {opt} / page
-            </option>
-          ))}
-        </SizeChanger>
+        <SizeRow>
+          <SizeChanger
+            className="ui-pagination-size"
+            value={pageSize}
+            onChange={handleSizeChange}
+            aria-label="Items per page"
+          >
+            {pageSizeOptions.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt} / page
+              </option>
+            ))}
+          </SizeChanger>
+        </SizeRow>
       )}
     </Wrapper>
   )

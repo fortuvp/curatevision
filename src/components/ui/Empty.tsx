@@ -1,11 +1,13 @@
 import React from 'react'
-import styled from 'styled-components'
+import styled, { keyframes } from 'styled-components'
 import { KitIcon } from './kit-icons'
-import { joinClassNames } from './kit-styles'
+import { joinClassNames, kitRadius } from './kit-styles'
 
 /*
- * Empty state, v2: a raised glass tile on a soft blue halo (no grid), then
- * one line of text and an optional action.
+ * Empty state, v2 (SPEC 7.2): three small item tiles fanned at -10, 0 and
+ * +10 degrees on a soft blue halo, drifting a few degrees on a slow loop
+ * (still under reduced motion), then one line of text and an optional
+ * action. No grid, no icon-in-a-box.
  */
 const Wrapper = styled.div`
   position: relative;
@@ -26,13 +28,13 @@ const ImageWrapper = styled.div`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 6px;
+  margin-bottom: 10px;
   color: var(--color-faint);
 
   &::before {
     content: '';
     position: absolute;
-    inset: -28px;
+    inset: -30px -40px;
     z-index: -1;
     border-radius: var(--radius-pill);
     background: radial-gradient(
@@ -44,20 +46,91 @@ const ImageWrapper = styled.div`
   }
 `
 
-const IconBox = styled.span`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  border: 1px solid var(--glass-border);
-  border-radius: 14px;
-  background: var(--color-raised);
+/* Each tile rocks ±3° around its own fan angle (--a). */
+const drift = keyframes`
+  from { transform: rotate(calc(var(--a) - 3deg)); }
+  to { transform: rotate(calc(var(--a) + 3deg)); }
+`
+
+const Fan = styled.span`
+  position: relative;
+  display: block;
+  width: 88px;
+  height: 56px;
+`
+
+/*
+ * One tile: a raised card with a thumbnail square and two text lines. The
+ * centre tile sits in front and catches the light.
+ */
+const Tile = styled.span<{ $angle: number; $front?: boolean }>`
+  --a: ${({ $angle }) => $angle}deg;
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  z-index: ${({ $front }) => ($front ? 1 : 0)};
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 36px;
+  height: 46px;
+  margin-left: -18px;
+  padding: 6px;
+  border: 1px solid
+    ${({ $front }) =>
+      $front
+        ? 'color-mix(in srgb, var(--color-primary) 40%, var(--glass-border))'
+        : 'var(--glass-border)'};
+  border-radius: var(--radius-sm);
+  background: ${({ $front }) =>
+    $front
+      ? 'linear-gradient(var(--color-raised), var(--color-raised)), var(--color-surface)'
+      : 'var(--color-surface)'};
   box-shadow:
     inset 0 1px 0 var(--glass-highlight),
-    0 12px 28px -14px var(--color-primary);
-  color: var(--color-muted);
+    0 10px 24px -14px
+      ${({ $front }) => ($front ? 'var(--color-primary)' : 'var(--stage)')};
+  transform: rotate(var(--a));
+  transform-origin: 50% 120%;
+  translate: ${({ $angle }) => `${$angle * 2.2}px 0`};
+
+  @media (prefers-reduced-motion: no-preference) {
+    animation: ${drift} 6s var(--ease-in-out) infinite alternate;
+    animation-delay: ${({ $angle }) => `${$angle * 60}ms`};
+  }
+
+  /* Thumbnail square */
+  &::before {
+    content: '';
+    display: block;
+    width: 12px;
+    height: 12px;
+    border-radius: calc(${kitRadius.xs} / 2);
+    background: ${({ $front }) =>
+      $front
+        ? 'color-mix(in srgb, var(--color-primary) 45%, transparent)'
+        : 'var(--color-raised)'};
+  }
+
+  /* Two text lines */
+  &::after {
+    content: '';
+    display: block;
+    width: 100%;
+    height: 3px;
+    border-radius: var(--radius-pill);
+    background: var(--color-raised);
+    box-shadow: 0 6px 0 var(--color-raised);
+  }
 `
+
+const FannedTiles = () => (
+  <Fan aria-hidden="true">
+    <Tile $angle={-10} />
+    <Tile $angle={10} />
+    <Tile $angle={0} $front />
+  </Fan>
+)
 
 const DescriptionText = styled.div`
   max-width: 40ch;
@@ -105,9 +178,7 @@ const Empty: EmptyComponent = ({
         ) : isSimple ? (
           <KitIcon name="inbox" size={20} />
         ) : (
-          <IconBox>
-            <KitIcon name="inbox" size={20} />
-          </IconBox>
+          <FannedTiles />
         )}
       </ImageWrapper>
       {description !== false && (

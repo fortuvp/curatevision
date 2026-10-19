@@ -24,7 +24,10 @@ export const AddressWrap = styled.span`
   vertical-align: middle;
 `
 
-/** A network or chain label shown before the address ("ETH", "BTC"). */
+/**
+ * A network or chain label shown before the address ("ETH", "Base",
+ * "zkSync"), in its authored case: these are names, not eyebrows.
+ */
 const Prefix = styled.span`
   /* In a tight cell the network label gives way before the address does. */
   flex: 0 1 auto;
@@ -39,12 +42,10 @@ const Prefix = styled.span`
   border-radius: var(--radius-pill);
   background: var(--glass);
   color: var(--color-muted);
-  font-family: var(--font-label);
-  font-size: 10px;
+  font-family: var(--font-sans);
+  font-size: var(--fs-label);
   line-height: 18px;
   font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 `
 
 const Anchor = styled.a<{ $invalid?: boolean; $fixed?: boolean }>`
@@ -160,7 +161,8 @@ const CopyButton = styled.button`
   }
 `
 
-const Unseen = styled.span`
+/** Read by screen readers, never shown. */
+export const Unseen = styled.span`
   position: absolute;
   width: 1px;
   height: 1px;
@@ -250,7 +252,7 @@ export const ChromeAddress = ({
   const fixed = shown.length <= 16
   return (
     <AddressWrap>
-      {prefix && <Prefix>{prefix}</Prefix>}
+      {prefix && <Prefix title={prefix}>{prefix}</Prefix>}
       {href ? (
         <Anchor
           href={href}

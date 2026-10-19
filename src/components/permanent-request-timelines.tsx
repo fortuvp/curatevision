@@ -8,36 +8,37 @@ import { CONTRACT_STATUS, SUBGRAPH_RULING } from 'utils/permanent-item-status'
 import { capitalizeFirstLetter } from 'utils/string'
 import { getTxPage } from 'utils/network-utils'
 import { parseIpfs } from 'utils/ipfs-parse'
-import { formatAbsolute, formatAgo, formatDate } from 'utils/time'
+import { formatDate } from 'utils/time'
 import PermanentEvidenceModal from 'pages/permanent-item-details/modals/evidence'
 import toOrdinal from 'utils/ordinal'
+import { CurateIcon } from 'components/curate/icons'
 import {
-  Body,
   Button,
-  Data,
-  Label,
-  PanelHeader,
-  PanelTitle,
   SkeletonBlock,
   Small,
-  Stack,
   StatusDot,
   Surface,
-  Title,
   type StatusTone,
 } from 'components/curate/primitives'
+import {
+  Timeline as EventList,
+  TimelineEvent,
+  TimelineQuote,
+} from 'components/curate/item-light-timeline'
 
 /*
- * History of a Stake Curate item: one timeline per submission, newest first,
- * with every event the subgraph recorded (submission, challenge, rulings,
- * appeals, evidence, withdrawal) in order, each written both ways in time
- * and linked to its transaction. Evidence is part of the same thread, and
- * the composer to add more sits right below.
+ * History of a Stake Curate item, on the Light item's composition: one
+ * panel, one group per submission (newest first, the latest open), each a
+ * glowing vertical timeline of every event the subgraph recorded
+ * (submission, evidence, challenge, rulings, appeals, withdrawal) with
+ * absolute UTC dates linked to their transactions; then the inline
+ * evidence composer while the item is on the list.
  */
 
 /**
  * Round fields beyond the shared SubgraphRound. The permanent item query does
- * not currently select the appeal transaction hashes, so they stay optional.
+ * not currently select the appeal times or transaction hashes, so they stay
+ * optional.
  */
 interface TimelineRound extends SubgraphRound {
   txHashAppealPossible?: string | null
@@ -47,6 +48,8 @@ interface TimelineRound extends SubgraphRound {
 
 /** Challenge fields the permanent item query selects. */
 interface TimelineChallenge extends SubgraphChallenge {
+  disputeID?: string
+  challenger?: string
   createdAt?: string | null
   creationTx?: string | null
   resolutionTime?: string | null
@@ -72,16 +75,20 @@ interface TimelineEvidence {
 }
 
 /** A submission row of a permanent item. */
-interface TimelineSubmission extends SubgraphItem {
+interface TimelineSubmission {
+  id?: string
+  withdrawingTimestamp?: string | null
   createdAt?: string | null
   creationTx?: string | null
   finishedAt?: string | null
   finishedTx?: string | null
   withdrawingTx?: string | null
+  submitter?: string | null
 }
 
 /** A permanent item with the nested rows the timeline reads. */
 interface PermanentTimelineItem extends SubgraphItem {
+  submitter?: string
   challenges?: TimelineChallenge[]
   evidences?: TimelineEvidence[]
   submissions?: TimelineSubmission[]
@@ -95,10 +102,21 @@ interface TimelineLogBase {
 interface AppealPossibleLog extends TimelineLogBase {
   name: 'AppealPossible'
   appealableRuling: string
+  disputeID?: string
 }
 
 interface AppealDecisionLog extends TimelineLogBase {
   name: 'AppealDecision'
+  /** The appealed round's ruling and when it was given. */
+  ruling?: string | null
+  ruledAt?: number
+  /** The appealed round's appeal period ended here: the appeal came before. */
+  appealEnd?: number
+  /** The query has no appeal time: `timestamp` only places the event. */
+  approximate: boolean
+  disputeID?: string
+  /** The new round's ruling is still to come. */
+  ongoing: boolean
 }
 
 interface EvidenceLog extends TimelineLogBase {
@@ -114,11 +132,17 @@ interface EvidenceLog extends TimelineLogBase {
 interface ResolutionLog extends TimelineLogBase {
   name: 'Resolution'
   disputeOutcome?: string | null
-  lastRoundRuling?: string | null
+  /** The newest round the jurors ruled on. */
+  lastRuling?: string | null
+  /** The one side fully funded on that round, if only one was. */
+  soleFunder?: 'submitter' | 'challenger'
+  disputeID?: string
 }
 
 interface ChallengeLog extends TimelineLogBase {
   name: 'Challenge'
+  challenger?: string
+  disputeID?: string
 }
 
 interface WithdrawalLog extends TimelineLogBase {
@@ -145,189 +169,148 @@ interface EvidenceFile {
   fileTypeExtension?: string | null
 }
 
-/* ---------- Timeline chrome ---------- */
+const toSeconds = (value: unknown): number => {
+  const n = Number(value ?? 0)
+  return Number.isFinite(n) ? n : 0
+}
 
-const Events = styled.ol`
-  display: flex;
-  flex-direction: column;
-  margin: 0;
+/* ---------- Evidence text ---------- */
+
+const Clamp = styled.p<{ $clamped: boolean }>`
+  ${({ $clamped }) =>
+    $clamped &&
+    `
+    display: -webkit-box;
+    -webkit-line-clamp: 6;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  `}
+`
+
+const MoreButton = styled.button`
   padding: 0;
-  list-style: none;
-`
-
-const Event = styled.li`
-  position: relative;
-  display: grid;
-  grid-template-columns: 8px minmax(0, 1fr);
-  gap: 12px;
-  padding-bottom: 16px;
-
-  &::before {
-    content: '';
-    position: absolute;
-    top: 16px;
-    bottom: 0;
-    left: 3px;
-    width: 2px;
-    background: var(--color-border);
-  }
-
-  &:last-child {
-    padding-bottom: 0;
-  }
-
-  &:last-child::before {
-    display: none;
-  }
-`
-
-const Dot = styled(StatusDot)`
-  margin-top: 6px;
-`
-
-const EventCopy = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-`
-
-const When = styled.a`
-  color: var(--color-muted);
-  font-family: var(--font-mono);
-  font-size: var(--fs-label);
-  line-height: var(--lh-label);
-  font-variant-numeric: tabular-nums;
-  text-decoration: none;
+  border: 0;
+  background: none;
+  color: var(--color-primary);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  font-weight: 500;
+  cursor: pointer;
 
   &:hover {
-    color: var(--color-text);
     text-decoration: underline;
   }
 `
 
-const EvidenceText = styled(Body)`
-  white-space: pre-line;
-`
-
-const EvidenceFoot = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-`
-
-const Group = styled.details`
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  background: var(--color-surface);
-
-  summary {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 12px 16px;
-    cursor: pointer;
-    list-style: none;
-  }
-
-  summary::-webkit-details-marker {
-    display: none;
-  }
-
-  &[open] summary {
-    border-bottom: 1px solid var(--color-border);
-  }
-`
-
-const GroupBody = styled.div`
-  padding: 16px;
-`
-
-const EventTime = ({
-  timestamp,
-  transactionHash,
-  now,
-}: {
-  timestamp?: string | null
-  transactionHash?: string | null
-  now: number
-}) => {
-  const networkId = useUrlChainId()
-  const seconds = Number(timestamp ?? 0)
-  if (!seconds) return null
-  const text = `${formatAgo(seconds, now)} · ${formatAbsolute(seconds)}`
-  if (!transactionHash)
-    return (
-      <Small $muted title={formatAbsolute(seconds)}>
-        {text}
-      </Small>
-    )
+/** Long evidence opens at six lines; the rest is one click away. */
+const EvidenceText = ({ text }: { text: string }) => {
+  const long = text.length > 420 || text.split('\n').length > 6
+  const [expanded, setExpanded] = useState(false)
   return (
-    <When
-      href={getTxPage({ networkId: networkId ?? 0, txHash: transactionHash })}
-      target="_blank"
-      rel="noopener noreferrer"
-      title={`${formatAbsolute(seconds)} · open the transaction`}
-    >
-      {text}
-    </When>
+    <>
+      <Clamp $clamped={long && !expanded}>{text}</Clamp>
+      {long && (
+        <MoreButton
+          type="button"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {expanded ? 'Show less' : 'Read all'}
+        </MoreButton>
+      )}
+    </>
   )
 }
 
 const rulingLine = (ruling: string | null | undefined): string => {
   switch (ruling) {
     case SUBGRAPH_RULING.NONE:
-      return 'The arbitrator refused to rule'
+      return 'Jurors refused to rule'
     case SUBGRAPH_RULING.ACCEPT:
-      return 'The arbitrator ruled for the submitter'
+      return 'Jurors ruled for the submitter'
     case SUBGRAPH_RULING.REJECT:
-      return 'The arbitrator ruled for the challenger'
+      return 'Jurors ruled for the challenger'
     default:
-      return 'The arbitrator gave an unknown ruling'
+      return 'Jurors gave an unknown ruling'
   }
 }
+
+/** "jurors had ruled for the submitter": the ruling an outcome overrode. */
+const hadRuledLine = (ruling: string | null | undefined): string => {
+  switch (ruling) {
+    case SUBGRAPH_RULING.NONE:
+      return 'jurors had refused to rule'
+    case SUBGRAPH_RULING.ACCEPT:
+      return 'jurors had ruled for the submitter'
+    case SUBGRAPH_RULING.REJECT:
+      return 'jurors had ruled for the challenger'
+    default:
+      return ''
+  }
+}
+
+/* ---------- One submission ---------- */
 
 interface TimelineProps {
   submission: TimelineSubmission
   item: PermanentTimelineItem
   metaEvidence?: MetaEvidence
-  now: number
+  /** Something is running on this submission: its latest event pulses. */
+  live: boolean
 }
 
-const Timeline = ({ submission, item, metaEvidence, now }: TimelineProps) => {
+const Timeline = ({ submission, item, metaEvidence, live }: TimelineProps) => {
+  const networkId = useUrlChainId()
   const [evidenceMap, setEvidenceMap] = useState<Record<string, EvidenceFile>>()
+
   // This submission has a range (createdAt, finishedAt). Take every event of
   // the item, keep the ones inside the range, then sort them.
-
   const logs = useMemo(() => {
     if (!submission) return null
 
     const challengeRows = item.challenges ?? []
-    const allRounds = challengeRows.flatMap((c) => c.rounds)
 
-    const appealPossibles = allRounds
-      .map(
-        (r): AppealPossibleLog => ({
-          name: 'AppealPossible',
-          timestamp: r.appealPeriodStart,
-          transactionHash: r.txHashAppealPossible,
-          appealableRuling: r.ruling,
-        }),
+    const appealPossibles = challengeRows
+      .flatMap((c) =>
+        c.rounds.map(
+          (r): AppealPossibleLog => ({
+            name: 'AppealPossible',
+            timestamp: r.appealPeriodStart,
+            transactionHash: r.txHashAppealPossible,
+            appealableRuling: r.ruling,
+            disputeID: c.disputeID,
+          }),
+        ),
       )
       .filter((appeal) => !!appeal.transactionHash)
 
-    const appealDecisions = allRounds
-      .map(
-        (r): AppealDecisionLog => ({
+    // Rounds come newest first and a new round exists only once both sides
+    // funded an appeal, so every round after the first was appealed. The
+    // query selects no appeal time or transaction: the event is placed just
+    // after the appealed ruling and dated by its window instead.
+    const appealDecisions = challengeRows.flatMap((c) =>
+      c.rounds.slice(1).map((r): AppealDecisionLog => {
+        const ruledAt =
+          toSeconds(r.rulingTime) || toSeconds(r.appealPeriodStart)
+        const appealedAt = toSeconds(r.appealedAt)
+        return {
           name: 'AppealDecision',
-          timestamp: r.appealedAt,
+          timestamp: String(
+            appealedAt ||
+              (ruledAt ? ruledAt + 1 : 0) ||
+              toSeconds(c.resolutionTime) ||
+              toSeconds(c.createdAt),
+          ),
           transactionHash: r.txHashAppealDecision,
-        }),
-      )
-      .filter((appeal) => !!appeal.transactionHash)
+          ruling: ruledAt ? r.ruling : undefined,
+          ruledAt: ruledAt || undefined,
+          appealEnd: toSeconds(r.appealPeriodEnd) || undefined,
+          approximate: !appealedAt,
+          disputeID: c.disputeID,
+          ongoing: !c.disputeOutcome && !c.resolutionTime,
+        }
+      }),
+    )
 
     const evidences = (item.evidences ?? []).map(
       (e): EvidenceLog => ({
@@ -343,21 +326,35 @@ const Timeline = ({ submission, item, metaEvidence, now }: TimelineProps) => {
       }),
     )
 
-    const resolutions = challengeRows.map(
-      (e): ResolutionLog => ({
+    const resolutions = challengeRows.map((e): ResolutionLog => {
+      // Rounds come newest first; after an appeal the newest can be an empty
+      // round the jurors never ruled on, so take the newest ruled one.
+      const lastRuled = e.rounds.find((r) => toSeconds(r.rulingTime) > 0)
+      const paidSubmitter = !!lastRuled?.hasPaidRequester
+      const paidChallenger = !!lastRuled?.hasPaidChallenger
+      return {
         name: 'Resolution',
         timestamp: e.resolutionTime,
         transactionHash: e.resolutionTx,
         disputeOutcome: e.disputeOutcome,
-        lastRoundRuling: e.rounds[0]?.ruling,
-      }),
-    )
+        lastRuling: lastRuled?.ruling,
+        soleFunder:
+          paidSubmitter !== paidChallenger
+            ? paidSubmitter
+              ? 'submitter'
+              : 'challenger'
+            : undefined,
+        disputeID: e.disputeID,
+      }
+    })
 
     const challenges = challengeRows.map(
       (e): ChallengeLog => ({
         name: 'Challenge',
         timestamp: e.createdAt,
         transactionHash: e.creationTx,
+        challenger: e.challenger,
+        disputeID: e.disputeID,
       }),
     )
 
@@ -388,8 +385,19 @@ const Timeline = ({ submission, item, metaEvidence, now }: TimelineProps) => {
       challengeRows.map((c) => c.resolutionTx).filter((tx) => !!tx),
     )
 
+    // The query may not select finishedTx: then a finished submission that
+    // had started a withdrawal and did not end on a ruling was withdrawn.
+    const resolutionTimes = new Set(
+      challengeRows.map((c) => c.resolutionTime).filter((time) => !!time),
+    )
+    const completedWithdrawal = submission.finishedTx
+      ? !resolutionTxs.has(submission.finishedTx)
+      : !!submission.finishedAt &&
+        !!submission.withdrawingTx &&
+        !resolutionTimes.has(submission.finishedAt)
+
     const withdrawalCompleted: WithdrawalCompletedLog | null =
-      submission.finishedTx && !resolutionTxs.has(submission.finishedTx)
+      completedWithdrawal
         ? {
             name: 'WithdrawalCompleted',
             timestamp: submission.finishedAt,
@@ -404,6 +412,7 @@ const Timeline = ({ submission, item, metaEvidence, now }: TimelineProps) => {
         (log) =>
           Number(submission.createdAt) <= Number(log.timestamp) &&
           (submission.finishedAt === null ||
+            submission.finishedAt === undefined ||
             Number(submission.finishedAt) >= Number(log.timestamp)),
       )
       .sort((a, b) => Number(a.timestamp) - Number(b.timestamp))
@@ -436,167 +445,377 @@ const Timeline = ({ submission, item, metaEvidence, now }: TimelineProps) => {
       })
       setEvidenceMap(evidenceMapProcess)
     }
-    evidenceManualFetch()
+    evidenceManualFetch().catch((err: unknown) => {
+      console.error('Could not load unindexed evidence', err)
+    })
   }, [logs, evidenceMap, setEvidenceMap])
 
-  if (!item || !submission || !logs)
-    return (
-      <Stack $gap={10} aria-busy="true">
-        <SkeletonBlock $height="18px" $width="50%" />
-        <SkeletonBlock $height="18px" $width="70%" />
-      </Stack>
-    )
+  if (!item || !submission || !logs) return <SkeletonBlock $height="80px" />
 
   const metadata = metaEvidence?.metadata
   const itemName = metadata?.itemName
     ? capitalizeFirstLetter(metadata.itemName)
     : 'Item'
-
-  const plain = (
-    key: React.Key,
-    tone: StatusTone,
-    text: React.ReactNode,
-    timestamp?: string | null,
-    transactionHash?: string | null,
-  ) => (
-    <Event key={key}>
-      <Dot $tone={tone} aria-hidden />
-      <EventCopy>
-        <Body>{text}</Body>
-        <EventTime
-          timestamp={timestamp}
-          transactionHash={transactionHash}
-          now={now}
-        />
-      </EventCopy>
-    </Event>
+  const txPage = (txHash?: string | null) =>
+    txHash ? getTxPage({ networkId: networkId ?? 0, txHash }) : undefined
+  const submitter = (submission.submitter ?? item.submitter)?.toLowerCase()
+  const challengers = new Set(
+    (item.challenges ?? [])
+      .map((c) => c.challenger?.toLowerCase())
+      .filter((address): address is string => !!address),
   )
+  const roleOf = (party?: string) => {
+    const address = party?.toLowerCase()
+    if (!address) return undefined
+    if (address === submitter) return 'submitter'
+    if (challengers.has(address)) return 'challenger'
+    return undefined
+  }
+  const submissionBy = submission.submitter ?? item.submitter
 
-  const submittedNode = plain(
-    'submitted',
-    'window',
-    `${itemName} submitted`,
-    submission.createdAt,
-    submission.creationTx,
+  return (
+    <EventList>
+      <TimelineEvent
+        tone="window"
+        title={`${itemName} submitted`}
+        timestamp={toSeconds(submission.createdAt)}
+        href={txPage(submission.creationTx)}
+        current={live && logs.length === 0}
+        detail={
+          submissionBy ? (
+            <span>
+              by <AddressLink address={submissionBy} />
+            </span>
+          ) : undefined
+        }
+      />
+      {logs.map((event, i) => {
+        const timestamp = toSeconds(event.timestamp)
+        const href = txPage(event.transactionHash)
+        const current = live && i === logs.length - 1
+        const index = i + 1
+
+        if (event.name === 'Evidence') {
+          const { title, description, fileURI } = evidenceMap?.[event.URI]
+            ? evidenceMap[event.URI]
+            : event
+          const role = roleOf(event.party)
+          return (
+            <TimelineEvent
+              key={i}
+              index={index}
+              current={current}
+              tone={
+                role === 'challenger'
+                  ? 'contested'
+                  : role
+                    ? 'window'
+                    : 'neutral'
+              }
+              title={title || 'Evidence'}
+              timestamp={timestamp}
+              href={href}
+              detail={
+                <span>
+                  by <AddressLink address={event.party} />
+                  {role ? ` · ${role}` : ''}
+                </span>
+              }
+            >
+              {(description || fileURI) && (
+                <TimelineQuote>
+                  {description && <EvidenceText text={description} />}
+                  {fileURI && <EvidenceFileLink fileURI={fileURI} />}
+                </TimelineQuote>
+              )}
+            </TimelineEvent>
+          )
+        }
+
+        if (event.name === 'AppealPossible')
+          return (
+            <TimelineEvent
+              key={i}
+              index={index}
+              current={current}
+              tone="contested"
+              title={rulingLine(event.appealableRuling)}
+              timestamp={timestamp}
+              href={href}
+              detail="Appeal period opened"
+            />
+          )
+
+        if (event.name === 'AppealDecision') {
+          const ruled = event.ruledAt
+            ? `${rulingLine(event.ruling)} on ${formatDate(event.ruledAt)}`
+            : undefined
+          const funded = event.approximate
+            ? `both sides funded the appeal${
+                event.appealEnd ? ` by ${formatDate(event.appealEnd)}` : ''
+              }`
+            : 'both sides funded the appeal'
+          const next = event.ongoing
+            ? 'a new round of jurors decides'
+            : 'a new round of jurors decided'
+          const caseText =
+            event.disputeID && Number(event.disputeID) !== 0
+              ? `Case ${event.disputeID} · `
+              : ''
+          return (
+            <TimelineEvent
+              key={i}
+              index={index}
+              current={current}
+              tone="contested"
+              title="Ruling appealed"
+              timestamp={event.approximate ? undefined : timestamp}
+              href={href}
+              detail={`${caseText}${capitalizeFirstLetter(
+                ruled ? `${ruled}; ${funded}` : funded,
+              )}, so ${next}.`}
+            />
+          )
+        }
+
+        if (event.name === 'Resolution') {
+          // rule() favours the one side that funded the last ruled round
+          // alone, whatever the jurors ruled: only then can they differ.
+          const soleFunderWon =
+            !!event.soleFunder &&
+            !!event.lastRuling &&
+            event.lastRuling !== event.disputeOutcome
+          const why = (side: 'submitter' | 'challenger') =>
+            soleFunderWon
+              ? `the ${side} alone funded the appeal`
+              : `jurors ruled for the ${side}`
+          let message: string
+          let tone: StatusTone
+          switch (event.disputeOutcome) {
+            case 'None': {
+              message = `${itemName} withdrawn: jurors refused to rule`
+              tone = 'off'
+              break
+            }
+            case 'Accept': {
+              message = `${itemName} kept: ${why('submitter')}`
+              tone = 'registered'
+              break
+            }
+            case 'Reject': {
+              message = `${itemName} removed: ${why('challenger')}`
+              tone = 'off'
+              break
+            }
+            default:
+              throw new Error('Unhandled ruling')
+          }
+          const caseText = event.disputeID ? `Case ${event.disputeID}` : ''
+          const note = soleFunderWon ? hadRuledLine(event.lastRuling) : ''
+
+          return (
+            <TimelineEvent
+              key={i}
+              index={index}
+              tone={tone}
+              title={message}
+              timestamp={timestamp}
+              href={href}
+              detail={
+                caseText && note
+                  ? `${caseText} · ${note}`
+                  : caseText || (note ? capitalizeFirstLetter(note) : undefined)
+              }
+            />
+          )
+        }
+
+        if (event.name === 'Challenge')
+          return (
+            <TimelineEvent
+              key={i}
+              index={index}
+              current={current}
+              tone="contested"
+              title={`${itemName} challenged`}
+              timestamp={timestamp}
+              href={href}
+              detail={
+                event.challenger ? (
+                  <span>
+                    by <AddressLink address={event.challenger} />
+                    {event.disputeID && Number(event.disputeID) !== 0
+                      ? ` · case ${event.disputeID}`
+                      : ''}
+                  </span>
+                ) : undefined
+              }
+            />
+          )
+
+        if (event.name === 'Withdrawal')
+          return (
+            <TimelineEvent
+              key={i}
+              index={index}
+              current={current}
+              tone="neutral"
+              title="Withdrawal started"
+              timestamp={timestamp}
+              href={href}
+              detail="by the submitter"
+            />
+          )
+
+        if (event.name === 'WithdrawalCompleted')
+          return (
+            <TimelineEvent
+              key={i}
+              index={index}
+              tone="off"
+              title={`${itemName} withdrawn`}
+              timestamp={timestamp}
+              href={href}
+              detail="Stake and arbitration deposit returned"
+            />
+          )
+
+        throw new Error('Unhandled event')
+      })}
+    </EventList>
   )
-
-  // `logs` is already ordered by timestamp.
-  const items = logs.map((event, i) => {
-    const { name, transactionHash, timestamp } = event
-
-    if (event.name === 'Evidence') {
-      const { party } = event
-      const { title, description, fileURI } = evidenceMap?.[event.URI]
-        ? evidenceMap[event.URI]
-        : event
-      return (
-        <Event key={i}>
-          <Dot $tone="neutral" aria-hidden />
-          <Surface $padding="compact">
-            <Stack $gap={8}>
-              <Label>Evidence</Label>
-              {title && <Title as="h4">{title}</Title>}
-              {description && <EvidenceText>{description}</EvidenceText>}
-              <EvidenceFoot>
-                <Small $muted>
-                  by <AddressLink address={party} />
-                </Small>
-                {fileURI && <EvidenceFileLink fileURI={fileURI} />}
-              </EvidenceFoot>
-              <EventTime
-                timestamp={timestamp}
-                transactionHash={transactionHash}
-                now={now}
-              />
-            </Stack>
-          </Surface>
-        </Event>
-      )
-    } else if (name === 'AppealPossible')
-      return plain(
-        i,
-        'contested',
-        rulingLine(event.appealableRuling),
-        timestamp,
-        transactionHash,
-      )
-    else if (name === 'AppealDecision')
-      return plain(
-        i,
-        'contested',
-        'Ruling appealed',
-        timestamp,
-        transactionHash,
-      )
-    else if (name === 'Resolution') {
-      let resultMessage: string
-      let tone: StatusTone
-      switch (event.disputeOutcome) {
-        case 'None': {
-          resultMessage = `${itemName} withdrawn: the arbitrator refused to rule`
-          tone = 'off'
-          break
-        }
-        case 'Accept': {
-          resultMessage = `${itemName} kept: the jurors ruled for the submitter`
-          tone = 'registered'
-          break
-        }
-        case 'Reject': {
-          resultMessage = `${itemName} removed: the jurors ruled for the challenger`
-          tone = 'off'
-          break
-        }
-        default:
-          throw new Error('Unhandled ruling')
-      }
-      const differentAppealableRuling =
-        event.lastRoundRuling !== event.disputeOutcome
-
-      return plain(
-        i,
-        tone,
-        <>
-          {differentAppealableRuling &&
-            'The winner of the last round did not fund the appeal. '}
-          {resultMessage}
-        </>,
-        timestamp,
-        transactionHash,
-      )
-    } else if (name === 'Challenge')
-      return plain(
-        i,
-        'contested',
-        `${itemName} challenged`,
-        timestamp,
-        transactionHash,
-      )
-    else if (name === 'Withdrawal')
-      return plain(
-        i,
-        'neutral',
-        'Withdrawal started by the submitter',
-        timestamp,
-        transactionHash,
-      )
-    else if (name === 'WithdrawalCompleted')
-      return plain(
-        i,
-        'off',
-        `${itemName} withdrawn`,
-        timestamp,
-        transactionHash,
-      )
-    else throw new Error(`Unhandled event ${name}`)
-  })
-
-  return <Events>{[submittedNode, ...items]}</Events>
 }
 
-const EVIDENCE_COMPOSER_ID = 'evidence-composer'
+/* ---------- Groups ---------- */
 
-const scrollToEvidenceComposer = () => {
+const HistoryHead = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 16px;
+  margin-top: 16px;
+`
+
+const HistoryTitle = styled.h2`
+  margin: 0;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 32px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+`
+
+const Panel = styled(Surface)`
+  overflow: hidden;
+`
+
+const Group = styled.section`
+  & + & {
+    border-top: 1px solid var(--glass-border);
+  }
+`
+
+const GroupToggle = styled.button`
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 60px;
+  padding: 12px 24px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--motion);
+
+  &:hover {
+    background: var(--color-raised);
+  }
+
+  @media (max-width: 720px) {
+    padding: 12px 16px;
+  }
+`
+
+const GroupMeta = styled.span`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-width: 0;
+`
+
+const Ordinal = styled.span`
+  color: var(--color-text);
+  font-size: var(--fs-body-lg);
+  line-height: var(--lh-body-lg);
+  font-weight: 500;
+`
+
+const GroupState = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+`
+
+const Dates = styled.span`
+  color: var(--color-faint);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  font-variant-numeric: tabular-nums;
+`
+
+const Chevron = styled.span<{ $open: boolean }>`
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--color-muted);
+  transform: rotate(${({ $open }) => ($open ? 180 : 0)}deg);
+  transition: transform var(--motion);
+`
+
+const GroupBody = styled.div`
+  padding: 8px 24px 28px;
+
+  @media (max-width: 720px) {
+    padding: 8px 16px 22px;
+  }
+`
+
+/** How a submission stands: on the list, disputed, or how it ended. */
+const submissionState = (
+  submission: TimelineSubmission,
+  item: PermanentTimelineItem,
+): { label: string; tone: StatusTone } => {
+  if (!submission.finishedAt)
+    return item.status === CONTRACT_STATUS.DISPUTED
+      ? { label: 'Disputed', tone: 'contested' }
+      : { label: 'On the list', tone: 'registered' }
+  const challenges = item.challenges ?? []
+  const resolutionTxs = new Set(
+    challenges.map((c) => c.resolutionTx).filter((tx) => !!tx),
+  )
+  const resolutionTimes = new Set(
+    challenges.map((c) => c.resolutionTime).filter((time) => !!time),
+  )
+  const withdrawn = submission.finishedTx
+    ? !resolutionTxs.has(submission.finishedTx)
+    : !!submission.withdrawingTx && !resolutionTimes.has(submission.finishedAt)
+  return withdrawn
+    ? { label: 'Withdrawn', tone: 'off' }
+    : { label: 'Removed', tone: 'off' }
+}
+
+export const EVIDENCE_COMPOSER_ID = 'evidence-composer'
+
+export const scrollToEvidenceComposer = () => {
   const composer = document.querySelector(`#${EVIDENCE_COMPOSER_ID}`)
   composer?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   window.setTimeout(() => {
@@ -614,10 +833,11 @@ interface RequestTimelinesProps {
 
 const RequestTimelines = ({ item, metaEvidence }: RequestTimelinesProps) => {
   const now = useNow(60_000)
+  const [openPanels, setOpenPanels] = useState<Record<number, boolean>>({
+    0: true,
+  })
   const { metadata } = metaEvidence || {}
-  const { itemName } = metadata || {}
-  const { submissions } = item || {}
-  const name = capitalizeFirstLetter(itemName ?? '') || 'Item'
+  const itemName = metadata?.itemName || 'item'
 
   if (!item)
     return (
@@ -627,21 +847,40 @@ const RequestTimelines = ({ item, metaEvidence }: RequestTimelinesProps) => {
         aria-busy="true"
         aria-label="Loading history"
       >
-        <Stack $gap={10}>
-          <SkeletonBlock $height="20px" $width="30%" />
-          <SkeletonBlock $height="18px" $width="60%" />
-          <SkeletonBlock $height="18px" $width="45%" />
-        </Stack>
+        <SkeletonBlock $height="120px" />
       </Surface>
     )
 
+  const submissions = item.submissions ?? []
   const active = item.status !== CONTRACT_STATUS.ABSENT
+  // Something runs on the open submission: a dispute, a withdrawal, or the
+  // submission period (the latest event then pulses).
+  const registry = item.registry
+  const includedAt = toSeconds(item.includedAt)
+  const period = toSeconds(
+    item.status === CONTRACT_STATUS.REINCLUDED
+      ? registry?.reinclusionPeriod
+      : registry?.submissionPeriod,
+  )
+  const live =
+    active &&
+    (item.status === CONTRACT_STATUS.DISPUTED ||
+      toSeconds(item.withdrawingTimestamp) > 0 ||
+      (period > 0 && now < includedAt + period))
 
   return (
-    <Stack $gap={16} id="request-timelines" as="section" aria-label="History">
-      <Surface $padding="standard">
-        <PanelHeader>
-          <PanelTitle>{name} history</PanelTitle>
+    <>
+      <div
+        id="request-timelines"
+        style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
+      >
+        <HistoryHead>
+          <div>
+            <HistoryTitle>History</HistoryTitle>
+            <Small $faint>
+              Every submission of this {itemName}, newest first. Times in UTC.
+            </Small>
+          </div>
           {active && (
             <Button
               type="button"
@@ -649,47 +888,68 @@ const RequestTimelines = ({ item, metaEvidence }: RequestTimelinesProps) => {
               $size="sm"
               onClick={scrollToEvidenceComposer}
             >
+              <CurateIcon name="policy" size={14} />
               Add evidence
             </Button>
           )}
-        </PanelHeader>
-        {submissions && submissions.length === 1 && (
-          <Timeline
-            item={item}
-            submission={{ ...submissions[0] }}
-            metaEvidence={metaEvidence}
-            now={now}
-          />
-        )}
-        {submissions && submissions.length > 1 && (
-          <Stack $gap={12}>
-            {submissions.map((submission, i) => (
-              <Group key={submission.id ?? i} open={i === 0}>
-                <summary>
-                  <Label $tone="text">
-                    {toOrdinal(submissions.length - i)} submission
-                  </Label>
-                  <Data $muted $weight={400}>
-                    {formatDate(Number(submission.createdAt ?? 0))}
-                    {submission.finishedAt
-                      ? ` – ${formatDate(Number(submission.finishedAt))}`
-                      : ' – now'}
-                  </Data>
-                </summary>
-                <GroupBody>
-                  {/* Spread `submission` to convert it from an array row to an object. */}
-                  <Timeline
-                    item={item}
-                    submission={{ ...submission }}
-                    metaEvidence={metaEvidence}
-                    now={now}
-                  />
-                </GroupBody>
+        </HistoryHead>
+        <Panel $padding="none">
+          {submissions.map((submission, i) => {
+            const state = submissionState(submission, item)
+            const open = !!openPanels[i]
+            const ordinal = submissions.length - i
+            const panelId = `submission-${ordinal}-timeline`
+            const start = toSeconds(submission.createdAt)
+            const end = toSeconds(submission.finishedAt)
+            return (
+              <Group
+                key={submission.id ?? i}
+                aria-label={`${toOrdinal(ordinal)} submission`}
+              >
+                <GroupToggle
+                  type="button"
+                  aria-expanded={open}
+                  aria-controls={open ? panelId : undefined}
+                  onClick={() =>
+                    setOpenPanels((current) => ({
+                      ...current,
+                      [i]: !current[i],
+                    }))
+                  }
+                >
+                  <GroupMeta>
+                    <Ordinal>{toOrdinal(ordinal)} submission</Ordinal>
+                    <GroupState>
+                      <StatusDot $tone={state.tone} aria-hidden />
+                      {state.label}
+                    </GroupState>
+                    {start > 0 && (
+                      <Dates>
+                        {formatDate(start)}
+                        {end ? ` – ${formatDate(end)}` : ' – now'}
+                      </Dates>
+                    )}
+                  </GroupMeta>
+                  <Chevron $open={open} aria-hidden>
+                    <CurateIcon name="chevron-down" size={16} />
+                  </Chevron>
+                </GroupToggle>
+                {open && (
+                  <GroupBody id={panelId}>
+                    {/* Spread `submission` to convert it from an array row to an object. */}
+                    <Timeline
+                      item={item}
+                      submission={{ ...submission }}
+                      metaEvidence={metaEvidence}
+                      live={live && i === 0}
+                    />
+                  </GroupBody>
+                )}
               </Group>
-            ))}
-          </Stack>
-        )}
-      </Surface>
+            )
+          })}
+        </Panel>
+      </div>
       {active && (
         <PermanentEvidenceModal
           item={item}
@@ -697,7 +957,7 @@ const RequestTimelines = ({ item, metaEvidence }: RequestTimelinesProps) => {
           composerId={EVIDENCE_COMPOSER_ID}
         />
       )}
-    </Stack>
+    </>
   )
 }
 

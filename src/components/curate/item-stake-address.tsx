@@ -3,12 +3,13 @@ import styled from 'styled-components'
 import useUrlChainId from 'hooks/use-url-chain-id'
 import { getAddressPage } from 'utils/network-utils'
 import { CurateIcon } from './icons'
-import { Data, truncateMiddle } from './primitives'
+import { truncateMiddle } from './primitives'
 
 /*
- * An address as DESIGN.md wants it: middle-truncated mono with the full value
- * on hover, an explorer link and a copy action. Used by the Stake Curate item
- * page for submitters, challengers, arbitrators and evidence authors.
+ * An address on the Stake item page: middle-truncated mono with the full
+ * value on hover, an explorer link and a copy action (the Light item page's
+ * address link, plus copy). Used for submitters, challengers, arbitrators
+ * and evidence authors.
  */
 
 const Wrap = styled.span`
@@ -20,7 +21,12 @@ const Wrap = styled.span`
 
 const Anchor = styled.a`
   color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-data);
+  line-height: var(--lh-data);
+  font-weight: 500;
   text-decoration: none;
+  transition: color var(--motion);
 
   &:hover {
     color: var(--color-primary);
@@ -36,10 +42,13 @@ const Copy = styled.button`
   height: 24px;
   padding: 0;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-pill);
   background: transparent;
   color: var(--color-faint);
   cursor: pointer;
+  transition:
+    color var(--motion),
+    background var(--motion);
 
   &:hover {
     color: var(--color-text);
@@ -78,7 +87,7 @@ export const AddressLink = ({
         rel="noopener noreferrer"
         title={address}
       >
-        <Data $weight={500}>{label ?? truncateMiddle(address)}</Data>
+        {label ?? truncateMiddle(address, 6, 4)}
       </Anchor>
       <Copy
         type="button"

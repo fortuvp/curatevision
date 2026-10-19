@@ -4,7 +4,9 @@ import { KitIcon } from './kit-icons'
 import {
   ghostIconButton,
   joinClassNames,
+  kitRadius,
   kitTransition,
+  motionOk,
   ringSpinner,
 } from './kit-styles'
 
@@ -27,7 +29,7 @@ const PictureCard = styled.button<{ $disabled?: boolean }>`
   min-height: 112px;
   padding: 16px;
   border: 1px dashed var(--color-border-strong);
-  border-radius: 14px;
+  border-radius: ${kitRadius.well};
   background: var(--color-raised);
   color: var(--color-muted);
   font-family: var(--font-sans);
@@ -48,11 +50,13 @@ const PictureCard = styled.button<{ $disabled?: boolean }>`
       var(--color-raised)
     );
     color: var(--color-text);
+  }
 
-    > svg {
+  ${motionOk(css`
+    &:hover:not(:disabled) > svg {
       transform: translateY(-2px);
     }
-  }
+  `)}
 
   ${({ $disabled }) =>
     $disabled &&
@@ -148,7 +152,7 @@ const PictureCardItem = styled.div<{ $status?: string }>`
   height: 112px;
   overflow: hidden;
   border: 1px solid var(--glass-border);
-  border-radius: 14px;
+  border-radius: ${kitRadius.well};
   background: var(--color-raised);
 
   img {
@@ -184,9 +188,7 @@ const PictureCardRemove = styled.button`
   width: 26px;
   height: 26px;
   border-color: var(--glass-border);
-  background: color-mix(in srgb, var(--color-surface) 85%, transparent);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: var(--color-surface);
 
   &:hover:not(:disabled) {
     color: var(--color-danger);

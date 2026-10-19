@@ -5,8 +5,10 @@ import { STATUS_CODE } from 'utils/permanent-item-status'
 
 /*
  * The one action a Stake Curate item offers in each status, as a button whose
- * label is a verb and whose amounts are spelled out next to it. While jurors
- * are deciding there is nothing to do, so the button is disabled and says why.
+ * label is a verb and whose amounts (token stake + arbitration in the
+ * chain's currency) are spelled out next to it. While jurors are deciding
+ * there is nothing to do: the item page shows "Add evidence" instead, and
+ * this button, if rendered, is disabled and says why.
  */
 
 /** Sentence-case label for the action an item offers in a status. */
@@ -44,19 +46,21 @@ export const isPassiveStatus = (statusCode: number): boolean =>
   statusCode === STATUS_CODE.DISPUTED ||
   statusCode === STATUS_CODE.WAITING_ARBITRATOR
 
+/* Wraps when both amounts do not fit on one line (phones). */
 const ActionButton = styled(Button)`
+  flex-wrap: wrap;
+  column-gap: 6px;
+  row-gap: 0;
   height: auto;
-  min-height: 40px;
-  padding: 8px 16px;
+  min-height: 44px;
+  padding: 10px 18px;
   white-space: normal;
   text-align: center;
 `
 
 const Amounts = styled.span`
-  font-family: var(--font-mono);
-  font-size: var(--fs-data);
-  font-weight: 500;
   font-variant-numeric: tabular-nums;
+  opacity: 0.85;
 `
 
 interface ItemActionButtonProps {

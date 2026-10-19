@@ -5,9 +5,11 @@ import {
   ghostIconButton,
   joinClassNames,
   kitTransition,
+  kitType,
+  motionOk,
+  type Tone,
   toneColor,
   toneFor,
-  type Tone,
 } from './kit-styles'
 
 /*
@@ -25,8 +27,8 @@ const chipStyles = css`
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-pill);
   font-family: var(--font-sans);
-  font-size: 12px;
-  line-height: 16px;
+  font-size: ${kitType.meta};
+  line-height: ${kitType.metaLine};
   font-weight: 500;
   letter-spacing: 0;
   white-space: nowrap;
@@ -113,9 +115,11 @@ const CheckableTagStyled = styled.button<{ $checked?: boolean }>`
     color: var(--color-text);
   }
 
-  &:active {
-    transform: scale(0.97);
-  }
+  ${motionOk(css`
+    &:active {
+      transform: scale(0.97);
+    }
+  `)}
 `
 
 interface TagProps {

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useId, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import styled from 'styled-components'
+import styled, { keyframes } from 'styled-components'
 import { ethers, type BigNumberish } from 'ethers'
 import { useAccount, useSwitchChain } from 'wagmi'
 import { useAtlasProvider } from '@kleros/kleros-app'
@@ -12,91 +12,193 @@ import { CurateIcon } from 'components/curate/icons'
 import {
   Button,
   IconButton,
+  Label,
   SkeletonBlock,
   Small,
   Stack,
-  Subheading,
 } from 'components/curate/primitives'
 
 /*
- * Shared pieces of the Stake Curate item modals: the dialog shell (surface,
- * hairline, 10px radius, bottom sheet on phones), the wallet gate that names
- * its blocker, and the exact amount formatting every receipt uses.
+ * Shared pieces of the Stake Curate item modals: the dialog (the item
+ * pages' near-opaque panel over a blurred page, the aurora along its top
+ * edge, rising in from 96%; a bottom-anchored sheet on phones), the wallet
+ * gate that names its blocker, and the exact amount formatting every
+ * receipt uses.
  */
 
 /* ---------- Dialog ---------- */
 
-const Layer = styled.div`
+const fadeIn = keyframes`
+  from { opacity: 0; }
+  to { opacity: 1; }
+`
+
+const rise = keyframes`
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+`
+
+const Scrim = styled.div`
   position: fixed;
   inset: 0;
   z-index: 1000;
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 48px 16px;
+  padding: 56px 16px;
   overflow-y: auto;
+  background: color-mix(in srgb, var(--stage) 62%, transparent);
+  backdrop-filter: blur(10px) saturate(120%);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
+  animation: ${fadeIn} 220ms ease-out both;
 
   @media (max-width: 720px) {
-    align-items: flex-end;
-    padding: 0;
+    padding: 12px 8px 24px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
   }
 `
 
-const Backdrop = styled.div`
-  position: fixed;
-  inset: 0;
-  background: var(--color-bg);
-  opacity: 0.82;
-`
-
-const Dialog = styled.div<{ $width: number }>`
+const Panel = styled.div<{ $width: string }>`
   position: relative;
+  isolation: isolate;
   width: 100%;
-  max-width: ${({ $width }) => $width}px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-overlay);
+  max-width: ${({ $width }) => $width};
+  overflow: clip;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    var(--shadow-overlay);
+  color: var(--color-text);
   outline: none;
+  animation: ${rise} 420ms var(--ease-out) both;
+
+  /* The aurora along the top edge: a lit rim and its glow. */
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto;
+    z-index: -1;
+    height: 180px;
+    background:
+      radial-gradient(
+        60% 120px at 18% 0%,
+        color-mix(in srgb, var(--aurora-b) 34%, transparent),
+        transparent 70%
+      ),
+      radial-gradient(
+        50% 110px at 62% 0%,
+        color-mix(in srgb, var(--aurora-a) 30%, transparent),
+        transparent 72%
+      ),
+      radial-gradient(
+        40% 90px at 92% 0%,
+        color-mix(in srgb, var(--aurora-c) 28%, transparent),
+        transparent 72%
+      );
+    pointer-events: none;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0 24px auto;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--aurora-b) 20%,
+      var(--aurora-a) 55%,
+      var(--aurora-c) 82%,
+      transparent
+    );
+    pointer-events: none;
+  }
 
   @media (max-width: 720px) {
-    max-width: none;
-    max-height: 92vh;
-    overflow-y: auto;
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-radius: var(--radius-lg);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
   }
 `
 
 const Head = styled.div`
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--color-border);
+  padding: 26px 28px 18px;
+
+  @media (max-width: 720px) {
+    padding: 20px 18px 14px;
+  }
+`
+
+const Titles = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+`
+
+const DialogTitle = styled.h2`
+  margin: 0;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: clamp(24px, 1vw + 18px, 30px);
+  line-height: 1.1;
+  font-weight: 500;
+  letter-spacing: -0.03em;
 `
 
 const DialogBody = styled.div`
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 20px;
+  padding: 4px 28px 28px;
+
+  @media (max-width: 720px) {
+    padding: 4px 18px 20px;
+  }
+`
+
+/** Two columns inside a wide dialog: the form, then the receipt. */
+export const DialogColumns = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 28px;
+  align-items: start;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
 `
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
+const WIDTHS = { md: '600px', lg: '1040px' } as const
+
 export const ModalShell = ({
   open,
   title,
+  eyebrow,
   onClose,
-  width = 600,
+  width = 'md',
   children,
 }: {
   open: boolean
   title: React.ReactNode
+  /** Small label above the title, e.g. the entry name. */
+  eyebrow?: React.ReactNode
   onClose: () => void
-  width?: number
+  width?: 'md' | 'lg'
   children: React.ReactNode
 }) => {
   const titleId = useId()
@@ -107,9 +209,9 @@ export const ModalShell = ({
   const trapTab = (event: React.KeyboardEvent<HTMLDivElement>) => {
     const dialog = dialogRef.current
     if (event.key !== 'Tab' || !dialog) return
-    const nodes = Array.from(
-      dialog.querySelectorAll<HTMLElement>(FOCUSABLE),
-    ).filter((node) => node.getClientRects().length > 0)
+    const nodes = [...dialog.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
+      (node) => node.getClientRects().length > 0,
+    )
     if (nodes.length === 0) {
       event.preventDefault()
       return
@@ -133,7 +235,7 @@ export const ModalShell = ({
     const previous = document.activeElement as HTMLElement | null
     const overflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    dialogRef.current?.focus()
+    dialogRef.current?.focus({ preventScroll: true })
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose()
     }
@@ -148,26 +250,32 @@ export const ModalShell = ({
   if (!open) return null
 
   return createPortal(
-    <Layer>
-      <Backdrop onClick={onClose} aria-hidden />
-      <Dialog
+    <Scrim
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose()
+      }}
+    >
+      <Panel
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        $width={width}
+        $width={WIDTHS[width]}
         onKeyDown={trapTab}
       >
         <Head>
-          <Subheading id={titleId}>{title}</Subheading>
+          <Titles>
+            {eyebrow && <Label>{eyebrow}</Label>}
+            <DialogTitle id={titleId}>{title}</DialogTitle>
+          </Titles>
           <IconButton type="button" aria-label="Close" onClick={onClose}>
             <CurateIcon name="close" size={16} />
           </IconButton>
         </Head>
         <DialogBody>{children}</DialogBody>
-      </Dialog>
-    </Layer>,
+      </Panel>
+    </Scrim>,
     document.body,
   )
 }
@@ -348,25 +456,17 @@ export const FormBlock = styled.div`
     line-height: var(--lh-small);
     font-weight: 500;
   }
+`
 
-  input,
-  textarea,
-  .ui-select-trigger {
-    border-radius: var(--radius) !important;
-    border-color: var(--color-border) !important;
-    background: var(--color-surface) !important;
-    color: var(--color-text) !important;
-  }
-
-  input:focus,
-  textarea:focus {
-    border-color: var(--color-primary) !important;
-  }
-
-  textarea {
-    min-height: 96px;
-    resize: vertical;
-  }
+/* The approval, the first of two transactions, as one raised row. */
+export const StepRow = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: var(--color-raised);
 `
 
 export const PolicyText = styled.a`

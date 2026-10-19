@@ -1,28 +1,73 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useId, useMemo, useState } from 'react'
+import styled from 'styled-components'
 import { ethers, type BigNumber } from 'ethers'
 import { abi as _IArbitrator } from '@kleros/erc-792/build/contracts/IArbitrator.json'
 import useNativeCurrency from 'hooks/native-currency'
 import useCourtPolicies from 'hooks/use-court-policies'
 import { ARBITRATION_FEE_TOOLTIP } from 'components/arbitration-fee-tooltip'
-import { Data, SkeletonBlock, Small, Stack } from 'components/curate/primitives'
+import { AnimatedNumber } from 'components/curate/motion/animated-number'
 import {
-  Field,
-  FieldGrid,
-  Help,
-  MonoInput,
-  Range,
-  RangeRow,
-  Select,
-} from './controls'
+  Label,
+  Row,
+  SkeletonBlock,
+  Small,
+  Stack,
+} from 'components/curate/primitives'
+import { FieldGrid, FormField, Input, RangeInput, Select } from './controls'
 import { JURORS } from './defaults'
-import { encodeExtraData, formatNative, readExtraData } from './format'
+import {
+  amountFormat,
+  encodeExtraData,
+  formatNative,
+  readExtraData,
+} from './format'
 
 /*
  * The Kleros side of the arbitrator settings: which court rules on disputes
  * and how many jurors sit in the first round. Both are encoded into the
- * arbitrator extra data; the arbitration fee that encoding costs is read
- * from the arbitrator contract and shown next to the controls.
+ * arbitrator extra data; the arbitration cost that encoding sets is read
+ * from the arbitrator contract and shown as one figure under the controls.
  */
+
+const JurorsInput = styled(Input)`
+  flex: 0 0 auto;
+  width: 64px;
+  text-align: center;
+  font-family: var(--font-figure);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+`
+
+/** The cost read-out: one figure, its unit and one line on who pays it. */
+const CostLine = styled.div`
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: var(--color-raised);
+`
+
+const CostFigure = styled.span`
+  color: var(--color-text);
+  font-family: var(--font-figure);
+  font-size: 22px;
+  line-height: 26px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+
+  small {
+    margin-left: 6px;
+    color: var(--color-muted);
+    font-size: var(--fs-small);
+    font-weight: 500;
+    letter-spacing: 0;
+  }
+`
 
 interface KlerosParamsProps {
   klerosAddress?: string
@@ -39,10 +84,9 @@ const KlerosParams = ({
   arbitratorExtraData,
   library,
 }: KlerosParamsProps) => {
+  const ids = useId()
   const nativeCurrency = useNativeCurrency()
-  const [arbitrationCost, setArbitrationCost] = useState<BigNumber | null>(
-    null,
-  )
+  const [arbitrationCost, setArbitrationCost] = useState<BigNumber | null>(null)
   const [numberOfJurors, setNumberOfJurors] = useState(3)
   const [courtID, setCourtID] = useState<number>()
   const { data: courts = [], isLoading: loadingCourts } = useCourtPolicies(
@@ -68,7 +112,7 @@ const KlerosParams = ({
     setNumberOfJurors(parsed.numberOfJurors)
   }, [arbitratorExtraData])
 
-  // Read the arbitration fee the current settings cost.
+  // Read the arbitration cost the current settings set.
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -111,18 +155,19 @@ const KlerosParams = ({
 
   const courtsReady = courts.length > 0 && typeof courtID === 'number'
   const selectedCourt = courts.find((court) => court.courtID === courtID)
+  const cost = arbitrationCost ? formatNative(arbitrationCost) : null
 
   return (
-    <Stack $gap={12}>
+    <Stack $gap={20}>
       <FieldGrid>
-        <Field
-          id="court"
+        <FormField
+          id={`${ids}-court`}
           label="Court"
-          help="The Kleros court that rules on disputes about this list."
+          help="The Kleros court whose jurors rule on this list's disputes."
         >
-          {(aria) => (
+          {(a11y) => (
             <Select
-              {...aria}
+              {...a11y}
               value={courtsReady ? String(courtID) : ''}
               disabled={!courtsReady}
               onChange={(event) => onCourtChanged(event.target.value)}
@@ -139,16 +184,15 @@ const KlerosParams = ({
               ))}
             </Select>
           )}
-        </Field>
-        <Field
-          id="numJurors"
-          label="Number of jurors"
-          help="Drawn in the first round of a dispute. Three is the usual choice; one can do for simple checks, more for cases that need real review. Every extra juror raises the arbitration deposit on each submission."
+        </FormField>
+        <FormField
+          id={`${ids}-jurors`}
+          label="Jurors in the first round"
+          help="Always odd; each extra juror raises the arbitration cost."
         >
-          {(aria) => (
-            <RangeRow>
-              <Small $muted>Fewer</Small>
-              <Range
+          {(a11y) => (
+            <Row $gap={14}>
+              <RangeInput
                 type="range"
                 aria-label="Number of jurors slider"
                 min={JURORS.min}
@@ -159,42 +203,40 @@ const KlerosParams = ({
                   onNumJurorsChange(Number(event.target.value))
                 }
               />
-              <Small $muted>More</Small>
-              <MonoInput
-                {...aria}
-                type="number"
+              <JurorsInput
+                {...a11y}
+                type="text"
                 inputMode="numeric"
-                min={JURORS.min}
-                max={JURORS.max}
-                step={JURORS.step}
                 value={numberOfJurors}
                 onChange={(event) =>
                   onNumJurorsChange(Number(event.target.value))
                 }
               />
-            </RangeRow>
+            </Row>
           )}
-        </Field>
+        </FormField>
       </FieldGrid>
-      <div>
-        <Small>
-          Arbitration fee for {numberOfJurors} juror
-          {numberOfJurors === 1 ? '' : 's'}
-          {selectedCourt ? ` in ${selectedCourt.name}` : ''}:{' '}
-          {arbitrationCost ? (
-            <Data>
-              {formatNative(arbitrationCost)} {nativeCurrency}
-            </Data>
-          ) : (
-            <SkeletonBlock
-              $width="96px"
-              $height="18px"
-              style={{ display: 'inline-block', verticalAlign: 'middle' }}
-            />
-          )}
-        </Small>
-        <Help>{ARBITRATION_FEE_TOOLTIP}</Help>
-      </div>
+      <CostLine role="group" aria-label="Arbitration cost">
+        <Stack $gap={2} style={{ minWidth: 0, flex: '1 1 260px' }}>
+          <Label $tone="muted">
+            Arbitration cost · {numberOfJurors}{' '}
+            {numberOfJurors === 1 ? 'juror' : 'jurors'}
+            {selectedCourt ? ` in ${selectedCourt.name}` : ''}
+          </Label>
+          <Small $muted title={ARBITRATION_FEE_TOOLTIP}>
+            Each submitter deposits it with the entry and each challenger pays
+            it to open a dispute; the winning side ends up with it back.
+          </Small>
+        </Stack>
+        {cost === null ? (
+          <SkeletonBlock $height="26px" $width="120px" />
+        ) : (
+          <CostFigure>
+            <AnimatedNumber value={Number(cost)} format={amountFormat(cost)} />
+            <small>{nativeCurrency}</small>
+          </CostFigure>
+        )}
+      </CostLine>
     </Stack>
   )
 }

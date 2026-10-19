@@ -3,6 +3,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
 import styled from 'styled-components'
@@ -13,7 +14,7 @@ import localforage from 'localforage'
 import { STALE_TIME } from 'consts'
 import useUrlChainId from 'hooks/use-url-chain-id'
 import useNow from 'hooks/use-now'
-import useStoredLayout from 'hooks/use-stored-layout'
+import useStoredLayout, { type ListLayout } from 'hooks/use-stored-layout'
 import useDocumentHead from 'hooks/use-document-head'
 import { useAttachment } from 'hooks/use-attachment'
 import { WalletContext } from 'contexts/wallet-context'
@@ -35,14 +36,9 @@ import { isSeerRegistry } from 'components/custom-registries/seer/is-seer-regist
 import ETHAmount from 'components/eth-amount'
 import { Pagination } from 'components/ui'
 import type { V2Field } from 'components/curate/v2'
-import {
-  Button,
-  Grid,
-  Page,
-  SkeletonBlock,
-  Stack,
-  truncateMiddle,
-} from 'components/curate/primitives'
+import { Button, Page, truncateMiddle } from 'components/curate/primitives'
+import { CurateIcon } from 'components/curate/icons'
+import { reveal } from 'components/curate/motion/reveal'
 import {
   RegistryHeader,
   type RegistryParameter,
@@ -59,15 +55,22 @@ import {
 } from 'components/curate/entry-list'
 import { lightEntryStatus } from 'components/curate/entry-status'
 import type { ExplainerStep } from 'components/curate/explainer'
+import {
+  RegistryLightEmpty,
+  RegistryLightSkeleton,
+} from 'components/curate/registry-light-states'
 import ErrorPage from '../error-page'
 import SubmitModal from '../light-item-details/modals/submit'
 import SubmitConnectModal from '../light-item-details/modals/submit-connect'
 
 /*
- * Light Curate registry page (/tcr/:chainId/:tcrAddress). The header carries
- * the list's identity, the one action with its exact deposit, live counts and
- * the parameters; the toolbar drives the URL filters; the entries render in
- * the remembered layout with a dot, a label and the time left on every row.
+ * Light Curate registry page (/tcr/:chainId/:tcrAddress): the header panel
+ * (identity, the one action with its exact deposit, the counts and the share
+ * registered as a ring), the toolbar (URL filters with each status's count),
+ * then the entries in the remembered layout, each with its status and time
+ * left. Nothing else sits between the header and the entries. A page or
+ * filter change keeps the current rows and counts (dimmed) until the next
+ * page lands, so nothing flashes or counts up again.
  */
 
 export const NSFW_FILTER_KEY = 'NSFW_FILTER_KEY'
@@ -206,35 +209,73 @@ const itemMatchesSearch = (item: RegistryItem, rawSearch: string): boolean => {
   return text.includes(query)
 }
 
-const pagingItem = (
-  _page: number,
-  type: string,
-  originalElement: React.ReactNode,
-) => {
-  if (type === 'prev') return <span>Previous</span>
-  if (type === 'next') return <span>Next</span>
-  return originalElement
-}
-
+/* An explorer link: a 24px target, and it says it opens a new tab. */
 const AddressLink = styled.a`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
   color: var(--color-primary);
   text-decoration: none;
+
+  svg {
+    flex: 0 0 auto;
+    opacity: 0.8;
+  }
 
   &:hover {
     text-decoration: underline;
   }
 `
 
-const Entries = styled.section`
-  margin-top: 0;
+const SrOnly = styled.span`
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 `
 
-const PaginationRow = styled.div`
+/* The empty state's way out: a ghost button with a hairline, not a fill. */
+const GhostButton = styled(Button)`
+  border-color: var(--glass-border);
+`
+
+const Toolbar = styled.div`
+  ${reveal}
+`
+
+/* While the next page or filter loads, the current rows stay and dim. */
+const Entries = styled.section`
+  margin-top: 0;
+
+  > :first-child {
+    transition: opacity var(--dur-hover, 180ms) var(--ease-out, ease-out);
+  }
+
+  &[data-refreshing='true'] > :first-child {
+    opacity: 0.55;
+  }
+`
+
+const Footer = styled.div`
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
-  margin-top: 16px;
+  gap: 12px 16px;
+  margin-top: 18px;
+  ${reveal}
 `
+
+/** Phones open on stacked rows; wider screens on the table. */
+const defaultLayout = (): ListLayout =>
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(max-width: 720px)').matches
+    ? 'rows'
+    : 'table'
 
 const Items = () => {
   const navigate = useNavigate()
@@ -259,7 +300,9 @@ const Items = () => {
   const governor = tcrViewContext?.governor
   const openAttachment = useAttachment()
   const now = useNow()
-  const [layout, setLayout] = useStoredLayout('entries', 'table')
+  // A remembered choice wins; the fallback follows the viewport on arrival.
+  const [fallbackLayout] = useState(defaultLayout)
+  const [layout, setLayout] = useStoredLayout('entries', fallbackLayout)
 
   const [submissionFormOpen, setSubmissionFormOpen] = useState<
     boolean | undefined
@@ -373,15 +416,58 @@ const Items = () => {
       }),
     enabled: !!chainId,
     staleTime: STALE_TIME,
+    // A page or filter change keeps this registry's last result on screen
+    // until the next one lands; another registry never inherits it.
+    placeholderData: (previous, previousQuery) =>
+      (previousQuery?.queryKey[1] as { registryId?: string } | undefined)
+        ?.registryId === tcrAddress?.toLowerCase()
+        ? previous
+        : undefined,
   })
+  const refreshing = itemsQuery.isPlaceholderData && itemsQuery.isFetching
 
-  const counters = itemsQuery.data?.lregistry ?? undefined
+  // The registry-wide counters, kept across a refetch that comes back
+  // without them, for this registry only.
+  const countersKey = `${chainId}:${tcrAddress?.toLowerCase()}`
+  const lastCounters = useRef<{ key: string; value: RegistryCounters }>()
+  const freshCounters = itemsQuery.data?.lregistry ?? undefined
+  if (freshCounters)
+    lastCounters.current = { key: countersKey, value: freshCounters }
+  const counters =
+    freshCounters ??
+    (lastCounters.current?.key === countersKey
+      ? lastCounters.current.value
+      : undefined)
 
+  /** The registry's live counters, one per status filter. */
+  const counts = useMemo(() => {
+    if (!counters) return undefined
+    const absentCount = Number(counters.numberOfAbsent)
+    const registeredCount = Number(counters.numberOfRegistered)
+    const submittedCount = Number(counters.numberOfRegistrationRequested)
+    const removalCount = Number(counters.numberOfClearingRequested)
+    const challengedSubmissionCount = Number(
+      counters.numberOfChallengedRegistrations,
+    )
+    const challengedRemovalCount = Number(counters.numberOfChallengedClearing)
+    const inCourt = challengedSubmissionCount + challengedRemovalCount
+    const openRequests = submittedCount + removalCount + inCourt
+    return {
+      absent: absentCount,
+      registered: registeredCount,
+      submitted: submittedCount,
+      removalRequested: removalCount,
+      challengedSubmissions: challengedSubmissionCount,
+      challengedRemovals: challengedRemovalCount,
+      inCourt,
+      openRequests,
+      total: absentCount + registeredCount + openRequests,
+    }
+  }, [counters])
+
+  /** Entries the current filters cover: all of them, or the selected sum. */
   const itemCount = useMemo(() => {
-    if (!counters) return 0
-    const r = counters
-
-    // Count selected filters and sum their counts
+    if (!counts) return 0
     const hasAnyFilter =
       absent ||
       registered ||
@@ -389,29 +475,16 @@ const Items = () => {
       removalRequested ||
       challengedSubmissions ||
       challengedRemovals
-
-    if (!hasAnyFilter)
-      // No filters - return total count
-      return (
-        Number(r.numberOfAbsent) +
-        Number(r.numberOfRegistered) +
-        Number(r.numberOfRegistrationRequested) +
-        Number(r.numberOfClearingRequested) +
-        Number(r.numberOfChallengedRegistrations) +
-        Number(r.numberOfChallengedClearing)
-      )
-
-    // Sum counts for selected filters
-    // Note: numberOfRegistrationRequested and numberOfChallengedRegistrations are mutually exclusive
-    // (unchallenged vs challenged), not subsets
+    if (!hasAnyFilter) return counts.total
+    // Submitted and challenged submissions are disjoint (unchallenged vs
+    // challenged), as are the two removal counters, so the sum is exact.
     let sum = 0
-    if (absent) sum += Number(r.numberOfAbsent)
-    if (registered) sum += Number(r.numberOfRegistered)
-    if (submitted) sum += Number(r.numberOfRegistrationRequested)
-    if (removalRequested) sum += Number(r.numberOfClearingRequested)
-    if (challengedSubmissions) sum += Number(r.numberOfChallengedRegistrations)
-    if (challengedRemovals) sum += Number(r.numberOfChallengedClearing)
-
+    if (absent) sum += counts.absent
+    if (registered) sum += counts.registered
+    if (submitted) sum += counts.submitted
+    if (removalRequested) sum += counts.removalRequested
+    if (challengedSubmissions) sum += counts.challengedSubmissions
+    if (challengedRemovals) sum += counts.challengedRemovals
     return sum
   }, [
     absent,
@@ -420,7 +493,7 @@ const Items = () => {
     removalRequested,
     challengedSubmissions,
     challengedRemovals,
-    counters,
+    counts,
   ])
 
   useEffect(() => {
@@ -679,6 +752,8 @@ const Items = () => {
         title={address}
       >
         {truncateMiddle(address, 8, 6)}
+        <CurateIcon name="external" size={14} aria-hidden />
+        <SrOnly> (opens in a new tab)</SrOnly>
       </AddressLink>
     ) : (
       <span title={address}>{truncateMiddle(address, 8, 6)}</span>
@@ -714,39 +789,21 @@ const Items = () => {
     submissionBase && arbitration
       ? `${submissionBase} base deposit + ${arbitration} arbitration cost`
       : undefined
-  const rejectedOrRemoved = counters
-    ? integer.format(Number(counters.numberOfAbsent))
-    : undefined
+  const rejectedOrRemoved = counts ? integer.format(counts.absent) : undefined
 
   const verified =
     !!chainId &&
     !!tcrAddress &&
     getListOfListsAddresses(chainId).includes(tcrAddress.toLowerCase())
 
-  const stats: RegistryStat[] = useMemo(() => {
-    if (!counters)
-      return [
-        { label: 'Entries' },
-        { label: 'Open requests' },
-        { label: 'In court' },
-      ]
-    const inCourt =
-      Number(counters.numberOfChallengedRegistrations) +
-      Number(counters.numberOfChallengedClearing)
-    const openRequests =
-      Number(counters.numberOfRegistrationRequested) +
-      Number(counters.numberOfClearingRequested) +
-      inCourt
-    const entries =
-      Number(counters.numberOfAbsent) +
-      Number(counters.numberOfRegistered) +
-      openRequests
-    return [
-      { label: 'Entries', value: integer.format(entries) },
-      { label: 'Open requests', value: integer.format(openRequests) },
-      { label: 'In court', value: integer.format(inCourt) },
-    ]
-  }, [counters])
+  const stats: RegistryStat[] = [
+    { label: 'Entries', value: counts && integer.format(counts.total) },
+    {
+      label: 'Open requests',
+      value: counts && integer.format(counts.openRequests),
+    },
+    { label: 'In court', value: counts && integer.format(counts.inCourt) },
+  ]
 
   const parameters: RegistryParameter[] = [
     {
@@ -775,35 +832,36 @@ const Items = () => {
     },
   ]
 
-  // The header already says the deposit comes back in full if nobody
-  // challenges; the steps carry the breakdown, the execution and the loss case.
+  // One line per step: the header already says the deposit comes back in
+  // full if nobody challenges; the steps add the breakdown and the loss case.
   const explainerSteps: ExplainerStep[] = [
     {
       title: 'Submit with a deposit',
-      body:
+      body: `${
         submissionTotal && submissionBreakdown
-          ? `You send ${submissionTotal} = ${submissionBreakdown}. If challenged and you lose, it goes to the challenger minus the arbitration cost.`
-          : submissionTotal
-            ? `You send ${submissionTotal}: the list’s base deposit plus the arbitration cost. If challenged and you lose, it goes to the challenger minus the arbitration cost.`
-            : 'You lock the list’s base deposit plus the arbitration cost. If challenged and you lose, it goes to the challenger minus the arbitration cost.',
+          ? `You send ${submissionTotal} = ${submissionBreakdown}.`
+          : 'You send the base deposit plus the arbitration cost.'
+      } If challenged and you lose, it goes to the challenger minus the arbitration cost.`,
     },
     {
       title: challengePeriod
         ? `Anyone can challenge for ${challengePeriod}`
         : 'Anyone can challenge during the window',
-      body: challengeTotal
-        ? `Anyone who thinks your ${itemName} breaks the listing policy can lock ${challengeTotal} and give a reason. If nobody does, the request can be executed once the period ends: the ${itemName} is registered and your deposit comes back.`
-        : `Anyone who thinks your ${itemName} breaks the listing policy can lock a challenge deposit and give a reason. If nobody does, the request can be executed once the period ends: the ${itemName} is registered and your deposit comes back.`,
+      body: `A challenger locks ${
+        challengeTotal ?? 'a challenge deposit'
+      }. Unchallenged, the request can be executed when the period ends: the ${itemName} is registered and your deposit comes back.`,
     },
     {
       title: isKlerosArbitrator
         ? 'Kleros jurors decide; the winner is paid'
         : 'The arbitrator decides; the winner is paid',
-      body: court
-        ? `Kleros court ${court.courtId} draws ${court.jurors} jurors who decide whether the ${itemName} meets the listing policy. The winner takes the pool minus one arbitration cost; the loser’s deposit is lost.`
-        : isKlerosArbitrator
-          ? `A Kleros court decides whether the ${itemName} meets the listing policy. The winner takes the pool minus one arbitration cost; the loser’s deposit is lost.`
-          : `The list’s arbitrator decides whether the ${itemName} meets the listing policy. The winner takes the pool minus one arbitration cost; the loser’s deposit is lost.`,
+      body: `${
+        court
+          ? `Kleros court ${court.courtId} draws ${court.jurors} jurors.`
+          : isKlerosArbitrator
+            ? 'A Kleros court rules on the listing policy.'
+            : 'The list’s arbitrator rules on the listing policy.'
+      } The winner takes the pool minus one arbitration cost.`,
     },
   ]
 
@@ -819,42 +877,49 @@ const Items = () => {
       ? `/tcr/${chainId}/${connectedTCRAddr}`
       : undefined
 
+  // Each chip carries its status's live count from the registry counters.
+  const withCount = (label: string, count?: number) =>
+    count !== undefined && Number.isFinite(count)
+      ? `${label} ${integer.format(count)}`
+      : label
+  // Listed first, then the open requests, then the challenged ones; the
+  // rejected and removed close the rail.
   const chips: FilterChip[] = [
     {
-      key: 'absent',
-      label: 'Rejected or removed',
-      tone: 'off',
-      checked: !!absent,
-    },
-    {
       key: 'registered',
-      label: 'Registered',
+      label: withCount('Registered', counts?.registered),
       tone: 'registered',
       checked: !!registered,
     },
     {
       key: 'submitted',
-      label: 'Submitted',
+      label: withCount('Submitted', counts?.submitted),
       tone: 'window',
       checked: !!submitted,
     },
     {
       key: 'removalRequested',
-      label: 'Removal requested',
+      label: withCount('Removal requested', counts?.removalRequested),
       tone: 'window',
       checked: !!removalRequested,
     },
     {
       key: 'challengedSubmissions',
-      label: 'Challenged submissions',
+      label: withCount('Challenged submissions', counts?.challengedSubmissions),
       tone: 'contested',
       checked: !!challengedSubmissions,
     },
     {
       key: 'challengedRemovals',
-      label: 'Challenged removals',
+      label: withCount('Challenged removals', counts?.challengedRemovals),
       tone: 'contested',
       checked: !!challengedRemovals,
+    },
+    {
+      key: 'absent',
+      label: withCount('Rejected or removed', counts?.absent),
+      tone: 'off',
+      checked: !!absent,
     },
   ]
 
@@ -867,6 +932,13 @@ const Items = () => {
     const params = new URLSearchParams(search)
     params.set('page', String(newPage))
     navigate({ search: `?${params.toString()}` })
+  }
+
+  // Clears the search and every status filter and returns to page 1; the
+  // sort order is a preference, not a filter, so it stays.
+  const clearFilters = () => {
+    setItemSearch('')
+    navigate({ search: oldestFirst ? '?oldestFirst=true' : '' })
   }
 
   const hasSeerMarkets =
@@ -905,11 +977,12 @@ const Items = () => {
         isTCRofTCRs && typeof firstColumnValue === 'string'
           ? `/tcr/${chainId}/${firstColumnValue}`
           : undefined
+      // An entry whose status is not known yet stays hidden too, so nothing
+      // the filter covers shows before its status arrives.
       const hidden =
         nsfwFilterOn &&
-        status?.code !== undefined &&
-        HIDDEN_STATUS_CODES.has(status.code) &&
-        !revealed.has(id)
+        !revealed.has(id) &&
+        (status?.code === undefined || HIDDEN_STATUS_CODES.has(status.code))
       return {
         id,
         href: `/tcr/${chainId}/${tcrAddress}/${id}`,
@@ -956,8 +1029,105 @@ const Items = () => {
       />
     )
 
-  const listLoading = itemsQuery.isLoading || !metadata || !visibleItems
+  // Statuses need the chain's clock and the challenge period; until both are
+  // known the skeleton stays, so the sensitive-content filter never lets an
+  // entry through early.
+  const listLoading =
+    itemsQuery.isLoading ||
+    !metadata ||
+    !visibleItems ||
+    !timestamp ||
+    !challengePeriodDuration
   const showPagination = itemCount > ITEMS_PER_PAGE
+  const pageNumber = Number(page) || 1
+  const pageItemCount = items?.length ?? 0
+  const searching = itemSearch.trim() !== ''
+  // The search filters the page already loaded, not the whole list.
+  const pageScopedSearch = itemCount > ITEMS_PER_PAGE
+  const filtersActive = !!(
+    absent ||
+    registered ||
+    submitted ||
+    removalRequested ||
+    challengedSubmissions ||
+    challengedRemovals
+  )
+  const pageCount = Math.ceil(itemCount / ITEMS_PER_PAGE)
+  const plural = capitalizeFirstLetter(itemNamePlural)
+
+  // Why the list is empty decides what it says and offers.
+  const emptyView = ((): {
+    title: string
+    line?: string
+    action?: React.ReactNode
+  } => {
+    if (pageNumber > 1 && pageItemCount === 0)
+      return {
+        title: `Page ${integer.format(pageNumber)} is past the end`,
+        line:
+          pageCount > 0
+            ? `The last page is ${integer.format(pageCount)}.`
+            : undefined,
+        action: (
+          <GhostButton
+            type="button"
+            $variant="ghost"
+            $size="sm"
+            onClick={() => goToPage(1)}
+          >
+            Go to page 1
+          </GhostButton>
+        ),
+      }
+    if (searching)
+      return {
+        title: `No ${itemNamePlural} match`,
+        line: pageScopedSearch
+          ? `The search covers the ${integer.format(pageItemCount)} ${itemNamePlural} on page ${integer.format(pageNumber)}.`
+          : undefined,
+        action: (
+          <GhostButton
+            type="button"
+            $variant="ghost"
+            $size="sm"
+            onClick={filtersActive ? clearFilters : () => setItemSearch('')}
+          >
+            {filtersActive ? 'Clear filters' : 'Clear search'}
+          </GhostButton>
+        ),
+      }
+    if (filtersActive)
+      return {
+        title: `No ${itemNamePlural} match`,
+        line: `No ${itemName} has these statuses right now.`,
+        action: (
+          <GhostButton
+            type="button"
+            $variant="ghost"
+            $size="sm"
+            onClick={clearFilters}
+          >
+            Clear filters
+          </GhostButton>
+        ),
+      }
+    if (counts?.total === 0)
+      return {
+        title: `No ${itemNamePlural} yet`,
+        line: 'Be the first to submit one.',
+        action: (
+          <Button
+            type="button"
+            $variant="secondary"
+            $size="sm"
+            onClick={onPrimary}
+          >
+            Submit {itemName}
+          </Button>
+        ),
+      }
+    return { title: `No ${itemNamePlural} to show` }
+  })()
 
   return (
     <Page>
@@ -987,47 +1157,48 @@ const Items = () => {
         onOpenPolicy={onOpenPolicy}
         badgesListTo={badgesListTo}
         stats={stats}
+        registeredCount={counts?.registered}
+        totalCount={counts?.total}
         parameters={parameters}
         explainerId={`registry-light-${tcrAddress.toLowerCase()}`}
         explainerHeading="One deposit, one window, a court if needed."
         explainerSteps={explainerSteps}
-        loading={!metadata}
+        loading={!metadata || (!counters && itemsQuery.isFetching)}
       />
 
-      <RegistryToolbar
-        search={itemSearch}
-        onSearch={setItemSearch}
-        placeholder={`Search ${itemNamePlural}`}
-        chips={chips}
-        onChipChange={setFilter}
-        sort={oldestFirst ? 'oldest' : 'newest'}
-        onSortChange={(sort) => setFilter('oldestFirst', sort === 'oldest')}
-        layout={layout}
-        onLayoutChange={setLayout}
-        nsfwFilter={nsfwFilterOn}
-        onNsfwChange={toggleNSFWFilter}
-        shown={listLoading ? 0 : (visibleItems?.length ?? 0)}
-        total={itemCount}
-      />
+      <Toolbar style={{ ['--i' as string]: 1 }}>
+        <RegistryToolbar
+          search={itemSearch}
+          onSearch={setItemSearch}
+          placeholder={
+            pageScopedSearch ? 'Search this page' : `Search ${itemNamePlural}`
+          }
+          chips={chips}
+          onChipChange={setFilter}
+          sort={oldestFirst ? 'oldest' : 'newest'}
+          onSortChange={(sort) => setFilter('oldestFirst', sort === 'oldest')}
+          layout={layout}
+          onLayoutChange={setLayout}
+          nsfwFilter={nsfwFilterOn}
+          onNsfwChange={toggleNSFWFilter}
+          shown={listLoading ? 0 : (visibleItems?.length ?? 0)}
+          total={searching ? pageItemCount : itemCount}
+        />
+      </Toolbar>
 
       <Entries
-        aria-label={capitalizeFirstLetter(itemNamePlural)}
-        aria-busy={listLoading}
+        aria-label={plural}
+        aria-busy={listLoading || itemsQuery.isFetching}
+        data-refreshing={refreshing && !listLoading}
       >
         {listLoading ? (
-          layout === 'cards' ? (
-            <Grid $min={260}>
-              {Array.from({ length: 6 }).map((_, index) => (
-                <SkeletonBlock key={index} $height="180px" />
-              ))}
-            </Grid>
-          ) : (
-            <Stack $gap={8}>
-              {Array.from({ length: 8 }).map((_, index) => (
-                <SkeletonBlock key={index} $height="44px" />
-              ))}
-            </Stack>
-          )
+          <RegistryLightSkeleton layout={layout} />
+        ) : entries.length === 0 ? (
+          <RegistryLightEmpty
+            title={emptyView.title}
+            line={emptyView.line}
+            action={emptyView.action}
+          />
         ) : (
           <EntryList
             layout={layout}
@@ -1036,28 +1207,17 @@ const Items = () => {
             now={now}
             itemName={itemName}
             itemNamePlural={itemNamePlural}
-            emptyAction={
-              <Button
-                type="button"
-                $variant="primary"
-                $size="sm"
-                onClick={onPrimary}
-              >
-                Submit {itemName}
-              </Button>
-            }
           />
         )}
         {showPagination && (
-          <PaginationRow>
+          <Footer style={{ ['--i' as string]: 2 }}>
             <Pagination
               total={itemCount}
-              current={Number(page)}
-              itemRender={pagingItem}
+              current={pageNumber}
               pageSize={ITEMS_PER_PAGE}
               onChange={goToPage}
             />
-          </PaginationRow>
+          </Footer>
         )}
       </Entries>
 

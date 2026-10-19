@@ -1,43 +1,25 @@
 import React, { useState } from 'react'
-import styled from 'styled-components'
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
 import { simulateContract } from '@wagmi/core'
 import { useAtlasProvider } from '@kleros/kleros-app'
 import _gtcr from 'assets/abis/PermanentGTCR.json'
 import EvidenceForm, { type EvidenceFormValues } from 'components/evidence-form'
+import InlineEvidenceComposer from 'components/inline-evidence-composer'
 import { uploadEvidence } from 'utils/upload-evidence'
 import { wrapWithToast, errorToast } from 'utils/wrap-with-toast'
 import { parseWagmiError } from 'utils/parse-wagmi-error'
 import { wagmiConfig } from 'config/wagmi'
-import {
-  Body,
-  Button,
-  PanelHeader,
-  PanelTitle,
-  Small,
-  Stack,
-  Surface,
-} from 'components/curate/primitives'
-import { CurateIcon } from 'components/curate/icons'
+import { Body, Button, Row, Stack } from 'components/curate/primitives'
 import { FormBlock, GateHelper, ModalShell, useActionGate } from './shell'
 
 /*
  * Evidence on a Stake Curate item: a title, a description and an optional
  * file, uploaded through Atlas and published on-chain. Inline it is the
- * composer under the history; as a modal it is the same form in a dialog.
+ * item pages' composer under the history (connect, sign in and switch
+ * named on the button); as a modal it is the same form in a dialog.
  */
 
 const EVIDENCE_FORM_ID = 'submitEvidenceForm'
-
-const Footer = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px 16px;
-  padding-top: 12px;
-  border-top: 1px solid var(--color-border);
-`
 
 interface EvidenceModalProps {
   item: SubgraphItem
@@ -104,67 +86,55 @@ const EvidenceModal = ({
     setIsSubmitting(false)
   }
 
-  const disabled = !gate.ready || isSubmitting
-
-  const form = (
-    <Stack $gap={12}>
-      <FormBlock>
-        <EvidenceForm
-          key={formKey}
-          onSubmit={submitEvidence}
-          formID={EVIDENCE_FORM_ID}
-          detailed
-        />
-      </FormBlock>
-      <Footer>
-        <Small $muted>
-          Evidence is published on-chain and stays with this item.
-        </Small>
-        <Button
-          type="submit"
-          form={EVIDENCE_FORM_ID}
-          $variant="primary"
-          disabled={disabled}
-          aria-disabled={disabled}
-          title={!gate.ready ? gate.blocker : undefined}
-        >
-          {isSubmitting ? 'Waiting for your wallet…' : 'Submit evidence'}
-        </Button>
-      </Footer>
-      <GateHelper gate={gate} />
-    </Stack>
-  )
-
   if (inline)
     return (
-      <Surface
-        as="section"
+      <InlineEvidenceComposer
         id={composerId}
-        tabIndex={-1}
-        $padding="standard"
-        aria-label="Add evidence"
-      >
-        <PanelHeader>
-          <PanelTitle>
-            <CurateIcon name="policy" size={16} />
-            Add evidence
-          </PanelTitle>
-        </PanelHeader>
-        <Body $muted style={{ marginBottom: 12 }}>
-          Anyone can add context for the jurors and the curators: a title, what
-          it shows, and a file if you have one.
-        </Body>
-        {form}
-      </Surface>
+        formID={EVIDENCE_FORM_ID}
+        formKey={formKey}
+        isSubmitting={isSubmitting}
+        onSubmit={submitEvidence}
+      />
     )
+
+  const disabled = !gate.ready || isSubmitting
 
   return (
     <ModalShell
       open={visible}
-      title={title ?? 'Submit evidence'}
+      title={title ?? 'Add evidence'}
       onClose={() => onCancel?.()}
     >
-      {form}
+      <Stack $gap={14}>
+        <Body $muted>
+          Published on-chain with this item, for jurors and curators to read.
+          Publishing costs gas only.
+        </Body>
+        <FormBlock>
+          <EvidenceForm
+            key={formKey}
+            onSubmit={submitEvidence}
+            formID={EVIDENCE_FORM_ID}
+            detailed
+          />
+        </FormBlock>
+        <Row $justify="flex-end" $gap={8} $wrap>
+          <Button type="button" $variant="secondary" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form={EVIDENCE_FORM_ID}
+            $variant="primary"
+            disabled={disabled}
+            aria-disabled={disabled}
+            title={!gate.ready ? gate.blocker : undefined}
+          >
+            {isSubmitting ? 'Waiting for your wallet…' : 'Submit evidence'}
+          </Button>
+        </Row>
+        <GateHelper gate={gate} />
+      </Stack>
     </ModalShell>
   )
 }

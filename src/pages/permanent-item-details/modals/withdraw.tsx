@@ -5,13 +5,13 @@ import { simulateContract } from '@wagmi/core'
 import _gtcr from 'assets/abis/PermanentGTCR.json'
 import useNativeCurrency from 'hooks/native-currency'
 import useTokenSymbol from 'hooks/token-symbol'
-import { formatDurationLong } from 'utils/time'
+import { formatDuration, formatDurationLong } from 'utils/time'
 import { wrapWithToast, errorToast } from 'utils/wrap-with-toast'
 import { parseWagmiError } from 'utils/parse-wagmi-error'
 import { wagmiConfig } from 'config/wagmi'
 import { Body, Stack } from 'components/curate/primitives'
 import { WhatHappensNext } from 'components/curate/what-happens-next'
-import { Stepper, withdrawalSteps } from '../withdrawal-stepper'
+import { WithdrawalStepper } from '../withdrawal-stepper'
 import {
   GateHelper,
   ModalShell,
@@ -24,7 +24,8 @@ import {
  * Start withdrawing a Stake Curate item. Nothing is deposited: the submitter
  * signs one transaction, waits the withdrawing period (during which the item
  * can still be challenged), then anyone executes the withdrawal and the stake
- * and arbitration deposit return.
+ * and arbitration deposit return. The three steps are drawn as the same
+ * stepper the item page shows.
  */
 
 interface WithdrawModalProps {
@@ -103,21 +104,25 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({
       : undefined
 
   return (
-    <ModalShell open={isOpen} title={`Withdraw ${itemName}`} onClose={onCancel}>
-      <Stack $gap={16}>
+    <ModalShell
+      open={isOpen}
+      title={`Withdraw ${itemName}`}
+      eyebrow="No deposit, gas only"
+      onClose={onCancel}
+    >
+      <Stack $gap={20}>
         <Body $muted>
-          Withdrawing takes the {itemName} off the list for good and returns
-          what backs it. It cannot be undone once started.
+          Takes the {itemName} off the list and returns what backs it. It cannot
+          be undone once started.
         </Body>
-        <Stepper
-          label="Withdrawal steps"
-          steps={withdrawalSteps('listed', {
-            withdraw: 'One transaction, signed by the submitter.',
-            withdrawing: period
-              ? `${period}. The ${itemName} stays listed and can still be challenged.`
-              : `The ${itemName} stays listed and can still be challenged.`,
-            execute: `Anyone can execute it. ${returned} return to the submitter.`,
-          })}
+        <WithdrawalStepper
+          stage="listed"
+          label={`Withdrawal steps: you start it, wait ${period ?? 'the withdrawing period'} while it stays challengeable, then anyone executes it and ${returned} return to the submitter.`}
+          notes={[
+            'You, one transaction',
+            periodSeconds > 0 ? formatDuration(periodSeconds) : undefined,
+            'Anyone, gas only',
+          ]}
         />
         <WhatHappensNext
           receipt={[
@@ -148,6 +153,7 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({
           confirmDisabled={Boolean(blocker)}
           confirmBlocker={blocker}
           loading={loading}
+          bare
         />
         <GateHelper gate={gate} />
       </Stack>

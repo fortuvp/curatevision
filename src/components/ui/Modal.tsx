@@ -1,6 +1,6 @@
 import React, {
-  useEffect,
   useCallback,
+  useEffect,
   useId,
   useLayoutEffect,
   useRef,
@@ -8,11 +8,7 @@ import React, {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { createRoot } from 'react-dom/client'
-import styled, {
-  css,
-  keyframes,
-  ThemeProvider as SCThemeProvider,
-} from 'styled-components'
+import styled, { ThemeProvider as SCThemeProvider } from 'styled-components'
 import {
   lightTheme,
   darkTheme,
@@ -23,108 +19,275 @@ import { KitIcon } from './kit-icons'
 import { ghostIconButton, joinClassNames } from './kit-styles'
 
 /*
- * Modal, v2: a glass dialog (surface fill, hairline, 18px radius) with a thin
- * aurora line along its top edge, over a 62% stage scrim that blurs the page.
- * It springs in from 96% and fades out; under 600px it is a full-screen sheet
- * that rises from the bottom. Max width 560 unless the caller asks for more.
+ * Modal, v2: a solid raised dialog (surface fill, hairline, 24px radius,
+ * default width 520) with a thin aurora line along its top edge, over a
+ * stage scrim that blurs the page (the only blur here, and it never
+ * animates). The dialog grows out of the control that opened it: it
+ * travels from the trigger's centre while a clip-path widens from the
+ * trigger's size to the full panel (SPEC 5.6), so the text never scales.
+ * The shadow and glow live on a sibling layer that fades in near the end,
+ * because a clip-path would cut them off. Closing reverses the morph into
+ * the trigger, or fades and dips to 97% when the trigger is gone. Under
+ * 640px it is a bottom sheet that rises into place; with reduced motion it
+ * only cross-fades.
  */
 const ThemeProvider = SCThemeProvider as any
 
-const EXIT_MS = 180
+const SHEET_QUERY = '(max-width: 639px)'
+const REDUCED_QUERY = '(prefers-reduced-motion: reduce)'
+/* WAAPI cannot read custom properties: these mirror --ease-* in global-styles. */
+const EASE_OUT = 'cubic-bezier(0.16, 1, 0.3, 1)'
+const EASE_IN_OUT = 'cubic-bezier(0.65, 0, 0.35, 1)'
+const EASE_EXIT = 'cubic-bezier(0.4, 0, 1, 1)'
+const MORPH_MS = 480
+const MORPH_CLOSE_MS = 360
 
-const scrimIn = keyframes`
-  from { opacity: 0; }
-  to { opacity: 1; }
-`
+type MotionMode = 'morph' | 'fade' | 'sheet' | 'reduced'
 
-const scrimOut = keyframes`
-  from { opacity: 1; }
-  to { opacity: 0; }
-`
+interface MotionParts {
+  scrim: HTMLElement
+  panel: HTMLElement
+  inner: HTMLElement
+  glow: HTMLElement
+}
 
-/* Transform only: the opacity rides a separate ease-out so the spring never flashes. */
-const dialogIn = keyframes`
-  from { transform: translateY(10px) scale(0.96); }
-  to { transform: none; }
-`
+const collectParts = (
+  scrim: HTMLElement | null,
+  panel: HTMLElement | null,
+  inner: HTMLElement | null,
+  glow: HTMLElement | null,
+): MotionParts | null =>
+  scrim && panel && inner && glow ? { scrim, panel, inner, glow } : null
 
-const dialogOut = keyframes`
-  from { opacity: 1; transform: none; }
-  to { opacity: 0; transform: translateY(6px) scale(0.98); }
-`
+const matches = (query: string) =>
+  typeof window.matchMedia === 'function' && window.matchMedia(query).matches
 
-const sheetIn = keyframes`
-  from { transform: translateY(100%); }
-  to { transform: none; }
-`
+/** A trigger can be morphed from only while it is on screen and has a size. */
+const visibleRect = (element: HTMLElement | null): DOMRect | null => {
+  if (!element || !document.contains(element)) return null
+  const rect = element.getBoundingClientRect()
+  if (rect.width === 0 || rect.height === 0) return null
+  if (rect.bottom < 0 || rect.top > window.innerHeight) return null
+  return rect
+}
 
-const sheetOut = keyframes`
-  from { transform: none; }
-  to { transform: translateY(100%); }
-`
+const pickMode = (trigger: HTMLElement | null): MotionMode => {
+  if (matches(REDUCED_QUERY)) return 'reduced'
+  if (matches(SHEET_QUERY)) return 'sheet'
+  return visibleRect(trigger) ? 'morph' : 'fade'
+}
 
-const Overlay = styled.div<{ $centered?: boolean; $leaving?: boolean }>`
+/* The panel's start frame: centred on the trigger and clipped to its size. */
+const morphFrames = (from: DOMRect, to: DOMRect): Keyframe[] => {
+  const dx = from.left + from.width / 2 - (to.left + to.width / 2)
+  const dy = from.top + from.height / 2 - (to.top + to.height / 2)
+  const ix = Math.max(0, (to.width - from.width) / 2)
+  const iy = Math.max(0, (to.height - from.height) / 2)
+  return [
+    {
+      transform: `translate(${dx}px, ${dy}px)`,
+      clipPath: `inset(${iy}px ${ix}px round 12px)`,
+    },
+    {
+      transform: 'translate(0px, 0px)',
+      clipPath: 'inset(0px 0px round 24px)',
+    },
+  ]
+}
+
+const FADE_IN: Keyframe[] = [{ opacity: 0 }, { opacity: 1 }]
+const FADE_OUT: Keyframe[] = [{ opacity: 1 }, { opacity: 0 }]
+
+/*
+ * Entrances fill backwards only: once they end the element is back on its
+ * own styles, so no transform is left behind to trap fixed descendants.
+ */
+const animateIn = (
+  { scrim, panel, inner, glow }: MotionParts,
+  trigger: HTMLElement | null,
+): Animation[] => {
+  if (typeof panel.animate !== 'function') return []
+  const mode = pickMode(trigger)
+  const fill = 'backwards' as const
+  if (mode === 'reduced')
+    return [
+      scrim.animate(FADE_IN, { duration: 120, easing: 'linear', fill }),
+      panel.animate(FADE_IN, { duration: 120, easing: 'linear', fill }),
+      glow.animate(FADE_IN, { duration: 120, easing: 'linear', fill }),
+    ]
+  const scrimIn = scrim.animate(FADE_IN, {
+    duration: 240,
+    easing: EASE_OUT,
+    fill,
+  })
+  if (mode === 'sheet')
+    return [
+      scrimIn,
+      panel.animate(
+        [{ transform: 'translateY(100%)' }, { transform: 'translateY(0)' }],
+        { duration: 420, easing: EASE_OUT, fill },
+      ),
+      glow.animate(FADE_IN, { duration: 200, delay: 240, fill }),
+    ]
+  if (mode === 'fade')
+    return [
+      scrimIn,
+      panel.animate(
+        [
+          { opacity: 0, transform: 'scale(0.97)' },
+          { opacity: 1, transform: 'scale(1)' },
+        ],
+        { duration: 260, easing: EASE_OUT, fill },
+      ),
+      glow.animate(FADE_IN, { duration: 260, easing: EASE_OUT, fill }),
+    ]
+  const from = visibleRect(trigger) as DOMRect
+  return [
+    scrimIn,
+    panel.animate(morphFrames(from, panel.getBoundingClientRect()), {
+      duration: MORPH_MS,
+      easing: EASE_IN_OUT,
+      fill,
+    }),
+    inner.animate(
+      [
+        { opacity: 0, transform: 'translateY(6px)' },
+        { opacity: 1, transform: 'translateY(0)' },
+      ],
+      { duration: 260, delay: 240, easing: EASE_OUT, fill },
+    ),
+    glow.animate(FADE_IN, {
+      duration: 200,
+      delay: MORPH_MS * 0.7,
+      easing: EASE_OUT,
+      fill,
+    }),
+  ]
+}
+
+/* Exits hold their last frame until the dialog unmounts. */
+const animateOut = (
+  { scrim, panel, inner, glow }: MotionParts,
+  trigger: HTMLElement | null,
+): Animation[] => {
+  if (typeof panel.animate !== 'function') return []
+  const mode = pickMode(trigger)
+  const fill = 'forwards' as const
+  if (mode === 'reduced')
+    return [
+      scrim.animate(FADE_OUT, { duration: 120, easing: 'linear', fill }),
+      panel.animate(FADE_OUT, { duration: 120, easing: 'linear', fill }),
+      glow.animate(FADE_OUT, { duration: 120, easing: 'linear', fill }),
+    ]
+  if (mode === 'sheet')
+    return [
+      scrim.animate(FADE_OUT, { duration: 280, easing: EASE_EXIT, fill }),
+      glow.animate(FADE_OUT, { duration: 120, easing: EASE_EXIT, fill }),
+      panel.animate(
+        [{ transform: 'translateY(0)' }, { transform: 'translateY(100%)' }],
+        { duration: 280, easing: EASE_EXIT, fill },
+      ),
+    ]
+  if (mode === 'fade')
+    return [
+      scrim.animate(FADE_OUT, { duration: 200, easing: EASE_EXIT, fill }),
+      glow.animate(FADE_OUT, { duration: 160, easing: EASE_EXIT, fill }),
+      panel.animate(
+        [
+          { opacity: 1, transform: 'scale(1)' },
+          { opacity: 0, transform: 'scale(0.97)' },
+        ],
+        { duration: 200, easing: EASE_EXIT, fill },
+      ),
+    ]
+  const [start, end] = morphFrames(
+    visibleRect(trigger) as DOMRect,
+    panel.getBoundingClientRect(),
+  )
+  return [
+    scrim.animate(FADE_OUT, {
+      duration: MORPH_CLOSE_MS,
+      easing: EASE_IN_OUT,
+      fill,
+    }),
+    glow.animate(FADE_OUT, { duration: 120, easing: EASE_EXIT, fill }),
+    inner.animate(FADE_OUT, { duration: 140, easing: EASE_EXIT, fill }),
+    panel.animate([end, { ...start, opacity: 0 }], {
+      duration: MORPH_CLOSE_MS,
+      easing: EASE_IN_OUT,
+      fill,
+    }),
+  ]
+}
+
+const Overlay = styled.div<{ $leaving?: boolean }>`
   position: fixed;
   inset: 0;
   z-index: 1000;
   display: flex;
-  align-items: ${({ $centered }) => ($centered ? 'center' : 'flex-start')};
+  align-items: flex-start;
   justify-content: center;
-  padding: ${({ $centered }) => ($centered ? '16px' : '64px 16px')};
+  padding: 64px 16px;
   overflow: auto;
-  background: color-mix(in srgb, var(--stage) 62%, transparent);
-  backdrop-filter: blur(8px) saturate(120%);
-  -webkit-backdrop-filter: blur(8px) saturate(120%);
-  animation: ${({ $leaving }) => ($leaving ? scrimOut : scrimIn)}
-    ${({ $leaving }) => ($leaving ? EXIT_MS : 240)}ms var(--ease-out) both;
+  overscroll-behavior: contain;
+  background: color-mix(in srgb, var(--stage) 58%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   pointer-events: ${({ $leaving }) => ($leaving ? 'none' : 'auto')};
 
-  @media (max-width: 599px) {
-    align-items: stretch;
-    padding: 0;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    animation-duration: 120ms;
+  @media ${SHEET_QUERY} {
+    padding: 24px 0 0;
+    overflow: hidden;
   }
 `
 
-const ModalContent = styled.div<{
-  $width?: string | number
-  $leaving?: boolean
-}>`
+/* Lays the dialog out; the glow layer and the panel stack inside it. */
+const Shell = styled.div<{ $width?: string | number; $centered?: boolean }>`
   position: relative;
+  width: 100%;
+  max-width: min(
+    ${({ $width }) =>
+      typeof $width === 'number' ? `${$width}px` : $width || '520px'},
+    calc(100vw - 32px)
+  );
+  margin-block: ${({ $centered }) => ($centered ? 'auto' : '0')};
+
+  @media ${SHEET_QUERY} {
+    max-width: none;
+    margin-block: auto 0;
+  }
+`
+
+/* Shadow and glow sit beside the panel so the clip-path never cuts them. */
+const Glow = styled.div`
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: var(--radius-xl);
+  box-shadow:
+    var(--shadow-overlay),
+    0 40px 100px -48px color-mix(in srgb, var(--color-primary) 50%, transparent);
+  pointer-events: none;
+
+  @media ${SHEET_QUERY} {
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  }
+`
+
+const ModalContent = styled.div`
+  position: relative;
+  z-index: 1;
   isolation: isolate;
   display: flex;
   flex-direction: column;
   width: 100%;
-  max-width: min(
-    ${({ $width }) =>
-      typeof $width === 'number' ? `${$width}px` : $width || '560px'},
-    calc(100vw - 32px)
-  );
   overflow: clip;
   border: 1px solid var(--glass-border);
-  border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
-  box-shadow:
-    inset 0 1px 0 var(--glass-highlight),
-    var(--shadow-overlay);
-  backdrop-filter: blur(24px) saturate(140%);
-  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
   color: var(--color-text);
   outline: none;
-  transform-origin: 50% 40%;
-  ${({ $leaving }) =>
-    $leaving
-      ? css`
-          animation: ${dialogOut} ${EXIT_MS}ms var(--ease-exit) both;
-        `
-      : css`
-          animation:
-            ${dialogIn} 460ms var(--ease-spring) both,
-            ${scrimIn} 200ms var(--ease-out) both;
-        `}
 
   /* The aurora along the top edge: a lit 1px line and its faint glow. */
   &::before {
@@ -165,45 +328,33 @@ const ModalContent = styled.div<{
     pointer-events: none;
   }
 
-  @media (max-width: 599px) {
-    max-width: none;
-    min-height: 100dvh;
-    border: 0;
-    border-radius: 0;
-    /* A full-screen sheet is opaque: nothing of the page should read through. */
-    background: var(--color-surface);
-    box-shadow: none;
-    ${({ $leaving }) =>
-      $leaving
-        ? css`
-            animation: ${sheetOut} ${EXIT_MS}ms var(--ease-exit) both;
-          `
-        : css`
-            animation: ${sheetIn} 420ms var(--ease-out) both;
-          `}
-
-    &::after {
-      inset: 0 0 auto;
-    }
+  /* A bottom sheet: as tall as its content, never taller than the screen. */
+  @media ${SHEET_QUERY} {
+    max-height: calc(100dvh - 24px);
+    border-bottom: 0;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   }
+`
 
-  @media (prefers-reduced-motion: reduce) {
-    animation: ${({ $leaving }) => ($leaving ? scrimOut : scrimIn)} 120ms linear
-      both;
-  }
+/* Everything inside the panel; it fades up once the morph is under way. */
+const Inner = styled.div`
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
 `
 
 const ModalHeader = styled.div`
   padding: 22px 64px 6px 24px;
   color: var(--color-text);
   font-family: var(--font-display);
-  font-size: 22px;
-  line-height: 28px;
+  font-size: var(--fs-heading);
+  line-height: var(--lh-heading);
   font-weight: 500;
   letter-spacing: -0.02em;
   overflow-wrap: anywhere;
 
-  @media (max-width: 599px) {
+  @media ${SHEET_QUERY} {
     padding: 18px 60px 6px 18px;
   }
 `
@@ -214,13 +365,16 @@ const ModalBody = styled.div`
   font-size: var(--fs-body);
   line-height: var(--lh-body);
 
-  &:first-child {
+  &:first-child,
+  .ui-modal-close + & {
     padding-top: 24px;
   }
 
-  @media (max-width: 599px) {
-    flex: 1;
+  @media ${SHEET_QUERY} {
+    flex: 1 1 auto;
+    min-height: 0;
     overflow: auto;
+    overscroll-behavior: contain;
     padding: 14px 18px 20px;
   }
 `
@@ -234,11 +388,9 @@ const ModalFooter = styled.div`
   padding: 16px 24px 20px;
   border-top: 1px solid var(--glass-border);
 
-  @media (max-width: 599px) {
-    position: sticky;
-    bottom: 0;
+  @media ${SHEET_QUERY} {
+    flex: 0 0 auto;
     padding: 14px 18px calc(14px + env(safe-area-inset-bottom));
-    background: var(--color-surface);
   }
 `
 
@@ -252,20 +404,10 @@ const CloseButton = styled.button`
   height: 36px;
   border-color: var(--glass-border);
 
-  @media (max-width: 599px) {
+  @media ${SHEET_QUERY} {
     top: 12px;
     right: 12px;
   }
-`
-
-const ConfirmTitle = styled.div`
-  margin-bottom: 8px;
-  color: var(--color-text);
-  font-family: var(--font-display);
-  font-size: 20px;
-  line-height: 26px;
-  font-weight: 500;
-  letter-spacing: -0.02em;
 `
 
 const ConfirmText = styled.div`
@@ -285,6 +427,8 @@ interface ModalProps {
   children?: React.ReactNode
   centered?: boolean
   destroyOnClose?: boolean
+  /** Internal: Modal.confirm renders an alertdialog. */
+  role?: 'dialog' | 'alertdialog'
 }
 
 interface ConfirmConfig {
@@ -306,31 +450,112 @@ const Modal: ModalComponent = ({
   footer,
   onCancel,
   onOk,
-  width = '560px',
+  width = '520px',
   closable = true,
   style,
   className,
   children,
   centered = false,
+  role = 'dialog',
 }) => {
+  const overlayRef = useRef<HTMLDivElement>(null)
+  const glowRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
+  const innerRef = useRef<HTMLDivElement>(null)
+  const openerRef = useRef<HTMLElement | null>(null)
   const titleId = useId()
-  // Keep the dialog on screen for its exit animation after `visible` drops.
-  const [leaving, setLeaving] = useState(false)
-  const wasVisible = useRef(Boolean(visible))
 
+  // Callers pass inline handlers; reading the latest one through a ref keeps
+  // the open/close effect tied to `visible` alone, so a parent re-render
+  // never moves focus or re-subscribes the key listener.
+  const cancelRef = useRef(onCancel)
+  cancelRef.current = onCancel
+
+  // Stay mounted after `visible` drops until the exit animation has run.
+  const [shown, setShown] = useState(Boolean(visible))
+  if (visible && !shown) setShown(true)
+  const leaving = !visible && shown
+
+  // Open: remember the trigger and lock the page before the first paint,
+  // then morph in from the trigger. Closing or unmounting unlocks the page.
   useLayoutEffect(() => {
-    if (visible) {
-      wasVisible.current = true
-      setLeaving(false)
-      return undefined
+    if (!visible) return undefined
+    const panel = contentRef.current
+    const active = document.activeElement
+    const opener =
+      active instanceof HTMLElement &&
+      active !== document.body &&
+      !panel?.contains(active)
+        ? active
+        : null
+    openerRef.current = opener
+
+    const { body } = document
+    const previousOverflow = body.style.overflow
+    body.style.overflow = 'hidden'
+
+    const current = collectParts(
+      overlayRef.current,
+      contentRef.current,
+      innerRef.current,
+      glowRef.current,
+    )
+    const animations = current ? animateIn(current, opener) : []
+
+    return () => {
+      animations.forEach((animation) => animation.cancel())
+      body.style.overflow = previousOverflow
     }
-    if (!wasVisible.current) return undefined
-    wasVisible.current = false
-    setLeaving(true)
-    const timer = window.setTimeout(() => setLeaving(false), EXIT_MS)
-    return () => window.clearTimeout(timer)
   }, [visible])
+
+  // Focus and Escape. This is a passive effect on purpose: React restores
+  // the focus it saw before a commit once the DOM is updated, so focus moved
+  // during a layout cleanup would snap back into the closing dialog.
+  useEffect(() => {
+    if (!visible) return undefined
+    const opener = openerRef.current
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') cancelRef.current?.()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    contentRef.current?.focus({ preventScroll: true })
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      // Hand focus back to whatever opened the dialog.
+      if (opener && document.contains(opener))
+        opener.focus({ preventScroll: true })
+    }
+  }, [visible])
+
+  // Exit: reverse into the trigger (or fade), then unmount.
+  useLayoutEffect(() => {
+    if (!leaving) return undefined
+    const current = collectParts(
+      overlayRef.current,
+      contentRef.current,
+      innerRef.current,
+      glowRef.current,
+    )
+    const animations = current ? animateOut(current, openerRef.current) : []
+    let settled = false
+    const finish = () => {
+      if (settled) return
+      settled = true
+      setShown(false)
+    }
+    if (animations.length === 0) finish()
+    else
+      Promise.all(animations.map((animation) => animation.finished))
+        .then(finish)
+        .catch(finish)
+    // Safety net if an animation never settles (a hidden tab, say).
+    const timer = window.setTimeout(finish, MORPH_CLOSE_MS + 200)
+    return () => {
+      settled = true
+      window.clearTimeout(timer)
+      animations.forEach((animation) => animation.cancel())
+    }
+  }, [leaving])
 
   const handleOverlayClick = useCallback(
     (e: React.MouseEvent) => {
@@ -340,30 +565,9 @@ const Modal: ModalComponent = ({
     [onCancel],
   )
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && onCancel) onCancel()
-    },
-    [onCancel],
-  )
-
-  useEffect(() => {
-    if (!visible) return undefined
-    const previous = document.activeElement as HTMLElement | null
-    document.addEventListener('keydown', handleKeyDown)
-    document.body.style.overflow = 'hidden'
-    contentRef.current?.focus()
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = ''
-      // Hand focus back to whatever opened the dialog.
-      if (previous && document.contains(previous)) previous.focus()
-    }
-  }, [visible, handleKeyDown])
-
   // A hidden dialog is never rendered, so `destroyOnClose` and the default
   // behave the same once the exit animation has run.
-  if (!visible && !leaving) return null
+  if (!shown) return null
 
   const defaultFooter = (
     <>
@@ -376,45 +580,47 @@ const Modal: ModalComponent = ({
 
   const modalContent = (
     <Overlay
-      $centered={centered}
+      ref={overlayRef}
       $leaving={leaving}
       onClick={handleOverlayClick}
       className="ui-modal-mask"
     >
-      <ModalContent
-        ref={contentRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={title ? titleId : undefined}
-        aria-label={typeof title === 'string' ? title : undefined}
-        tabIndex={-1}
-        $width={width}
-        $leaving={leaving}
-        style={style}
-        className={joinClassNames('ui-modal-content', className)}
-      >
-        {closable && (
-          <CloseButton
-            type="button"
-            className="ui-modal-close"
-            onClick={onCancel}
-            aria-label="Close"
-          >
-            <KitIcon name="close" size={16} />
-          </CloseButton>
-        )}
-        {title && (
-          <ModalHeader id={titleId} className="ui-modal-header">
-            {title}
-          </ModalHeader>
-        )}
-        <ModalBody className="ui-modal-body">{children}</ModalBody>
-        {footer !== null && (
-          <ModalFooter className="ui-modal-footer">
-            {footer === undefined ? defaultFooter : footer}
-          </ModalFooter>
-        )}
-      </ModalContent>
+      <Shell $width={width} $centered={centered} className="ui-modal-wrap">
+        <Glow ref={glowRef} aria-hidden="true" />
+        <ModalContent
+          ref={contentRef}
+          role={role}
+          aria-modal="true"
+          aria-labelledby={title ? titleId : undefined}
+          tabIndex={-1}
+          style={style}
+          className={joinClassNames('ui-modal-content', className)}
+        >
+          <Inner ref={innerRef}>
+            {closable && (
+              <CloseButton
+                type="button"
+                className="ui-modal-close"
+                onClick={onCancel}
+                aria-label="Close"
+              >
+                <KitIcon name="close" size={16} />
+              </CloseButton>
+            )}
+            {title && (
+              <ModalHeader id={titleId} className="ui-modal-header">
+                {title}
+              </ModalHeader>
+            )}
+            <ModalBody className="ui-modal-body">{children}</ModalBody>
+            {footer !== null && (
+              <ModalFooter className="ui-modal-footer">
+                {footer === undefined ? defaultFooter : footer}
+              </ModalFooter>
+            )}
+          </Inner>
+        </ModalContent>
+      </Shell>
     </Overlay>
   )
 
@@ -460,27 +666,26 @@ Modal.confirm = ({
 
   const ConfirmDialog = () => (
     <ThemeProvider theme={theme}>
-      <Overlay $centered onClick={handleCancel} className="ui-modal-mask">
-        <ModalContent
-          role="alertdialog"
-          aria-modal="true"
-          aria-label={typeof title === 'string' ? title : undefined}
-          $width="416px"
-          className="ui-modal-content ui-modal-confirm"
-          onClick={(e: React.MouseEvent) => e.stopPropagation()}
-        >
-          <ModalBody className="ui-modal-body">
-            {title && <ConfirmTitle>{title}</ConfirmTitle>}
-            {content && <ConfirmText>{content}</ConfirmText>}
-          </ModalBody>
-          <ModalFooter className="ui-modal-footer">
+      <Modal
+        visible
+        centered
+        role="alertdialog"
+        title={title}
+        width="416px"
+        closable={false}
+        onCancel={handleCancel}
+        className="ui-modal-confirm"
+        footer={
+          <>
             <Button onClick={handleCancel}>{cancelText}</Button>
             <Button type="primary" onClick={handleOk}>
               {okText}
             </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Overlay>
+          </>
+        }
+      >
+        {content && <ConfirmText>{content}</ConfirmText>}
+      </Modal>
     </ThemeProvider>
   )
 

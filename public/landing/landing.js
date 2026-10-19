@@ -753,7 +753,9 @@
   }
 
   const buildChart = (host, rows) => {
-    const card = host.closest('[data-chart-card]')
+    // The head lights the whole focal panel, so its wash fades out inside the
+    // panel's rim instead of being cut at the chart's own box.
+    const lit = host.closest('[data-featured]')
     const count = rows.length
     const requests = rows.map((row) => row.requests)
     const challenges = rows.map((row) => row.challenges)
@@ -953,7 +955,6 @@
           y1: averageY,
           y2: averageY,
         }),
-        guideLabel,
       )
 
       const revealed = svgEl('g', { 'clip-path': 'url(#c-reveal)' })
@@ -980,7 +981,9 @@
         stroke: 'url(#c-stroke)',
         'stroke-width': 2.2,
       })
-      svg.append(glowPath, linePath)
+      // The average's label goes over the line (its halo keeps it legible
+      // where a peak crosses it, as on phones).
+      svg.append(glowPath, linePath, guideLabel)
       svg.append(
         svgEl('line', {
           class: 'baseline',
@@ -1122,17 +1125,14 @@
       head.style.opacity = p > 0.01 ? '1' : '0'
       for (const bar of bars)
         bar.rect.classList.toggle('on', bar.at <= point.x + 0.5)
-      if (card) {
+      if (lit) {
         const hostBox = host.getBoundingClientRect()
-        const cardBox = card.getBoundingClientRect()
-        card.style.setProperty(
+        const litBox = lit.getBoundingClientRect()
+        lit.style.setProperty(
           '--hx',
-          `${hostBox.left - cardBox.left + point.x}px`,
+          `${hostBox.left - litBox.left + point.x}px`,
         )
-        card.style.setProperty(
-          '--hy',
-          `${hostBox.top - cardBox.top + point.y}px`,
-        )
+        lit.style.setProperty('--hy', `${hostBox.top - litBox.top + point.y}px`)
       }
     }
 

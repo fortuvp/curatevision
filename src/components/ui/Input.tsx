@@ -3,6 +3,7 @@ import styled, { css } from 'styled-components'
 import { KitIcon } from './kit-icons'
 import {
   fieldFocus,
+  fieldFocusRing,
   fieldHover,
   fieldSurface,
   figureData,
@@ -13,8 +14,9 @@ import {
 
 /*
  * Input, v2: a raised field, 44px tall with radius 12 and a hairline; focus
- * tints the fill and lays a soft blue ring around it. Addons sit inside the
- * same field, split off by a hairline, so units read as part of the value.
+ * tints the fill, turns the edge blue (2px, 3:1 or better) and lays a soft
+ * halo around it. Addons sit inside the same field, split off by a
+ * hairline, so units read as part of the value.
  *
  * The global stylesheet forces surface, border and radius on text inputs and
  * textareas with !important. The fill, border, radius and ring below are
@@ -29,23 +31,20 @@ const fieldOverrides = css`
     box-shadow: none !important;
   }
 
-  &&:hover:not(:disabled) {
+  /* Hover never outranks focus: a focused field keeps its blue edge. */
+  &&:hover:not(:disabled):not(:focus) {
     border-color: var(--color-border-strong) !important;
   }
 
   &&:focus,
   &&:focus-visible {
-    border-color: color-mix(
-      in srgb,
-      var(--color-primary) 65%,
-      transparent
-    ) !important;
+    border-color: var(--color-primary) !important;
     background: color-mix(
       in srgb,
       var(--color-primary) 5%,
       var(--color-raised)
     ) !important;
-    box-shadow: 0 0 0 4px var(--color-primary-soft) !important;
+    box-shadow: ${fieldFocusRing} !important;
     outline: none;
   }
 
@@ -122,7 +121,7 @@ const AddonWrapper = styled.span<{
   min-width: 0;
   overflow: hidden;
 
-  &:hover {
+  &:hover:not(:focus-within) {
     ${fieldHover}
   }
 

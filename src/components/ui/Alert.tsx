@@ -1,7 +1,12 @@
 import React, { useState } from 'react'
 import styled, { css } from 'styled-components'
 import { KitIcon, type KitIconName } from './kit-icons'
-import { ghostIconButton, joinClassNames } from './kit-styles'
+import {
+  ghostIconButton,
+  haloDot,
+  joinClassNames,
+  kitRadius,
+} from './kit-styles'
 
 type AlertType = 'info' | 'success' | 'warning' | 'error'
 
@@ -32,27 +37,19 @@ const TYPE_ROLE: Record<
 }
 
 /*
- * Feedback row, v2: raised glass with a hairline tinted in the status role,
- * the status icon in a soft halo, text in the text roles (never a colored
- * block). Banners drop the radius and side borders.
+ * Feedback row, v2: a neutral raised surface with a neutral hairline. The
+ * status rides only on the haloed icon (or, without an icon, a haloed dot
+ * beside the words) and the words stay in the text roles: never a tinted
+ * block or banner. Banners drop the radius and side borders.
  */
-const AlertWrapper = styled.div<{ $type: AlertType; $banner?: boolean }>`
+const AlertWrapper = styled.div<{ $banner?: boolean }>`
   display: flex;
   align-items: flex-start;
   gap: 12px;
   padding: 14px 16px;
-  border: 1px solid
-    ${({ $type }) =>
-      `color-mix(in srgb, ${TYPE_ROLE[$type].color} 28%, transparent)`};
-  border-radius: ${({ $banner }) => ($banner ? '0' : '14px')};
-  background:
-    linear-gradient(
-      90deg,
-      ${({ $type }) =>
-        `color-mix(in srgb, ${TYPE_ROLE[$type].color} 9%, transparent)`},
-      transparent 70%
-    ),
-    var(--color-raised);
+  border: 1px solid var(--glass-border);
+  border-radius: ${({ $banner }) => ($banner ? '0' : kitRadius.well)};
+  background: var(--color-raised);
   box-shadow: inset 0 1px 0 var(--glass-highlight);
   color: var(--color-text);
   font-size: var(--fs-body);
@@ -65,6 +62,12 @@ const AlertWrapper = styled.div<{ $type: AlertType; $banner?: boolean }>`
       border-right: 0;
       border-left: 0;
     `}
+`
+
+/* Without an icon the status is still a dot with a halo, never colour alone on text. */
+const StatusDot = styled.span<{ $type: AlertType }>`
+  ${({ $type }) => haloDot(TYPE_ROLE[$type].color)}
+  margin: 6px 2px 0;
 `
 
 const IconWrapper = styled.span<{ $type: AlertType }>`
@@ -149,7 +152,6 @@ const Alert: React.FC<AlertProps> = ({
 
   return (
     <AlertWrapper
-      $type={type}
       $banner={banner}
       style={style}
       className={joinClassNames(
@@ -160,10 +162,12 @@ const Alert: React.FC<AlertProps> = ({
       )}
       role="alert"
     >
-      {shouldShowIcon && (
+      {shouldShowIcon ? (
         <IconWrapper className="ui-alert-icon" $type={type}>
           <KitIcon name={role.icon} size={15} />
         </IconWrapper>
+      ) : (
+        <StatusDot className="ui-alert-dot" $type={type} aria-hidden="true" />
       )}
       <Content className="ui-alert-content">
         {message && (

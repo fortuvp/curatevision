@@ -38,7 +38,11 @@ export const PERMANENT_PROFILE_LIMIT = PAGE_ROWS * PERMANENT_MAX_PAGES
 /** Most recent actions and disputes kept for the lists. */
 export const ACTIVITY_LIMIT = 120
 export const DISPUTE_LIMIT = 80
-const GOVERNANCE_SCAN_LIMIT = 240
+/**
+ * Governor reads in flight at once. Every indexed list is read, in rounds of
+ * this size, so "governs no list" is never said of a list nobody read.
+ */
+const GOVERNANCE_READ_BATCH = 200
 export const SUPPORTED_CHAIN_IDS = [
   NETWORKS.ethereum,
   NETWORKS.gnosis,
@@ -537,16 +541,27 @@ const fetchGovernedRegistries = async (
   address: string,
   registries: DashboardRegistry[],
 ): Promise<GovernedRegistry[]> => {
-  const candidates = registries.slice(0, GOVERNANCE_SCAN_LIMIT)
-  const governed = await Promise.all(
-    candidates.map(async (registry) => {
-      const governor = normalizeAddress(await readParam(registry, 'governor'))
-      if (!governor || governor !== address) return null
-      const params = await readGovernanceParams(registry)
-      return { ...registry, governor, params } satisfies GovernedRegistry
-    }),
-  )
-  return governed.filter(Boolean) as GovernedRegistry[]
+  const governed: GovernedRegistry[] = []
+  for (
+    let start = 0;
+    start < registries.length;
+    start += GOVERNANCE_READ_BATCH
+  ) {
+    const round = await Promise.all(
+      registries
+        .slice(start, start + GOVERNANCE_READ_BATCH)
+        .map(async (registry) => {
+          const governor = normalizeAddress(
+            await readParam(registry, 'governor'),
+          )
+          if (!governor || governor !== address) return null
+          const params = await readGovernanceParams(registry)
+          return { ...registry, governor, params } satisfies GovernedRegistry
+        }),
+    )
+    for (const registry of round) if (registry) governed.push(registry)
+  }
+  return governed
 }
 
 /**

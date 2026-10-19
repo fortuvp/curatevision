@@ -1,12 +1,14 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
-import styled from 'styled-components'
+import styled, { css } from 'styled-components'
 import { KitIcon } from './kit-icons'
 import {
   fieldFocus,
   fieldHover,
   fieldSurface,
   joinClassNames,
+  kitRadius,
   kitTransition,
+  motionOk,
 } from './kit-styles'
 
 /*
@@ -92,7 +94,7 @@ const HandlerButton = styled.button`
   flex: 1;
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: ${kitRadius.xs};
   background: transparent;
   color: var(--color-faint);
   cursor: pointer;
@@ -104,9 +106,11 @@ const HandlerButton = styled.button`
     background: var(--color-raised);
   }
 
-  &:active:not(:disabled) {
-    transform: scale(0.92);
-  }
+  ${motionOk(css`
+    &:active:not(:disabled) {
+      transform: scale(0.92);
+    }
+  `)}
 
   &:disabled,
   &.handler-disabled {

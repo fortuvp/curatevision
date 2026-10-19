@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import styled, { css } from 'styled-components'
-import { joinClassNames } from './kit-styles'
+import { joinClassNames, motionOk } from './kit-styles'
 
 /*
  * Slider, v2: a 6px pill rail; the chosen part is the action fill with a
@@ -113,13 +113,15 @@ const StyledRange = styled.input`
     ${thumbHover}
   }
 
-  &:active:not(:disabled)::-webkit-slider-thumb {
-    transform: scale(1.15);
-  }
+  ${motionOk(css`
+    &:active:not(:disabled)::-webkit-slider-thumb {
+      transform: scale(1.15);
+    }
 
-  &:active:not(:disabled)::-moz-range-thumb {
-    transform: scale(1.15);
-  }
+    &:active:not(:disabled)::-moz-range-thumb {
+      transform: scale(1.15);
+    }
+  `)}
 `
 
 interface SliderProps {
