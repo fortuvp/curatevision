@@ -137,6 +137,18 @@ const LivePill = styled.span`
     background: var(--status-registered);
     animation: ${pulse} 2.4s infinite;
   }
+
+  /* Some indexer did not answer: the figures are partial, not live. */
+  &[data-partial] {
+    b {
+      color: var(--color-warning);
+    }
+
+    i {
+      background: var(--status-contested);
+      animation: none;
+    }
+  }
 `
 
 const Headline = styled(HeroStatement)`
@@ -733,17 +745,31 @@ const Dashboard = () => {
       : undefined
 
   const testnet = chain !== 'all' && TESTNET_CHAIN_IDS.includes(chain)
+  // Chains in this scope whose indexer did not answer: their figures are missing.
+  const partialChains = (data?.failedChains ?? []).filter((id) =>
+    chains.includes(id),
+  )
+  const partialNames = partialChains
+    .map((id) => chainInfo(id)?.name)
+    .filter(Boolean)
+    .join(' and ')
   const inCourtNow = figures ? figures.challenges - figures.decided : 0
 
   return (
     <Page>
       <Hero>
-        <LivePill style={{ ['--i' as string]: 0 }}>
+        <LivePill
+          style={{ ['--i' as string]: 0 }}
+          data-partial={partialChains.length > 0 ? '' : undefined}
+          role="status"
+        >
           <i aria-hidden />
-          <b>Live</b>
-          {data
-            ? `Updated ${formatAgo(Math.floor(data.generatedAt / 1000), now)}`
-            : 'Connecting to the indexers'}
+          <b>{partialChains.length > 0 ? 'Partial' : 'Live'}</b>
+          {!data
+            ? 'Connecting to the indexers'
+            : partialChains.length > 0
+              ? `Some ${partialNames} data did not load; figures may be incomplete`
+              : `Updated ${formatAgo(Math.floor(data.generatedAt / 1000), now)}`}
         </LivePill>
         <Headline style={{ ['--i' as string]: 1 }}>
           Lists anyone can challenge. <em>Settled by jurors.</em>
