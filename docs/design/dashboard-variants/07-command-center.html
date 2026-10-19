@@ -120,48 +120,16 @@ kbd {
 .btn-blue:hover { filter: brightness(1.08); }
 .btn-blue:active { transform: translateY(1px); }
 
-/* ---------- Stage layout ---------- */
-.stage { position: relative; z-index: 2; max-width: 1012px; margin: 0 auto; padding: 8px 16px 24px; }
-.tagline { margin: 0 0 14px; text-align: center; color: var(--ink-3); font-size: 13px; letter-spacing: .005em; }
-.tagline b { font-weight: 500; color: var(--ink-2); }
-
-/* ---------- Hero: halo + activity band rising out of the palette's top edge ---------- */
-.hero { position: relative; --bh: 56px; }
+/* ---------- Stage layout: the palette is the page ---------- */
+.stage { position: relative; z-index: 2; max-width: 1012px; margin: 0 auto; padding: 26px 16px 32px; }
+.tagline { margin: 0 0 22px; text-align: center; color: var(--ink-3); font: 400 15px/1.4 var(--sans); letter-spacing: .005em; text-wrap: balance; }
+.tagline b { font-weight: 500; color: var(--ink); }
+.hero { position: relative; }
 .halo {
-  position: absolute; z-index: 0; left: 50%; top: -60px; width: min(1500px, 150%); height: 460px; transform: translateX(-50%); pointer-events: none;
-  background: radial-gradient(closest-side, rgba(59, 130, 246, .9), rgba(37, 99, 235, .46) 40%, rgba(29, 78, 216, .14) 70%, rgba(29, 78, 216, 0));
+  position: absolute; z-index: 0; left: 50%; top: -40px; width: min(1500px, 150%); height: 460px; transform: translateX(-50%); pointer-events: none;
+  background: radial-gradient(closest-side, rgba(59, 130, 246, .82), rgba(37, 99, 235, .42) 40%, rgba(29, 78, 216, .12) 70%, rgba(29, 78, 216, 0));
   filter: blur(34px);
 }
-.band { position: relative; z-index: 1; padding: 0 24px; }
-.band-cap { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 4px; }
-.band-t { margin: 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; font: 500 12.5px/1.3 var(--sans); color: var(--ink-3); }
-.band-t b { font-weight: 600; color: var(--ink); }
-.band-t .win { font: 500 11.5px var(--mono); color: var(--ink-3); }
-.band-t .lg { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-3); }
-.band-t .lg i { width: 5px; height: 5px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 6px rgba(242, 182, 107, .8); }
-.band-read { font: 500 11.5px/1.3 var(--mono); color: var(--ink-3); white-space: nowrap; }
-.band-read b { font-weight: 500; color: var(--ink); }
-.band-read .rc, .band-read .rc b { color: var(--amber); }
-.band-plot { position: relative; display: flex; align-items: stretch; height: 86px; cursor: crosshair; touch-action: pan-y; }
-.band-plot:focus { outline: none; }
-.band-plot:focus-visible { outline: 2px solid var(--blue-hi); outline-offset: 4px; border-radius: 10px; }
-.bc { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; }
-.bc::before { content: ''; position: absolute; inset: 0 10%; border-radius: 8px 8px 0 0; background: linear-gradient(180deg, rgba(124, 180, 255, 0), rgba(124, 180, 255, .16)); opacity: 0; transition: opacity .15s; }
-.bc.on::before { opacity: 1; }
-.bc i {
-  position: relative; display: block; width: clamp(3px, 34%, 10px); height: max(2px, calc(var(--bh) * var(--v)));
-  border-radius: 99px 99px 1px 1px; transform-origin: bottom; transition: filter .15s;
-  background: linear-gradient(180deg, #e6f0ff 0%, #93c2ff 24%, #3b82f6 68%, rgba(37, 99, 235, .55) 100%);
-  box-shadow: 0 0 16px -2px rgba(96, 165, 250, .8), 0 0 2px rgba(191, 219, 254, .55);
-}
-.bc.zero i { background: rgba(255, 255, 255, .18); box-shadow: none; }
-.bc.part i { opacity: .6; }
-.bc.on i { filter: brightness(1.3) saturate(1.1); }
-.bc .pp { display: flex; flex-direction: column; gap: 3px; margin-bottom: 5px; }
-.bc .pp b { width: 4px; height: 4px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 7px rgba(242, 182, 107, .85); }
-.bc em { font: 500 10px/1 var(--mono); font-style: normal; color: var(--ink-2); margin-bottom: 5px; }
-.anim-band .bc i { animation: grow .75s var(--ease) both; animation-delay: calc(200ms + var(--k) * 16ms); }
-.anim-band .bc .pp b { animation: pop .4s var(--ease) both; animation-delay: calc(700ms + var(--k) * 16ms); }
 
 /* ---------- Command palette ---------- */
 .palette {
@@ -284,11 +252,6 @@ kbd {
 .kc kbd { min-width: 18px; height: 18px; font-size: 10.5px; color: var(--ink); background: rgba(124, 180, 255, .14); }
 .row[aria-selected="true"] .kc { opacity: 1; }
 .dup { flex: none; font: 500 11px/1 var(--mono); color: var(--ink-3); }
-.opips { display: inline-flex; align-items: center; gap: 3px; }
-.opips i, .k-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; }
-.o-registered { background: var(--mint); box-shadow: 0 0 7px rgba(127, 216, 181, .6); }
-.o-rejected { background: var(--rose); box-shadow: 0 0 7px rgba(240, 160, 173, .55); }
-.o-removed { background: rgba(222, 229, 245, .5); }
 .row.more .t { color: var(--ink-2); font-weight: 450; }
 .row.more[aria-selected="true"] .t { color: var(--ink); }
 
@@ -319,6 +282,25 @@ kbd {
 .sugg button { height: 30px; padding: 0 12px; border-radius: 9px; font: 500 12px var(--mono); color: var(--ink-2); background: rgba(255, 255, 255, .05); box-shadow: inset 0 0 0 1px var(--line-2); }
 .sugg button:hover { color: var(--ink); background: rgba(59, 130, 246, .16); }
 
+.p-main { height: 416px; }
+
+/* live group counts and the row figures */
+.gh .gt .gn { flex: none; font: 500 11px/1 var(--mono); color: var(--blue-hi); padding: 3px 6px; border-radius: 6px; background: rgba(59, 130, 246, .12); box-shadow: inset 0 0 0 1px rgba(124, 180, 255, .16); }
+.gh .gt .gn.z { color: var(--ink-3); background: rgba(255, 255, 255, .04); box-shadow: inset 0 0 0 1px var(--line); }
+.fig { gap: 14px; }
+.fv { display: inline-flex; align-items: baseline; gap: 5px; }
+.fig b.hot { color: var(--blue-hi); }
+.fig b.age { color: var(--amber); }
+.fig b.nil { color: var(--ink-4); }
+.tile.ok { color: var(--mint); background: linear-gradient(160deg, rgba(127, 216, 181, .2), rgba(127, 216, 181, .05)); box-shadow: inset 0 0 0 1px rgba(127, 216, 181, .2); }
+.tile.no { color: var(--rose); background: linear-gradient(160deg, rgba(240, 160, 173, .2), rgba(240, 160, 173, .05)); box-shadow: inset 0 0 0 1px rgba(240, 160, 173, .2); }
+.tile.rm { color: var(--ink-2); background: linear-gradient(160deg, rgba(255, 255, 255, .12), rgba(255, 255, 255, .03)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1); }
+.tile.day { color: var(--ink-2); font: 600 10px/1 var(--mono); letter-spacing: 0; background: linear-gradient(160deg, rgba(255, 255, 255, .1), rgba(255, 255, 255, .02)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .09); }
+.row[aria-selected="true"] .tile.ok { box-shadow: inset 0 0 0 1px rgba(127, 216, 181, .5), 0 0 14px -2px rgba(127, 216, 181, .4); }
+.row[aria-selected="true"] .tile.no { box-shadow: inset 0 0 0 1px rgba(240, 160, 173, .5), 0 0 14px -2px rgba(240, 160, 173, .4); }
+.scope.z { color: var(--ink-4); }
+.scope.z .n { color: var(--ink-4); }
+
 /* ---------- Detail pane (Raycast list + detail) ---------- */
 .p-detail { display: none; border-left: 1px solid var(--line); overflow-y: auto; scrollbar-width: none; padding: 18px 20px 26px; position: relative; -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 22px), transparent); mask-image: linear-gradient(180deg, #000 calc(100% - 22px), transparent); }
 .p-detail::-webkit-scrollbar { display: none; }
@@ -330,6 +312,7 @@ kbd {
 .d-head .tile.reg svg.g { width: 22px; height: 22px; }
 .d-head .tile .cm { width: 16px; height: 16px; }
 .d-head .tile .cm svg { width: 9px; height: 9px; }
+.d-head .tile.day { font-size: 12px; }
 .d-head .dup { font-size: 12px; margin-left: 6px; vertical-align: 1px; }
 .d-head .av { width: 38px; height: 38px; }
 .d-ht { min-width: 0; }
@@ -337,90 +320,104 @@ kbd {
 .d-head h3 .vb { margin-left: 7px; vertical-align: -2px; }
 .d-head h3 .mono { font: 500 15px var(--mono); }
 .d-head p { margin: 3px 0 0; color: var(--ink-3); font-size: 12px; }
-.d-kpis { display: flex; gap: 28px; align-items: flex-end; margin: 14px 0 12px; }
-.d-kpi b { display: block; font: 300 34px/1 var(--display); letter-spacing: -.02em; color: var(--ink); font-variant-numeric: tabular-nums; }
+.d-kpis { display: flex; gap: 28px; align-items: flex-end; margin: 16px 0 4px; }
+.d-kpi b { display: block; font: 400 34px/1 var(--display); letter-spacing: -.02em; color: var(--ink); font-variant-numeric: tabular-nums; }
 .d-kpi span { display: block; margin-top: 5px; font-size: 11.5px; color: var(--ink-3); }
 .d-kpi.amber b { color: var(--amber); text-shadow: 0 0 22px rgba(242, 182, 107, .35); }
-.d-kpi.sm b { font-size: 26px; }
-.d-kpi.mint b { color: var(--mint); text-shadow: 0 0 22px rgba(127, 216, 181, .3); }
-.d-kpi.rose b { color: var(--rose); text-shadow: 0 0 22px rgba(240, 160, 173, .28); }
+.d-kpi.blue b { color: var(--blue-hi); text-shadow: 0 0 22px rgba(96, 165, 250, .35); }
+.d-kpi.dim b { color: var(--ink-3); }
 .fig-c { margin: 0 0 4px; position: relative; }
 .cap { margin: 8px 0 0; font-size: 11.5px; line-height: 1.45; color: var(--ink-3); }
-.note { margin: 0 0 6px; }
 .meta { margin: 14px 0 0; }
 .meta div { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 12.5px; }
 .meta dt { color: var(--ink-3); flex: none; }
 .meta dd { margin: 0; color: var(--ink); text-align: right; min-width: 0; overflow-wrap: anywhere; }
 .meta dd.mono { font: 500 11.5px/1.5 var(--mono); }
-.meta.reg dt { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.meta.reg dd { flex: none; }
 .copy { display: inline-grid; place-items: center; width: 22px; height: 22px; margin-left: 6px; vertical-align: -6px; border-radius: 6px; color: var(--ink-3); background: rgba(255, 255, 255, .05); }
 .copy:hover { color: var(--ink); background: rgba(59, 130, 246, .18); }
 .copy svg { width: 12px; height: 12px; }
+.k-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
 
-@keyframes grow { from { transform: scaleY(0); } }
-
-/* rulings outcome strip */
-.outc { display: flex; gap: 4px; }
-.outc i { flex: 1; height: 26px; border-radius: 6px; cursor: default; transition: filter .15s, transform .15s; }
-.outc i:hover { filter: brightness(1.2); transform: translateY(-1px); }
-.outc i.o-removed { background: rgba(222, 229, 245, .34); }
-.outx { display: flex; justify-content: space-between; margin-top: 7px; font: 500 10.5px/1 var(--mono); color: var(--ink-3); }
-.anim .outc i { animation: pop .45s var(--ease) both; animation-delay: calc(var(--k) * 40ms); }
-.lgd { display: inline-flex; align-items: center; gap: 5px; margin-right: 10px; white-space: nowrap; }
-
-/* split bars */
-.split { display: grid; gap: 2px; }
-.srow { display: grid; grid-template-columns: 70px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 7px 0; }
-.sl { font-size: 12.5px; color: var(--ink-2); }
-.track { height: 8px; border-radius: 99px; background: rgba(255, 255, 255, .06); overflow: hidden; }
-.track i { display: block; height: 100%; width: var(--w); min-width: 3px; border-radius: 99px; background: linear-gradient(90deg, #1d4ed8, #7cb4ff); box-shadow: 0 0 12px rgba(96, 165, 250, .55); }
-.anim .track i { animation: wgrow .8s var(--ease) both; }
-@keyframes wgrow { from { width: 0; } }
-.sv { font: 500 12px var(--mono); color: var(--ink); text-align: right; white-space: nowrap; }
-.sv em { font-style: normal; color: var(--ink-3); margin-left: 8px; }
-
-/* unit chart */
-.units { display: grid; grid-template-columns: repeat(30, 1fr); gap: 4px; }
-.units i { aspect-ratio: 1; border-radius: 50%; background: rgba(255, 255, 255, .1); }
-.units i.on { background: #8dbdff; box-shadow: 0 0 7px rgba(96, 165, 250, .75); }
-.anim .units i.on { animation: pop .5s var(--ease) both; animation-delay: calc(var(--k) * 12ms); }
-@keyframes pop { from { transform: scale(0); opacity: 0; } }
-
-/* rank strip */
-.rank { display: flex; align-items: flex-end; gap: 4px; height: 52px; border-bottom: 1px solid var(--line-2); }
-.rank i { flex: 1; border-radius: 3px 3px 0 0; background: rgba(255, 255, 255, .13); min-height: 2px; cursor: default; transition: background .15s; }
-.rank i:hover { background: rgba(255, 255, 255, .26); }
-.rank i.me { background: linear-gradient(180deg, #a6ccff, #3b82f6); box-shadow: 0 0 14px rgba(96, 165, 250, .6); }
-.anim .rank i { animation: grow .55s var(--ease) both; animation-delay: calc(var(--k) * 22ms); transform-origin: bottom; }
-
-/* segmented meter */
+/* win-rate meter: one block per challenge */
 .meter { display: flex; gap: 4px; }
 .meter i { flex: 1; height: 12px; border-radius: 4px; background: rgba(255, 255, 255, .08); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .05); }
 .meter i.on { background: linear-gradient(180deg, #a6ccff, #3b82f6); box-shadow: 0 0 12px rgba(96, 165, 250, .5); }
+.anim .meter i { animation: pop .4s var(--ease) both; animation-delay: calc(var(--k) * 40ms); }
+@keyframes pop { from { transform: scale(0); opacity: 0; } }
 
-/* lifecycle stepper */
-.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); }
-.steps li { position: relative; padding: 22px 8px 0 0; font-size: 11.5px; line-height: 1.35; }
-.steps li i { position: absolute; top: 3px; left: 0; width: 11px; height: 11px; border-radius: 50%; background: #0b0f1a; box-shadow: inset 0 0 0 1.5px var(--ink-4); }
-.steps li::after { content: ''; position: absolute; top: 8px; left: 17px; right: 6px; height: 1px; background: var(--line-2); }
-.steps li:last-child::after { display: none; }
-.steps li.done i { background: var(--blue-hi); box-shadow: none; }
-.steps li.done::after { background: linear-gradient(90deg, var(--blue-hi), rgba(124, 180, 255, .25)); }
-.steps li.now i { background: var(--blue); box-shadow: 0 0 0 4px rgba(59, 130, 246, .22), 0 0 14px rgba(59, 130, 246, .9); animation: beat 2.2s ease-in-out infinite; }
-.steps li.now.amber i { background: var(--amber); box-shadow: 0 0 0 4px rgba(242, 182, 107, .2), 0 0 14px rgba(242, 182, 107, .8); }
-.steps b { display: block; color: var(--ink); font-weight: 500; }
-.steps li:not(.done):not(.now) b { color: var(--ink-2); }
-.steps span { color: var(--ink-3); }
-@keyframes beat { 50% { transform: scale(1.18); } }
+/* visual title: every chart in the pane says what it measures */
+.vt { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0 0 7px; font-size: 12px; color: var(--ink-2); }
+.vt span { min-width: 0; }
+.vt b { flex: none; font: 500 16px/1 var(--display); color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: -.005em; }
+.vt b.blue { color: var(--blue-hi); }
+.vt b.amber { color: var(--amber); }
+.vt b.nil { color: var(--ink-3); }
+.vt em { flex: none; font-style: normal; font-size: 11px; color: var(--ink-3); }
+.vsub { display: flex; justify-content: space-between; gap: 12px; margin-top: 6px; font-size: 11.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.vsub em { font-style: normal; color: var(--ink-2); white-space: nowrap; }
+.viz { margin: 16px 0 0; }
+.viz + .viz { margin-top: 15px; }
 
-/* ---------- Palette footer (Raycast action bar) ---------- */
+/* rank headline: where this registry stands among all lists */
+.d-rank { display: flex; align-items: baseline; gap: 10px; margin: 16px 0 2px; }
+.d-rank b { font: 400 40px/1 var(--display); letter-spacing: -.02em; color: var(--ink); font-variant-numeric: tabular-nums; }
+.d-rank b small { font-size: 20px; font-weight: 500; color: var(--ink-2); margin-left: 2px; letter-spacing: 0; }
+.d-rank span { font-size: 12.5px; color: var(--ink-3); }
+.d-rank span strong { font-weight: 500; color: var(--ink-2); }
+
+/* slice bar: the lit slice is this record, grey slices are the other listed rows, hatched is everything not listed */
+.sl { position: relative; display: block; height: 8px; border-radius: 4px; overflow: hidden; background: rgba(255, 255, 255, .03); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .05); }
+.sl i { position: absolute; top: 0; bottom: 0; box-shadow: inset -1px 0 0 rgba(6, 8, 16, .9); }
+.sl i.oth { background: rgba(255, 255, 255, .16); }
+.sl i.rest { background: repeating-linear-gradient(135deg, rgba(255, 255, 255, .11) 0 1.5px, transparent 1.5px 4px); box-shadow: none; }
+.sl i.me { z-index: 1; border-radius: 4px 0 0 4px; background: linear-gradient(90deg, #2f6fe4, #8fc0ff); box-shadow: inset -1px 0 0 rgba(6, 8, 16, .9), 0 0 10px rgba(96, 165, 250, .7); transform-origin: left; }
+.sl.amber i.me { background: linear-gradient(90deg, #c97d22, #f6cf98); box-shadow: inset -1px 0 0 rgba(6, 8, 16, .9), 0 0 10px rgba(242, 182, 107, .6); }
+.anim .sl i.me { animation: grow .7s var(--ease) both; }
+@keyframes grow { from { transform: scaleX(0); } }
+.lgd { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 14px 0 0; font-size: 11px; color: var(--ink-3); }
+.lgd span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.lgd i { width: 12px; height: 6px; border-radius: 2px; }
+.lgd i.me { background: linear-gradient(90deg, #2f6fe4, #8fc0ff); }
+.lgd i.oth { background: rgba(255, 255, 255, .22); }
+.lgd i.rest { background: repeating-linear-gradient(135deg, rgba(255, 255, 255, .3) 0 1.5px, transparent 1.5px 3.5px); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); }
+.lgd i.ok { background: var(--mint); } .lgd i.no { background: var(--rose); } .lgd i.rm { background: rgba(255, 255, 255, .35); }
+
+/* 30-day bars: this day against the whole series */
+.spark { position: relative; display: flex; align-items: flex-end; gap: 2px; height: 132px; margin-top: 22px; }
+.spark i { position: relative; flex: 1; min-height: 2px; border-radius: 2px 2px 1px 1px; background: rgba(255, 255, 255, .15); transform-origin: bottom; }
+.spark i.z { background: rgba(255, 255, 255, .07); }
+.spark i.me { background: linear-gradient(180deg, #b5d4ff, #3b82f6); box-shadow: 0 0 12px rgba(96, 165, 250, .75); }
+.spark i.me.z { background: var(--blue-hi); }
+.spark i.me::after { content: attr(data-v); position: absolute; left: 50%; bottom: calc(100% + 4px); transform: translateX(-50%); font: 500 12px/1 var(--display); color: var(--blue-hi); white-space: nowrap; }
+.spark .mean { position: absolute; left: 0; right: 0; height: 0; border-top: 1px dashed rgba(222, 229, 245, .42); pointer-events: none; }
+.anim .spark i { animation: bar .5s var(--ease) both; animation-delay: calc(var(--k) * 10ms); }
+@keyframes bar { from { transform: scaleY(0); } }
+.ax { display: flex; justify-content: space-between; margin-top: 6px; font-size: 10.5px; color: var(--ink-3); }
+
+/* dispute ages: this dispute against all the disputes in court */
+.ages { display: grid; gap: 3px; }
+.ages > div { display: grid; grid-template-columns: 46px minmax(0, 1fr) 48px; column-gap: 10px; align-items: center; font-size: 11.5px; line-height: 15px; color: var(--ink-3); }
+.ages .n { font: 500 11px var(--mono); }
+.ages .tr { position: relative; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, .035); overflow: hidden; }
+.ages .tr i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: rgba(255, 255, 255, .17); transform-origin: left; }
+.ages b { font-weight: 500; text-align: right; font-variant-numeric: tabular-nums; }
+.ages .me { color: var(--ink); }
+.ages .me .tr i { background: linear-gradient(90deg, #c97d22, #f6cf98); box-shadow: 0 0 10px rgba(242, 182, 107, .6); }
+.anim .ages .tr i { animation: grow .6s var(--ease) both; animation-delay: calc(var(--k) * 40ms); }
+
+/* block meters: one block per row, coloured by outcome or lit by match */
+.meter i.ok { background: var(--mint); box-shadow: 0 0 10px rgba(127, 216, 181, .35); }
+.meter i.no { background: var(--rose); box-shadow: 0 0 10px rgba(240, 160, 173, .3); }
+.meter i.rm { background: rgba(255, 255, 255, .32); }
+.meter i.sel { outline: 1.5px solid rgba(255, 255, 255, .9); outline-offset: 2px; }
+
+/* ---------- Palette footer (Raycast action bar): keyboard map left, actions right ---------- */
 .p-foot { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 46px; padding: 0 8px 0 16px; border-top: 1px solid var(--line); background: rgba(255, 255, 255, .018); }
-.foot-left { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; color: var(--ink-3); white-space: nowrap; overflow: hidden; }
+.foot-left { display: flex; align-items: center; gap: 14px; min-width: 0; font-size: 12px; color: var(--ink-3); white-space: nowrap; overflow: hidden; }
+.foot-left .kx { display: inline-flex; align-items: center; gap: 6px; }
+.foot-left .kx kbd { min-width: 18px; height: 18px; font-size: 10.5px; }
 .foot-left svg { width: 15px; height: 15px; flex: none; color: var(--blue-hi); }
-.foot-left b { font-weight: 550; color: var(--ink-2); }
-.foot-left .mono { font: 500 11.5px var(--mono); }
-.foot-left.toast { color: var(--ink); animation: swap .22s var(--ease) both; }
+.foot-left.toast { color: var(--ink); gap: 8px; animation: swap .22s var(--ease) both; }
 .foot-left.toast svg { color: var(--mint); }
 .foot-right { display: flex; align-items: center; gap: 2px; flex: none; }
 .fbtn { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 6px 0 10px; border-radius: 8px; font-size: 12.5px; font-weight: 500; color: var(--ink); white-space: nowrap; transition: background .15s; }
@@ -433,31 +430,24 @@ kbd {
 .act .kk { display: inline-flex; gap: 3px; }
 .act .kk kbd { min-width: 18px; height: 18px; font-size: 10.5px; }
 
-/* ---------- Section heads ---------- */
-.sec-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 6px 10px; font-size: 12px; color: var(--ink-3); }
-.sec-h b { font-weight: 600; color: var(--ink-2); }
-.sec-h .stamp { display: none; font: 500 11px var(--mono); color: var(--ink-3); white-space: nowrap; }
+/* ---------- One-line status above the palette ---------- */
+.status { position: relative; z-index: 1; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 18px; margin: 0 8px 12px; font-size: 12.5px; line-height: 1.4; color: var(--ink-3); }
+.st-figs { display: flex; flex-wrap: wrap; align-items: baseline; }
+.st-figs > span { white-space: nowrap; }
+.st-figs > span + span::before { content: '·'; margin: 0 9px; color: var(--ink-4); }
+.st-figs b { font: 500 12.5px var(--mono); color: var(--ink); font-variant-numeric: tabular-nums; margin-right: 5px; }
+.st-figs .ct b { color: var(--amber); }
+.st-upd { font: 500 11.5px var(--mono); color: var(--ink-3); white-space: nowrap; }
 
-/* ---------- Recent activity ---------- */
-.feed { margin-top: 22px; }
-.feed-list { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(3, auto); grid-auto-flow: column; column-gap: 24px; }
-.ev { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto 14px; gap: 12px; align-items: center; min-height: 40px; padding: 0 8px; border-top: 1px solid var(--line); border-radius: 0; text-align: left; transition: background .2s; }
-.ev:hover { background: rgba(255, 255, 255, .035); border-radius: 10px; }
-.ev .ei { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: rgba(255, 255, 255, .05); box-shadow: inset 0 0 0 1px var(--line); }
-.ev .ei svg { width: 14px; height: 14px; }
-.ev .ei.req { color: var(--blue-hi); }
-.ev .ei.court { color: var(--amber); }
-.ev .ei.ok { color: var(--mint); }
-.ev .ei.no { color: var(--rose); }
-.ev .et { min-width: 0; display: flex; gap: 8px; align-items: baseline; white-space: nowrap; overflow: hidden; }
-.ev .et b { font-weight: 500; font-size: 13px; color: var(--ink); flex: none; }
-.ev .et span { font-size: 12.5px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; }
-.ev .ew { font: 500 11.5px var(--mono); color: var(--ink-3); white-space: nowrap; }
-.ev .ew em { font-style: normal; color: var(--ink-3); margin-right: 10px; }
-.ev .go { width: 14px; height: 14px; color: var(--blue-hi); opacity: 0; transform: translateX(-3px); transition: opacity .2s, transform .2s; }
-.ev:hover .go, .ev:focus-visible .go { opacity: 1; transform: none; }
+/* ---------- Footnote: every formula and its window ---------- */
+.notes { margin: 18px 8px 0; }
+.notes dl { margin: 0; display: grid; gap: 3px; }
+.notes div { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; font-size: 11.5px; line-height: 1.5; color: var(--ink-3); }
+.notes dt { color: var(--ink-2); font-weight: 500; }
+.notes dd { margin: 0; }
+.notes code { font: 500 11px var(--mono); color: var(--ink-2); }
 
-/* ---------- Sheet ---------- */
+/* ---------- Sheet (narrow screens: detail + actions) ---------- */
 .scrim { position: fixed; inset: 0; z-index: 50; background: rgba(2, 4, 10, .55); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); opacity: 0; pointer-events: none; transition: opacity .3s; }
 .scrim.open { opacity: 1; pointer-events: auto; }
 .sheet {
@@ -480,14 +470,6 @@ kbd {
 .sbtn.primary { color: #fff; background: linear-gradient(180deg, #4f8ff7, #2f6fe4); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25), 0 10px 30px -10px rgba(59, 130, 246, .85); }
 .sheet .d-kpi b { font-size: 40px; }
 
-/* ---------- Tooltip ---------- */
-.tt {
-  position: fixed; z-index: 60; left: 0; top: 0; pointer-events: none; padding: 7px 10px; border-radius: 9px;
-  background: rgba(10, 14, 24, .97); border: 1px solid var(--line-2); font-size: 11.5px; line-height: 1.45; color: var(--ink-2);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, .6); opacity: 0; transform: translate(-50%, calc(-100% - 10px)); transition: opacity .12s; white-space: nowrap;
-}
-.tt b { display: block; color: var(--ink); font-weight: 550; }
-.tt.on { opacity: 1; }
 .tpop {
   position: fixed; z-index: 70; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 8px;
   padding: 10px 14px; border-radius: 12px; background: rgba(12, 16, 27, .97); border: 1px solid var(--line-2); box-shadow: 0 16px 40px rgba(0, 0, 0, .6);
@@ -509,16 +491,14 @@ kbd {
   .top { height: 58px; padding: 0 16px; gap: 12px; }
   .scope-tag { font-size: 11px; }
   .btn-blue { height: 34px; padding: 0 14px; font-size: 13px; }
-  .stage { padding: 4px 16px 36px; }
-  .tagline { margin-bottom: 14px; font-size: 12.5px; }
-  .hero { --bh: 44px; }
-  .halo { top: 40px; height: 380px; width: 190%; }
-  .band { padding: 0 14px; }
-  .band-cap { margin-bottom: 2px; }
-  .band-plot { height: 70px; }
-  .bc em { font-size: 9.5px; }
-  .opips { gap: 2px; }
-  .opips i { width: 5px; height: 5px; }
+  .stage { padding: 6px 16px 36px; }
+  .tagline { margin-bottom: 18px; font-size: 13px; }
+  .halo { top: -10px; height: 380px; width: 190%; }
+  .status { margin: 0 4px 10px; font-size: 12px; gap: 2px 12px; }
+  .st-figs b { font-size: 12px; margin-right: 4px; }
+  .st-figs > span + span::before { margin: 0 6px; }
+  .st-figs .lg { display: none; }
+  .st-upd { font-size: 11px; }
   .palette { border-radius: 18px; }
   .p-input { height: 56px; padding: 0 10px 0 16px; gap: 10px; }
   #q { font-size: 16px; }
@@ -538,16 +518,12 @@ kbd {
   .txt { flex-direction: column; align-items: flex-start; gap: 2px; }
   .l1 { max-width: 100%; }
   .s { max-width: 100%; font-size: 12.5px; }
+  .fig { flex-direction: column; align-items: flex-end; gap: 1px; }
+  .gh .gt { gap: 6px; }
+  .gh .gt .ord { display: none; }
   .p-foot { display: none; }
-  .feed { margin-top: 28px; }
-  .sec-h { margin: 0 2px 10px; }
-  .sec-h .stamp { display: inline; }
-  .feed-list { grid-template-columns: 1fr; grid-template-rows: none; grid-auto-flow: row; }
-  .ev { grid-template-columns: 26px minmax(0, 1fr) auto; padding: 8px 4px; }
-  .ev .et { flex-direction: column; gap: 1px; white-space: normal; }
-  .ev .et b, .ev .et span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-  .ev .ew em { display: none; }
-  .ev .go { display: none; }
+  .notes { margin: 20px 4px 0; }
+  .notes div { grid-template-columns: 1fr; gap: 0; }
 }
 @media (min-width: 700px) {
   .sheet { left: 50%; right: auto; width: 560px; bottom: 16px; border-radius: 24px; border-bottom: 1px solid var(--line-2); transform: translate(-50%, 115%); }
@@ -582,56 +558,47 @@ kbd {
 </header>
 
 <main class="stage">
-  <p class="tagline"><b>Lists anyone can challenge.</b> Disputes settled by Kleros jurors.</p>
+  <h1 class="tagline"><b>Find any registry, request, dispute or curator,</b> then act on it.</h1>
 
   <div class="hero">
-  <div class="halo" aria-hidden="true"></div>
-  <section class="band" aria-labelledby="bandH">
-    <div class="band-cap">
-      <h2 class="band-t" id="bandH"><b>Requests per day</b><span class="win" id="bandWin"></span><span class="lg"><i></i>Challenges</span></h2>
-      <div class="band-read" id="bandRead" aria-live="polite"></div>
-    </div>
-    <div class="band-plot" id="bandPlot" role="img" tabindex="0"></div>
-  </section>
+    <div class="halo" aria-hidden="true"></div>
+    <p class="status" id="status"></p>
 
-  <section class="palette" id="palette" aria-label="Command menu">
-    <div class="p-input">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.3-4.3"/></svg>
-      <input id="q" type="text" role="combobox" aria-expanded="true" aria-controls="list" aria-autocomplete="list" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Search Curate">
-      <button class="chain-btn" id="chainBtn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="chainMenu">
-        <span id="chainLabel">All chains</span>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-      </button>
-      <span class="k-hint" id="kHint"><kbd>esc</kbd></span>
-      <div class="menu" id="chainMenu" role="listbox" aria-label="Filter results by chain"></div>
-    </div>
-    <div class="p-wrap">
-      <div class="p-inner">
-        <div class="scopes" id="scopes" role="tablist" aria-label="Result type"><span class="scope-ind no-anim" id="scopeInd"></span></div>
-        <div class="p-main">
-          <div class="p-list" id="listWrap">
-            <div class="p-list-inner" id="list" role="listbox" aria-label="Results"></div>
-          </div>
-          <aside class="p-detail" id="detail" aria-label="Selected result"></aside>
-        </div>
-        <footer class="p-foot">
-          <div class="foot-left" id="footLeft"></div>
-          <div class="foot-right">
-            <button class="fbtn" id="primaryBtn" type="button"><span id="primaryLabel">Open</span><kbd>↵</kbd></button>
-            <span class="sep" id="footSep" aria-hidden="true"></span>
-            <button class="fbtn ghost" id="actionsBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="actionsPop">Actions <span class="kk"><kbd class="modk">⌘</kbd><kbd>K</kbd></span></button>
-          </div>
-          <div class="act" id="actionsPop" role="menu" aria-label="Actions"></div>
-        </footer>
+    <section class="palette" id="palette" aria-label="Command menu">
+      <div class="p-input">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.3-4.3"/></svg>
+        <input id="q" type="text" role="combobox" aria-expanded="true" aria-controls="list" aria-autocomplete="list" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Search Curate">
+        <button class="chain-btn" id="chainBtn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="chainMenu">
+          <span id="chainLabel">All chains</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <span class="k-hint" id="kHint"><kbd>esc</kbd></span>
+        <div class="menu" id="chainMenu" role="listbox" aria-label="Filter results by chain"></div>
       </div>
-    </div>
-  </section>
+      <div class="p-wrap">
+        <div class="p-inner">
+          <div class="scopes" id="scopes" role="tablist" aria-label="Result type, with live match counts"><span class="scope-ind no-anim" id="scopeInd"></span></div>
+          <div class="p-main">
+            <div class="p-list" id="listWrap">
+              <div class="p-list-inner" id="list" role="listbox" aria-label="Results"></div>
+            </div>
+            <aside class="p-detail" id="detail" aria-label="Selected result"></aside>
+          </div>
+          <footer class="p-foot">
+            <div class="foot-left" id="footLeft"></div>
+            <div class="foot-right">
+              <button class="fbtn" id="primaryBtn" type="button"><span id="primaryLabel">Open</span><kbd>↵</kbd></button>
+              <span class="sep" id="footSep" aria-hidden="true"></span>
+              <button class="fbtn ghost" id="actionsBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="actionsPop">Actions <span class="kk"><kbd class="modk">⌘</kbd><kbd>K</kbd></span></button>
+            </div>
+            <div class="act" id="actionsPop" role="menu" aria-label="Actions"></div>
+          </footer>
+        </div>
+      </div>
+    </section>
   </div>
 
-  <section class="feed" aria-labelledby="feedH">
-    <div class="sec-h"><b id="feedH">Recent activity</b><span class="stamp" id="stamp"></span></div>
-    <div class="feed-list" id="feed"></div>
-  </section>
+  <section class="notes" aria-label="How the figures are computed"><dl id="notes"></dl></section>
 </main>
 
 <div class="scrim" id="scrim"></div>
@@ -644,7 +611,6 @@ kbd {
   </div>
   <div class="sheet-body" id="sheetBody"></div>
 </section>
-<div class="tt" id="tt" role="tooltip"></div>
 <div class="tpop" id="tpop" role="status" aria-live="polite"></div>
 
 <script src="./snapshot.js"></script>
@@ -658,6 +624,7 @@ kbd {
   /* ---------- Formatting ---------- */
   const F = S.figures;
   const SNAP = Math.floor(Date.parse(S.snapshotAt) / 1000);
+  const DAY = 86400;
   const IS_MAC = /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent || '');
   const MOD = IS_MAC ? '⌘' : 'Ctrl';
   const ALT = IS_MAC ? '⌥' : 'Alt';
@@ -674,68 +641,51 @@ kbd {
   const dt = ts => new Date(ts * 1000);
   const dayLabel = ts => { const d = dt(ts); return `${d.getUTCDate()} ${MON[d.getUTCMonth()]}`; };
   const dateLabel = ts => { const d = dt(ts); return `${d.getUTCDate()} ${MON[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
-  const timeLabel = ts => { const d = dt(ts); return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`; };
+  const hm = ts => { const d = dt(ts); return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`; };
+  const timeLabel = ts => `${hm(ts)} UTC`;
   const stampLabel = ts => `${dateLabel(ts)}, ${timeLabel(ts)}`;
-  const mins = ts => Math.max(0, Math.floor((SNAP - ts) / 60));
-  const ago = ts => { const m = mins(ts); if (m < 60) return `${m}m`; const h = Math.floor(m / 60); if (h < 24) return `${h}h`; return `${Math.floor(h / 24)}d`; };
-  const span = ts => { const m = mins(ts), h = Math.floor(m / 60), d = Math.floor(h / 24); if (d) return `${d}d ${h % 24}h`; if (h) return `${h}h ${m % 60}m`; return `${m}m`; };
-  const pct = x => { const p = x * 100; return (p < 1 ? p.toFixed(2) : p.toFixed(1)) + '%'; };
+  const isoDay = ts => { const d = dt(ts); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; };
+  const dateHay = ts => `${dayLabel(ts)} ${isoDay(ts)} ${DOW[dt(ts).getUTCDay()]}`.toLowerCase();
   const short = a => (a.length > 13 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a);
   const prefix = a => a.split('…')[0];
   const isoDate = iso => { const [y, m, d] = iso.split('-'); return `${+d} ${MON[+m - 1]} ${y}`; };
   const isoYear = iso => { const [y, m] = iso.split('-'); return `${MON[+m - 1]} ${y}`; };
   const plural = (n, one, many) => `${fmt(n)} ${n === 1 ? one : (many || one + 's')}`;
   const CHAIN_IDS = { 1: 'Ethereum', 10: 'OP Mainnet', 100: 'Gnosis', 137: 'Polygon', 8453: 'Base', 42161: 'Arbitrum One', 42220: 'Celo', 43114: 'Avalanche' };
-  const SNAP_TEXT = `Snapshot · ${stampLabel(SNAP)}`;
-  const SCOPE_TEXT = 'Ethereum + Gnosis';
+  const SCOPE_TEXT = String(S.scope).replace(/\s*\(.*\)\s*$/, '');
+
+  /* ---------- The derived figures (the only ones on this page besides the live counts) ---------- */
+  /* Dispute age = snapshot time − challenge time, rounded down */
+  const ageOf = ts => Math.max(0, SNAP - ts);
+  const ageText = s => { const m = Math.floor(s / 60), h = Math.floor(m / 60), d = Math.floor(h / 24); if (d) return `${d}d ${h % 24}h`; if (h) return `${h}h ${m % 60}m`; return `${m}m`; };
+  /* Win rate = challenges won ÷ challenges, per curator, last 30 days */
+  const winRate = u => (u.challenges ? u.won / u.challenges : null);
+  const pctWhole = x => `${Math.round(x * 100)}%`;
 
   /* ---------- Icons ---------- */
   const sv = (d, w = 1.7) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
   const I = {
-    bars: sv('<path d="M5 20v-7M10 20V6M15 20v-9M20 20v-4"/>', 1.9),
-    split: sv('<path d="M12 3.5a8.5 8.5 0 1 0 8.5 8.5H12z"/><path d="M15 3.9a8.5 8.5 0 0 1 5.1 5.1H15z"/>'),
-    shield: sv('<path d="M12 3 5 6v5.2c0 4.4 3 8 7 9.8 4-1.8 7-5.4 7-9.8V6z"/><path d="m9 12 2.2 2.2L15.5 10"/>'),
     inbox: sv('<path d="M12 3.5v9m0 0-3.4-3.4M12 12.5l3.4-3.4"/><path d="M4 13.5V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4.5h-4.4a3.6 3.6 0 0 1-7.2 0z"/>'),
     scale: sv('<path d="M12 4v16M8 20h8M5 7h14"/><path d="M5 7 2.6 12.6a2.5 2.5 0 0 0 4.8 0z"/><path d="M19 7l-2.4 5.6a2.5 2.5 0 0 0 4.8 0z"/>'),
     arrow: sv('<path d="M5 12h14m-5-5 5 5-5 5"/>'),
     check: sv('<path d="m5 12.5 4.5 4.5L19 7.5"/>', 2.6),
     ok: sv('<circle cx="12" cy="12" r="8.5"/><path d="m8.5 12.2 2.4 2.4 4.6-4.8"/>'),
     no: sv('<circle cx="12" cy="12" r="8.5"/><path d="m9.2 9.2 5.6 5.6m0-5.6-5.6 5.6"/>'),
+    minus: sv('<circle cx="12" cy="12" r="8.5"/><path d="M8.5 12h7"/>'),
     copy: sv('<rect x="9" y="9" width="11" height="11" rx="2.2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/>', 1.9),
-    out: sv('<path d="M7 17 17 7M9 7h8v8"/>', 1.9),
-    hex: sv('<path d="M12 2.6 20.2 7.3v9.4L12 21.4l-8.2-4.7V7.3z"/>', 1.7),
     done: sv('<path d="m5 12.5 4.5 4.5L19 7.5"/>', 2.2),
-    gavel: sv('<path d="M13.5 4.5l6 6-3 3-6-6z"/><path d="M13.5 10.5 5 19M3.5 21h8"/>'),
     eth: '<svg viewBox="0 0 10 10" fill="currentColor" aria-hidden="true"><path d="M5 .6 8.6 5 5 9.4 1.4 5z"/></svg>',
     gno: '<svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><circle cx="5" cy="5" r="3"/></svg>'
   };
 
   const hash = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
   const avatar = addr => { const h = hash(addr); const a = 188 + (h % 84), b = a + 24 + ((h >>> 8) % 40), ang = (h >>> 16) % 360; return `<span class="av" style="background:linear-gradient(${ang}deg,hsl(${a} 88% 64%),hsl(${b} 72% 34%))"></span>`; };
-  const initials = t => { const w = t.replace(/\(.*?\)/g, ' ').split(/[\s-]+/).filter(x => /^[A-Za-z]/.test(x)); return ((w[0] || '?')[0] + ((w[1] || '')[0] || '')).toUpperCase(); };
   const tile = (cls, inner) => `<span class="tile ${cls}">${inner}</span>`;
   const keys = arr => `<span class="kk">${arr.map(k => `<kbd>${k}</kbd>`).join('')}</span>`;
 
-  /* ---------- Model, built only from the snapshot ---------- */
-  const series = S.series30d;
-  const totalReq = series.reduce((a, d) => a + d.requests, 0);
-  const totalCh = series.reduce((a, d) => a + d.challenges, 0);
-  const peakReq = Math.max(...series.map(d => d.requests));
-  const topSum = S.topRegistries.reduce((a, r) => a + r.entries, 0);
+  /* ---------- Rows: every row-level array of the snapshot becomes searchable results ---------- */
+  const series = [...S.series30d].sort((a, b) => a.day - b.day);
   const curSorted = [...S.curators].sort((a, b) => b.submissions - a.submissions);
-  const curSum = curSorted.reduce((a, u) => a + u.submissions, 0);
-  const chainTot = S.entriesByChain.reduce((a, c) => a + c.entries, 0);
-  const bigChain = [...S.entriesByChain].sort((a, b) => b.entries - a.entries)[0];
-  const decOrd = [...S.decided].sort((a, b) => a.at - b.at);
-  const OUTCOMES = ['registered', 'rejected', 'removed'];
-  const decParts = OUTCOMES.map(o => [o, S.decided.filter(d => d.outcome === o).length]).filter(([, n]) => n > 0);
-  const outPips = `<span class="opips" aria-hidden="true">${decOrd.map(d => `<i class="o-${esc(d.outcome)}"></i>`).join('')}</span>`;
-
-  const overview = [
-    { key: 'ov:verified', type: 'ov', id: 'verified', tile: tile('ov', I.shield), title: 'Verified registries', sub: `${pct(F.verified / F.registries)} of all registries`, fig: fmt(F.verified), unit: `of ${fmt(F.registries)}`, primary: 'Browse verified', hay: 'verified registries trust status badge' },
-    { key: 'ov:chains', type: 'ov', id: 'chains', tile: tile('ov', I.split), title: 'Entries by chain', sub: `${pct(bigChain.entries / chainTot)} on ${bigChain.chain}`, fig: fmt(F.entries), unit: 'entries', primary: 'Browse by chain', hay: 'entries by chain ethereum gnosis breakdown share' },
-    { key: 'ov:rulings', type: 'ov', id: 'rulings', tile: tile('ov', I.gavel), title: 'Latest rulings', sub: decParts.map(([o, n]) => `${n} ${o}`).join(' · '), figHTML: outPips, primary: 'Open rulings', hay: 'latest rulings decided outcomes registered rejected removed jurors' }
-  ];
 
   /* Registries: a kind glyph (Light = bars, Classic = checklist) with a chain mark; duplicate titles get their created date inline */
   const titleN = {}; S.topRegistries.forEach(r => { titleN[r.title] = (titleN[r.title] || 0) + 1; });
@@ -756,73 +706,97 @@ kbd {
   const registries = S.topRegistries.map((r, i) => {
     const dup = dupFmt[r.title] ? dupFmt[r.title](r.created) : '';
     return {
-      key: 'reg:' + i, type: 'reg', idx: i, r, chain: r.chain, dup,
+      key: 'reg:' + i, type: 'reg', r, chain: r.chain, dup,
       tile: tile('reg' + (r.kind === 'Classic' ? ' classic' : ''), regGlyph(r)),
       title: r.title, badge: r.verified ? `<span class="vb" title="Verified registry">${I.check}</span>` : '',
-      sub: `${r.kind} · ${r.chain}${dup ? '' : ` · since ${isoYear(r.created)}`}`, fig: fmt(r.entries), unit: '',
-      primary: 'Open registry', hay: [r.title, r.kind, r.chain, dup, r.verified ? 'verified' : 'unverified', 'registry list'].join(' ').toLowerCase()
+      sub: `${r.kind} · ${r.chain}${dup ? '' : ` · since ${isoYear(r.created)}`}`,
+      figs: [[fmt(r.entries), 'entries'], [fmt(r.open), 'open', r.open ? 'hot' : 'nil']],
+      primary: 'Open registry',
+      hay: [r.title, r.kind, r.chain, dup, isoYear(r.created), r.created, r.verified ? 'verified' : 'unverified', 'registry list'].join(' ').toLowerCase()
     };
   });
   /* Open requests: the registry lives on Gnosis/Ethereum; the listed contract can be on any chain, named only when the ID is known */
-  const openReq = S.openToChallenge.map((o, i) => {
-    const parts = o.id.split(':'); const cid = parts[1]; const addr = parts[2] || o.id;
+  const openReq = [...S.openToChallenge].sort((a, b) => b.at - a.at).map((o, i) => {
+    const parts = String(o.id || '').split(':'); const cid = parts[1]; const addr = parts[2] || String(o.id || '');
     const known = CHAIN_IDS[cid];
     return {
-      key: 'open:' + i, type: 'open', o, addr, cid, contractChain: known || `Chain ID ${cid}`, chain: o.chain,
+      key: 'open:' + i, type: 'open', o, addr, contractChain: known || (cid ? `Chain ID ${cid}` : 'Not given'), chain: o.chain,
       tile: tile('req', I.inbox), title: short(addr), mono: true, chip: known ? `on ${known}` : '',
-      sub: o.registry, fig: ago(o.at), unit: 'ago', primary: 'Challenge entry',
-      hay: [o.id, o.registry, o.status, o.actor, o.chain, known || '', 'open challenge request pending'].join(' ').toLowerCase()
+      sub: o.registry, figs: [[hm(o.at), dayLabel(o.at)]], primary: 'Challenge entry',
+      hay: [o.id, o.registry, o.status, o.actor, o.chain, known || '', dateHay(o.at), 'open challenge request pending'].join(' ').toLowerCase()
     };
   });
-  const court = S.inCourt.map((c, i) => ({
-    key: 'court:' + i, type: 'court', c, chain: c.chain,
-    tile: tile('court', I.scale), title: c.status, sub: c.registry, fig: ago(c.at), unit: 'ago',
-    primary: 'Open case', hay: [c.status, c.registry, c.actor, c.chain, 'court dispute challenged jurors'].join(' ').toLowerCase()
+  const court = [...S.inCourt].sort((a, b) => b.at - a.at).map((c, i) => ({
+    key: 'court:' + i, type: 'court', c, chain: c.chain, age: ageOf(c.at),
+    tile: tile('court', I.scale), title: c.status, sub: c.registry,
+    figs: [[ageText(ageOf(c.at)), '', 'age']], primary: 'Open case',
+    hay: [c.status, c.registry, c.actor, c.chain, dateHay(c.at), 'court dispute challenged jurors'].join(' ').toLowerCase()
   }));
-  const curators = curSorted.map((u, i) => ({
-    key: 'cur:' + i, type: 'cur', u, idx: i,
-    tile: avatar(u.address), title: u.address, mono: true,
-    sub: u.challenges ? `${plural(u.challenges, 'challenge')} · ${fmt(u.won)} won` : '',
-    fig: fmt(u.submissions), unit: '', primary: 'View curator',
-    hay: [u.address, 'curator'].join(' ').toLowerCase()
-  }));
+  const OUT = {
+    registered: { cls: 'ok', icon: I.ok, label: 'Registered', dot: 'var(--mint)' },
+    rejected: { cls: 'no', icon: I.no, label: 'Rejected', dot: 'var(--rose)' },
+    removed: { cls: 'rm', icon: I.minus, label: 'Removed', dot: 'var(--ink-3)' }
+  };
+  const rulings = [...S.decided].sort((a, b) => b.at - a.at).map((d, i) => {
+    const o = OUT[d.outcome] || OUT.removed;
+    return {
+      key: 'rul:' + i, type: 'rul', d, out: o, chain: d.chain,
+      tile: tile(o.cls, o.icon), title: d.status, sub: d.registry,
+      figs: [[hm(d.at), dayLabel(d.at)]], primary: 'Open ruling',
+      hay: [d.status, d.registry, d.outcome, d.actor, d.chain, dateHay(d.at), 'ruling decided jurors resolution'].join(' ').toLowerCase()
+    };
+  });
+  /* Curators and daily totals cover both chains, so they carry no chain and a chain filter hides them */
+  const curators = curSorted.map((u, i) => {
+    const w = winRate(u);
+    return {
+      key: 'cur:' + i, type: 'cur', u, w,
+      tile: avatar(u.address), title: u.address, mono: true,
+      sub: `${plural(u.submissions, 'submission')} · ${u.challenges ? `${fmt(u.won)} of ${plural(u.challenges, 'challenge')} won` : 'no challenges'}`,
+      figs: [[w == null ? '—' : pctWhole(w), '', w == null ? 'nil' : '']], primary: 'View curator',
+      hay: [u.address, 'curator', u.challenges ? 'challenger' : ''].join(' ').toLowerCase()
+    };
+  });
+  const days = [...series].reverse().map(d => {
+    const partial = d.day + DAY > SNAP;
+    return {
+      key: 'day:' + d.day, type: 'day', d, partial, iso: isoDay(d.day),
+      tile: tile('day', pad(dt(d.day).getUTCDate())), title: `${DOW[dt(d.day).getUTCDay()]} ${dayLabel(d.day)}`,
+      chip: partial ? `to ${timeLabel(SNAP)}` : '', sub: plural(d.challenges, 'challenge'),
+      figs: [[fmt(d.requests), d.requests === 1 ? 'request' : 'requests', d.requests ? '' : 'nil']], primary: 'Show this day’s rows',
+      hay: [dateHay(d.day), `${d.requests} requests`, `${d.challenges} challenges`, 'day daily'].join(' ').toLowerCase()
+    };
+  });
 
   const GROUPS = [
-    { id: 'overview', label: 'Overview', items: overview, col: '', cap: 0, capN: 0 },
-    { id: 'registries', label: 'Registries', scopeLabel: 'Registries', count: F.registries, items: registries, col: 'Entries', cap: 4, capN: 3, noun: 'registries', more: n => `Show all ${n} largest registries` },
-    { id: 'open', label: 'Open to challenge', scopeLabel: 'Open to challenge', count: F.requestsOpen, items: openReq, col: 'Requested', cap: 3, capN: 2, noun: 'requests', more: n => `Show the latest ${n} requests` },
-    { id: 'court', label: 'In court', scopeLabel: 'In court', count: F.inCourt, items: court, col: 'Challenged', cap: 3, capN: 2, noun: 'disputes', more: n => `Show all ${n} disputes` },
-    { id: 'curators', label: 'Curators', scopeLabel: 'Curators', count: F.curators30d, items: curators, col: 'Submitted · 30d', cap: 3, capN: 3, noun: 'curators', more: n => `Show the top ${n} curators` }
+    { id: 'registries', label: 'Registries', items: registries, total: F.registries, order: 'largest first', col: 'Entries · open', cap: 4, capN: 3, noun: 'registries' },
+    { id: 'open', label: 'Open to challenge', items: openReq, total: F.requestsOpen, order: 'newest first', col: 'Requested · UTC', cap: 3, capN: 2, noun: 'open requests' },
+    { id: 'court', label: 'In court', items: court, total: F.inCourt, order: 'newest first', col: 'Age', cap: 3, capN: 2, noun: 'disputes in court' },
+    { id: 'rulings', label: 'Rulings', items: rulings, total: null, order: 'latest first', col: 'Ruled · UTC', cap: 2, capN: 2, noun: 'rulings' },
+    { id: 'curators', label: 'Curators', items: curators, total: F.curators30d, order: 'most submissions, 30 days', col: 'Win rate · 30d', cap: 3, capN: 3, noun: 'curators' },
+    { id: 'days', label: 'Days', items: days, total: null, order: `${dayLabel(series[0].day)} – ${dayLabel(series[series.length - 1].day)}`, col: 'Requests', cap: 2, capN: 2, noun: 'days' }
   ];
-
-  /* Counts live in the scope tabs; group captions only say how the rows are ordered (or what a scoped list covers) */
-  function caption(g, total, shown, filtered) {
-    if (g.id === 'overview') return '';
-    if (filtered) return plural(total, 'match', 'matches');
-    const scoped = state.scope !== 'all';
-    if (g.id === 'registries') return scoped ? `${shown} largest of ${fmt(F.registries)}` : 'Largest first';
-    if (g.id === 'open') return scoped ? `Latest ${shown} of ${fmt(F.requestsOpen)}` : 'Newest first';
-    if (g.id === 'court') return 'Newest first';
-    if (g.id === 'curators') return scoped ? `Top ${shown} of ${fmt(F.curators30d)} · 30 days` : 'Most active · 30 days';
-    return '';
-  }
+  const groupHow = g => (g.total != null ? `<span>of ${fmt(g.total)}<span class="ord"> · ${esc(g.order)}</span></span>` : `<span>${esc(g.order)}</span>`);
+  const moreText = (g, n) => `Show all ${fmt(n)} ${g.noun}`;
 
   /* ---------- State ---------- */
   const state = { query: '', scope: 'all', chain: 'all', sel: 0, collapsed: false, actions: false, actSel: 0, chainOpen: false, sheet: null };
   let flat = [];
+  let counts = {};
   const seen = new Set();
 
   const el = {
     palette: $('#palette'), q: $('#q'), list: $('#list'), listWrap: $('#listWrap'), detail: $('#detail'),
     scopes: $('#scopes'), ind: $('#scopeInd'), footLeft: $('#footLeft'), primaryBtn: $('#primaryBtn'), primaryLabel: $('#primaryLabel'),
     actionsBtn: $('#actionsBtn'), act: $('#actionsPop'), chainBtn: $('#chainBtn'), chainLabel: $('#chainLabel'), chainMenu: $('#chainMenu'),
-    kHint: $('#kHint'), feed: $('#feed'), stamp: $('#stamp'), scopeTag: $('#scopeTag'), footSep: $('#footSep'), tpop: $('#tpop'),
-    scrim: $('#scrim'), sheet: $('#sheet'), sheetBody: $('#sheetBody'), sheetX: $('#sheetX'), sheetTop: $('#sheetTop'), tt: $('#tt')
+    kHint: $('#kHint'), status: $('#status'), notes: $('#notes'), scopeTag: $('#scopeTag'), footSep: $('#footSep'), tpop: $('#tpop'),
+    scrim: $('#scrim'), sheet: $('#sheet'), sheetBody: $('#sheetBody'), sheetX: $('#sheetX'), sheetTop: $('#sheetTop')
   };
   document.querySelectorAll('.modk').forEach(k => { k.textContent = MOD; });
 
   /* ---------- Search helpers ---------- */
   const tokensOf = q => q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const chainOk = it => state.chain === 'all' || it.chain === state.chain;
   function hl(text, tokens) {
     const src = String(text); if (!tokens.length) return esc(src);
     const low = src.toLowerCase(); const ranges = [];
@@ -837,6 +811,9 @@ kbd {
   }
 
   /* ---------- Render list ---------- */
+  function figHTML(figs) {
+    return figs.map(([v, u, cls]) => `<span class="fv"><b${cls ? ` class="${cls}"` : ''}>${esc(v)}</b>${u ? `<em>${esc(u)}</em>` : ''}</span>`).join('');
+  }
   function rowHTML(it, i, num, tokens) {
     if (it.type === 'more') {
       return `<div class="row more" role="option" id="opt-${i}" data-i="${i}" aria-selected="false">${tile('more', I.arrow)}<span class="txt"><span class="l1"><span class="t">${esc(it.title)}</span></span></span><span class="fig"></span><span class="kc"></span></div>`;
@@ -845,38 +822,35 @@ kbd {
     const dup = it.dup ? `<span class="dup">${hl(it.dup, tokens)}</span>` : '';
     const chip = it.chip ? `<span class="chip">${esc(it.chip)}</span>` : '';
     const sub = it.sub ? `<span class="s">${hl(it.sub, tokens)}</span>` : '';
-    const fig = it.figHTML || `<b>${esc(it.fig)}</b>${it.unit ? `<em>${esc(it.unit)}</em>` : ''}`;
-    return `<div class="row" role="option" id="opt-${i}" data-i="${i}" aria-selected="false">${it.tile}<span class="txt"><span class="l1${it.mono ? ' fix' : ''}">${title}${it.badge || ''}${dup}${chip}</span>${sub}</span><span class="fig">${fig}</span><span class="kc">${num ? `<kbd>${ALT}</kbd><kbd>${num}</kbd>` : ''}</span></div>`;
+    return `<div class="row" role="option" id="opt-${i}" data-i="${i}" aria-selected="false">${it.tile}<span class="txt"><span class="l1${it.mono ? ' fix' : ''}">${title}${it.badge || ''}${dup}${chip}</span>${sub}</span><span class="fig">${figHTML(it.figs)}</span><span class="kc">${num ? `<kbd>${ALT}</kbd><kbd>${num}</kbd>` : ''}</span></div>`;
   }
 
   function render(resetSel) {
-    hideTip();
     const prevKey = flat[state.sel] && flat[state.sel].key;
     const tokens = tokensOf(state.query);
     const filtered = tokens.length > 0 || state.chain !== 'all';
-    const chainOk = it => state.chain === 'all' || !it.chain || it.chain === state.chain;
-    const match = it => tokens.every(t => it.hay.includes(t));
+    /* Live counts: rows of each type that contain every typed word, within the chain filter */
+    const hits = GROUPS.map(g => g.items.filter(it => chainOk(it) && tokens.every(t => it.hay.includes(t))));
+    counts = {}; GROUPS.forEach((g, k) => { counts[g.id] = hits[k].length; });
     let html = '<div class="hl" id="hl"></div>';
     const next = []; let num = 0;
-    for (const g of GROUPS) {
-      if (state.scope !== 'all' && g.id !== state.scope) continue;
-      if (g.id === 'overview' && (state.scope !== 'all' || state.chain !== 'all')) continue;
-      const items = g.items.filter(it => chainOk(it) && match(it));
-      if (!items.length) continue;
+    GROUPS.forEach((g, k) => {
+      if (state.scope !== 'all' && g.id !== state.scope) return;
+      const items = hits[k];
+      if (!items.length) return;
       const cap = NARROW.matches ? g.capN : g.cap;
-      const capped = state.scope === 'all' && !filtered && cap && items.length > cap;
+      const capped = state.scope === 'all' && !filtered && items.length > cap;
       const shown = capped ? items.slice(0, cap) : items;
-      const col = g.id === 'curators' && state.chain !== 'all' ? 'Submitted · 30d · both chains' : g.col;
-      const capText = caption(g, items.length, shown.length, filtered);
-      html += `<div role="group" aria-labelledby="gh-${g.id}"><div class="gh" id="gh-${g.id}"><span class="gt"><b>${g.label}</b>${capText ? `<span>${esc(capText)}</span>` : ''}</span><span class="gcol">${esc(col)}</span></div>`;
+      const capText = filtered ? `<span>${items.length === 1 ? 'match' : 'matches'}</span>` : groupHow(g);
+      html += `<div role="group" aria-labelledby="gh-${g.id}"><div class="gh" id="gh-${g.id}"><span class="gt"><b>${esc(g.label)}</b><span class="gn" title="Live count of matching rows">${fmt(items.length)}</span>${capText}</span><span class="gcol">${esc(g.col)}</span></div>`;
       for (const it of shown) { num++; it.num = num <= 9 ? num : null; html += rowHTML(it, next.length, it.num, tokens); next.push(it); }
-      if (capped) { const more = { key: 'more:' + g.id, type: 'more', scope: g.id, title: g.more(items.length), primary: 'Show all', group: g, n: items.length }; html += rowHTML(more, next.length, null, tokens); next.push(more); }
+      if (capped) { const more = { key: 'more:' + g.id, type: 'more', scope: g.id, title: moreText(g, items.length), primary: 'Show all', group: g, n: items.length }; html += rowHTML(more, next.length, null, tokens); next.push(more); }
       html += '</div>';
-    }
+    });
     flat = next;
     if (!flat.length) {
       const q = state.query.trim();
-      html += `<div class="empty"><h4>${q ? `No results for “${esc(q)}”` : 'Nothing on this chain here'}</h4><p>Try an address, a dispute number or a registry name.</p><div class="sugg"><button type="button" data-q="0x2088">0x2088</button><button type="button" data-q="#1044">#1044</button><button type="button" data-q="Kleros Tokens">Kleros Tokens</button></div></div>`;
+      html += `<div class="empty"><h4>${q ? `No results for “${esc(q)}”` : 'Nothing on this chain here'}</h4><p>Try an address, a dispute number, a registry name or a date.</p><div class="sugg">${SUGG.map(s => `<button type="button" data-q="${esc(s)}">${esc(s)}</button>`).join('')}</div></div>`;
     }
     el.list.innerHTML = html;
     let idx = 0;
@@ -891,7 +865,6 @@ kbd {
 
   function select(i, opts = {}) {
     const { scroll = true, animate = true, force = false } = opts;
-    hideTip();
     const empty = !flat.length;
     el.primaryBtn.hidden = el.actionsBtn.hidden = el.footSep.hidden = empty;
     if (empty) {
@@ -921,8 +894,8 @@ kbd {
   function ensureVisible(row) {
     if (NARROW.matches) { row.scrollIntoView({ block: 'nearest', behavior: REDUCE.matches ? 'auto' : 'smooth' }); return; }
     const w = el.listWrap; const top = row.offsetTop, bottom = top + row.offsetHeight;
-    const prev = row.previousElementSibling; const pad = prev && prev.classList.contains('gh') ? prev.offsetHeight + 4 : 8;
-    if (top - pad < w.scrollTop) w.scrollTop = Math.max(0, top - pad);
+    const prev = row.previousElementSibling; const padTop = prev && prev.classList.contains('gh') ? prev.offsetHeight + 4 : 8;
+    if (top - padTop < w.scrollTop) w.scrollTop = Math.max(0, top - padTop);
     else if (bottom + 10 > w.scrollTop + w.clientHeight) w.scrollTop = bottom + 10 - w.clientHeight;
   }
 
@@ -933,11 +906,11 @@ kbd {
     select(i);
   }
 
-  /* ---------- Scopes ---------- */
+  /* ---------- Scopes: one tab per result type, each with its live count ---------- */
   function renderScopes() {
-    const list = [{ id: 'all', label: 'All' }, ...GROUPS.filter(g => g.id !== 'overview').map(g => ({ id: g.id, label: g.scopeLabel, n: g.count }))];
-    const showCounts = state.chain === 'all';
-    const html = list.map(s => `<button class="scope" type="button" role="tab" data-scope="${s.id}" aria-selected="${state.scope === s.id}" tabindex="${state.scope === s.id ? 0 : -1}">${s.label}${s.n != null && showCounts ? `<span class="n">${fmt(s.n)}</span>` : ''}</button>`).join('');
+    const all = GROUPS.reduce((a, g) => a + counts[g.id], 0);
+    const list = [{ id: 'all', label: 'All', n: all }, ...GROUPS.map(g => ({ id: g.id, label: g.label, n: counts[g.id] }))];
+    const html = list.map(s => `<button class="scope${s.n ? '' : ' z'}" type="button" role="tab" data-scope="${s.id}" aria-selected="${state.scope === s.id}" tabindex="${state.scope === s.id ? 0 : -1}" aria-label="${esc(s.label)}, ${s.n} ${s.n === 1 ? 'result' : 'results'}">${esc(s.label)}<span class="n">${fmt(s.n)}</span></button>`).join('');
     el.scopes.querySelectorAll('.scope').forEach(b => b.remove());
     el.scopes.insertAdjacentHTML('beforeend', html);
     moveIndicator();
@@ -955,98 +928,158 @@ kbd {
     if (b) b.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: REDUCE.matches ? 'auto' : 'smooth' });
   }
 
-  /* ---------- Detail ---------- */
+  /* ---------- Context for the detail pane: how much of Curate the selected row is (all computed from the snapshot) ---------- */
+  const sumOf = (arr, k) => arr.reduce((a, x) => a + (k ? x[k] : x), 0);
+  const REGS = S.topRegistries;
+  const UNLISTED = F.registries - REGS.length;
+  /* Share = this list ÷ all of Curate, per measure, at the snapshot */
+  const MEASURES = [
+    { k: 'entries', total: F.entries, label: 'Share of all entries', held: 'Entries they hold', none: 'no entries' },
+    { k: 'open', total: F.requestsOpen, label: 'Share of all open requests', held: 'Open requests they hold', none: 'none open' },
+    { k: 'inCourt', total: F.inCourt, label: 'Share of all disputes', held: 'Disputes they hold', none: 'none in court', tone: 'amber' }
+  ];
+  MEASURES.forEach(m => { m.listed = sumOf(REGS, m.k); m.allHeld = m.listed === m.total; });
+  /* Rank = 1 + rows with a larger figure */
+  const rankIn = (arr, v, k) => 1 + arr.filter(x => (k ? x[k] : x) > v).length;
+  const tiedIn = (arr, v, k) => arr.filter(x => (k ? x[k] : x) === v).length > 1;
+  const pctOf = (n, d) => { if (!d || !n) return '0%'; if (n === d) return '100%'; const x = n / d * 100; return d >= 100 ? `${x.toFixed(1)}%` : `${Math.round(x)}%`; };
+  const ordSfx = n => { const sfx = ['th', 'st', 'nd', 'rd'], v = n % 100; return sfx[(v - 20) % 10] || sfx[v] || sfx[0]; };
+  const ordn = n => fmt(n) + ordSfx(n);
+  /* The listed registry a request (or dispute) belongs to: the only row with that title and chain holding any open request (or dispute) */
+  const regFor = (title, chain, k) => { const c = REGS.filter(r => r.title === title && r.chain === chain && r[k] > 0); return c.length === 1 ? c[0] : null; };
+  const SERIES_REQ = sumOf(series, 'requests');
+  const SERIES_MEAN = SERIES_REQ / series.length;
+  const SERIES_MAX = Math.max(...series.map(d => d.requests));
+  const meanText = Number.isInteger(SERIES_MEAN) ? fmt(SERIES_MEAN) : SERIES_MEAN.toFixed(1);
+  const CUR_SUBS = sumOf(S.curators, 'submissions');
+  const PARTIAL_LAST = series[series.length - 1].day + DAY > SNAP;
+
+  /* ---------- Detail: the record, its place in Curate, and what you can do with it ---------- */
   function head(t, title, sub) { return `<div class="d-head">${t}<div class="d-ht"><h3>${title}</h3><p>${sub}</p></div></div>`; }
   function kpis(list) { return `<div class="d-kpis">${list.map(k => `<div class="d-kpi${k.cls ? ' ' + k.cls : ''}"><b>${k.v}</b><span>${k.l}</span></div>`).join('')}</div>`; }
   function meta(rows) { if (!rows.length) return ''; return `<dl class="meta">${rows.map(([k, v, cls]) => `<div><dt>${k}</dt><dd${cls ? ` class="${cls}"` : ''}>${v}</dd></div>`).join('')}</dl>`; }
-  function steps(list, cap) {
-    return `<figure class="fig-c"><ol class="steps" style="--n:${list.length}">${list.map(([b, s, c]) => `<li class="${c || ''}"><i></i><b>${b}</b><span>${s}</span></li>`).join('')}</ol><figcaption class="cap">${cap}</figcaption></figure>`;
+
+  /* Slice bar: this row lit from the left, then the other listed rows largest first, then a hatched remainder the snapshot does not list */
+  function slices(me, others, total, tone) {
+    if (!total) return '';
+    let x = 0; const out = [];
+    const add = (v, cls) => { const w = Math.min(v, total - x); if (w <= 0) return; out.push(`<i class="${cls}" style="left:${(x / total * 100).toFixed(3)}%;width:${(w / total * 100).toFixed(3)}%"></i>`); x += w; };
+    add(me, 'me'); [...others].sort((a, b) => b - a).forEach(v => add(v, 'oth')); add(total - x, 'rest');
+    return `<span class="sl${tone ? ' ' + tone : ''}">${out.join('')}</span>`;
+  }
+  function shareViz({ label, n, d, others = [], tone, right = '' }) {
+    const cls = !n ? 'nil' : tone === 'amber' ? 'amber' : 'blue';
+    return `<figure class="viz" role="img" aria-label="${esc(`${label}: ${pctOf(n, d)}, ${fmt(n)} of ${fmt(d)}${right ? ', ' + right : ''}`)}"><div class="vt"><span>${label}</span><b class="${cls}">${pctOf(n, d)}</b></div>${slices(n, others, d, tone)}<div class="vsub"><span>${fmt(n)} of ${fmt(d)}</span>${right ? `<em>${right}</em>` : ''}</div></figure>`;
+  }
+  /* Requests per day over the 30-day series, one row lit */
+  function sparkViz(sel) {
+    const bars = series.map((d, k) => `<i class="${d.requests ? '' : 'z'}${d === sel ? ' me' : ''}" style="height:${(d.requests / SERIES_MAX * 100).toFixed(2)}%;--k:${k}"${d === sel ? ` data-v="${fmt(d.requests)}"` : ''}></i>`).join('');
+    return `<figure class="viz" role="img" aria-label="${esc(`Requests per day, ${dayLabel(series[0].day)} to ${dayLabel(series[series.length - 1].day)}, highest ${SERIES_MAX}, mean ${meanText}${sel ? `; ${dayLabel(sel.day)} has ${sel.requests}` : ''}`)}"><div class="vt"><span>Requests per day, 30 days</span><em>highest ${fmt(SERIES_MAX)} · dashed: mean ${meanText}</em></div><div class="spark">${bars}<span class="mean" style="bottom:${(SERIES_MEAN / SERIES_MAX * 100).toFixed(2)}%"></span></div><div class="ax"><span>${dayLabel(series[0].day)}</span><span>${dayLabel(series[series.length - 1].day)}${PARTIAL_LAST ? `, to ${timeLabel(SNAP)}` : ''}</span></div></figure>`;
+  }
+  /* Age of every dispute in court, oldest first, bar = age ÷ oldest age */
+  function agesViz(sel, note) {
+    const byAge = [...court].sort((a, b) => b.age - a.age); const max = byAge[0] ? byAge[0].age : 0;
+    const what = court.length === F.inCourt ? `all ${fmt(F.inCourt)}` : `the ${fmt(court.length)} newest of ${fmt(F.inCourt)}`;
+    return `<figure class="viz" role="img" aria-label="${esc(`Age of ${what} disputes in court: ${byAge.map(x => `${x.c.status} ${ageText(x.age)}`).join(', ')}`)}"><div class="vt"><span>Age of ${what} disputes in court</span><em>oldest first</em></div><div class="ages">${byAge.map((x, k) => `<div class="${x === sel ? 'me' : ''}"><span class="n">#${esc(x.c.status.replace(/^Dispute\s*#?/, ''))}</span><span class="tr"><i style="width:${max ? (x.age / max * 100).toFixed(2) : 0}%;--k:${k}"></i></span><b>${ageText(x.age)}</b></div>`).join('')}</div>${note ? `<div class="vsub"><span>${note}</span></div>` : ''}</figure>`;
+  }
+  /* Outcomes of the listed rulings, latest first, one block each */
+  function outcomesViz(sel) {
+    const c = {}; rulings.forEach(x => { c[x.d.outcome] = (c[x.d.outcome] || 0) + 1; });
+    const keysIn = Object.keys(OUT).filter(k => c[k]);
+    return `<figure class="viz" role="img" aria-label="${esc(`Outcomes of the ${rulings.length} latest rulings: ${keysIn.map(k => `${c[k]} ${OUT[k].label.toLowerCase()}`).join(', ')}`)}"><div class="vt"><span>Outcomes of the ${fmt(rulings.length)} latest rulings</span><em>latest first${sel ? ' · outlined: this one' : ''}</em></div><div class="meter">${rulings.map((x, k) => `<i class="${x.out.cls}${x === sel ? ' sel' : ''}" style="--k:${k}"></i>`).join('')}</div><p class="lgd">${keysIn.map(k => `<span><i class="${OUT[k].cls}"></i>${OUT[k].label} ${fmt(c[k])}</span>`).join('')}</p></figure>`;
   }
 
-  function dVerified() {
-    let k = 0;
-    const dots = Array.from({ length: F.registries }, (_, i) => i < F.verified ? `<i class="on" style="--k:${k++}"></i>` : '<i></i>').join('');
-    const vTop = S.topRegistries.filter(r => r.verified).length;
-    return head(tile('ov', I.shield), 'Verified registries', 'At snapshot')
-      + kpis([{ v: fmt(F.verified), l: `of ${fmt(F.registries)} registries` }, { v: pct(F.verified / F.registries), l: 'verified', cls: 'sm' }])
-      + `<figure class="fig-c" role="img" aria-label="${F.verified} of ${F.registries} registries are verified"><div class="units">${dots}</div><figcaption class="cap">One dot per registry; blue dots are verified.</figcaption></figure>`
-      + meta([[`Verified among the ${registries.length} largest`, `${vTop} of ${registries.length}`]]);
-  }
-  function dChains() {
-    const rows = [...S.entriesByChain].sort((a, b) => b.entries - a.entries).map(c => `<div class="srow" data-tip="${esc(`${c.chain}\n${fmt(c.entries)} entries · ${pct(c.entries / chainTot)} of all`)}"><span class="sl">${esc(c.chain)}</span><span class="track"><i style="--w:${(c.entries / chainTot * 100).toFixed(2)}%"></i></span><span class="sv">${fmt(c.entries)}<em>${pct(c.entries / chainTot)}</em></span></div>`).join('');
-    return head(tile('ov', I.split), 'Entries by chain', 'At snapshot')
-      + kpis([{ v: fmt(F.entries), l: 'entries curated' }])
-      + `<figure class="fig-c"><div class="split">${rows}</div><figcaption class="cap">Share of all ${fmt(chainTot)} curated entries held on each chain.</figcaption></figure>`
-      + meta([['Largest registry', `${esc(S.topRegistries[0].title)} · ${fmt(S.topRegistries[0].entries)}`], [`${registries.length} largest registries hold`, `${fmt(topSum)} · ${pct(topSum / F.entries)}`]]);
-  }
-  function dRulings() {
-    const n = decOrd.length;
-    const segs = decOrd.map((d, k) => `<i class="o-${esc(d.outcome)}" style="--k:${k}" data-tip="${esc(`${d.status}\n${d.registry} · ${dateLabel(d.at)}`)}"></i>`).join('');
-    const byReg = {}; decOrd.forEach(d => { byReg[d.registry] = (byReg[d.registry] || 0) + 1; });
-    const regRows = Object.entries(byReg).sort((a, b) => b[1] - a[1]).map(([r, c]) => [esc(r), plural(c, 'ruling')]);
-    const label = { registered: 'Registered', rejected: 'Rejected', removed: 'Removed' };
-    const kpiCls = { registered: 'mint', rejected: 'rose', removed: 'sm' };
-    return head(tile('ov', I.gavel), 'Latest rulings', `${n} most recent, at snapshot`)
-      + kpis(decParts.map(([o, c]) => ({ v: fmt(c), l: o, cls: kpiCls[o] })))
-      + `<figure class="fig-c" role="img" aria-label="Outcomes of the latest ${n} rulings: ${decParts.map(([o, c]) => `${c} ${o}`).join(', ')}"><div class="outc">${segs}</div><div class="outx"><span>${dayLabel(decOrd[0].at)}</span><span>${dayLabel(decOrd[n - 1].at)}</span></div><figcaption class="cap">Outcome of each of the latest ${n} rulings, oldest to newest.<br>${decParts.map(([o]) => `<span class="lgd"><span class="k-dot o-${o}"></span>${label[o]}</span>`).join('')}</figcaption></figure>`
-      + `<dl class="meta reg">${regRows.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>`;
-  }
   function dRegistry(it) {
-    const r = it.r; const max = S.topRegistries[0].entries;
-    const strip = S.topRegistries.map((x, k) => `<i class="${k === it.idx ? 'me' : ''}" style="--k:${k};height:${Math.max(3, x.entries / max * 100).toFixed(1)}%" data-tip="${esc(`${x.title}\n${fmt(x.entries)} entries · ${x.chain}`)}"></i>`).join('');
-    return head(it.tile, `${esc(r.title)}${r.verified ? `<span class="vb" title="Verified registry">${I.check}</span>` : ''}${it.dup ? `<span class="dup">${esc(it.dup)}</span>` : ''}`, `${r.kind} · ${r.chain} · ${r.verified ? 'Verified' : 'Not verified'}`)
-      + kpis([{ v: fmt(r.entries), l: 'entries' }, { v: pct(r.entries / F.entries), l: 'of all entries', cls: 'sm' }])
-      + `<figure class="fig-c"><div class="rank">${strip}</div><figcaption class="cap">Entries in each of the ${registries.length} largest registries. This one in blue, #${it.idx + 1}.</figcaption></figure>`
-      + meta([['Requests open', fmt(r.open)], ['In court', fmt(r.inCourt)], ['Created', isoDate(r.created)]]);
+    const r = it.r;
+    const bars = MEASURES.map(m => {
+      const v = r[m.k];
+      const others = REGS.filter(x => x !== r).map(x => x[m.k]).filter(Boolean);
+      const where = m.k === 'entries' ? '' : !v ? m.none
+        : m.allHeld ? `${ordn(rankIn(REGS, v, m.k))} of ${fmt(F.registries)}${tiedIn(REGS, v, m.k) ? ', tied' : ''}`
+        : `${ordn(rankIn(REGS, v, m.k))} of the ${fmt(REGS.length)} listed`;
+      return shareViz({ label: m.label, n: v, d: m.total, others, tone: m.tone, right: where });
+    }).join('');
+    return head(it.tile, `${esc(r.title)}${r.verified ? `<span class="vb" title="Verified registry">${I.check}</span>` : ''}${it.dup ? `<span class="dup">${esc(it.dup)}</span>` : ''}`, `${r.kind} · ${r.chain} · ${r.verified ? 'Verified' : 'Not verified'} · since ${isoYear(r.created)}`)
+      + (rk => `<div class="d-rank"><b>${fmt(rk)}<small>${ordSfx(rk)}</small></b><span>largest of <strong>${fmt(F.registries)}</strong> lists, by entries</span></div>`)(rankIn(REGS, r.entries, 'entries'))
+      + bars
+      + `<p class="lgd"><span><i class="me"></i>this list</span><span><i class="oth"></i>${fmt(REGS.length - 1)} other listed</span><span><i class="rest"></i>${fmt(UNLISTED)} not listed</span></p>`;
   }
   function dOpen(it) {
     const o = it.o;
-    return head(it.tile, `<span class="mono">${esc(short(it.addr))}</span>`, esc(o.status))
-      + kpis([{ v: span(o.at), l: 'since the request, at snapshot' }])
-      + steps([['Requested', timeLabel(o.at), 'done'], ['Challenge window', 'Open at snapshot', 'now'], ['Registered', 'If unchallenged', '']], 'Status at snapshot')
-      + meta([['Registry', esc(o.registry)], ['Registry chain', esc(o.chain)], ['Requester', esc(o.actor), 'mono'], ['Requested', stampLabel(o.at)], ['Contract chain', esc(it.contractChain)], ['Item ID', `${esc(o.id)}<button class="copy" type="button" data-copy="${esc(o.id)}" aria-label="Copy item ID">${I.copy}</button>`, 'mono']]);
+    const reg = regFor(o.registry, o.chain, 'open');
+    const mine = openReq.filter(x => x.o.actor === o.actor).length;
+    const regBar = reg ? shareViz({ label: 'This registry’s share of open requests', n: reg.open, d: F.requestsOpen, others: REGS.filter(x => x !== reg).map(x => x.open).filter(Boolean), right: MEASURES[1].allHeld ? `${ordn(rankIn(REGS, reg.open, 'open'))} of ${fmt(F.registries)}` : '' }) : '';
+    const blocks = `<figure class="viz" role="img" aria-label="${esc(`${mine} of the ${openReq.length} newest open requests are by ${o.actor}`)}"><div class="vt"><span>By <span class="mono">${esc(o.actor)}</span>, of the ${fmt(openReq.length)} newest requests</span><b class="blue">${fmt(mine)} of ${fmt(openReq.length)}</b></div><div class="meter">${openReq.map((x, k) => `<i class="${x.o.actor === o.actor ? 'on' : ''}${x === it ? ' sel' : ''}" style="--k:${k}"></i>`).join('')}</div><div class="vsub"><span>One block per request, newest first</span><em>outlined: this one</em></div></figure>`;
+    return head(it.tile, `<span class="mono">${esc(short(it.addr))}</span>`, esc(o.registry))
+      + kpis([{ v: ageText(ageOf(o.at)), l: 'waiting: snapshot − request time', cls: 'blue' }])
+      + regBar + blocks
+      + meta([['Contract chain', esc(it.contractChain)], ['Item ID', `${esc(o.id)}<button class="copy" type="button" data-copy="${esc(o.id)}" aria-label="Copy item ID">${I.copy}</button>`, 'mono']]);
   }
   function dCourt(it) {
     const c = it.c;
+    const n = court.length;
+    const rank = [...court].sort((a, b) => b.age - a.age).indexOf(it) + 1;
+    const sameReg = court.filter(x => x.c.registry === c.registry).length;
     return head(it.tile, esc(c.status), esc(c.registry))
-      + kpis([{ v: span(c.at), l: 'since the challenge, at snapshot', cls: 'amber' }])
-      + steps([['Requested', 'Entry submitted', 'done'], ['Challenged', dayLabel(c.at), 'done'], ['In court', 'Awaiting ruling', 'now amber'], ['Ruling', 'By jurors', '']], 'Status at snapshot')
-      + meta([['Registry', esc(c.registry)], ['Chain', esc(c.chain)], ['Address', esc(c.actor), 'mono'], ['Challenged', stampLabel(c.at)]]);
+      + kpis([{ v: ageText(it.age), l: 'age at the snapshot', cls: 'amber' }, { v: ordn(rank), l: `oldest of the ${fmt(n)} in court` }])
+      + agesViz(it, `${esc(c.registry)} holds ${fmt(sameReg)} of ${fmt(n)}`)
+      + meta([['Address', esc(c.actor), 'mono'], ['Challenged', stampLabel(c.at)]]);
+  }
+  function dRuling(it) {
+    const d = it.d, o = it.out;
+    const n = rulings.length;
+    const same = rulings.filter(x => x.d.outcome === d.outcome).length;
+    const sameReg = rulings.filter(x => x.d.registry === d.registry).length;
+    return head(it.tile, esc(d.status), esc(d.registry))
+      + kpis([{ v: fmt(same), l: `of ${fmt(n)} ${o.label.toLowerCase()}` }, { v: fmt(sameReg), l: `of ${fmt(n)} in this registry` }])
+      + outcomesViz(it)
+      + meta([['Address', esc(d.actor), 'mono'], ['Ruled', stampLabel(d.at)]]);
   }
   function dCurator(it) {
-    const u = it.u; const max = curSorted[0].submissions;
-    const strip = curSorted.map((x, k) => `<i class="${k === it.idx ? 'me' : ''}" style="--k:${k};height:${Math.max(3, x.submissions / max * 100).toFixed(1)}%" data-tip="${esc(`#${k + 1} · ${x.address}\n${plural(x.submissions, 'submission')}`)}"></i>`).join('');
+    const u = it.u, w = it.w;
     const meter = u.challenges
-      ? `<figure class="fig-c"><div class="meter" role="img" aria-label="${u.won} of ${u.challenges} challenges won">${Array.from({ length: u.challenges }, (_, k) => `<i class="${k < u.won ? 'on' : ''}"></i>`).join('')}</div><figcaption class="cap">Challenges won, last 30 days: ${fmt(u.won)} of ${fmt(u.challenges)}. One block per challenge.</figcaption></figure>`
-      : '';
+      ? `<figure class="viz" role="img" aria-label="${esc(`${u.won} of ${u.challenges} challenges won in the last 30 days`)}"><div class="vt"><span>Challenges, 30 days: lit when won</span><b class="blue">${fmt(u.won)} of ${fmt(u.challenges)}</b></div><div class="meter">${Array.from({ length: u.challenges }, (_, k) => `<i class="${k < u.won ? 'on' : ''}" style="--k:${k}"></i>`).join('')}</div></figure>`
+      : `<div class="viz"><div class="vt"><span>Challenges, 30 days</span><b class="nil">0</b></div></div>`;
     return head(it.tile, `<span class="mono">${esc(u.address)}</span>`, 'Curator · last 30 days')
-      + kpis([{ v: fmt(u.submissions), l: 'submissions' }, { v: `#${it.idx + 1}`, l: `of the top ${curators.length}`, cls: 'sm' }])
+      + kpis([{ v: w == null ? '—' : pctWhole(w), l: 'win rate: won ÷ challenges', cls: w == null ? 'dim' : 'blue' }])
       + meter
-      + `<figure class="fig-c" style="margin-top:14px"><div class="rank">${strip}</div><figcaption class="cap">Submissions by each of the top ${curators.length} curators, last 30 days, most first. This one in blue: ${pct(u.submissions / curSum)} of their total.</figcaption></figure>`;
+      + shareViz({ label: `Share of the ${fmt(S.curators.length)} listed curators’ submissions`, n: u.submissions, d: CUR_SUBS, others: S.curators.filter(x => x !== u).map(x => x.submissions), right: `${ordn(rankIn(S.curators, u.submissions, 'submissions'))} of ${fmt(S.curators.length)}` });
+  }
+  function dDay(it) {
+    const d = it.d;
+    const rank = rankIn(series, d.requests, 'requests');
+    return head(it.tile, `${DOW[dt(d.day).getUTCDay()]} ${dateLabel(d.day)}`, `${it.partial ? `00:00 – ${timeLabel(SNAP)}, to the snapshot` : 'UTC day'} · ${esc(SCOPE_TEXT)}`)
+      + kpis([{ v: pctOf(d.requests, SERIES_REQ), l: `of ${fmt(SERIES_REQ)} requests in 30 days`, cls: d.requests ? 'blue' : 'dim' }, { v: ordn(rank), l: `busiest of ${fmt(series.length)} days${tiedIn(series, d.requests, 'requests') ? ', tied' : ''}` }])
+      + sparkViz(d);
   }
   function dMore(it) {
-    return head(tile('ov', I.arrow), esc(it.title), esc(it.group.label))
-      + `<p class="cap" style="margin-top:16px">Press ↵ to list all ${fmt(it.n)} ${esc(it.group.noun)}.</p>`;
+    const g = it.group; let body = '';
+    if (g.id === 'registries') body = shareViz({ label: 'Lists in the snapshot', n: REGS.length, d: F.registries, right: 'largest first' }) + MEASURES.map(m => shareViz({ label: m.held, n: m.listed, d: m.total, tone: m.tone })).join('');
+    else if (g.id === 'open') body = shareViz({ label: 'Open requests in the snapshot', n: openReq.length, d: F.requestsOpen, right: 'newest first' });
+    else if (g.id === 'court') body = agesViz(null);
+    else if (g.id === 'rulings') body = outcomesViz(null);
+    else if (g.id === 'curators') body = shareViz({ label: 'Curators in the snapshot, 30 days', n: curators.length, d: F.curators30d, right: 'most active first' });
+    else if (g.id === 'days') body = sparkViz(null);
+    return head(tile('more', I.arrow), esc(it.title), esc(g.label)) + body;
   }
   function detailHTML(it) {
     if (!it) return '';
     switch (it.type) {
-      case 'ov': return it.id === 'verified' ? dVerified() : it.id === 'chains' ? dChains() : dRulings();
       case 'reg': return dRegistry(it);
       case 'open': return dOpen(it);
       case 'court': return dCourt(it);
+      case 'rul': return dRuling(it);
       case 'cur': return dCurator(it);
+      case 'day': return dDay(it);
       case 'more': return dMore(it);
     }
     return '';
   }
   function wrapDetail(it, sheet) {
-    const first = !seen.has(it.key + (sheet ? ':s' : '')); seen.add(it.key + (sheet ? ':s' : ''));
-    const html = detailHTML(it);
-    return `<div class="d-swap${first && !REDUCE.matches ? ' anim' : ''}">${html}</div>`;
+    const k = it.key + (sheet ? ':s' : ''); const first = !seen.has(k); seen.add(k);
+    return `<div class="d-swap${first && !REDUCE.matches ? ' anim' : ''}">${detailHTML(it)}</div>`;
   }
   function renderDetail() {
-    hideTip();
     if (!WIDE.matches) return;
     const it = flat[state.sel];
     el.detail.innerHTML = it ? wrapDetail(it) : '';
@@ -1056,7 +1089,7 @@ kbd {
   /* ---------- Actions (Raycast action panel) ---------- */
   function actionsFor(it) {
     if (!it) return [];
-    const P = { label: it.primary, kind: it.type === 'more' ? 'scope' : 'primary', keys: ['↵'] };
+    const P = { label: it.primary, kind: it.type === 'more' ? 'scope' : it.type === 'day' ? 'query' : 'primary', value: it.type === 'day' ? it.iso : undefined, keys: ['↵'] };
     switch (it.type) {
       case 'reg': return [P,
         { label: 'Submit an entry', kind: 'primary', keys: [ALT, 'S'], code: 'KeyS' },
@@ -1068,9 +1101,13 @@ kbd {
         { label: 'Search this registry', kind: 'query', value: it.o.registry, keys: [ALT, 'R'], code: 'KeyR' },
         { label: 'Copy item ID', kind: 'copy', value: it.o.id, keys: [ALT, 'C'], code: 'KeyC' }];
       case 'court': return [P,
+        { label: 'Submit evidence', kind: 'primary', keys: [ALT, 'E'], code: 'KeyE' },
         { label: 'Search this address', kind: 'query', value: prefix(it.c.actor), keys: [ALT, 'A'], code: 'KeyA' },
         { label: 'Search this registry', kind: 'query', value: it.c.registry, keys: [ALT, 'R'], code: 'KeyR' },
         { label: 'Copy dispute number', kind: 'copy', value: it.c.status.replace(/^Dispute\s*/, ''), keys: [ALT, 'C'], code: 'KeyC' }];
+      case 'rul': return [P,
+        { label: 'Search this address', kind: 'query', value: prefix(it.d.actor), keys: [ALT, 'A'], code: 'KeyA' },
+        { label: 'Search this registry', kind: 'query', value: it.d.registry, keys: [ALT, 'R'], code: 'KeyR' }];
       case 'cur': return [P,
         { label: 'Search their activity', kind: 'query', value: prefix(it.u.address), keys: [ALT, 'A'], code: 'KeyA' }];
       default: return [P];
@@ -1087,7 +1124,11 @@ kbd {
 
   let toastTimer = 0;
   let popTimer = 0;
-  function footDefault() { el.footLeft.className = 'foot-left'; el.footLeft.innerHTML = `${I.hex}<span class="mono">${SNAP_TEXT}</span>`; }
+  /* Footer left is the keyboard map; actions run with ↵ on the right */
+  function footDefault() {
+    el.footLeft.className = 'foot-left';
+    el.footLeft.innerHTML = `<span class="kx"><kbd>↑</kbd><kbd>↓</kbd>move</span><span class="kx"><kbd>${ALT}</kbd><kbd>1–9</kbd>jump</span><span class="kx"><kbd>/</kbd>search</span><span class="kx"><kbd>esc</kbd>clear</span>`;
+  }
   function toast(msg, failed) {
     const icon = failed ? I.no : I.done;
     clearTimeout(toastTimer);
@@ -1152,14 +1193,13 @@ kbd {
     closeChain(); render(true); el.q.focus();
   }
 
-  /* ---------- Sheet ---------- */
+  /* ---------- Sheet (narrow screens) ---------- */
   let lastFocus = null;
   function openSheet(it) {
     if (!it) return;
     closeActions();
     const acts = actionsFor(it);
     state.sheet = { it, acts };
-    hideTip();
     el.sheetBody.innerHTML = wrapDetail(it, true) + `<div class="sheet-acts">${acts.map((a, i) => `<button class="sbtn${i === 0 ? ' primary' : ''}" type="button" data-sa="${i}">${esc(a.label)}</button>`).join('')}</div>`;
     lastFocus = document.activeElement;
     el.sheet.classList.add('open'); el.scrim.classList.add('open');
@@ -1169,7 +1209,6 @@ kbd {
   function closeSheet() {
     if (!state.sheet) return;
     state.sheet = null; el.sheet.classList.remove('open'); el.scrim.classList.remove('open'); el.sheet.style.transform = '';
-    hideTip();
     if (lastFocus && lastFocus.focus && !COARSE.matches) lastFocus.focus({ preventScroll: true });
   }
   el.sheetX.addEventListener('click', closeSheet);
@@ -1192,24 +1231,6 @@ kbd {
     const end = () => { if (y0 == null) return; y0 = null; el.sheet.classList.remove('dragging'); if (dy > 90) closeSheet(); else el.sheet.style.transform = ''; };
     el.sheetTop.addEventListener('pointerup', end); el.sheetTop.addEventListener('pointercancel', end);
   })();
-
-  /* ---------- Tooltip ---------- */
-  let tipT = null;
-  function showTip(t) {
-    tipT = t;
-    const [first, ...rest] = t.dataset.tip.split('\n');
-    el.tt.innerHTML = `<b>${esc(first)}</b>${rest.map(esc).join('<br>')}`;
-    const r = t.getBoundingClientRect(); const w = el.tt.offsetWidth;
-    const cx = Math.min(Math.max(r.left + r.width / 2, w / 2 + 8), innerWidth - w / 2 - 8);
-    el.tt.style.left = cx + 'px'; el.tt.style.top = Math.max(r.top, el.tt.offsetHeight + 16) + 'px';
-    el.tt.classList.add('on');
-  }
-  function hideTip() { tipT = null; el.tt.classList.remove('on'); }
-  document.addEventListener('pointermove', () => { if (tipT && !tipT.isConnected) hideTip(); }, { passive: true });
-  el.detail.addEventListener('pointerleave', hideTip);
-  document.addEventListener('pointerover', e => { const t = e.target.closest('[data-tip]'); if (t) showTip(t); });
-  document.addEventListener('pointerout', e => { const t = e.target.closest('[data-tip]'); if (t && !t.contains(e.relatedTarget)) hideTip(); });
-  el.detail.addEventListener('scroll', hideTip, { passive: true });
   el.detail.addEventListener('click', e => { const c = e.target.closest('[data-copy]'); if (c) copy(c.dataset.copy, 'item ID'); });
 
   /* ---------- Pointer on list ---------- */
@@ -1224,7 +1245,6 @@ kbd {
     const i = +row.dataset.i; select(i, { scroll: false });
     activate(flat[i]);
   });
-  el.listWrap.addEventListener('scroll', hideTip, { passive: true });
 
   el.scopes.addEventListener('click', e => { const b = e.target.closest('.scope'); if (b) { setScope(b.dataset.scope); if (!COARSE.matches) el.q.focus(); } });
   el.scopes.addEventListener('keydown', e => {
@@ -1255,7 +1275,7 @@ kbd {
   el.q.addEventListener('focus', () => { if (state.collapsed) expand(); });
   el.q.addEventListener('click', () => { if (state.collapsed) expand(); });
 
-  /* ---------- Keyboard ---------- */
+  /* ---------- Keyboard: arrows move, Enter acts ---------- */
   document.addEventListener('keydown', e => {
     const mod = e.metaKey || e.ctrlKey;
     if (state.sheet) {
@@ -1310,80 +1330,38 @@ kbd {
     }
   });
 
-  /* ---------- Activity band: requests per day, rising out of the palette's top edge ---------- */
-  (function band() {
-    const plot = $('#bandPlot'), read = $('#bandRead'); if (!plot) return;
-    const lastK = series.length - 1;
-    const peak = series.find(d => d.requests === peakReq);
-    $('#bandWin').textContent = `${dayLabel(series[0].day)} – ${dayLabel(series[lastK].day)}`;
-    plot.setAttribute('aria-label', `Requests per day, ${dayLabel(series[0].day)} to ${dateLabel(series[lastK].day)}: ${fmt(totalReq)} requests and ${fmt(totalCh)} challenges in total; busiest day ${dayLabel(peak.day)} with ${peakReq} requests. Left and right arrow keys read each day.`);
-    plot.innerHTML = series.map((d, k) => {
-      const cls = ['bc', d.requests ? '' : 'zero', k === lastK ? 'part' : ''].filter(Boolean).join(' ');
-      return `<div class="${cls}" data-k="${k}" style="--k:${k}">${d === peak ? `<em>${peakReq}</em>` : ''}<span class="pp">${'<b></b>'.repeat(d.challenges)}</span><i style="--v:${(d.requests / peakReq).toFixed(4)}"></i></div>`;
-    }).join('');
-    if (!REDUCE.matches) plot.classList.add('anim-band');
-    const totals = `<b>${fmt(totalReq)}</b> requests · <span class="rc"><b>${fmt(totalCh)}</b> challenges</span>`;
-    const day = k => {
-      const d = series[k];
-      return `${DOW[dt(d.day).getUTCDay()]} ${dayLabel(d.day)}${k === lastK ? `, to ${timeLabel(SNAP)}` : ''} · <b>${fmt(d.requests)}</b> ${d.requests === 1 ? 'request' : 'requests'} · <span class="rc"><b>${d.challenges}</b> ${d.challenges === 1 ? 'challenge' : 'challenges'}</span>`;
-    };
-    let cur = null;
-    const set = k => {
-      if (k === cur) return; cur = k;
-      const on = plot.querySelector('.bc.on'); if (on) on.classList.remove('on');
-      if (k < 0) { read.innerHTML = totals; return; }
-      plot.querySelector(`.bc[data-k="${k}"]`).classList.add('on'); read.innerHTML = day(k);
-    };
-    set(-1);
-    const at = e => { const c = e.target.closest('.bc'); if (c) set(+c.dataset.k); };
-    plot.addEventListener('pointermove', at);
-    plot.addEventListener('pointerdown', at);
-    plot.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse' && document.activeElement !== plot) set(-1); });
-    plot.addEventListener('keydown', e => {
-      const from = cur < 0 ? null : cur;
-      const k = { ArrowRight: from == null ? lastK : Math.min(lastK, from + 1), ArrowLeft: from == null ? lastK : Math.max(0, from - 1), Home: 0, End: lastK }[e.key];
-      if (k != null) { e.preventDefault(); set(k); } else if (e.key === 'Escape') set(-1);
-    });
-    plot.addEventListener('blur', () => set(-1));
-  })();
+  /* ---------- One-line status: totals at the snapshot, with when it was read ---------- */
+  el.status.innerHTML = `<span class="st-figs"><span><b>${fmt(F.registries)}</b>registries</span><span><b>${fmt(F.entries)}</b>entries</span><span><b>${fmt(F.requestsOpen)}</b>open<span class="lg"> requests</span></span><span class="ct"><b>${fmt(F.inCourt)}</b>in court</span></span><span class="st-upd">Updated <time datetime="${esc(S.snapshotAt)}">${stampLabel(SNAP)}</time></span>`;
 
-  /* ---------- Recent activity (repeats folded, like a real feed) ---------- */
-  function buildFeed() {
-    const ev = [
-      ...S.openToChallenge.map(e => ({ ...e, g: 'req' })),
-      ...S.inCourt.map(e => ({ ...e, g: 'court' })),
-      ...S.decided.map(e => ({ ...e, g: 'rul' }))
-    ].sort((a, b) => b.at - a.at);
-    const out = [];
-    for (const e of ev) {
-      const k = e.g === 'rul' ? null : `${e.g}|${e.registry}|${e.actor}`;
-      const last = out[out.length - 1];
-      if (k && last && last.k === k) last.items.push(e); else out.push({ k, g: e.g, items: [e] });
-    }
-    return out.slice(0, 6).map(x => {
-      const e = x.items[0]; const n = x.items.length;
-      if (x.g === 'req') return { icon: 'req', svg: I.inbox, title: n > 1 ? `${n} registration requests` : e.status, sub: e.registry, who: `by ${e.actor}`, at: e.at, q: prefix(e.actor) };
-      if (x.g === 'court') return { icon: 'court', svg: I.scale, title: n > 1 ? `${n} disputes opened` : `${e.status} opened`, sub: n > 1 ? `${x.items.map(i => i.status.replace('Dispute ', '')).join(', ')} · ${e.registry}` : e.registry, who: '', at: e.at, q: n > 1 ? e.registry : e.status.replace('Dispute ', '') };
-      const good = e.outcome === 'registered';
-      return { icon: good ? 'ok' : 'no', svg: good ? I.ok : I.no, title: e.status, sub: e.registry, who: '', at: e.at, q: e.registry };
-    });
-  }
-  el.feed.innerHTML = buildFeed().map(f => `<button class="ev" type="button" data-q="${esc(f.q)}" title="Search ${esc(f.q)}"><span class="ei ${f.icon}">${f.svg}</span><span class="et"><b>${esc(f.title)}</b><span>${esc(f.sub)}</span></span><span class="ew">${f.who ? `<em>${esc(f.who)}</em>` : ''}${ago(f.at)} ago</span><span class="go">${I.out}</span></button>`).join('');
-  el.feed.addEventListener('click', e => { const b = e.target.closest('[data-q]'); if (b) setQuery(b.dataset.q); });
+  /* ---------- Footnote: one line per formula, with its window ---------- */
+  const HELD = MEASURES[1].allHeld && MEASURES[2].allHeld ? `all ${fmt(F.requestsOpen)} open requests and ${fmt(F.inCourt)} disputes` : `${fmt(MEASURES[1].listed)} of ${fmt(F.requestsOpen)} open requests and ${fmt(MEASURES[2].listed)} of ${fmt(F.inCourt)} disputes`;
+  const NOTES = [
+    ['Share', `<code>share = this list ÷ all of Curate</code>: entries ÷ ${fmt(F.entries)}, open requests ÷ ${fmt(F.requestsOpen)}, disputes ÷ ${fmt(F.inCourt)}; at the snapshot, ${esc(SCOPE_TEXT)}`],
+    ['Rank', `<code>rank = 1 + lists with a larger figure</code>, among ${fmt(F.registries)} lists; the ${fmt(REGS.length)} listed (largest by entries) hold ${HELD}`],
+    ['Day', `<code>day share = day’s requests ÷ ${fmt(SERIES_REQ)}</code>, <code>mean = ${fmt(SERIES_REQ)} ÷ ${series.length}</code>; UTC days ${dayLabel(series[0].day)} – ${dayLabel(series[series.length - 1].day)}${PARTIAL_LAST ? `, the last to ${timeLabel(SNAP)}` : ''}`],
+    ['Age', `<code>age = snapshot time − challenge or request time</code>, rounded down; snapshot ${stampLabel(SNAP)}`],
+    ['Win rate', `<code>win rate = won ÷ challenges</code>, per curator, last 30 days`],
+    ['Listed', `<code>share = rows ÷ listed rows</code> for the ${fmt(openReq.length)} newest open requests, ${fmt(rulings.length)} latest rulings, ${fmt(curators.length)} most active of ${fmt(F.curators30d)} curators`],
+    ['Counts', `<code>count = rows containing every typed word</code>, within the chain filter`]
+  ];
+  el.notes.innerHTML = NOTES.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
+
+  /* Empty-state suggestions come from the snapshot too */
+  const busiest = [...S.topRegistries].sort((a, b) => b.open - a.open)[0];
+  const SUGG = [prefix(curSorted[0].address), S.inCourt[0] ? S.inCourt[0].status.replace(/^Dispute\s*/, '') : '', busiest ? busiest.title : ''].filter(Boolean);
 
   /* ---------- Boot ---------- */
-  el.stamp.textContent = SNAP_TEXT;
   el.scopeTag.title = S.scope;
   const setPlaceholder = () => {
     el.chainLabel.textContent = chainText();
     el.scopeTag.textContent = NARROW.matches ? 'ETH + GNO' : SCOPE_TEXT;
-    el.q.placeholder = NARROW.matches ? 'Search registries and entries' : 'Search registries, entries, disputes, curators';
+    el.q.placeholder = NARROW.matches ? 'Search anything in Curate' : 'Search registries, requests, disputes, curators, days';
   };
   setPlaceholder();
   footDefault();
   const params = new URLSearchParams(location.search);
   if (params.get('q')) { state.query = el.q.value = params.get('q'); }
-  if (GROUPS.some(g => g.id === params.get('scope') && g.id !== 'overview')) state.scope = params.get('scope');
+  if (GROUPS.some(g => g.id === params.get('scope'))) state.scope = params.get('scope');
   render(true);
   requestAnimationFrame(() => moveIndicator(false));
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { moveIndicator(false); select(state.sel, { force: true, animate: false, scroll: false }); });

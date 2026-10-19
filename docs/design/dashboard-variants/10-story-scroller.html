@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Curate Story Scroller</title>
-<meta name="description" content="CurateVision dashboard variant: a scroll-scrubbed story of the last 30 days on Curate, drawn from a real snapshot.">
+<meta name="description" content="CurateVision dashboard variant: what the last 30 days on Curate looked like, told as a scroll story over one morphing chart, every figure computed from a real snapshot.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Urbanist:wght@400;500;600&display=swap" rel="stylesheet">
@@ -71,7 +71,7 @@ ul,ol{list-style:none}
 .brand svg{width:26px;height:26px}
 .brand small{font:400 11px/1 var(--mono);color:var(--text-3);letter-spacing:.02em;padding-left:10px;margin-left:2px;border-left:1px solid var(--line-2)}
 .chapters{display:flex;gap:6px;align-items:stretch}
-.chap{position:relative;display:flex;flex-direction:column;gap:7px;align-items:flex-start;width:96px;padding:9px 4px 8px;color:var(--text-3);font:500 12px/1 var(--ui);letter-spacing:.005em;transition:color .3s}
+.chap{position:relative;display:flex;flex-direction:column;gap:7px;align-items:flex-start;width:84px;padding:9px 4px 8px;color:var(--text-3);font:500 12px/1 var(--ui);letter-spacing:.005em;transition:color .3s}
 .chap:hover{color:var(--text-2)}
 .chap.is-on{color:var(--text)}
 .chap .bar{position:relative;display:block;width:100%;height:3px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden}
@@ -93,12 +93,15 @@ ul,ol{list-style:none}
 .btn-skip .s-short{display:none}
 
 /* ---------- story: opens straight on the pinned visual ---------- */
-.story{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);column-gap:64px;padding:0 var(--pad)}
-.viz-col{grid-column:2;grid-row:1;position:relative}
-.steps{grid-column:1;grid-row:1;padding:0 0 16vh}
-.viz{position:sticky;top:calc(var(--navTop) + var(--navH) + 16px);margin-top:16px;height:calc(100dvh - var(--gutTop) - var(--navTop) - var(--navH) - 40px);min-height:520px;max-height:860px;display:flex;flex-direction:column;border-radius:30px;background:radial-gradient(120% 70% at 85% 0%,rgba(37,99,235,.12),transparent 60%),linear-gradient(180deg,rgba(10,14,23,.9),rgba(6,8,14,.94));box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 40px 80px -40px rgba(0,0,0,.9)}
+.story{--cols:minmax(0,5fr) minmax(0,7fr);--cgap:64px;display:grid;grid-template-columns:var(--cols);column-gap:var(--cgap);padding:0 var(--pad)}
+/* the pinned visual floats over the right column; each chapter keeps a still copy of its figure underneath */
+.viz-col{grid-column:2;grid-row:1;position:relative;z-index:3;pointer-events:none}
+.steps{grid-column:1/-1;grid-row:1;padding:0 0 16vh}
+.viz{--vizH:clamp(520px,calc(100dvh - var(--gutTop) - var(--navTop) - var(--navH) - 40px),860px);pointer-events:auto;position:sticky;top:calc(var(--navTop) + var(--navH) + 16px);margin-top:16px;height:var(--vizH);display:flex;flex-direction:column;border-radius:30px;background:radial-gradient(120% 70% at 85% 0%,rgba(37,99,235,.12),transparent 60%),linear-gradient(180deg,rgba(10,14,23,.9),rgba(6,8,14,.94));box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 40px 80px -40px rgba(0,0,0,.9)}
 /* the one iridescent rim on the page */
 .viz::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;background:linear-gradient(140deg,rgba(147,197,253,.6),rgba(59,130,246,.2) 28%,rgba(255,255,255,.05) 50%,rgba(56,189,248,.18) 76%,rgba(147,197,253,.5));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
+/* the strip between the pinned visual and the bottom of the viewport stays frame-coloured, so a still figure never peeks in under it */
+.viz::after{content:"";position:absolute;left:-2px;right:-2px;top:calc(100% + 1px);height:max(0px,calc(100dvh - var(--navTop) - var(--navH) - 16px - var(--vizH)));background:var(--frame);pointer-events:none}
 .vhead{display:flex;flex-direction:column;align-items:flex-start;gap:12px;padding:22px 24px 2px}
 .vcap{min-width:0}
 .vcap .fig{font:500 11px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--blue-hi)}
@@ -133,7 +136,6 @@ ul,ol{list-style:none}
 .snap-l{font:400 11px var(--mono);fill:var(--text-3)}
 .bar0{fill:rgba(147,197,253,.4)}
 .blk{fill:var(--amber)}
-.lit .blk.hot{fill:#ffd28a;filter:url(#glowA)}
 .gk{cursor:pointer}
 .gk .lbl{font:400 11px var(--mono);fill:var(--text-2);transition:fill .2s}
 .gk .lbl .n{fill:#ffd99a;font-weight:500}
@@ -156,109 +158,120 @@ ul,ol{list-style:none}
 .tip .tr b{margin-left:auto;padding-left:14px;font:500 12.5px/1 var(--mono);color:var(--text)}
 .tip .tt{font:500 13.5px/1.3 var(--display);color:var(--text);margin-bottom:3px}
 
-/* steps */
-.step{min-height:90dvh;display:flex;flex-direction:column;justify-content:center;padding:40px 0}
+/* extra legend swatches (stage 5) */
+.sw-vd{width:8px;height:8px;border-radius:50%;background:var(--blue-hi);box-shadow:0 0 6px rgba(147,197,253,.8)}
+.sw-uv{width:8px;height:8px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--blue-hi)}
+.sw-band{width:5px;height:12px;border-radius:2px;background:linear-gradient(180deg,rgba(147,197,253,.9),rgba(59,130,246,.35))}
+/* stage 5 marks */
+.yax{font:400 11px var(--mono);fill:var(--text-3)}
+.ytk{stroke:rgba(255,255,255,.07)}
+.band-l{font:500 11px var(--mono);fill:var(--blue-hi)}
+.band-l tspan{fill:var(--text-2);font-weight:400}
+.yr{cursor:pointer}
+.yr .yl{font:400 11px var(--ui);fill:var(--text-2);transition:fill .2s}
+.yr .ag{stroke:rgba(147,197,253,.16);stroke-width:1}
+.yr .dv{fill:var(--blue-hi)}
+.yr .du{fill:#05070c;stroke:var(--blue-hi);stroke-width:1.5}
+.yr:hover .yl,.yr.hl .yl{fill:var(--text)}
+.yr:hover .ag,.yr.hl .ag{stroke:rgba(147,197,253,.45)}
+
+/* stage 4 marks: one lane per registry */
+.reg-l{font:500 12.5px var(--ui);fill:var(--text)}
+.reg-l .c{font:400 11px var(--mono);fill:var(--text-3)}
+.who-l{font:500 11.5px var(--mono);fill:var(--blue-hi)}
+.who-l tspan{font-weight:400;fill:var(--text-3)}
+.arc{fill:none;stroke:rgba(147,197,253,.6);stroke-width:1.25;stroke-dasharray:3 3}
+.sw-top{width:8px;height:8px;border-radius:50%;background:var(--blue-hi);box-shadow:0 0 6px rgba(147,197,253,.8)}
+.sw-oth{width:8px;height:8px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--silver)}
+.lg .mono{font-size:11.5px;color:var(--blue-ice)}
+
+/* steps: text on the left, a still figure on the right (under the pinned visual) */
+.step{min-height:90dvh;display:grid;grid-template-columns:var(--cols);column-gap:var(--cgap);align-items:center;padding:40px 0}
 .step:first-child{min-height:calc(100dvh - var(--gutTop) - var(--navTop) - var(--navH));padding-top:24px}
+.stext{grid-column:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start}
+.sfig{grid-column:2;position:relative;display:flex;flex-direction:column;height:clamp(460px,calc(100dvh - 220px),680px);border-radius:30px;background:linear-gradient(180deg,#0a0e17,#070a11);box-shadow:inset 0 0 0 1px var(--line-2),inset 0 1px 0 rgba(255,255,255,.04)}
+.sfig svg{pointer-events:none}
+.sfig .halo{animation:none;opacity:0}
+.sfig .lg{animation:none}
+@media (min-width:901px) and (prefers-reduced-motion:no-preference){
+  .sfig.covered{opacity:0}
+}
 .eyebrow{display:inline-flex;align-items:center;gap:10px;font:500 11.5px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
 .eyebrow .num{color:var(--blue-hi)}
 .eyebrow .rule{width:28px;height:1px;background:var(--line-3)}
 .big{margin-top:20px;font:500 clamp(84px,9.6vw,148px)/.88 var(--display);letter-spacing:-.045em;font-variant-numeric:tabular-nums;color:var(--text)}
 .step:first-child .big{font-size:clamp(100px,11.6vw,176px);background:linear-gradient(180deg,#ffffff 45%,#c6dbff);-webkit-background-clip:text;background-clip:text;color:transparent;padding-bottom:.04em}
 .big small{font-size:.42em;letter-spacing:-.02em;color:var(--text-3);margin-left:.12em}
-.say{margin-top:20px;max-width:21ch;font:500 clamp(24px,2.3vw,33px)/1.16 var(--display);letter-spacing:-.018em;color:var(--text)}
+.big.word{letter-spacing:-.04em}
+.say{margin-top:20px;max-width:21ch;text-wrap:balance;font:500 clamp(24px,2.3vw,33px)/1.16 var(--display);letter-spacing:-.018em;color:var(--text)}
 .say .dim{color:var(--text-3)}
+sup{font:500 .48em/0 var(--mono);color:var(--text-3);vertical-align:super;margin-left:3px}
+sup a:hover{color:var(--blue-hi)}
+/* one key figure per step, beside the headline number */
+.facts{margin-top:26px;display:flex;flex-wrap:wrap;gap:16px 0}
+.fact{display:flex;flex-direction:column;gap:9px;padding-right:24px;margin-right:24px;box-shadow:1px 0 0 var(--line-2)}
+.fact:last-child{box-shadow:none;margin-right:0;padding-right:0}
+.fact .k{font:500 11px/1 var(--ui);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.fact .v{display:flex;align-items:baseline;gap:9px;font:500 38px/1 var(--display);letter-spacing:-.03em;font-variant-numeric:tabular-nums;color:var(--text)}
+.fact .v small{font:400 13.5px/1.2 var(--ui);letter-spacing:0;color:var(--text-2)}
+/* the formula line under every figure */
+.fx{margin-top:24px;max-width:56ch;padding-top:12px;box-shadow:0 -1px 0 var(--line);font:400 11.5px/1.6 var(--mono);color:var(--text-3)}
+.fx b{font-weight:500;color:var(--text-2)}
 .chips{margin-top:26px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;max-width:470px}
 .chip{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:34px;padding:0 4px;border-radius:999px;background:rgba(243,181,79,.06);box-shadow:inset 0 0 0 1px rgba(243,181,79,.24);font:500 11.5px/1 var(--mono);color:#ffd99a;transition:background .25s,box-shadow .25s}
 .chip i{width:5px;height:5px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px var(--amber);flex:none}
 .chip:hover,.chip.hl{background:rgba(243,181,79,.14);box-shadow:inset 0 0 0 1px rgba(243,181,79,.55)}
+/* rulings per registry (step 4): one cell per ruling */
+.rreg{margin-top:26px;width:100%;max-width:470px}
+.rreg .k{font:500 11px/1 var(--ui);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.rrow{margin-top:14px}
+.rrow p{display:flex;align-items:baseline;justify-content:space-between;gap:12px;font:400 13px/1.25 var(--ui);color:var(--text-2)}
+.rrow .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rrow b{font:500 17px/1 var(--display);color:var(--text);font-variant-numeric:tabular-nums}
+.cells{margin-top:8px;display:grid;gap:4px;height:12px;border-radius:5px;background:rgba(255,255,255,.035)}
+.cells i{display:block;border-radius:4px;transform-origin:50% 100%}
+.rreg.grow .cells i{animation:cellIn .55s var(--spring) backwards;animation-delay:var(--d,0ms)}
+@keyframes cellIn{from{transform:scaleY(.2);opacity:0}}
+.cells i.t{background:linear-gradient(180deg,#c4dbff,#6ea8fb);box-shadow:0 0 10px rgba(147,197,253,.45)}
+.cells i.o{box-shadow:inset 0 0 0 1.5px rgba(195,202,214,.75)}
+.rkey{margin-top:16px;display:flex;flex-wrap:wrap;gap:8px 20px;font:400 12.5px/1.2 var(--ui);color:var(--text-2)}
+.rkey > span{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.rkey i{width:10px;height:10px;border-radius:3px;flex:none}
+.rkey i.t{background:var(--blue-hi);box-shadow:0 0 8px rgba(147,197,253,.6)}
+.rkey i.o{box-shadow:inset 0 0 0 1.5px rgba(195,202,214,.8)}
+.rkey b{font:500 14px/1 var(--display);color:var(--text);font-variant-numeric:tabular-nums}
+.rkey .mono{font-size:12px;color:var(--blue-ice)}
+.fact .v.addr{font:500 26px/1 var(--mono);letter-spacing:-.02em;color:var(--blue-ice)}
+.fact .sm{font:400 13px/1.35 var(--ui);color:var(--text-2)}
 .stampline.mstamp{display:none}
-sup{font:500 .48em/0 var(--mono);color:var(--text-3);vertical-align:super;margin-left:3px}
-sup a:hover{color:var(--blue-hi)}
 /* Apple-style read highlight: the active statement is lit, the rest wait in grey */
-.step > *{transition:opacity .5s var(--ease),transform .5s var(--ease)}
-.js .step:not(.on) > *{opacity:.38}
+.stext > *{transition:opacity .5s var(--ease),transform .5s var(--ease)}
+.js .step:not(.on) .stext > *{opacity:.38}
 .js .step:not(.on) .big{transform:translateY(6px)}
 
-/* ---------- latest (at snapshot) ---------- */
+/* ---------- live figures (the ending) ---------- */
 .now{padding:100px var(--pad) 40px}
 .now::before{content:"";position:absolute;left:50%;top:0;width:min(900px,90%);height:1px;transform:translateX(-50%);background:linear-gradient(90deg,transparent,rgba(147,197,253,.35),transparent)}
 .now-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px 24px;flex-wrap:wrap}
 .now-head h2{margin-top:16px;font:600 clamp(36px,4.6vw,64px)/1 var(--display);letter-spacing:-.04em}
 .now-head h2 span{color:var(--text-3)}
 .stampline{display:flex;align-items:center;gap:10px;margin-bottom:8px;font:400 11.5px/1 var(--mono);color:var(--text-3)}
-.stampline i{width:5px;height:5px;border-radius:50%;background:var(--text-3)}
-.duo{margin-top:36px;display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:12px;align-items:start}
-.card{position:relative;min-width:0;padding:24px;border-radius:24px;background:linear-gradient(180deg,#0b0f18,#080b12);box-shadow:inset 0 0 0 1px var(--line),inset 0 1px 0 rgba(255,255,255,.04)}
-.card-h{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
-.card-h h3{font:500 19px/1.2 var(--display);letter-spacing:-.005em}
-.card-h p{margin-top:6px;font:400 12px/1.4 var(--mono);color:var(--text-3)}
-.stack{display:flex;flex-direction:column;gap:12px;min-width:0}
-.open-n{display:flex;align-items:baseline;gap:10px;margin-top:2px}
-.open-n b{font:500 44px/1 var(--display);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
-.open-n span{font:400 13px/1.3 var(--ui);color:var(--text-2)}
-.og{margin-top:22px}
-.og-h{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px;padding:0 0 9px;box-shadow:0 1px 0 var(--line)}
-.og-h b{font:500 14.5px/1.3 var(--ui)}
-.og-h span{font:400 11.5px/1.3 var(--mono);color:var(--text-3)}
-.og-h span i{font-style:normal;white-space:nowrap}
-.orow{display:grid;grid-template-columns:minmax(0,1fr) auto 16px;align-items:center;gap:14px;padding:10px 12px;margin:0 -12px;width:calc(100% + 24px);border-radius:12px;text-align:left;transition:background .2s}
-.orow + .orow{box-shadow:0 -1px 0 var(--line)}
-.orow:hover,.orow:focus-visible{background:rgba(255,255,255,.045);box-shadow:none}
-.orow:hover + .orow{box-shadow:none}
-.orow .ent{display:flex;align-items:baseline;gap:8px;min-width:0}
-.orow .ent b{font:500 13.5px/1.2 var(--mono);color:var(--text);white-space:nowrap}
-.orow .ent .on{font:400 13px/1.2 var(--ui);color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.orow .tm{font:400 12px/1 var(--mono);color:var(--text-3);white-space:nowrap}
-.orow svg{width:16px;height:16px;color:var(--text-4);transition:color .2s,transform .2s var(--ease)}
-.orow:hover svg{color:var(--blue-hi);transform:translateX(2px)}
-.more{display:inline-flex;align-items:center;gap:6px;font:500 13px/1 var(--ui);color:var(--blue-hi);white-space:nowrap}
-.more svg{width:14px;height:14px}
-.ent-n{margin-top:22px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-.ent-n b{font:500 40px/1 var(--display);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
-.ent-n span{font:400 13px/1.3 var(--ui);color:var(--text-2)}
-.split-bar{position:relative;margin-top:16px;display:flex;gap:4px;height:40px}
-.split-bar button{position:relative;height:100%;border-radius:10px;transition:filter .2s}
-.split-bar button:hover,.split-bar button:focus-visible{filter:brightness(1.18)}
-.seg-g{background:linear-gradient(180deg,#5b98fb,#2563eb);box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 10px 30px -12px rgba(59,130,246,.9)}
-.seg-e{background:linear-gradient(180deg,#d6deea,#9aa6b8);min-width:10px}
-.split-k{margin-top:12px;display:flex;justify-content:space-between;gap:12px;font:400 12px/1.3 var(--mono);color:var(--text-2)}
-.split-k b{font-weight:500;color:var(--text)}
-.split-tip{position:absolute;bottom:calc(100% + 10px);padding:8px 10px;border-radius:10px;background:rgba(8,11,18,.96);box-shadow:0 0 0 1px var(--line-2);font:500 12px/1.3 var(--mono);color:var(--text);white-space:nowrap;pointer-events:none;opacity:0;transform:translateY(4px);transition:opacity .15s,transform .15s}
-.split-tip.on{opacity:1;transform:none}
-.curs{margin-top:18px;display:flex;flex-direction:column;gap:12px}
-.cur{display:grid;grid-template-columns:150px minmax(0,1fr) 40px;align-items:center;gap:12px}
-.cur .a{font:400 12px/1.25 var(--mono);color:var(--text)}
-.cur .a span{display:block;margin-top:4px;font-size:11px;color:var(--text-3);white-space:nowrap}
-.cur .a span b{font-weight:500;color:#e9b867}
-.cur .tr{position:relative;height:8px;border-radius:8px;background:rgba(255,255,255,.05)}
-.cur .tr i{position:absolute;inset:0 auto 0 0;border-radius:8px;background:linear-gradient(90deg,#1d4ed8,#7fb0ff);box-shadow:0 0 12px rgba(96,165,250,.45);transform-origin:0 50%;transition:transform 1s var(--ease)}
-.js .curs:not(.in) .tr i{transform:scaleX(0)}
-.cur .v{font:500 13px/1 var(--mono);text-align:right;font-variant-numeric:tabular-nums}
-
-/* gallery (Apple highlights row) */
-.gal{margin-top:56px}
-.gal-h{display:flex;align-items:flex-end;justify-content:space-between;gap:16px}
-.gal-h h3{font:500 clamp(24px,2.4vw,32px)/1.1 var(--display);letter-spacing:-.02em}
-.gal-h p{margin-top:8px;font:400 12px/1.4 var(--mono);color:var(--text-3)}
-.paddles{display:flex;gap:8px}
-.paddle{width:42px;height:42px;display:grid;place-items:center;border-radius:50%;background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px var(--line-2);color:var(--text);transition:background .2s,opacity .2s}
-.paddle:hover{background:rgba(255,255,255,.09)}
-.paddle[disabled]{opacity:.3;cursor:default}
-.paddle svg{width:18px;height:18px}
-.track{margin-top:22px;display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:6px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
-.track::-webkit-scrollbar{display:none}
-.rc{flex:0 0 288px;scroll-snap-align:start;display:flex;flex-direction:column;min-height:228px;padding:20px;border-radius:22px;background:linear-gradient(180deg,#0c111b,#080b12);box-shadow:inset 0 0 0 1px var(--line);transition:box-shadow .3s,transform .3s var(--ease)}
-.rc:hover{box-shadow:inset 0 0 0 1px rgba(147,197,253,.28);transform:translateY(-2px)}
-.rc .top{display:flex;align-items:center;gap:6px;font:400 11px/1 var(--mono);color:var(--text-3)}
-.rc .top .vb{display:inline-flex;align-items:center;gap:5px;color:var(--blue-hi)}
-.rc .top .vb svg{width:13px;height:13px}
-.rc .top .sep{width:3px;height:3px;border-radius:50%;background:var(--text-4)}
-.rc h4{margin-top:14px;font:500 18px/1.2 var(--display);letter-spacing:-.005em;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.4em}
-.rc .n{margin-top:auto;padding-top:20px;font:500 40px/1 var(--display);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
-.rc .n small{font:400 12.5px/1 var(--ui);letter-spacing:0;color:var(--text-3);margin-left:6px}
-.rc .st{margin-top:12px;display:flex;gap:12px;font:400 11.5px/1 var(--mono);color:var(--text-3)}
-.rc .st b{font-weight:500;color:var(--text-2)}
-.rc .st .c b{color:#ffd28a}
+.stampline i{position:relative;width:6px;height:6px;border-radius:50%;background:var(--green)}
+.stampline i::after{content:"";position:absolute;inset:-4px;border-radius:50%;background:var(--green);opacity:.25;animation:halo 2.4s ease-out infinite}
+.live{margin-top:36px;padding:30px 32px 26px;border-radius:26px;background:linear-gradient(180deg,#0b0f18,#080b12);box-shadow:inset 0 0 0 1px var(--line),inset 0 1px 0 rgba(255,255,255,.04)}
+.live-top{display:flex;align-items:flex-end;flex-wrap:wrap;gap:20px 56px}
+.lk{font:500 11px/1 var(--ui);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.live-hero b{display:block;margin-top:14px;font:500 clamp(80px,8.4vw,128px)/.86 var(--display);letter-spacing:-.045em;font-variant-numeric:tabular-nums}
+.live-hero .lsub{margin-top:14px;font:400 13px/1.3 var(--mono);color:var(--text-3)}
+.live-side{display:flex;flex-direction:column;gap:12px;padding-bottom:8px}
+.live-side b{font:500 48px/1 var(--display);letter-spacing:-.03em;font-variant-numeric:tabular-nums;color:#ffd99a}
+.live-grid{margin-top:30px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));box-shadow:0 -1px 0 var(--line)}
+.lf{display:flex;flex-direction:column;justify-content:space-between;gap:12px;padding:22px 20px 4px}
+.lf:first-child{padding-left:0}
+.lf + .lf{box-shadow:inset 1px 0 0 var(--line)}
+.lf b{font:500 40px/1 var(--display);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.live .fx{margin-top:26px;max-width:none}
+.cta{margin-top:28px;display:flex;flex-wrap:wrap;gap:10px}
 
 .fine{padding:48px var(--pad) 36px;display:grid;grid-template-columns:auto 1fr;gap:24px 48px;font:400 11.5px/1.6 var(--mono);color:var(--text-3)}
 .fine ol{counter-reset:fn}
@@ -292,11 +305,13 @@ sup a:hover{color:var(--blue-hi)}
 /* ---------- responsive ---------- */
 @media (max-width:1180px){
   :root{--gut:40px;--gutTop:36px;--pad:40px}
-  .chap{width:80px}
+  .chap{width:70px}
   .brand small{display:none}
-  .story{column-gap:40px;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr)}
+  .story{--cols:minmax(0,1fr) minmax(0,1.25fr);--cgap:40px}
   .chips{grid-template-columns:repeat(4,minmax(0,1fr));max-width:300px}
-  .duo{grid-template-columns:1fr}
+  .live-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .lf:nth-child(3){padding-left:0;box-shadow:none}
+  .lf:nth-child(n+3){border-top:1px solid var(--line);margin-top:14px}
 }
 @media (max-width:900px){
   :root{--gut:8px;--gutTop:8px;--pad:18px;--navH:54px;--navTop:8px;--r-frame:28px}
@@ -317,7 +332,11 @@ sup a:hover{color:var(--blue-hi)}
   .viz-col{position:sticky;top:calc(var(--navTop) + var(--navH) + 6px);z-index:6;padding:0 10px 14px;background:linear-gradient(180deg,var(--frame) 90%,rgba(4,6,11,0))}
   /* covers the slivers above and below the nav so scrolled text never peeks; same colour as the frame, clipped by its radius */
   .viz-col::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:calc(var(--navTop) + var(--navH) + 6px);background:var(--frame);pointer-events:none}
-  .viz{position:relative;top:auto;margin-top:0;height:clamp(380px,54dvh,470px);min-height:0;border-radius:22px;background:linear-gradient(180deg,#0a0e17,#06080e)}
+  .viz{position:relative;top:auto;margin-top:0;height:clamp(360px,51dvh,450px);min-height:0;border-radius:22px;background:linear-gradient(180deg,#0a0e17,#06080e)}
+  .viz::after{display:none}
+  .sfig{display:none}
+  .reg-l{font-size:11px}
+  .reg-l .c,.who-l{font-size:10px}
   .vhead{padding:14px 14px 6px;gap:9px}
   .vcap .fig{display:none}
   .vcap h3{margin-top:0;font-size:16px}
@@ -326,30 +345,32 @@ sup a:hover{color:var(--blue-hi)}
   .lg{height:22px;padding:0 9px;font-size:11px;gap:6px}
   .plot{margin:0 2px 8px}
   .vfoot{display:none}
+  .yr .yl{font-size:10px}
+  .band-l,.yax{font-size:10px}
   .steps{padding:0 var(--pad) 12vh}
-  .step,.step:first-child{min-height:72dvh;justify-content:flex-start;padding:18px 0 40px}
+  .step,.step:first-child{min-height:72dvh;display:flex;flex-direction:column;justify-content:flex-start;padding:18px 0 40px}
   .big{margin-top:12px;font-size:clamp(64px,19vw,88px)}
   .step:first-child .big{font-size:clamp(76px,23vw,104px)}
   .say{margin-top:12px;font-size:22px;max-width:22ch}
   .stampline.mstamp{display:flex;margin:16px 0 0}
+  .facts{margin-top:18px}
+  .fact .v{font-size:32px}
+  .fx{margin-top:18px;font-size:11px}
   .chips{margin-top:16px;max-width:none;grid-template-columns:repeat(4,minmax(0,1fr))}
   .chip{height:32px;font-size:11.5px}
+  .rreg{margin-top:18px;max-width:none}
+  .fact .v.addr{font-size:22px}
 
   .now{padding:64px var(--pad) 24px}
   .now-head .stampline{margin:0}
-  .duo{margin-top:24px}
-  .card{padding:18px;border-radius:20px}
-  .open-n b{font-size:36px}
-  .og-h{flex-direction:column;gap:3px}
-  .orow{gap:10px}
-  .ent-n b{font-size:34px}
-  .cur{grid-template-columns:132px minmax(0,1fr) 34px;gap:10px}
-  .rc .st{flex-wrap:wrap;gap:6px 12px}
-  .rc .st > span{white-space:nowrap}
-  .gal{margin-top:44px}
-  .paddles{display:none}
-  .track{margin:18px calc(-1 * var(--pad)) 0;padding:0 var(--pad) 6px;scroll-padding:0 var(--pad)}
-  .rc{flex-basis:76%}
+  .live{margin-top:24px;padding:22px 18px 20px;border-radius:20px}
+  .live-top{gap:18px 36px}
+  .live-hero b{font-size:clamp(72px,22vw,96px)}
+  .live-side b{font-size:40px}
+  .live-grid{margin-top:22px}
+  .lf{padding:18px 14px 2px}
+  .lf b{font-size:32px}
+  .cta .btn{flex:1}
   .fine{grid-template-columns:1fr;gap:16px;padding:32px var(--pad) 28px}
   .sheet{padding:0}
   .handle{display:block}
@@ -358,8 +379,27 @@ sup a:hover{color:var(--blue-hi)}
 }
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
-  .js .step:not(.on) > *{opacity:1}
+  .js .step:not(.on) .stext > *{opacity:1}
   .js .step:not(.on) .big{transform:none}
+  /* no morphing: each chapter shows its still figure instead of the pinned visual */
+  .viz-col{display:none}
+}
+@media (prefers-reduced-motion:reduce) and (max-width:900px){
+  .steps{padding-top:10px}
+  .sfig{display:flex;width:100%;height:390px;margin-top:24px;border-radius:22px}
+}
+@media print{
+  html,body{background:#04060b;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .aurora,.lnav,.viz-col,.sheet,.cta,.frame::before{display:none!important}
+  .frame{margin:0;border-radius:0;box-shadow:none;overflow:visible}
+  .story{display:block;padding:0 24px}
+  .steps{padding:0}
+  .step,.step:first-child{display:block;min-height:0;padding:28px 0;break-inside:avoid}
+  .sfig{display:flex!important;opacity:1!important;width:100%;height:400px;margin-top:20px;break-inside:avoid}
+  .js .step:not(.on) .stext > *{opacity:1;transform:none}
+  .step:first-child .big{background:none;color:var(--text)}
+  .now{padding:32px 24px;break-before:page}
+  .fine{padding:24px}
 }
 </style>
 </head>
@@ -377,10 +417,11 @@ sup a:hover{color:var(--blue-hi)}
       <button class="chap" data-go="ch-challenges"><span>Challenges</span><span class="bar"><i></i></span></button>
       <button class="chap" data-go="ch-court"><span>In court</span><span class="bar"><i></i></span></button>
       <button class="chap" data-go="ch-rulings"><span>Rulings</span><span class="bar"><i></i></span></button>
-      <button class="chap" data-go="ch-now"><span>Latest</span><span class="bar"><i></i></span></button>
+      <button class="chap" data-go="ch-lists"><span>New lists</span><span class="bar"><i></i></span></button>
+      <button class="chap" data-go="ch-now"><span>Live</span><span class="bar"><i></i></span></button>
     </nav>
     <div class="lnav-r">
-      <button class="btn btn-ghost btn-skip" id="skip" data-go="ch-now"><span class="s-long">Skip to latest</span><span class="s-short">Latest</span>
+      <button class="btn btn-ghost btn-skip" id="skip" data-go="ch-now"><span class="s-long">Skip to live</span><span class="s-short">Live</span>
         <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 3v10m0 0 4-4m-4 4L4 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
       <a class="btn btn-blue" href="#">Submit entry</a>
@@ -402,35 +443,66 @@ sup a:hover{color:var(--blue-hi)}
           <svg id="chart" role="img" aria-labelledby="vtitle vsub"></svg>
           <div class="tip" id="tip" role="status" aria-live="polite"></div>
         </div>
-        <div class="vfoot"><span data-stamp></span><span>Hover a day for detail</span></div>
+        <div class="vfoot"><span data-stamp></span><span id="vhint">Hover a day for detail</span></div>
       </figure>
     </div>
 
     <div class="steps">
       <article class="step" id="ch-requests" data-step="1">
-        <p class="eyebrow"><span class="num">01</span><span class="rule"></span>Curate · Ethereum + Gnosis</p>
+        <div class="stext">
+        <p class="eyebrow"><span class="num">01</span><span class="rule"></span>Curate · <span data-f="scope"></span></p>
         <p class="big" data-count="req"></p>
-        <h1 class="say">requests in the last 30 days.<sup><a href="#fn1" aria-label="Footnote 1">1</a></sup> <span class="dim">Each one posts a deposit and opens a challenge window.</span></h1>
+        <h1 class="say">requests in the last 30 days.<sup><a href="#fn1" aria-label="Footnote 1">1</a></sup></h1>
+        <div class="facts">
+          <div class="fact"><span class="k">Busiest day</span><span class="v"><span data-f="peakN"></span><small data-f="peakDay"></small></span></div>
+        </div>
+        <p class="fx" data-f="fx1"></p>
         <p class="stampline mstamp"><i></i><span data-stamp></span></p>
+        </div>
       </article>
 
       <article class="step" id="ch-challenges" data-step="2">
+        <div class="stext">
         <p class="eyebrow"><span class="num">02</span><span class="rule"></span>Challenges</p>
         <p class="big" data-count="ch"></p>
-        <h2 class="say">challenges in the same 30 days. <span class="dim" data-f="ratio"></span></h2>
+        <h2 class="say">challenges in the same 30 days.</h2>
+        <div class="facts">
+          <div class="fact"><span class="k">Challenge rate</span><span class="v"><span data-f="rate"></span><small>challenges per request</small></span></div>
+        </div>
+        <p class="fx" data-f="fx2"></p>
+        </div>
       </article>
 
       <article class="step" id="ch-court" data-step="3">
-        <p class="eyebrow"><span class="num">03</span><span class="rule"></span>In court</p>
+        <div class="stext">
+        <p class="eyebrow"><span class="num">03</span><span class="rule"></span>In court now</p>
         <p class="big" data-count="court"></p>
-        <h2 class="say">disputes are waiting on Kleros jurors. <span class="dim" data-f="courtWhen"></span></h2>
+        <h2 class="say">disputes open now, waiting on Kleros jurors. <span class="dim" data-f="courtListed"></span></h2>
         <div class="chips" id="courtChips"></div>
+        <p class="fx" data-f="fx3"></p>
+        </div>
       </article>
 
       <article class="step" id="ch-rulings" data-step="4">
+        <div class="stext">
         <p class="eyebrow"><span class="num">04</span><span class="rule"></span>Rulings</p>
-        <p class="big"><span data-count="rej"></span><small data-f="ofN"></small></p>
-        <h2 class="say">of the latest rulings rejected the request.<sup><a href="#fn2" aria-label="Footnote 2">2</a></sup> <span class="dim" data-f="rest"></span></h2>
+        <p class="big"><span data-count="lead"></span><small data-f="ofN"></small></p>
+        <h2 class="say" data-f="rulSay"></h2>
+        <div class="rreg" id="rreg" role="img"></div>
+        <div class="facts">
+          <div class="fact"><span class="k" data-f="topK"></span><span class="v addr" data-f="topAddr"></span><span class="sm" data-f="topSm"></span></div>
+        </div>
+        <p class="fx" data-f="fx4"></p>
+        </div>
+      </article>
+
+      <article class="step" id="ch-lists" data-step="5">
+        <div class="stext">
+        <p class="eyebrow"><span class="num">05</span><span class="rule"></span>New lists</p>
+        <p class="big word" data-f="newBig"></p>
+        <h2 class="say">new lists created in the last 30 days. <span class="dim" data-f="newDim"></span></h2>
+        <p class="fx" data-f="fx5"></p>
+        </div>
       </article>
     </div>
   </section>
@@ -438,48 +510,28 @@ sup a:hover{color:var(--blue-hi)}
   <section class="now" id="ch-now" aria-labelledby="nowTitle">
     <div class="now-head">
       <div>
-        <p class="eyebrow"><span class="num">05</span><span class="rule"></span>Latest</p>
-        <h2 id="nowTitle">Latest on Curate. <span>At snapshot.</span></h2>
+        <p class="eyebrow"><span class="num">06</span><span class="rule"></span>Live</p>
+        <h2 id="nowTitle">Where Curate stands. <span>At the snapshot.</span></h2>
       </div>
       <p class="stampline"><i></i><span data-stamp></span></p>
     </div>
 
-    <div class="duo">
-      <div class="card">
-        <div class="card-h">
-          <div>
-            <h3>Open to challenge</h3>
-            <div class="open-n"><b data-f="openN"></b><span>open requests</span></div>
-            <p data-f="openCap"></p>
-          </div>
-          <a class="more" href="#">View all<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-        </div>
-        <div class="olist" id="olist"></div>
+    <div class="live" id="live">
+      <div class="live-top">
+        <div class="live-hero"><p class="lk">Open to challenge</p><b data-live="openToChallenge"></b><p class="lsub" data-f="openSplit"></p></div>
+        <div class="live-side"><p class="lk">Disputes in court</p><b data-live="inCourt"></b></div>
       </div>
-
-      <div class="stack">
-        <div class="card">
-          <div class="card-h"><div><h3>Entries</h3><p>All registries · split by registry chain</p></div></div>
-          <div class="ent-n"><b data-f="entN"></b><span data-f="entSub"></span></div>
-          <div class="split-bar" id="splitBar"><span class="split-tip" id="splitTip"></span></div>
-          <div class="split-k" id="splitK"></div>
-        </div>
-        <div class="card">
-          <div class="card-h"><div><h3>Most active curators</h3><p data-f="curCap"></p></div></div>
-          <div class="curs" id="curs"></div>
-        </div>
+      <div class="live-grid">
+        <div class="lf"><p class="lk">Registries</p><b data-live="registries"></b></div>
+        <div class="lf"><p class="lk">Verified registries</p><b data-live="verified"></b></div>
+        <div class="lf"><p class="lk">Entries</p><b data-live="entries"></b></div>
+        <div class="lf"><p class="lk">Curators · 30 days</p><b data-live="curators30d"></b></div>
       </div>
-    </div>
-
-    <div class="gal">
-      <div class="gal-h">
-        <div><h3>The biggest verified lists</h3><p data-f="galCap"></p></div>
-        <div class="paddles">
-          <button class="paddle" id="pPrev" aria-label="Previous lists"><svg viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M11 4 6 9l5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-          <button class="paddle" id="pNext" aria-label="Next lists"><svg viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="m7 4 5 5-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-        </div>
+      <p class="fx" data-f="fx6"></p>
+      <div class="cta">
+        <a class="btn btn-lg btn-blue" href="#">Review open requests</a>
+        <a class="btn btn-lg btn-ghost" href="#">Browse registries</a>
       </div>
-      <div class="track" id="track"></div>
     </div>
   </section>
 
@@ -487,8 +539,7 @@ sup a:hover{color:var(--blue-hi)}
     <span class="brand">Curate</span>
     <ol>
       <li id="fn1"><span data-f="fn1"></span></li>
-      <li id="fn2"><span>The snapshot holds the 10 most recent rulings; each one sits on the day it was made.</span></li>
-      <li><span data-f="fn3"></span></li>
+      <li><span data-f="fn2"></span></li>
     </ol>
   </footer>
 </div>
@@ -505,7 +556,6 @@ sup a:hover{color:var(--blue-hi)}
     <div class="acts" id="sheetActs"></div>
   </div>
 </div>
-
 <script>
 (function(){
   'use strict';
@@ -517,6 +567,7 @@ sup a:hover{color:var(--blue-hi)}
   var reduce = RMQ.matches;
   var MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   var WD = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var DAY = 86400;
   var SNAP = Date.parse(S.snapshotAt) / 1000;
   function D(t){ return new Date(t * 1000); }
   function pad(n){ return (n < 10 ? '0' : '') + n; }
@@ -530,75 +581,122 @@ sup a:hover{color:var(--blue-hi)}
   function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
   function words(n){ return ['zero','one','two','three','four','five','six','seven','eight','nine','ten'][n] || fmt(n); }
   function cap(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
+  function plural(n, w){ return n + ' ' + w + (n === 1 ? '' : 's'); }
   function clamp(v, a, b){ return v < a ? a : (v > b ? b : v); }
   function smooth(x){ x = clamp(x, 0, 1); return x * x * (3 - 2 * x); }
   function shortReg(name){ var m = String(name).match(/\(([A-Z0-9]{2,6})\)/); return m ? m[1] + ' Registry' : name; }
 
   var STAMP = 'Snapshot · ' + dFull(SNAP) + ', ' + hm(SNAP) + ' UTC';
-  $$('[data-stamp]').forEach(function(el){ el.textContent = STAMP; });
+  var AT_SNAP = dFull(SNAP) + ', ' + hm(SNAP) + ' UTC';
+  var SCOPE = String(S.scope || '').replace(/\s*\(.*\)\s*$/, '');
 
-  /* ---------- derive everything from the snapshot ---------- */
+  /* ---------- every figure on the page is derived here, from the snapshot ---------- */
+  var F = S.figures;
+  // the 30-day series: one row per UTC day, the last day runs up to the snapshot.
+  // Every chapter uses this one window (series30d), so no chapter counts from a different day.
   var days = S.series30d, N = days.length;
-  var T0 = days[0].day, T1 = days[N - 1].day + 86400;
+  var T0 = days[0].day, TL = days[N - 1].day, T1 = TL + DAY;
   var totalReq = 0, totalCh = 0, peakI = 0, maxCh = 0;
   days.forEach(function(d, i){
     totalReq += d.requests; totalCh += d.challenges;
-    if (d.requests > days[peakI].requests) peakI = i;
+    if (d.requests > days[peakI].requests) peakI = i;       // first day with the highest count
     if (d.challenges > maxCh) maxCh = d.challenges;
   });
-  maxCh = Math.max(1, maxCh);
   var maxReq = days[peakI].requests;
+  var peakTies = days.filter(function(d){ return d.requests === maxReq; }).length;
+  maxCh = Math.max(1, maxCh);
+  var rate = totalReq ? totalCh / totalReq : 0;
+  var RATE = totalReq ? (rate * 100).toFixed(2) + '%' : '–';     // two decimals, as across the set
+  var partialLast = SNAP >= TL && SNAP < T1;
+  var WIN = 'last 30 days: ' + N + ' UTC days, ' + dShort(T0) + ' – ' + dFull(TL) + (partialLast ? ' (' + dShort(TL) + ' up to ' + hm(SNAP) + ')' : '');
   var YMAX = Math.max(50, Math.ceil(maxReq / 50) * 50);
-  var winLabel = dShort(T0) + ' – ' + dShort(days[N - 1].day);
-  function dayIndex(t){ return clamp(Math.floor((t - T0) / 86400), 0, N - 1); }
+  var winLabel = dShort(T0) + ' – ' + dShort(TL);
+  function dayIndex(t){ return clamp(Math.floor((t - T0) / DAY), 0, N - 1); }
 
+  // disputes still open at the snapshot
   var court = S.inCourt.slice().sort(function(a, b){ return a.at - b.at; });
+  var openDisputes = F.inCourt != null ? F.inCourt : court.length;
   var courtByDay = {};
   court.forEach(function(c){
     c._day = dayIndex(c.at);
     c._num = (c.status.match(/#(\d+)/) || [])[1] || '';
-    c._wait = (SNAP - c.at) / 86400;
     courtByDay[c._day] = (courtByDay[c._day] || 0) + 1;
   });
+
+  // the latest rulings: where they landed (registry) and on whom (requester)
   var rulings = S.decided.slice().sort(function(a, b){ return a.at - b.at; });
-  var ruleByDay = {}, maxRuleStack = 1;
+  var NR = rulings.length;
+  var ruleByDay = {};
+  rulings.forEach(function(r){ r._day = dayIndex(r.at); ruleByDay[r._day] = (ruleByDay[r._day] || 0) + 1; });
+  var regs = [], regMap = {};
   rulings.forEach(function(r){
-    r._day = dayIndex(r.at);
-    r._k = ruleByDay[r._day] || 0;
-    ruleByDay[r._day] = r._k + 1;
-    maxRuleStack = Math.max(maxRuleStack, r._k + 1);
+    var g = regMap[r.registry];
+    if (!g){ g = regMap[r.registry] = { name: r.registry, n: 0, list: [] }; regs.push(g); }
+    g.n++; g.list.push(r);
   });
-  var tally = { rejected: 0, registered: 0, removed: 0 };
-  rulings.forEach(function(r){ if (tally[r.outcome] != null) tally[r.outcome]++; });
-  var OUT = {
-    rejected:   { label: 'Rejected',   color: 'var(--rose)',   hex: '#fb6f84' },
-    registered: { label: 'Registered', color: 'var(--green)',  hex: '#3ddc97' },
-    removed:    { label: 'Removed',    color: 'var(--silver)', hex: '#c3cad6' }
-  };
-  var order = ['rejected', 'registered', 'removed'];
-  var F = S.figures;
-  var CHAIN = { '1': 'Ethereum', '10': 'Optimism', '56': 'BNB Chain', '100': 'Gnosis', '137': 'Polygon', '8453': 'Base', '42161': 'Arbitrum', '42220': 'Celo', '43114': 'Avalanche' };
-  function chainName(id){ return CHAIN[id] || ('chain ' + id); }
+  regs.sort(function(a, b){ return b.n - a.n || a.name.localeCompare(b.name); });
+  regs.forEach(function(g, li){
+    var byDay = {};
+    g.list.forEach(function(r){ r._lane = li; r._k = byDay[r._day] || 0; byDay[r._day] = r._k + 1; });
+  });
+  var acts = [], actMap = {};
+  rulings.forEach(function(r){
+    var a = actMap[r.actor];
+    if (!a){ a = actMap[r.actor] = { addr: r.actor, n: 0, out: {}, regs: {} }; acts.push(a); }
+    a.n++; a.out[r.outcome] = (a.out[r.outcome] || 0) + 1; a.regs[r.registry] = (a.regs[r.registry] || 0) + 1;
+  });
+  acts.sort(function(a, b){ return b.n - a.n; });
+  var topA = acts[0] || { addr: '–', n: 0, out: {}, regs: {} };
+  var topTie = acts.length > 1 && acts[1].n === topA.n;
+  rulings.forEach(function(r){ r._top = r.actor === topA.addr; });
+  var topFirst = rulings.filter(function(r){ return r._top; })[0];
+  var topLane = topTie || !topFirst ? -1 : topFirst._lane;
+  var otherActs = Math.max(0, acts.length - 1), otherN = NR - topA.n;
+  var OUT_ORDER = ['registered', 'rejected', 'removed'];
+  function outTxt(o){
+    return Object.keys(o).sort(function(a, b){ return o[b] - o[a] || OUT_ORDER.indexOf(a) - OUT_ORDER.indexOf(b); })
+      .map(function(k){ return o[k] + ' ' + k; }).join(', ');
+  }
+  var topRegs = Object.keys(topA.regs);
+  var topWhere = topRegs.length === 1 ? (topA.n > 1 ? 'all on ' : 'on ') + topRegs[0] : 'across ' + topRegs.length + ' registries';
+  var lead = regs[0] || { name: '–', n: 0 };
+  var leadTie = regs.length > 1 && regs[1].n === lead.n;
+
+  // new lists: created on or after the first day of the 30-day series
+  var CUT = T0;
+  var lists = S.topRegistries.map(function(r){ return { r: r, t: Date.parse(r.created + 'T00:00:00Z') / 1000 }; })
+    .filter(function(l){ return isFinite(l.t); })
+    .sort(function(a, b){ return a.t - b.t || b.r.entries - a.r.entries; });
+  var newLists = lists.filter(function(l){ return l.t >= CUT; });
+  var newest = lists.length ? lists[lists.length - 1] : null;
 
   /* ---------- copy ---------- */
-  var COUNT = { req: totalReq, ch: totalCh, court: court.length, rej: tally.rejected };
-  var restBits = [];
-  if (tally.registered) restBits.push(words(tally.registered) + ' registered');
-  if (tally.removed) restBits.push(words(tally.removed) + ' removed');
-  var verifiedTop = S.topRegistries.filter(function(r){ return r.verified; });
+  var COUNT = { req: totalReq, ch: totalCh, court: openDisputes, lead: lead.n };
+  var regRest = regs.slice(1).map(function(g, j){ return esc(g.name) + (j === 0 ? ' drew ' : ' ') + words(g.n); });
   var fields = {
-    ratio: 'One for every ' + Math.round(totalReq / Math.max(1, totalCh)) + ' requests.',
-    courtWhen: court.length ? 'The oldest has waited ' + court[0]._wait.toFixed(1) + ' days.' : '',
-    ofN: '/' + rulings.length,
-    rest: (restBits.length ? cap(restBits.join(', ')) + '. ' : '') + 'The winner takes the deposits, minus one arbitration cost.',
-    openN: fmt(F.requestsOpen),
-    openCap: '',
-    entN: fmt(F.entries),
-    entSub: 'in ' + fmt(F.registries) + ' registries, ' + fmt(F.verified) + ' verified',
-    curCap: 'Top 5 of ' + F.curators30d + ' active curators, by submissions · last 30 days',
-    galCap: 'The ' + verifiedTop.length + ' largest verified registries, ranked by entries',
-    fn1: dShort(days[N - 1].day) + ' counts activity up to the snapshot at ' + hm(SNAP) + ' UTC; every other day is a full UTC day.',
-    fn3: 'Scope: ' + S.scope + '. Public on-chain Curate data. ' + STAMP + '.'
+    scope: esc(SCOPE),
+    peakN: fmt(maxReq),
+    peakDay: 'requests on ' + dWd(days[peakI].day) + (peakTies > 1 ? ' (first of ' + peakTies + ' tied days)' : ''),
+    fx1: '<b>total requests</b> = sum of daily requests · <b>busiest day</b> = the UTC day with the most requests · ' + WIN + ' · ' + esc(SCOPE),
+    rate: RATE,
+    fx2: '<b>challenge rate</b> = challenges / requests = ' + fmt(totalCh) + ' / ' + fmt(totalReq) + ', shown to two decimals · ' + WIN + ' · ' + esc(SCOPE),
+    courtListed: court.length !== openDisputes ? 'The snapshot lists ' + words(court.length) + ' of them.' : '',
+    fx3: '<b>open disputes</b> = challenged requests still waiting for a ruling, counted at the snapshot, ' + AT_SNAP + ' · ' + esc(SCOPE) + ' · chart: each dispute from its challenge to the snapshot',
+    ofN: '/' + NR,
+    rulSay: 'of the latest rulings landed on ' + esc(lead.name) + (leadTie ? ', level with ' + esc(regs[1].name) : '') + '. <span class="dim">' + (regRest.length ? cap(regRest.join(', ')) + '.' : '') + '</span>',
+    topK: topTie ? 'Most-ruled requester (tied)' : 'Most-ruled requester',
+    topAddr: esc(topA.addr),
+    topSm: topA.n + ' of ' + NR + ' rulings, ' + esc(topWhere) + ' · ' + outTxt(topA.out),
+    fx4: '<b>rulings per registry</b> = the latest ' + NR + ' rulings in the snapshot, counted by registry title · <b>most-ruled requester</b> = the requester address on the most of those rulings · ruled ' + dShort(rulings[0].at) + ' – ' + dFull(rulings[NR - 1].at) + ', inside the ' + winLabel + ' window · ' + esc(SCOPE),
+    newBig: newLists.length ? fmt(newLists.length) : 'None',
+    newDim: newLists.length
+      ? 'Newest: ' + esc(newest.r.title) + ', created ' + dFull(newest.t) + '.'
+      : (newest ? 'Newest dated list: ' + esc(newest.r.title) + ', ' + dFull(newest.t) + '.' : ''),
+    fx5: '<b>new lists</b> = registries created on or after ' + dFull(CUT) + ', the first day of the 30-day series · ' + WIN + ' · ' + esc(SCOPE) + ' · the snapshot dates only its ' + lists.length + ' largest registries by entries, so a smaller new list would not be counted',
+    openSplit: fmt(F.requestsOpen) + ' open (' + fmt(F.inCourt) + ' in court)',
+    fx6: '<b>open to challenge</b> = open − in court = ' + fmt(F.requestsOpen) + ' − ' + fmt(F.inCourt) + ', at ' + AT_SNAP + ' · <b>other live figures</b> = the snapshot’s own counters, read as is · ' + esc(SCOPE) + ' · curators counted over the last 30 days',
+    fn1: dShort(TL) + ' counts activity up to the snapshot at ' + hm(SNAP) + ' UTC; every other day in the series is a full UTC day.',
+    fn2: 'Scope: ' + esc(S.scope) + '. Public on-chain Curate data. ' + STAMP + '.'
   };
   $$('[data-f]').forEach(function(el){ var k = el.getAttribute('data-f'); if (fields[k] != null) el.innerHTML = fields[k]; });
   $$('[data-count]').forEach(function(el){ el.textContent = fmt(COUNT[el.getAttribute('data-count')]); });
@@ -608,70 +706,34 @@ sup a:hover{color:var(--blue-hi)}
     return '<button class="chip" data-court="' + i + '" aria-label="Dispute ' + c._num + ', ' + esc(c.registry) + '"><i></i>#' + c._num + '</button>';
   }).join('');
 
-  /* ---------- the pinned visual: one day grid, four lanes ---------- */
-  var svg = $('#chart'), plot = $('#plot'), tip = $('#tip');
+  /* rulings per registry: one cell per ruling, the most-ruled requester's cells filled */
+  (function(){
+    var box = $('#rreg');
+    box.setAttribute('aria-label', 'Rulings per registry, latest ' + NR + ': ' + regs.map(function(g){ return g.name + ' ' + g.n; }).join(', ') + '. ' + topA.addr + ' was the requester on ' + topA.n + '.');
+    var cell = 0;
+    box.innerHTML = '<p class="k">Rulings per registry · latest ' + NR + '</p>' + regs.map(function(g){
+      var cells = g.list.slice().sort(function(a, b){ return (b._top - a._top) || (a.at - b.at); }).map(function(r){
+        return '<i class="' + (r._top ? 't' : 'o') + '" style="--d:' + (cell++ * 45) + 'ms"></i>';
+      }).join('');
+      return '<div class="rrow"><p><span class="nm">' + esc(g.name) + '</span><b>' + g.n + '</b></p>' +
+        '<div class="cells" style="grid-template-columns:repeat(' + NR + ',minmax(0,1fr))">' + cells + '</div></div>';
+    }).join('') +
+    '<div class="rkey"><span><i class="t"></i><span class="mono">' + esc(topA.addr) + '</span><b>' + topA.n + '</b></span>' +
+    '<span><i class="o"></i>' + cap(words(otherActs)) + ' other requester' + (otherActs === 1 ? '' : 's') + '<b>' + otherN + '</b></span></div>';
+  })();
+
+  // the cells grow in when the chart first scrolls into view; until then they are simply drawn (full-page views, print)
+  if ('IntersectionObserver' in window && !reduce){
+    new IntersectionObserver(function(en, o){ if (en[0].isIntersecting){ en[0].target.classList.add('grow'); o.disconnect(); } }).observe($('#rreg'));
+  }
+
+  /* ---------- one chart engine: the pinned morphing visual, and a still copy per chapter ---------- */
   var NS = 'http://www.w3.org/2000/svg';
   function E(tag, attrs, parent){
     var n = document.createElementNS(NS, tag);
-    if (attrs) for (var k in attrs) n.setAttribute(k, attrs[k]);
+    if (attrs) for (var k in attrs) if (attrs[k] != null) n.setAttribute(k, attrs[k]);
     if (parent) parent.appendChild(n);
     return n;
-  }
-  var L = {}, R = {};
-  var stage = 0;
-  var B = { b2: 0, b3: 0, b4: 0 };     // shown blend between stages (scrubbed by scroll)
-  var BT = { b2: 0, b3: 0, b4: 0 };    // target blend from the scroll position
-  var entry = reduce ? 1 : 0, eStart = 0, raf = 0;
-
-  function layout(){
-    var W = plot.clientWidth, H = plot.clientHeight, m = W < 520;
-    L = { W: W, H: H, m: m };
-    L.padL = m ? 30 : 44;
-    L.padR = m ? 12 : 20;
-    L.pw = W - L.padL - L.padR;
-    L.dw = L.pw / N;
-    L.bw = Math.max(3, Math.min(L.dw * 0.62, m ? 8 : 14));
-    L.top = m ? 30 : 32;
-    L.dateH = m ? 24 : 30;
-    L.bottom = H - L.dateH;
-    L.lab = m ? 16 : 21;
-    L.labY = m ? 11 : 13;
-    L.gap = m ? 10 : 22;
-    L.bh = m ? 6 : 9; L.bg = m ? 2 : 3;
-    L.cH = L.lab + maxCh * (L.bh + L.bg) - L.bg;
-    L.rowH = m ? 13 : 21; L.rr = m ? 3.5 : 5;
-    L.kH = L.lab + court.length * L.rowH;
-    L.dr = m ? 4.5 : 6.5; L.dStep = L.dr * 2 + (m ? 3 : 4);
-    L.uH = L.lab + maxRuleStack * L.dStep;
-    var t = L.top, b = L.bottom, g = L.gap, lab = L.lab, avail = b - t;
-    var fixed4 = L.uH + L.kH + L.cH + lab + 3 * g;
-    var strip = clamp(avail - fixed4, m ? 22 : 30, m ? 46 : 90);
-    // stage 1: requests own the plot
-    var s1 = { rTop: t - lab, rBase: b, cTop: b, cBase: b, kTop: b, uTop: b, rOp: 1, yOp: 1, rLab: 0, peak: 1, cOp: 0, hot: 0, cLab: 0, kOp: 0, kLab: 0, uOp: 0 };
-    // stage 2: challenges get their own lane under the requests
-    var c2 = b - L.cH;
-    var s2 = { rTop: t - lab, rBase: c2 - g, cTop: c2, cBase: b, kTop: b, uTop: b, rOp: 1, yOp: 1, rLab: 0, peak: 1, cOp: 1, hot: 1, cLab: 1, kOp: 0, kLab: 0, uOp: 0 };
-    // stage 3: requests shrink to a dim context strip, the court lane takes the light
-    var left3 = Math.max(0, avail - (L.kH + L.cH + lab + strip + 2 * g)), ex3 = left3 * 0.25;
-    var k3 = b - L.kH, cB3 = k3 - g - ex3, cT3 = cB3 - L.cH, rB3 = cT3 - g - ex3;
-    var s3 = { rTop: rB3 - strip - lab, rBase: rB3, cTop: cT3, cBase: cB3, kTop: k3, uTop: b, rOp: .13, yOp: 0, rLab: .8, peak: 0, cOp: .26, hot: 1, cLab: .8, kOp: 1, kLab: 1, uOp: 0 };
-    // stage 4: rulings lane at full contrast, everything else dimmed
-    var left4 = Math.max(0, avail - (fixed4 + strip)), ex4 = left4 / 6;
-    var u4 = b - L.uH, kB4 = u4 - g - ex4, k4 = kB4 - L.kH, cB4 = k4 - g - ex4, cT4 = cB4 - L.cH, rB4 = cT4 - g - ex4;
-    var s4 = { rTop: rB4 - strip - lab, rBase: rB4, cTop: cT4, cBase: cB4, kTop: k4, uTop: u4, rOp: .12, yOp: 0, rLab: .7, peak: 0, cOp: .18, hot: .3, cLab: .55, kOp: .14, kLab: .4, uOp: 1 };
-    L.T = [s1, s2, s3, s4];
-  }
-  function V(k){
-    var s = L.T;
-    return s[0][k] + B.b2 * (s[1][k] - s[0][k]) + B.b3 * (s[2][k] - s[1][k]) + B.b4 * (s[3][k] - s[2][k]);
-  }
-  function xT(t){ return L.padL + (t - T0) / (T1 - T0) * L.pw; }
-  function xD(i){ return L.padL + (i + 0.5) * L.dw; }
-  function sweep(b, i){ return reduce ? (b >= .5 ? 1 : 0) : clamp((b - (i / (N - 1)) * 0.55) / 0.45, 0, 1); }
-  function entryF(i){
-    if (entry >= 1) return 1;
-    var x = clamp((entry - (i / (N - 1)) * 0.55) / 0.45, 0, 1);
-    return 1 - Math.pow(1 - x, 3);
   }
   function barPath(x, base, w, h){
     if (h <= 0.4) return '';
@@ -681,216 +743,490 @@ sup a:hover{color:var(--blue-hi)}
       'H' + (x + w - r).toFixed(2) + 'Q' + (x + w).toFixed(2) + ',' + (base - h).toFixed(2) + ' ' + (x + w).toFixed(2) + ',' + (base - h + r).toFixed(2) +
       'V' + base.toFixed(2) + 'Z';
   }
-  function laneHead(parent, text, sub){
-    var g = E('g', null, parent);
-    var rule = E('line', { class: 'rule', x1: L.padL, x2: L.W - L.padR }, g);
-    var t = E('text', { class: 'lane-l', x: L.padL }, g);
-    t.innerHTML = text + (sub ? '<tspan> · ' + sub + '</tspan>' : '');
-    return { g: g, rule: rule, t: t };
+  function fitText(el, text, maxW){
+    el.textContent = text;
+    if (maxW <= 12){ el.textContent = ''; return; }
+    if (!el.getComputedTextLength || el.getComputedTextLength() <= maxW) return;
+    var s = text;
+    while (s.length > 1 && el.getComputedTextLength() > maxW){ s = s.slice(0, -1); el.textContent = s.replace(/[\s\-·]+$/, '') + '…'; }
   }
+  var YR0 = lists.length ? Date.UTC(D(lists[0].t).getUTCFullYear(), 0, 1) / 1000 : SNAP - 365 * DAY;
+  var stage = 0, entry = reduce ? 1 : 0;
+  var tip = $('#tip');
 
-  function build(){
-    layout();
-    while (svg.firstChild) svg.removeChild(svg.firstChild);
-    var m = L.m;
-    var defs = E('defs', null, svg);
-    var gb = E('linearGradient', { id: 'gBar', x1: 0, x2: 0, y1: 0, y2: 1 }, defs);
-    E('stop', { offset: '0', 'stop-color': '#a9c9ff' }, gb);
-    E('stop', { offset: '.45', 'stop-color': '#3b82f6' }, gb);
-    E('stop', { offset: '1', 'stop-color': '#1d4ed8', 'stop-opacity': '.45' }, gb);
-    var gp = E('linearGradient', { id: 'gPeak', x1: 0, x2: 0, y1: 0, y2: 1 }, defs);
-    E('stop', { offset: '0', 'stop-color': '#ffffff' }, gp);
-    E('stop', { offset: '.35', 'stop-color': '#9cc2ff' }, gp);
-    E('stop', { offset: '1', 'stop-color': '#2563eb', 'stop-opacity': '.6' }, gp);
-    var gw = E('linearGradient', { id: 'gWait', x1: 0, x2: 1, y1: 0, y2: 0 }, defs);
-    E('stop', { offset: '0', 'stop-color': '#f3b54f', 'stop-opacity': '.25' }, gw);
-    E('stop', { offset: '1', 'stop-color': '#f3b54f' }, gw);
-    var sp = E('radialGradient', { id: 'gSpot' }, defs);
-    E('stop', { offset: '0', 'stop-color': '#7fb0ff', 'stop-opacity': '.5' }, sp);
-    E('stop', { offset: '1', 'stop-color': '#3b82f6', 'stop-opacity': '0' }, sp);
-    var f1 = E('filter', { id: 'glowB', x: '-150%', y: '-20%', width: '400%', height: '140%' }, defs);
-    E('feGaussianBlur', { in: 'SourceGraphic', stdDeviation: m ? 3 : 4.5, result: 'b' }, f1);
-    var fm1 = E('feMerge', null, f1); E('feMergeNode', { in: 'b' }, fm1); E('feMergeNode', { in: 'SourceGraphic' }, fm1);
-    var f2 = E('filter', { id: 'glowA', x: '-200%', y: '-200%', width: '500%', height: '500%' }, defs);
-    E('feGaussianBlur', { in: 'SourceGraphic', stdDeviation: 2.5, result: 'b' }, f2);
-    var fm = E('feMerge', null, f2); E('feMergeNode', { in: 'b' }, fm); E('feMergeNode', { in: 'SourceGraphic' }, fm);
+  function Chart(svg, plot, opt){
+    var P = opt.id + '-';
+    function U(n){ return 'url(#' + P + n + ')'; }
+    var B = opt.B, L = {}, R = { rows: [], dots: [], yRows: [], lanes: [], arcs: [] };
+    var api = { R: R, L: L, built: false, build: build, render: render };
+    function ent(){ return opt.entry ? opt.entry() : 1; }
 
-    // hover column (under every mark)
-    R.hband = E('rect', { class: 'hband', x: 0, y: L.top - 12, width: L.dw, height: L.bottom - L.top + 12, rx: 4 }, svg);
-    R.spot = E('ellipse', { rx: m ? 60 : 90, ry: m ? 140 : 240, fill: 'url(#gSpot)', opacity: 0 }, svg);
+    function layout(W, H){
+      var m = W < 520;
+      L.W = W; L.H = H; L.m = m;
+      L.padL = m ? 30 : 44;
+      L.padR = m ? 12 : 20;
+      L.pw = W - L.padL - L.padR;
+      L.dw = L.pw / N;
+      L.bw = Math.max(3, Math.min(L.dw * 0.62, m ? 8 : 14));
+      L.top = m ? 30 : 32;
+      L.dateH = m ? 24 : 30;
+      L.bottom = H - L.dateH;
+      L.lab = m ? 16 : 21;
+      L.labY = m ? 11 : 13;
+      L.gap = m ? 10 : 22;
+      L.bh = m ? 6 : 9; L.bg = m ? 2 : 3;
+      L.cH = L.lab + maxCh * (L.bh + L.bg) - L.bg;
+      L.rowH = m ? 13 : 21; L.rr = m ? 3.5 : 5;
+      L.kH = L.lab + court.length * L.rowH;
+      L.dr = m ? 5 : 7; L.dStep = L.dr * 2 + (m ? 3 : 4);
+      var t = L.top, b = L.bottom, g = L.gap, lab = L.lab, avail = b - t;
+      var strip = clamp(avail - (L.kH + L.cH + lab + 2 * g), m ? 22 : 30, m ? 46 : 90);
+      // stage 1: requests own the plot
+      var s1 = { rTop: t - lab, rBase: b, cTop: b, cBase: b, kTop: b, uTop: b, rOp: 1, yOp: 1, rLab: 0, peak: 1, cOp: 0, hot: 0, cLab: 0, kOp: 0, kLab: 0, uOp: 0 };
+      // stage 2: challenges get their own lane under the requests
+      var c2 = b - L.cH;
+      var s2 = { rTop: t - lab, rBase: c2 - g, cTop: c2, cBase: b, kTop: b, uTop: b, rOp: 1, yOp: 1, rLab: 0, peak: 1, cOp: 1, hot: 1, cLab: 1, kOp: 0, kLab: 0, uOp: 0 };
+      // stage 3: requests shrink to a dim context strip, the court lane takes the light
+      var left3 = Math.max(0, avail - (L.kH + L.cH + lab + strip + 2 * g)), ex3 = left3 * 0.25;
+      var k3 = b - L.kH, cB3 = k3 - g - ex3, cT3 = cB3 - L.cH, rB3 = cT3 - g - ex3;
+      var s3 = { rTop: rB3 - strip - lab, rBase: rB3, cTop: cT3, cBase: cB3, kTop: k3, uTop: b, rOp: .13, yOp: 0, rLab: .8, peak: 0, cOp: .26, hot: 1, cLab: .8, kOp: 1, kLab: 1, uOp: 0 };
+      // stage 4: the earlier layers fade out where they stand and the registry lanes take the whole plot
+      var s4 = {}; for (var k in s3) s4[k] = s3[k];
+      s4.rOp = 0; s4.yOp = 0; s4.rLab = 0; s4.peak = 0; s4.cOp = 0; s4.hot = 0; s4.cLab = 0; s4.kOp = 0; s4.kLab = 0;
+      s4.uTop = t; s4.uOp = 1;
+      L.T = [s1, s2, s3, s4];
+      // stage 5: a years axis, one row per dated list; the 30 days become a band at its right end
+      L.yTop = t + (m ? 26 : 34);
+      L.yRow = Math.min(m ? 22 : 30, (b - 6 - L.yTop) / Math.max(1, lists.length));
+      L.yd = m ? 3.5 : 4.5;
+    }
+    // into stage 4 the old layers are gone by 45% of the blend and the registry lanes only fade in after 40%, so labels never overlap
+    var FADE4 = { rOp: 1, yOp: 1, rLab: 1, peak: 1, cOp: 1, hot: 1, cLab: 1, kOp: 1, kLab: 1 };
+    function V(k){
+      var s = L.T, b4 = B.b4;
+      if (FADE4[k]) b4 = smooth(b4 / .45);
+      else if (k === 'uOp') b4 = smooth((b4 - .4) / .6);
+      return s[0][k] + B.b2 * (s[1][k] - s[0][k]) + B.b3 * (s[2][k] - s[1][k]) + b4 * (s[3][k] - s[2][k]);
+    }
+    api.V = V;
+    function xT(t){ return L.padL + (t - T0) / (T1 - T0) * L.pw; }
+    function xD(i){ return L.padL + (i + 0.5) * L.dw; }
+    function xY(t){ return L.padL + (t - YR0) / (SNAP - YR0) * L.pw; }
+    function sweep(b, i){ return reduce ? (b >= .5 ? 1 : 0) : clamp((b - (i / (N - 1)) * 0.55) / 0.45, 0, 1); }
+    function step01(b, a, w){ return reduce ? (b >= .5 ? 1 : 0) : smooth((b - a) / w); }
+    function entryF(i){
+      var en = ent();
+      if (en >= 1) return 1;
+      var x = clamp((en - (i / (N - 1)) * 0.55) / 0.45, 0, 1);
+      return 1 - Math.pow(1 - x, 3);
+    }
+    function laneHead(parent, text, sub){
+      var g = E('g', null, parent);
+      var rule = E('line', { class: 'rule', x1: L.padL, x2: L.W - L.padR }, g);
+      var t = E('text', { class: 'lane-l', x: L.padL }, g);
+      t.innerHTML = text + (sub ? '<tspan> · ' + sub + '</tspan>' : '');
+      return { g: g, rule: rule, t: t };
+    }
 
-    // snapshot guide
-    var sx = xT(SNAP);
-    R.xs = sx;
-    var gs = E('g', null, svg);
-    E('line', { x1: sx, x2: sx, y1: L.top - (m ? 10 : 16), y2: L.bottom, stroke: 'rgba(255,255,255,.18)', 'stroke-dasharray': '2 4' }, gs);
-    var st = E('text', { class: 'snap-l', x: sx - 6, y: L.top - (m ? 14 : 20), 'text-anchor': 'end' }, gs);
-    st.textContent = 'Snapshot ' + hm(SNAP);
+    function build(){
+      var W = plot.clientWidth, H = plot.clientHeight;
+      while (svg.firstChild) svg.removeChild(svg.firstChild);
+      api.built = false;
+      R.rows = []; R.dots = []; R.yRows = []; R.lanes = []; R.arcs = [];
+      if (W < 80 || H < 140){
+        // hidden right now (phone layout, or the pinned visual under reduced motion)
+        if (!opt.nominal) return;
+        W = opt.nominal[0]; H = opt.nominal[1];   // stills still draw at a nominal size, scaled to fit, so print never gets an empty frame
+        svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+      } else svg.removeAttribute('viewBox');
+      layout(W, H);
+      var m = L.m;
+      var defs = E('defs', null, svg);
+      var gb = E('linearGradient', { id: P + 'gBar', x1: 0, x2: 0, y1: 0, y2: 1 }, defs);
+      E('stop', { offset: '0', 'stop-color': '#a9c9ff' }, gb);
+      E('stop', { offset: '.45', 'stop-color': '#3b82f6' }, gb);
+      E('stop', { offset: '1', 'stop-color': '#1d4ed8', 'stop-opacity': '.45' }, gb);
+      var gp = E('linearGradient', { id: P + 'gPeak', x1: 0, x2: 0, y1: 0, y2: 1 }, defs);
+      E('stop', { offset: '0', 'stop-color': '#ffffff' }, gp);
+      E('stop', { offset: '.35', 'stop-color': '#9cc2ff' }, gp);
+      E('stop', { offset: '1', 'stop-color': '#2563eb', 'stop-opacity': '.6' }, gp);
+      var gw = E('linearGradient', { id: P + 'gWait', x1: 0, x2: 1, y1: 0, y2: 0 }, defs);
+      E('stop', { offset: '0', 'stop-color': '#f3b54f', 'stop-opacity': '.25' }, gw);
+      E('stop', { offset: '1', 'stop-color': '#f3b54f' }, gw);
+      var gbd = E('linearGradient', { id: P + 'gBand', x1: 0, x2: 0, y1: 0, y2: 1 }, defs);
+      E('stop', { offset: '0', 'stop-color': '#93c5fd', 'stop-opacity': '.85' }, gbd);
+      E('stop', { offset: '1', 'stop-color': '#3b82f6', 'stop-opacity': '.25' }, gbd);
+      var gl = E('linearGradient', { id: P + 'gLane', x1: 0, x2: 1, y1: 0, y2: 0 }, defs);
+      E('stop', { offset: '0', 'stop-color': '#93c5fd', 'stop-opacity': '0' }, gl);
+      E('stop', { offset: '.5', 'stop-color': '#93c5fd', 'stop-opacity': '.16' }, gl);
+      E('stop', { offset: '1', 'stop-color': '#93c5fd', 'stop-opacity': '.05' }, gl);
+      var sp = E('radialGradient', { id: P + 'gSpot' }, defs);
+      E('stop', { offset: '0', 'stop-color': '#7fb0ff', 'stop-opacity': '.5' }, sp);
+      E('stop', { offset: '1', 'stop-color': '#3b82f6', 'stop-opacity': '0' }, sp);
+      var f1 = E('filter', { id: P + 'glowB', x: '-150%', y: '-20%', width: '400%', height: '140%' }, defs);
+      E('feGaussianBlur', { in: 'SourceGraphic', stdDeviation: m ? 3 : 4.5, result: 'b' }, f1);
+      var fm1 = E('feMerge', null, f1); E('feMergeNode', { in: 'b' }, fm1); E('feMergeNode', { in: 'SourceGraphic' }, fm1);
+      var f2 = E('filter', { id: P + 'glowA', x: '-200%', y: '-200%', width: '500%', height: '500%' }, defs);
+      E('feGaussianBlur', { in: 'SourceGraphic', stdDeviation: 2.5, result: 'b' }, f2);
+      var fm = E('feMerge', null, f2); E('feMergeNode', { in: 'b' }, fm); E('feMergeNode', { in: 'SourceGraphic' }, fm);
 
-    // lane 1: requests per day (bars on the day grid)
-    R.gR = E('g', null, svg);
-    R.rHead = laneHead(R.gR, 'REQUESTS', m ? '' : 'per day, for context');
-    R.gY = E('g', null, R.gR);
-    R.yl = [0, 1, 2, 3].map(function(k){
-      var v = YMAX * k / 3;
-      var t = E('text', { class: 'ax', x: L.padL - 9, 'text-anchor': 'end', 'dominant-baseline': 'middle' }, R.gY);
-      t.textContent = fmt(v);
-      var tk = E('line', { class: 'tick', x1: L.padL - 5, x2: L.padL - 1 }, R.gY);
-      return { t: t, tk: tk, v: v };
-    });
-    R.rBaseLine = E('line', { class: 'base', x1: L.padL, x2: L.W - L.padR }, R.gR);
-    R.gBars = E('g', null, R.gR);
-    R.bars = days.map(function(d, i){
-      var cls = d.requests === 0 ? 'bar0' : '';
-      var p = E('path', { class: cls, fill: d.requests === 0 ? null : (i === peakI ? 'url(#gPeak)' : 'url(#gBar)') }, R.gBars);
-      if (i === peakI) p.setAttribute('filter', 'url(#glowB)');
-      if (i === N - 1) p.setAttribute('fill-opacity', '.6');
-      return p;
-    });
-    R.gPeak = E('g', null, R.gR);
-    R.peakTxt = E('text', { class: 'peak-l' }, R.gPeak);
-    R.peakTxt.innerHTML = fmt(maxReq) + '<tspan dx="7">' + dWd(days[peakI].day) + ' · busiest day</tspan>';
+      // everything on the 30-day grid lives in one group, so stage 5 can zoom it out as a whole
+      R.grid = E('g', null, svg);
+      var G = R.grid;
 
-    // lane 2: challenges per day (1 block = 1 challenge), its own lane and baseline
-    R.gC = E('g', null, svg);
-    R.cHead = laneHead(R.gC, 'CHALLENGES', m ? '1 block = 1' : '1 block = 1 challenge');
-    R.cBaseLine = E('line', { class: 'base', x1: L.padL, x2: L.W - L.padR }, R.gC);
-    R.blocks = [];
-    days.forEach(function(d, i){
-      var hot = courtByDay[i] || 0;
-      for (var k = 0; k < d.challenges; k++){
-        var el = E('rect', { class: 'blk' + (k < hot ? ' hot' : ''), x: (xD(i) - L.bw / 2).toFixed(2), width: L.bw.toFixed(2), height: 0, rx: m ? 1.5 : 2.5 }, R.gC);
-        R.blocks.push({ el: el, i: i, k: k, hot: k < hot });
+      // hover column (under every mark)
+      R.hband = E('rect', { class: 'hband', x: 0, y: L.top - 12, width: L.dw, height: L.bottom - L.top + 12, rx: 4 }, G);
+      R.spot = E('ellipse', { rx: m ? 60 : 90, ry: m ? 140 : 240, fill: U('gSpot'), opacity: 0 }, G);
+
+      // snapshot guide
+      var sx = xT(SNAP);
+      R.xs = sx;
+      var gs = E('g', null, G);
+      E('line', { x1: sx, x2: sx, y1: L.top - (m ? 10 : 16), y2: L.bottom, stroke: 'rgba(255,255,255,.18)', 'stroke-dasharray': '2 4' }, gs);
+      var st = E('text', { class: 'snap-l', x: sx - 6, y: L.top - (m ? 14 : 20), 'text-anchor': 'end' }, gs);
+      st.textContent = 'Snapshot ' + hm(SNAP);
+
+      // lane 1: requests per day (bars on the day grid)
+      R.gR = E('g', null, G);
+      R.rHead = laneHead(R.gR, 'REQUESTS', m ? 'per day' : 'per day, for context');
+      R.gY = E('g', null, R.gR);
+      R.yl = [0, 1, 2, 3].map(function(k){
+        var v = YMAX * k / 3;
+        var t = E('text', { class: 'ax', x: L.padL - 9, 'text-anchor': 'end', 'dominant-baseline': 'middle' }, R.gY);
+        t.textContent = fmt(v);
+        var tk = E('line', { class: 'tick', x1: L.padL - 5, x2: L.padL - 1 }, R.gY);
+        return { t: t, tk: tk, v: v };
+      });
+      R.rBaseLine = E('line', { class: 'base', x1: L.padL, x2: L.W - L.padR }, R.gR);
+      R.gBars = E('g', null, R.gR);
+      R.bars = days.map(function(d, i){
+        var p = E('path', { class: d.requests === 0 ? 'bar0' : null, fill: d.requests === 0 ? null : (i === peakI ? U('gPeak') : U('gBar')) }, R.gBars);
+        if (i === peakI) p.setAttribute('filter', U('glowB'));
+        if (i === N - 1 && partialLast) p.setAttribute('fill-opacity', '.6');
+        return p;
+      });
+      R.gPeak = E('g', null, R.gR);
+      R.peakTxt = E('text', { class: 'peak-l' }, R.gPeak);
+      R.peakTxt.innerHTML = fmt(maxReq) + '<tspan dx="7">' + dWd(days[peakI].day) + ' · busiest day</tspan>';
+
+      // lane 2: challenges per day (1 block = 1 challenge), its own lane and baseline
+      R.gC = E('g', null, G);
+      R.cHead = laneHead(R.gC, 'CHALLENGES', m ? '1 block = 1' : '1 block = 1 challenge · ' + fmt(totalCh) + ' in 30 days');
+      R.cBaseLine = E('line', { class: 'base', x1: L.padL, x2: L.W - L.padR }, R.gC);
+      R.blocks = [];
+      days.forEach(function(d, i){
+        var hot = courtByDay[i] || 0;
+        for (var k = 0; k < d.challenges; k++){
+          var el = E('rect', { class: 'blk' + (k < hot ? ' hot' : ''), x: (xD(i) - L.bw / 2).toFixed(2), width: L.bw.toFixed(2), height: 0, rx: m ? 1.5 : 2.5 }, R.gC);
+          R.blocks.push({ el: el, i: i, k: k, hot: k < hot });
+        }
+      });
+
+      // hover overlay sits above the bars and blocks, below the interactive marks
+      R.ov = E('rect', { x: L.padL, y: L.top - 14, width: L.pw, height: L.bottom - L.top + 14, fill: 'transparent', style: opt.interactive ? 'cursor:crosshair' : null }, G);
+
+      // lane 3: disputes in court, each a bar from the challenge to the snapshot
+      R.gK = E('g', null, G);
+      R.kHead = laneHead(R.gK, 'IN COURT', m ? 'challenge → snapshot' : 'bar = from the challenge to the snapshot');
+      R.rows = court.map(function(c, j){
+        var g = E('g', { class: 'gk', tabindex: '-1', role: 'button', 'aria-label': 'Dispute ' + c._num + ', ' + c.registry + ', opened ' + dShort(c.at) + ', still waiting for a ruling' }, R.gK);
+        var hit = E('rect', { fill: 'transparent', height: L.rowH }, g);
+        var lbl = E('text', { class: 'lbl', 'text-anchor': 'end', 'dominant-baseline': 'central' }, g);
+        lbl.innerHTML = '<tspan class="n">#' + c._num + '</tspan> · ' + esc(shortReg(c.registry)) + ' <tspan class="w">· ' + dShort(c.at) + '</tspan>';
+        var bar = E('rect', { fill: U('gWait'), height: m ? 2 : 3, rx: 1.5, filter: U('glowA') }, g);
+        var halo = E('circle', { class: 'halo', r: L.rr * 1.5 }, g);
+        var head = E('circle', { class: 'head', r: m ? 2 : 2.6 }, g);
+        var ring = E('circle', { class: 'ring', r: L.rr }, g);
+        halo.style.animationDelay = (j * 160) + 'ms';
+        g._data = c; g._kind = 'court';
+        return { g: g, hit: hit, lbl: lbl, bar: bar, halo: halo, head: head, ring: ring, c: c, j: j };
+      });
+
+      // lane 4: where the latest rulings landed, one lane per registry, one dot per ruling on its day
+      R.gU = E('g', null, G);
+      R.lanes = regs.map(function(gr){
+        var g = E('g', null, R.gU);
+        var band = E('rect', { x: L.padL, width: L.pw, rx: m ? 8 : 12, fill: 'rgba(147,197,253,.028)' }, g);
+        var rule = E('line', { class: 'rule', x1: L.padL, x2: L.W - L.padR }, g);
+        var track = E('rect', { x: L.padL, width: L.pw, height: 1, fill: U('gLane') }, g);
+        var t = E('text', { class: 'reg-l', x: L.padL }, g);
+        var nm = E('tspan', null, t);
+        var ct = E('tspan', { class: 'c', dx: 8 }, t);
+        ct.textContent = plural(gr.n, 'ruling');
+        var full = gr.name;
+        nm.textContent = full;
+        var maxW = L.pw - (regs.indexOf(gr) === topLane ? (m ? 118 : 190) : 0);
+        while (nm.textContent.length > 4 && t.getComputedTextLength && t.getComputedTextLength() > maxW){ full = full.slice(0, -1); nm.textContent = full.replace(/[\s\-·]+$/, '') + '…'; }
+        return { g: g, band: band, rule: rule, track: track, t: t, gr: gr };
+      });
+      // the most-ruled requester: named on its lane, its rulings joined by arcs
+      R.gArc = E('g', null, R.gU);
+      if (!topTie && topA.n > 1){
+        var tops = rulings.filter(function(r){ return r._top; });
+        for (var a = 1; a < tops.length; a++) R.arcs.push({ el: E('path', { class: 'arc' }, R.gArc), r0: tops[a - 1], r1: tops[a] });
       }
-    });
+      R.who = E('text', { class: 'who-l', 'text-anchor': 'end' }, R.gU);
+      R.who.innerHTML = topTie ? '' : esc(topA.addr) + '<tspan dx="6">' + (m ? '· ' + topA.n : '· ' + plural(topA.n, 'ruling')) + '</tspan>';
+      R.dots = rulings.map(function(r){
+        var g = E('g', { class: 'rn' + (r._top ? ' top' : ''), tabindex: '-1', role: 'button', 'aria-label': r.status + ', ' + r.registry + ', ' + dShort(r.at) + ', requester ' + r.actor }, R.gU);
+        var hit = E('circle', { fill: 'transparent', r: L.dr + 5 }, g);
+        var d = E('circle', r._top ? { class: 'd', fill: '#93c5fd', filter: U('glowA') } : { class: 'd', fill: '#070a11', stroke: '#c3cad6', 'stroke-width': m ? 1.4 : 1.7 }, g);
+        g._data = r; g._kind = 'ruling';
+        return { g: g, hit: hit, d: d, r: r };
+      });
 
-    // hover overlay sits above the bars and blocks, below the interactive marks
-    R.ov = E('rect', { x: L.padL, y: L.top - 14, width: L.pw, height: L.bottom - L.top + 14, fill: 'transparent', style: 'cursor:crosshair' }, svg);
+      // date axis
+      var dg = E('g', null, G);
+      var ticks = m ? [0, 10, 20, N - 1] : [0, 7, 14, 21, N - 1];
+      ticks.forEach(function(i, j){
+        var first = j === 0, last = j === ticks.length - 1;
+        var t = E('text', { class: 'ax', x: first ? xD(i) - L.dw / 2 : (last ? xD(i) + L.dw / 2 : xD(i)), y: L.bottom + L.dateH - (m ? 4 : 6), 'text-anchor': first ? 'start' : (last ? 'end' : 'middle') }, dg);
+        t.textContent = dShort(days[i].day);
+      });
 
-    // lane 3: disputes in court, each a bar from the challenge to the snapshot
-    R.gK = E('g', null, svg);
-    R.kHead = laneHead(R.gK, 'IN COURT', m ? 'wait so far' : 'bar = wait so far, to the snapshot');
-    R.rows = court.map(function(c, j){
-      var g = E('g', { class: 'gk', tabindex: '-1', role: 'button', 'aria-label': 'Dispute ' + c._num + ', ' + c.registry + ', opened ' + dShort(c.at) + ', waiting ' + c._wait.toFixed(1) + ' days' }, R.gK);
-      var hit = E('rect', { fill: 'transparent', height: L.rowH }, g);
-      var lbl = E('text', { class: 'lbl', 'text-anchor': 'end', 'dominant-baseline': 'central' }, g);
-      lbl.innerHTML = '<tspan class="n">#' + c._num + '</tspan> · ' + esc(shortReg(c.registry)) + ' <tspan class="w">· ' + c._wait.toFixed(1) + ' d</tspan>';
-      var bar = E('rect', { fill: 'url(#gWait)', height: m ? 2 : 3, rx: 1.5, filter: 'url(#glowA)' }, g);
-      var halo = E('circle', { class: 'halo', r: L.rr * 1.5 }, g);
-      var head = E('circle', { class: 'head', r: m ? 2 : 2.6 }, g);
-      var ring = E('circle', { class: 'ring', r: L.rr }, g);
-      halo.style.animationDelay = (j * 160) + 'ms';
-      g._data = c; g._kind = 'court';
-      return { g: g, hit: hit, lbl: lbl, bar: bar, halo: halo, head: head, ring: ring, c: c, j: j };
-    });
+      // ---- stage 5 layer: when the dated lists were created, on a years axis ----
+      R.gYr = E('g', { opacity: 0 }, svg);
+      var yh = L.top - L.lab;
+      var yHead = laneHead(R.gYr, 'LISTS BY CREATION DATE', m ? lists.length + ' largest' : 'the ' + lists.length + ' largest registries');
+      yHead.rule.setAttribute('y1', yh); yHead.rule.setAttribute('y2', yh); yHead.t.setAttribute('y', yh + L.labY);
+      var y0 = D(YR0).getUTCFullYear(), y1 = D(SNAP).getUTCFullYear();
+      for (var yr = y0; yr <= y1; yr++){
+        var tx = xY(Date.UTC(yr, 0, 1) / 1000);
+        E('line', { class: 'ytk', x1: tx, x2: tx, y1: L.yTop - 6, y2: L.bottom }, R.gYr);
+        var yt = E('text', { class: 'yax', x: tx, y: L.bottom + L.dateH - (m ? 4 : 6), 'text-anchor': yr === y0 ? 'start' : 'middle' }, R.gYr);
+        yt.textContent = m && yr !== y0 && yr !== y1 && (yr - y0) % 2 ? '' : String(yr);
+      }
+      E('line', { class: 'base', x1: L.padL, x2: L.W - L.padR, y1: L.bottom, y2: L.bottom }, R.gYr);
+      // the band: the same 30-day window as every other chapter, at true scale (at least 3px so it can be seen)
+      var bx1 = xY(SNAP), bx0 = Math.min(xY(CUT), bx1 - 3);
+      R.bandX0 = bx0; R.bandX1 = bx1;
+      E('rect', { x: bx0, y: L.yTop - 6, width: bx1 - bx0, height: L.bottom - L.yTop + 6, rx: 1.5, fill: U('gBand'), filter: U('glowA') }, R.gYr);
+      var bl = E('text', { class: 'band-l', x: bx1, y: L.yTop - 14, 'text-anchor': 'end' }, R.gYr);
+      bl.innerHTML = (m ? 'Last 30 days' : 'Last 30 days, ' + winLabel) + '<tspan> · ' + (newLists.length ? newLists.length + ' created' : 'none created') + '</tspan>';
+      R.yRows = lists.map(function(l, j){
+        var y = L.yTop + (j + .5) * L.yRow, x = xY(l.t);
+        var g = E('g', { class: 'yr', tabindex: '-1', role: 'button', 'aria-label': l.r.title + ', ' + l.r.chain + ', ' + (l.r.verified ? 'verified' : 'not verified') + ', created ' + dFull(l.t) }, R.gYr);
+        E('rect', { x: x - 8, y: y - L.yRow / 2, width: Math.max(16, bx0 - x + 8), height: L.yRow, fill: 'transparent' }, g);
+        var ag = E('line', { class: 'ag', x1: x, x2: x, y1: y, y2: y }, g);
+        var dot = E('circle', l.r.verified ? { class: 'dv', cx: x, cy: y, r: 0, filter: U('glowA') } : { class: 'du', cx: x, cy: y, r: 0 }, g);
+        var lbl = E('text', { class: 'yl', x: x + L.yd + 6, y: y, 'dominant-baseline': 'central' }, g);
+        fitText(lbl, l.r.title, bx0 - (x + L.yd + 6) - 10);
+        g._data = l; g._kind = 'list'; g._x = x; g._y = y;
+        return { g: g, ag: ag, dot: dot, lbl: lbl, x: x, x2: bx0 - 3, j: j };
+      });
 
-    // lane 4: latest rulings, one dot per ruling on the day it was made
-    R.gU = E('g', null, svg);
-    R.uHead = laneHead(R.gU, 'LATEST ' + rulings.length + ' RULINGS', m ? '' : 'on the day made');
-    R.dots = rulings.map(function(r){
-      var g = E('g', { class: 'rn', tabindex: '-1', role: 'button', 'aria-label': r.status + ', ' + r.registry + ', ' + dShort(r.at) }, R.gU);
-      var hit = E('circle', { fill: 'transparent', r: L.dr + 5 }, g);
-      var d = E('circle', { class: 'd', fill: (OUT[r.outcome] || OUT.removed).hex, filter: 'url(#glowA)' }, g);
-      g._data = r; g._kind = 'ruling';
-      return { g: g, hit: hit, d: d, r: r };
-    });
+      api.built = true;
+      if (opt.interactive){ bindHover(); nodeEvents(); }
+      render();
+    }
 
-    // date axis
-    var dg = E('g', null, svg);
-    var ticks = m ? [0, 10, 20, N - 1] : [0, 7, 14, 21, N - 1];
-    ticks.forEach(function(i, j){
-      var first = j === 0, last = j === ticks.length - 1;
-      var t = E('text', { class: 'ax', x: first ? xD(i) - L.dw / 2 : (last ? xD(i) + L.dw / 2 : xD(i)), y: L.bottom + L.dateH - (m ? 4 : 6), 'text-anchor': first ? 'start' : (last ? 'end' : 'middle') }, dg);
-      t.textContent = dShort(days[i].day);
-    });
+    function render(){
+      if (!api.built) return;
+      var m = L.m, lab = L.lab, en = ent();
+      // requests
+      var rTop = V('rTop'), rBase = V('rBase'), body = rTop + lab, span = rBase - body;
+      R.rHead.g.setAttribute('opacity', V('rLab'));
+      R.rHead.rule.setAttribute('y1', rTop); R.rHead.rule.setAttribute('y2', rTop);
+      R.rHead.t.setAttribute('y', rTop + L.labY);
+      R.rBaseLine.setAttribute('y1', rBase); R.rBaseLine.setAttribute('y2', rBase);
+      R.rBaseLine.setAttribute('opacity', Math.min(1, V('rOp') * 4).toFixed(3));
+      R.gBars.setAttribute('opacity', V('rOp'));
+      R.gY.setAttribute('opacity', V('yOp'));
+      R.yl.forEach(function(y){
+        var yy = rBase - y.v / YMAX * span;
+        y.t.setAttribute('y', yy); y.tk.setAttribute('y1', yy); y.tk.setAttribute('y2', yy);
+      });
+      days.forEach(function(d, i){
+        var e = entryF(i), x = xD(i) - L.bw / 2;
+        if (d.requests === 0){ R.bars[i].setAttribute('d', e > .5 ? barPath(x, rBase, L.bw, 2) : ''); return; }
+        R.bars[i].setAttribute('d', barPath(x, rBase, L.bw, d.requests / YMAX * span * e));
+      });
+      var px = xD(peakI) - L.bw / 2, py = rBase - maxReq / YMAX * span * entryF(peakI) - 10;
+      R.peakTxt.setAttribute('x', px); R.peakTxt.setAttribute('y', py);
+      R.gPeak.setAttribute('opacity', V('peak') * clamp((en - .8) / .2, 0, 1));
+      // entrance scanner bloom
+      if (en < 1){
+        var hx = L.padL + clamp((en - .1) / .9, 0, 1) * L.pw;
+        R.spot.setAttribute('cx', hx); R.spot.setAttribute('cy', body + span * .55);
+        R.spot.setAttribute('opacity', Math.min(1, en * 5) * (1 - clamp((en - .8) / .2, 0, 1)));
+      } else R.spot.setAttribute('opacity', 0);
 
-    bindHover();
-    nodeEvents();
-    render();
+      // challenges
+      var cTop = V('cTop'), cBase = V('cBase'), cOp = V('cOp'), hotOp = V('hot');
+      R.cHead.g.setAttribute('opacity', V('cLab'));
+      R.cHead.rule.setAttribute('y1', cTop); R.cHead.rule.setAttribute('y2', cTop);
+      R.cHead.t.setAttribute('y', cTop + L.labY);
+      R.cBaseLine.setAttribute('y1', cBase); R.cBaseLine.setAttribute('y2', cBase);
+      R.cBaseLine.setAttribute('opacity', V('cLab') * .8);
+      var lit = B.b3 > .4;
+      R.blocks.forEach(function(bk){
+        var v = sweep(B.b2, bk.i), h = L.bh * v;
+        bk.el.setAttribute('y', (cBase - bk.k * (L.bh + L.bg) - h).toFixed(2));
+        bk.el.setAttribute('height', Math.max(0, h).toFixed(2));
+        bk.el.setAttribute('opacity', bk.hot ? hotOp : cOp);
+        if (bk.hot){ bk.el.style.fill = lit ? '#ffd28a' : ''; if (lit) bk.el.setAttribute('filter', U('glowA')); else bk.el.removeAttribute('filter'); }
+      });
+
+      var gone = B.b5 > .5;
+      // in court
+      var kTop = V('kTop'), kOp = V('kOp'), live3 = kOp > .5 && !gone;
+      R.kHead.g.setAttribute('opacity', V('kLab'));
+      R.kHead.rule.setAttribute('y1', kTop); R.kHead.rule.setAttribute('y2', kTop);
+      R.kHead.t.setAttribute('y', kTop + L.labY);
+      R.rows.forEach(function(row){
+        var c = row.c, j = row.j;
+        var y = kTop + lab + (j + .5) * L.rowH, x0 = xT(c.at);
+        var v = reduce ? (B.b3 >= .5 ? 1 : 0) : clamp((B.b3 - j / court.length * .45) / .55, 0, 1);
+        var x1 = x0 + (R.xs - x0) * v;
+        row.g.setAttribute('opacity', (kOp * Math.min(1, v * 2)).toFixed(3));
+        row.ring.setAttribute('cx', x0); row.ring.setAttribute('cy', y); row.ring.setAttribute('r', (L.rr * Math.min(1, v * 3)).toFixed(2));
+        row.bar.setAttribute('x', x0); row.bar.setAttribute('y', y - (m ? 1 : 1.5)); row.bar.setAttribute('width', Math.max(0, x1 - x0).toFixed(2));
+        row.head.setAttribute('cx', x1); row.head.setAttribute('cy', y);
+        row.halo.setAttribute('cx', x1); row.halo.setAttribute('cy', y);
+        var hv = v >= .98 ? 1 : 0;
+        row.head.setAttribute('opacity', hv); row.halo.setAttribute('opacity', hv);
+        row.lbl.setAttribute('x', x0 - L.rr - 7); row.lbl.setAttribute('y', y);
+        var hx = Math.max(L.padL, x0 - (m ? 200 : 300));
+        row.hit.setAttribute('x', hx); row.hit.setAttribute('y', y - L.rowH / 2); row.hit.setAttribute('width', R.xs + 8 - hx);
+        row.g.style.pointerEvents = live3 && v > .9 ? 'auto' : 'none';
+        row.g._x = x0; row.g._y = y;
+      });
+
+      // rulings: the lanes grow up from the bottom over the fading layers until they own the plot
+      var uTop = V('uTop'), uOp = V('uOp'), live4 = uOp > .5 && !gone;
+      var laneH = (L.bottom - uTop) / Math.max(1, regs.length);
+      function laneY0(li){ return uTop + li * laneH; }
+      function dotY(r){ return laneY0(r._lane) + lab + (laneH - lab) * .62 - r._k * L.dStep; }
+      R.gU.setAttribute('opacity', uOp.toFixed(3));
+      R.lanes.forEach(function(ln, li){
+        var y0 = laneY0(li), yd = y0 + lab + (laneH - lab) * .62;
+        ln.rule.setAttribute('y1', y0); ln.rule.setAttribute('y2', y0);
+        ln.band.setAttribute('y', (y0 + lab - 4).toFixed(2)); ln.band.setAttribute('height', Math.max(0, laneH - lab - (m ? 6 : 10)).toFixed(2));
+        ln.t.setAttribute('y', y0 + L.labY);
+        ln.track.setAttribute('y', (yd - .5).toFixed(2));
+      });
+      if (topLane >= 0){ R.who.setAttribute('x', L.W - L.padR); R.who.setAttribute('y', laneY0(topLane) + L.labY); }
+      R.dots.forEach(function(dt){
+        var r = dt.r, v = sweep(B.b4, r._day), x = xD(r._day), y = dotY(r);
+        dt.d.setAttribute('cx', x); dt.d.setAttribute('cy', y); dt.d.setAttribute('r', (L.dr * v).toFixed(2));
+        dt.hit.setAttribute('cx', x); dt.hit.setAttribute('cy', y);
+        dt.g.setAttribute('opacity', Math.min(1, v * 2).toFixed(3));
+        dt.g.style.pointerEvents = live4 && v > .9 ? 'auto' : 'none';
+        dt.g._x = x; dt.g._y = y;
+      });
+      var av = step01(B.b4, .55, .45);
+      R.gArc.setAttribute('opacity', av.toFixed(3));
+      R.arcs.forEach(function(a){
+        var xa = xD(a.r0._day), ya = dotY(a.r0) - L.dr - 3, xb = xD(a.r1._day), yb = dotY(a.r1) - L.dr - 3;
+        var room = Math.max(6, Math.min(ya, yb) - (laneY0(a.r1._lane) + lab) - 6);
+        var lift = Math.min(room, 8 + (xb - xa) * .32);
+        a.el.setAttribute('d', 'M' + xa.toFixed(2) + ',' + ya.toFixed(2) + 'Q' + ((xa + xb) / 2).toFixed(2) + ',' + (Math.min(ya, yb) - lift * 2).toFixed(2) + ' ' + xb.toFixed(2) + ',' + yb.toFixed(2));
+      });
+
+      // stage 5: the whole 30-day grid zooms out into the band at the right end of the years axis
+      var b5 = B.b5;
+      var ez = step01(b5, 0, .8);
+      if (ez > 0.0005){
+        var sMin = Math.max(0.004, (R.bandX1 - R.bandX0) / L.pw);
+        var s = Math.exp(Math.log(sMin) * ez), ax = L.W - L.padR, ay = L.bottom, tx = ax + (R.bandX1 - ax) * ez;
+        R.grid.setAttribute('transform', 'translate(' + tx.toFixed(2) + ',' + ay.toFixed(2) + ') scale(' + s.toFixed(4) + ') translate(' + (-ax).toFixed(2) + ',' + (-ay).toFixed(2) + ')');
+      } else R.grid.removeAttribute('transform');
+      R.grid.setAttribute('opacity', (1 - step01(b5, .1, .55)).toFixed(3));
+      R.ov.style.pointerEvents = gone || !opt.interactive ? 'none' : 'auto';
+      var yo = step01(b5, .35, .5);
+      R.gYr.setAttribute('opacity', yo.toFixed(3));
+      var nL = Math.max(1, lists.length);
+      R.yRows.forEach(function(row){
+        var v = reduce ? (b5 >= .5 ? 1 : 0) : clamp((b5 - .45 - row.j / nL * .3) / .25, 0, 1);
+        row.dot.setAttribute('r', (L.yd * Math.min(1, v * 1.6)).toFixed(2));
+        row.ag.setAttribute('x2', (row.x + (row.x2 - row.x) * v).toFixed(2));
+        row.lbl.setAttribute('opacity', v.toFixed(3));
+        row.g.style.pointerEvents = yo > .5 && v > .9 ? 'auto' : 'none';
+      });
+    }
+
+    /* hover detail (the pinned visual only) */
+    function showDay(i){
+      var d = days[i], x = xD(i);
+      svg.classList.add('hover-on');
+      R.hband.setAttribute('x', x - L.dw / 2);
+      var html = '<div class="td">' + dWd(d.day) + (i === N - 1 && partialLast ? ' · to ' + hm(SNAP) : '') + '</div>';
+      if (stage <= 3) html += '<div class="tr"><i class="sw sw-bar"></i>Requests<b>' + fmt(d.requests) + '</b></div>';
+      if (stage === 2 || stage === 3) html += '<div class="tr"><i class="sw sw-blk"></i>Challenges<b>' + d.challenges + '</b></div>';
+      if (stage === 3) html += '<div class="tr"><i class="sw sw-wait"></i>Opened, still in court<b>' + (courtByDay[i] || 0) + '</b></div>';
+      if (stage === 4) html += '<div class="tr"><i class="sw sw-oth"></i>Rulings (latest ' + NR + ')<b>' + (ruleByDay[i] || 0) + '</b></div>';
+      var rBase = V('rBase'), span = rBase - V('rTop') - L.lab;
+      var y = stage <= 2 ? rBase - d.requests / YMAX * span : (stage === 3 ? V('cTop') : V('uTop') + L.lab);
+      showTipAt(html, x, Math.max(L.top, y));
+    }
+    function bindHover(){
+      function pick(e){
+        if (entry < 1 || B.b5 > .5) return;
+        var r = svg.getBoundingClientRect();
+        var i = Math.floor((e.clientX - r.left - L.padL) / L.dw);
+        $$('.gk.hl,.rn.hl,.chip.hl').forEach(function(n){ n.classList.remove('hl'); });
+        showDay(clamp(i, 0, N - 1));
+      }
+      R.ov.addEventListener('pointermove', pick);
+      R.ov.addEventListener('pointerdown', pick);
+      R.ov.addEventListener('pointerleave', function(e){ if (e.pointerType === 'mouse') hideTip(); });
+    }
+    function nodeEvents(){
+      R.rows.map(function(r){ return r.g; }).concat(R.dots.map(function(d){ return d.g; }), R.yRows.map(function(y){ return y.g; })).forEach(function(g){
+        g.addEventListener('pointerenter', function(){ focusNode(g); });
+        g.addEventListener('pointerleave', function(e){ if (e.pointerType === 'mouse') hideTip(); });
+        g.addEventListener('focus', function(){ focusNode(g); });
+        g.addEventListener('blur', hideTip);
+        g.addEventListener('click', function(){ openNodeSheet(g, g); });
+        g.addEventListener('keydown', function(e){ if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openNodeSheet(g, g); } });
+      });
+    }
+    return api;
   }
 
-  function render(){
-    var m = L.m, lab = L.lab;
-    // requests
-    var rTop = V('rTop'), rBase = V('rBase'), body = rTop + lab, span = rBase - body;
-    R.rHead.g.setAttribute('opacity', V('rLab'));
-    R.rHead.rule.setAttribute('y1', rTop); R.rHead.rule.setAttribute('y2', rTop);
-    R.rHead.t.setAttribute('y', rTop + L.labY);
-    R.rBaseLine.setAttribute('y1', rBase); R.rBaseLine.setAttribute('y2', rBase);
-    R.gBars.setAttribute('opacity', V('rOp'));
-    R.gY.setAttribute('opacity', V('yOp'));
-    R.yl.forEach(function(y){
-      var yy = rBase - y.v / YMAX * span;
-      y.t.setAttribute('y', yy); y.tk.setAttribute('y1', yy); y.tk.setAttribute('y2', yy);
-    });
-    days.forEach(function(d, i){
-      var e = entryF(i), x = xD(i) - L.bw / 2;
-      if (d.requests === 0){ R.bars[i].setAttribute('d', e > .5 ? barPath(x, rBase, L.bw, 2) : ''); return; }
-      R.bars[i].setAttribute('d', barPath(x, rBase, L.bw, d.requests / YMAX * span * e));
-    });
-    var px = xD(peakI) - L.bw / 2, py = rBase - maxReq / YMAX * span * entryF(peakI) - 10;
-    R.peakTxt.setAttribute('x', px); R.peakTxt.setAttribute('y', py);
-    R.gPeak.setAttribute('opacity', V('peak') * clamp((entry - .8) / .2, 0, 1));
-    // entrance scanner bloom
-    if (entry < 1){
-      var hx = L.padL + clamp((entry - .1) / .9, 0, 1) * L.pw;
-      R.spot.setAttribute('cx', hx); R.spot.setAttribute('cy', body + span * .55);
-      R.spot.setAttribute('opacity', Math.min(1, entry * 5) * (1 - clamp((entry - .8) / .2, 0, 1)));
-    } else R.spot.setAttribute('opacity', 0);
-
-    // challenges
-    var cTop = V('cTop'), cBase = V('cBase'), cOp = V('cOp'), hotOp = V('hot');
-    R.cHead.g.setAttribute('opacity', V('cLab'));
-    R.cHead.rule.setAttribute('y1', cTop); R.cHead.rule.setAttribute('y2', cTop);
-    R.cHead.t.setAttribute('y', cTop + L.labY);
-    R.cBaseLine.setAttribute('y1', cBase); R.cBaseLine.setAttribute('y2', cBase);
-    R.cBaseLine.setAttribute('opacity', V('cLab') * .8);
-    R.blocks.forEach(function(bk){
-      var v = sweep(B.b2, bk.i), h = L.bh * v;
-      bk.el.setAttribute('y', (cBase - bk.k * (L.bh + L.bg) - h).toFixed(2));
-      bk.el.setAttribute('height', Math.max(0, h).toFixed(2));
-      bk.el.setAttribute('opacity', bk.hot ? hotOp : cOp);
-    });
-
-    // in court
-    var kTop = V('kTop'), kOp = V('kOp'), live3 = kOp > .5;
-    R.kHead.g.setAttribute('opacity', V('kLab'));
-    R.kHead.rule.setAttribute('y1', kTop); R.kHead.rule.setAttribute('y2', kTop);
-    R.kHead.t.setAttribute('y', kTop + L.labY);
-    R.rows.forEach(function(row){
-      var c = row.c, j = row.j;
-      var y = kTop + lab + (j + .5) * L.rowH, x0 = xT(c.at);
-      var v = reduce ? (B.b3 >= .5 ? 1 : 0) : clamp((B.b3 - j / court.length * .45) / .55, 0, 1);
-      var x1 = x0 + (R.xs - x0) * v;
-      row.g.setAttribute('opacity', (kOp * Math.min(1, v * 2)).toFixed(3));
-      row.ring.setAttribute('cx', x0); row.ring.setAttribute('cy', y); row.ring.setAttribute('r', (L.rr * Math.min(1, v * 3)).toFixed(2));
-      row.bar.setAttribute('x', x0); row.bar.setAttribute('y', y - (m ? 1 : 1.5)); row.bar.setAttribute('width', Math.max(0, x1 - x0).toFixed(2));
-      row.head.setAttribute('cx', x1); row.head.setAttribute('cy', y);
-      row.halo.setAttribute('cx', x1); row.halo.setAttribute('cy', y);
-      var hv = v >= .98 ? 1 : 0;
-      row.head.setAttribute('opacity', hv); row.halo.setAttribute('opacity', hv);
-      row.lbl.setAttribute('x', x0 - L.rr - 7); row.lbl.setAttribute('y', y);
-      var hx = Math.max(L.padL, x0 - (m ? 200 : 300));
-      row.hit.setAttribute('x', hx); row.hit.setAttribute('y', y - L.rowH / 2); row.hit.setAttribute('width', R.xs + 8 - hx);
-      row.g.style.pointerEvents = live3 && v > .9 ? 'auto' : 'none';
-      row.g._x = x0; row.g._y = y;
-    });
-
-    // rulings
-    var uTop = V('uTop'), uOp = V('uOp'), live4 = uOp > .5;
-    R.uHead.g.setAttribute('opacity', uOp);
-    R.uHead.rule.setAttribute('y1', uTop); R.uHead.rule.setAttribute('y2', uTop);
-    R.uHead.t.setAttribute('y', uTop + L.labY);
-    R.dots.forEach(function(dt){
-      var r = dt.r, v = sweep(B.b4, r._day), x = xD(r._day), y = uTop + lab + (r._k + .5) * L.dStep;
-      dt.d.setAttribute('cx', x); dt.d.setAttribute('cy', y); dt.d.setAttribute('r', (L.dr * v).toFixed(2));
-      dt.hit.setAttribute('cx', x); dt.hit.setAttribute('cy', y);
-      dt.g.setAttribute('opacity', (uOp * Math.min(1, v * 2)).toFixed(3));
-      dt.g.style.pointerEvents = live4 && v > .9 ? 'auto' : 'none';
-      dt.g._x = x; dt.g._y = y;
-    });
-    svg.classList.toggle('lit', B.b3 > .4);
+  var CAPS = {
+    1: { fig: 'Fig. 1', title: 'Requests per day', sub: 'Last 30 days · ' + winLabel + ' · all registries', hint: 'Hover a day for detail', lg: [['sw-bar', 'Requests per day']] },
+    2: { fig: 'Fig. 2', title: 'Requests and challenges per day', sub: 'Last 30 days · ' + winLabel + ' · all registries', hint: 'Hover a day for detail', lg: [['sw-bar', 'Requests'], ['sw-blk', 'Challenges, 1 block each']] },
+    3: { fig: 'Fig. 3', title: 'Disputes open at the snapshot', sub: 'Each bar runs from its challenge to the snapshot', hint: 'Hover a dispute for detail', lg: [['sw-wait', 'Waiting on jurors'], ['sw-hot', 'The challenge that opened it']] },
+    4: { fig: 'Fig. 4', title: 'Where the latest ' + NR + ' rulings landed', sub: 'One lane per registry · one dot per ruling, on its day · ' + dShort(rulings[0].at) + ' – ' + dShort(rulings[NR - 1].at), hint: 'Hover a ruling for detail',
+         lg: (topTie ? [] : [['sw-top', '<span class="mono">' + esc(topA.addr) + '</span> · ' + plural(topA.n, 'ruling')]]).concat([['sw-oth', 'Other requesters · ' + plural(topTie ? NR : otherN, 'ruling')]]) },
+    5: { fig: 'Fig. 5', title: 'When the largest lists were created', sub: lists.length + ' largest registries · ' + D(YR0).getUTCFullYear() + ' – ' + dFull(SNAP), hint: 'Hover a list for detail', lg: [['sw-vd', 'Verified'], ['sw-uv', 'Not verified'], ['sw-band', 'Last 30 days']] }
+  };
+  function legendHtml(c){
+    return c.lg.map(function(l){ return '<span class="lg"><i class="sw ' + l[0] + '"></i>' + l[1] + '</span>'; }).join('');
   }
+
+  /* ---------- a still figure per chapter: the fallback for reduced motion, print and full-page views ---------- */
+  var steps = $$('.step'), NSTEP = steps.length;
+  var stills = steps.map(function(st, i){
+    var s = i + 1, c = CAPS[s];
+    var fig = document.createElement('figure');
+    fig.className = 'sfig';
+    fig.setAttribute('aria-labelledby', 'sf' + s + 't sf' + s + 's');
+    fig.innerHTML = '<div class="vhead"><figcaption class="vcap"><div class="fig">' + c.fig + '</div><h3 id="sf' + s + 't">' + esc(c.title) + '</h3><p id="sf' + s + 's">' + esc(c.sub) + '</p></figcaption>' +
+      '<div class="legend">' + legendHtml(c) + '</div></div>' +
+      '<div class="plot"><svg aria-hidden="true" focusable="false"></svg></div>' +
+      '<div class="vfoot"><span data-stamp></span><span>Still view</span></div>';
+    st.appendChild(fig);
+    var B5 = { b2: s >= 2 ? 1 : 0, b3: s >= 3 ? 1 : 0, b4: s >= 4 ? 1 : 0, b5: s >= 5 ? 1 : 0 };
+    return { fig: fig, chart: Chart($('svg', fig), $('.plot', fig), { id: 's' + s, B: B5, nominal: [700, 270] }) };
+  });
+  $$('[data-stamp]').forEach(function(el){ el.textContent = STAMP; });
+  // while a still figure is on screen the pinned visual is showing the same chapter, so the still steps aside
+  if ('IntersectionObserver' in window){
+    var sio = new IntersectionObserver(function(en){
+      en.forEach(function(e){ e.target.classList.toggle('covered', e.isIntersecting); });
+    }, { rootMargin: '40px 0px 40px 0px' });
+    stills.forEach(function(x){ sio.observe(x.fig); });
+  }
+
+  /* ---------- the pinned visual ---------- */
+  var svg = $('#chart'), plot = $('#plot');
+  var B = { b2: 0, b3: 0, b4: 0, b5: 0 };     // shown blend between stages (scrubbed by scroll)
+  var BT = { b2: 0, b3: 0, b4: 0, b5: 0 };    // target blend from the scroll position
+  var eStart = 0, raf = 0;
+  var main = Chart(svg, plot, { id: 'm', B: B, entry: function(){ return entry; }, interactive: true });
 
   /* one loop for the entrance and the scroll scrub (eased toward the scroll target) */
   function tick(now){
@@ -901,22 +1237,16 @@ sup a:hover{color:var(--blue-hi)}
       entry = Math.min(1, (now - eStart) / 1500);
       busy = entry < 1;
     }
-    ['b2', 'b3', 'b4'].forEach(function(k){
+    ['b2', 'b3', 'b4', 'b5'].forEach(function(k){
       var d = BT[k] - B[k];
       if (!reduce && !document.hidden && Math.abs(d) > .002){ B[k] += d * .22; busy = true; }
       else B[k] = BT[k];
     });
-    render();
+    main.render();
     if (busy) raf = requestAnimationFrame(tick);
   }
   function kick(){ if (!raf) raf = requestAnimationFrame(tick); }
 
-  var CAPS = {
-    1: { fig: 'Fig. 1', title: 'Requests per day', sub: 'Last 30 days · ' + winLabel + ' · all registries', lg: [['sw-bar', 'Requests']] },
-    2: { fig: 'Fig. 2', title: 'Requests and challenges per day', sub: 'Last 30 days · ' + winLabel + ' · all registries', lg: [['sw-bar', 'Requests'], ['sw-blk', 'Challenges']] },
-    3: { fig: 'Fig. 3', title: 'Disputes in court at the snapshot', sub: 'Each bar runs from its challenge to the snapshot', lg: [['sw-wait', 'Waiting on jurors'], ['sw-hot', 'The challenge that opened it']] },
-    4: { fig: 'Fig. 4', title: 'Latest ' + rulings.length + ' rulings, by outcome', sub: 'One dot per ruling, on its day · ' + dShort(rulings[0].at) + ' – ' + dShort(rulings[rulings.length - 1].at), lg: order.filter(function(k){ return tally[k]; }).map(function(k){ return ['sw-dot', OUT[k].label, OUT[k].color]; }) }
-  };
   var capT = 0;
   function setCaption(s, instant){
     var c = CAPS[s], vc = $('#vcap');
@@ -924,9 +1254,8 @@ sup a:hover{color:var(--blue-hi)}
       $('#vfig').textContent = c.fig;
       $('#vtitle').textContent = c.title;
       $('#vsub').textContent = c.sub;
-      $('#vlegend').innerHTML = c.lg.map(function(l){
-        return '<span class="lg"><i class="sw ' + l[0] + '"' + (l[2] ? ' style="background:' + l[2] + '"' : '') + '></i>' + l[1] + '</span>';
-      }).join('');
+      $('#vhint').textContent = c.hint;
+      $('#vlegend').innerHTML = legendHtml(c);
       vc.classList.remove('swap');
     };
     clearTimeout(capT);
@@ -935,94 +1264,64 @@ sup a:hover{color:var(--blue-hi)}
     capT = setTimeout(apply, 160);
   }
 
-  var steps = $$('.step'), counted = {};
+  var counted = {}, printing = false;
   function setStage(s, instant){
     if (s === stage) return;
     stage = s;
     setCaption(s, instant);
     steps.forEach(function(st){ st.classList.toggle('on', +st.getAttribute('data-step') === s); });
     $$('[data-count]', steps[s - 1]).forEach(countUp);
-    R.rows.forEach(function(r){ r.g.setAttribute('tabindex', s === 3 ? '0' : '-1'); });
-    R.dots.forEach(function(d){ d.g.setAttribute('tabindex', s === 4 ? '0' : '-1'); });
+    main.R.rows.forEach(function(r){ r.g.setAttribute('tabindex', s === 3 ? '0' : '-1'); });
+    main.R.dots.forEach(function(d){ d.g.setAttribute('tabindex', s === 4 ? '0' : '-1'); });
+    main.R.yRows.forEach(function(r){ r.g.setAttribute('tabindex', s === 5 ? '0' : '-1'); });
     hideTip();
   }
-  function countUp(el){
-    var key = el.getAttribute('data-count');
+  function countTo(el, target, key){
     if (counted[key]) return; counted[key] = true;
-    var target = COUNT[key];
     if (reduce || target < 2){ el.textContent = fmt(target); return; }
     var t0 = performance.now(), dur = target > 100 ? 1300 : 800;
     (function step(now){
+      if (printing){ el.textContent = fmt(target); return; }
       var p = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - p, 3);
       el.textContent = fmt(Math.round(target * e));
       if (p < 1) requestAnimationFrame(step);
     })(t0);
   }
+  function countUp(el){ var key = el.getAttribute('data-count'); countTo(el, COUNT[key], key); }
 
   /* hover detail */
   function showTipAt(html, x, y){
     tip.innerHTML = html;
     tip.classList.add('on');
-    var tw = tip.offsetWidth, th = tip.offsetHeight;
-    var left = x + 14; if (left + tw > L.W - 4) left = x - tw - 14; if (left < 4) left = 4;
+    var tw = tip.offsetWidth, th = tip.offsetHeight, W = plot.clientWidth;
+    var left = x + 14; if (left + tw > W - 4) left = x - tw - 14; if (left < 4) left = 4;
     var top = y - th - 12; if (top < 4) top = y + 14;
     tip.style.left = left + 'px'; tip.style.top = top + 'px';
   }
   function hideTip(){
     tip.classList.remove('on');
     svg.classList.remove('hover-on');
-    $$('.gk.hl,.rn.hl,.chip.hl').forEach(function(n){ n.classList.remove('hl'); });
-  }
-  function showDay(i){
-    var d = days[i], x = xD(i);
-    svg.classList.add('hover-on');
-    R.hband.setAttribute('x', x - L.dw / 2);
-    var html = '<div class="td">' + dWd(d.day) + (i === N - 1 ? ' · to ' + hm(SNAP) : '') + '</div>' +
-      '<div class="tr"><i class="sw sw-bar"></i>Requests<b>' + fmt(d.requests) + '</b></div>';
-    if (stage >= 2) html += '<div class="tr"><i class="sw sw-blk"></i>Challenges<b>' + d.challenges + '</b></div>';
-    if (stage === 3) html += '<div class="tr"><i class="sw sw-wait"></i>Opened, still in court<b>' + (courtByDay[i] || 0) + '</b></div>';
-    if (stage === 4) html += '<div class="tr"><i class="sw sw-dot" style="background:var(--text-2)"></i>Rulings (latest ' + rulings.length + ')<b>' + (ruleByDay[i] || 0) + '</b></div>';
-    var rBase = V('rBase'), span = rBase - V('rTop') - L.lab;
-    var y = stage <= 2 ? rBase - d.requests / YMAX * span : V('cTop');
-    showTipAt(html, x, Math.max(L.top, y));
-  }
-  function bindHover(){
-    function pick(e){
-      if (entry < 1) return;
-      var r = svg.getBoundingClientRect();
-      var i = Math.floor((e.clientX - r.left - L.padL) / L.dw);
-      $$('.gk.hl,.rn.hl,.chip.hl').forEach(function(n){ n.classList.remove('hl'); });
-      showDay(clamp(i, 0, N - 1));
-    }
-    R.ov.addEventListener('pointermove', pick);
-    R.ov.addEventListener('pointerdown', pick);
-    R.ov.addEventListener('pointerleave', function(e){ if (e.pointerType === 'mouse') hideTip(); });
+    $$('.gk.hl,.rn.hl,.yr.hl,.chip.hl').forEach(function(n){ n.classList.remove('hl'); });
   }
   function nodeHtml(g){
     var c = g._data;
     if (g._kind === 'court'){
       return '<div class="tt">Dispute #' + c._num + '</div><div class="td" style="margin:0 0 6px">' + esc(c.registry) + '</div>' +
-        '<div class="tr">Opened<b>' + dShort(c.at) + ', ' + hm(c.at) + '</b></div>' +
-        '<div class="tr">Waiting<b>' + c._wait.toFixed(1) + ' days</b></div>' +
+        '<div class="tr">Challenged<b>' + dShort(c.at) + ', ' + hm(c.at) + '</b></div>' +
         '<div class="tr">Status<b style="color:#ffd28a">Awaiting ruling</b></div>';
     }
-    return '<div class="tt">' + esc(c.status) + '</div><div class="td" style="margin:0 0 6px">' + esc(c.registry) + '</div>' +
-      '<div class="tr">Ruled<b>' + dShort(c.at) + ', ' + hm(c.at) + '</b></div>';
+    if (g._kind === 'list'){
+      return '<div class="tt">' + esc(c.r.title) + '</div><div class="td" style="margin:0 0 6px">' + esc(c.r.kind + ' · ' + c.r.chain + ' · ' + (c.r.verified ? 'Verified' : 'Not verified')) + '</div>' +
+        '<div class="tr">Created<b>' + dFull(c.t) + '</b></div>';
+    }
+    return '<div class="tt">' + esc(c.registry) + '</div><div class="td" style="margin:0 0 6px">' + esc(c.status) + '</div>' +
+      '<div class="tr">Ruled<b>' + dShort(c.at) + ', ' + hm(c.at) + '</b></div>' +
+      '<div class="tr">Requester<b' + (c._top ? ' style="color:#93c5fd"' : '') + '>' + esc(c.actor) + '</b></div>';
   }
   function focusNode(g){
     hideTip();
     g.classList.add('hl');
     showTipAt(nodeHtml(g), g._x, g._y - 8);
-  }
-  function nodeEvents(){
-    R.rows.map(function(r){ return r.g; }).concat(R.dots.map(function(d){ return d.g; })).forEach(function(g){
-      g.addEventListener('pointerenter', function(){ focusNode(g); });
-      g.addEventListener('pointerleave', function(e){ if (e.pointerType === 'mouse') hideTip(); });
-      g.addEventListener('focus', function(){ focusNode(g); });
-      g.addEventListener('blur', hideTip);
-      g.addEventListener('click', function(){ openNodeSheet(g, g); });
-      g.addEventListener('keydown', function(e){ if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openNodeSheet(g, g); } });
-    });
   }
   document.addEventListener('pointerdown', function(e){
     if (!plot.contains(e.target) && !e.target.closest('.chip')) hideTip();
@@ -1031,12 +1330,12 @@ sup a:hover{color:var(--blue-hi)}
   /* court chips drive the visual */
   $$('#courtChips .chip').forEach(function(ch){
     var i = +ch.getAttribute('data-court');
-    function on(){ if (stage !== 3) return; focusNode(R.rows[i].g); ch.classList.add('hl'); }
+    function on(){ if (stage !== 3 || !main.R.rows[i]) return; focusNode(main.R.rows[i].g); ch.classList.add('hl'); }
     ch.addEventListener('pointerenter', on);
     ch.addEventListener('focus', on);
     ch.addEventListener('pointerleave', hideTip);
     ch.addEventListener('blur', hideTip);
-    ch.addEventListener('click', function(){ openNodeSheet(R.rows[i].g, ch); });
+    ch.addEventListener('click', function(){ openNodeSheet(main.R.rows[i] ? main.R.rows[i].g : { _data: court[i], _kind: 'court' }, ch); });
   });
 
   /* ---------- scroll: progress through the steps scrubs the visual ---------- */
@@ -1049,6 +1348,7 @@ sup a:hover{color:var(--blue-hi)}
   }
   var W_BLEND = 0.38;   // a stage change is scrubbed over about a third of a step, settling just after the step reaches the reading line
   function blendAt(p, s){ return reduce ? (p >= s - 1 ? 1 : 0) : smooth((p - (s - 1) + W_BLEND - 0.1) / W_BLEND); }
+  function setTargets(p){ BT.b2 = blendAt(p, 2); BT.b3 = blendAt(p, 3); BT.b4 = blendAt(p, 4); BT.b5 = blendAt(p, 5); }
 
   var chaps = $$('.chap').map(function(b){ return { b: b, el: document.getElementById(b.getAttribute('data-go')), fill: $('.bar i', b) }; });
   var skip = $('#skip'), nowEl = $('#ch-now');
@@ -1070,13 +1370,13 @@ sup a:hover{color:var(--blue-hi)}
   function onScroll(){
     sr = 0;
     var p = storyP();
-    BT.b2 = blendAt(p, 2); BT.b3 = blendAt(p, 3); BT.b4 = blendAt(p, 4);
-    setStage(clamp(Math.floor(p) + 1, 1, 4));
+    setTargets(p);
+    setStage(clamp(Math.floor(p) + 1, 1, NSTEP));
     progress();
     kick();
   }
   window.addEventListener('scroll', function(){
-    if (document.hidden){ onScroll(); B.b2 = BT.b2; B.b3 = BT.b3; B.b4 = BT.b4; render(); return; }
+    if (document.hidden){ onScroll(); B.b2 = BT.b2; B.b3 = BT.b3; B.b4 = BT.b4; B.b5 = BT.b5; main.render(); return; }
     if (!sr) sr = requestAnimationFrame(onScroll);
   }, { passive: true });
 
@@ -1087,100 +1387,17 @@ sup a:hover{color:var(--blue-hi)}
     });
   });
 
-  /* ---------- latest: open to challenge, grouped by registry ---------- */
-  function parseId(id){
-    var p = String(id || '').split(':');
-    if (p.length === 3) return { chainId: p[1], addr: p[2], short: p[2].slice(0, 6) + '…' + p[2].slice(-4) };
-    return { chainId: '', addr: id || '', short: id || '' };
+  /* ---------- the ending: live figures, read straight from the snapshot ---------- */
+  // open to challenge = open requests minus the ones already in court (disputed requests are still counted as open)
+  var LIVE = { openToChallenge: F.requestsOpen - F.inCourt };
+  function LV(k){ return LIVE[k] != null ? LIVE[k] : F[k]; }
+  var liveEls = $$('[data-live]');
+  liveEls.forEach(function(el){ el.textContent = fmt(LV(el.getAttribute('data-live'))); });
+  function runLive(){ liveEls.forEach(function(el){ var k = el.getAttribute('data-live'); counted['live-' + k] = false; countTo(el, LV(k), 'live-' + k); }); }
+  // the final values stay in the page (full-page views, print); the count-up only runs when the panel scrolls into view
+  if ('IntersectionObserver' in window && !reduce){
+    new IntersectionObserver(function(en, o){ if (en[0].isIntersecting){ runLive(); o.disconnect(); } }, { threshold: 0.25 }).observe($('#live'));
   }
-  var chev = '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  var oneDay = S.openToChallenge.every(function(o){ return dShort(o.at) === dShort(S.openToChallenge[0].at); });
-  function oTime(t){ return oneDay ? hm(t) : dShort(t) + ' ' + hm(t); }
-  $('[data-f="openCap"]').textContent = 'Newest ' + S.openToChallenge.length + ', by registry · ' + (oneDay ? 'all requested ' + dShort(S.openToChallenge[0].at) + ', ' : '') + 'times in UTC';
-  var groups = [], gIdx = {};
-  S.openToChallenge.forEach(function(o, i){
-    if (gIdx[o.registry] == null){ gIdx[o.registry] = groups.length; groups.push({ registry: o.registry, chain: o.chain, items: [] }); }
-    groups[gIdx[o.registry]].items.push({ o: o, i: i });
-  });
-  $('#olist').innerHTML = groups.map(function(g){
-    var actors = {}; g.items.forEach(function(it){ actors[it.o.actor] = 1; });
-    var ak = Object.keys(actors);
-    var meta = g.chain + ' registry · ' + g.items.length + ' request' + (g.items.length === 1 ? '' : 's') + ' · <i>' + (ak.length === 1 ? 'by ' + esc(ak[0]) : ak.length + ' requesters') + '</i>';
-    return '<div class="og"><div class="og-h"><b>' + esc(g.registry) + '</b><span>' + meta + '</span></div>' +
-      g.items.map(function(it){
-        var o = it.o, p = parseId(o.id);
-        return '<button class="orow" data-open="' + it.i + '" aria-label="' + esc(p.short + ' on ' + chainName(p.chainId) + ', ' + o.registry + ', requested ' + dShort(o.at) + ' ' + hm(o.at)) + '">' +
-          '<span class="ent"><b>' + esc(p.short) + '</b><span class="on">on ' + esc(chainName(p.chainId)) + '</span></span>' +
-          '<span class="tm">' + oTime(o.at) + '</span>' + chev + '</button>';
-      }).join('') + '</div>';
-  }).join('');
-  $$('#olist .orow').forEach(function(b){
-    b.addEventListener('click', function(){
-      var o = S.openToChallenge[+b.getAttribute('data-open')], p = parseId(o.id);
-      openSheet({
-        eyebrow: o.chain + ' registry · ' + o.status,
-        title: p.short + ' on ' + chainName(p.chainId),
-        rows: [['Registry', o.registry], ['Entry', p.addr], ['Entry chain', chainName(p.chainId) + (CHAIN[p.chainId] ? ' · ' + p.chainId : '')], ['Requested', dFull(o.at) + ', ' + hm(o.at) + ' UTC'], ['Requester', o.actor]],
-        note: 'Challenging posts a deposit. If jurors agree with you, you take the deposits minus one arbitration cost.',
-        acts: [['Challenge this entry', 'btn-blue'], ['View entry', 'btn-ghost']]
-      }, b);
-    });
-  });
-
-  /* entries by registry chain */
-  var chains = S.entriesByChain.slice().sort(function(a, b){ return b.entries - a.entries; });
-  var totE = chains.reduce(function(s, c){ return s + c.entries; }, 0);
-  function pct(v){ return (v / totE * 100).toFixed(1) + '%'; }
-  var sb = $('#splitBar'), stip = $('#splitTip');
-  $('#splitK').innerHTML = chains.map(function(c){ return '<span>' + c.chain + ' <b>' + pct(c.entries) + '</b></span>'; }).join('');
-  chains.forEach(function(c, j){
-    var b = document.createElement('button');
-    b.className = j === 0 ? 'seg-g' : 'seg-e';
-    b.style.flex = String(c.entries);
-    b.setAttribute('aria-label', c.chain + ': ' + fmt(c.entries) + ' entries, ' + pct(c.entries));
-    function on(){
-      stip.textContent = c.chain + ' · ' + fmt(c.entries) + ' entries · ' + pct(c.entries);
-      stip.classList.add('on');
-      var bl = b.offsetLeft + b.offsetWidth / 2, tw = stip.offsetWidth;
-      stip.style.left = clamp(bl - tw / 2, 0, sb.offsetWidth - tw) + 'px';
-    }
-    b.addEventListener('pointerenter', on); b.addEventListener('focus', on); b.addEventListener('click', on);
-    b.addEventListener('pointerleave', function(){ stip.classList.remove('on'); });
-    b.addEventListener('blur', function(){ stip.classList.remove('on'); });
-    sb.appendChild(b);
-  });
-
-  /* curators */
-  var curs = S.curators.slice().sort(function(a, b){ return b.submissions - a.submissions; }).slice(0, 5);
-  var curMax = curs.length ? curs[0].submissions : 1;
-  $('#curs').innerHTML = curs.map(function(c){
-    var sub = c.challenges ? '<span><b>' + c.challenges + '</b> challenge' + (c.challenges === 1 ? '' : 's') + ' · ' + c.won + ' won</span>' : '<span>No challenges</span>';
-    return '<div class="cur"><div class="a">' + esc(c.address) + sub + '</div><div class="tr" title="' + fmt(c.submissions) + ' submissions"><i style="width:' + (c.submissions / curMax * 100).toFixed(1) + '%"></i></div><div class="v">' + fmt(c.submissions) + '</div></div>';
-  }).join('');
-  new IntersectionObserver(function(entries, o){
-    if (entries[0].isIntersecting){ $('#curs').classList.add('in'); o.disconnect(); }
-  }, { threshold: 0.3 }).observe($('#curs'));
-
-  /* gallery */
-  var check = '<svg viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M7 1.2 8.6 2.4l2 .1.6 1.9 1.4 1.5-.7 1.9.3 2-1.7 1.1-.9 1.8-2-.2L7 13l-1.6-1.2-2 .2-.9-1.8-1.7-1.1.3-2L.4 5.9l1.4-1.5.6-1.9 2-.1z" fill="currentColor" opacity=".22"/><path d="m4.6 7.1 1.6 1.6 3.3-3.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  $('#track').innerHTML = verifiedTop.map(function(r){
-    var y = r.created.slice(0, 4), mo = MON[+r.created.slice(5, 7) - 1];
-    return '<a class="rc" href="#"><span class="top"><span class="vb">' + check + 'Verified</span><span class="sep"></span>' + r.chain + '<span class="sep"></span>' + r.kind + '</span>' +
-      '<h4>' + esc(r.title) + '</h4><span class="n">' + fmt(r.entries) + '<small>entries</small></span>' +
-      '<span class="st"><span><b>' + r.open + '</b> open</span>' + (r.inCourt ? '<span class="c"><b>' + r.inCourt + '</b> in court</span>' : '') + '<span>since ' + mo + ' ' + y + '</span></span></a>';
-  }).join('');
-  var track = $('#track'), pPrev = $('#pPrev'), pNext = $('#pNext');
-  function paddles(){
-    pPrev.disabled = track.scrollLeft < 4;
-    pNext.disabled = track.scrollLeft + track.clientWidth > track.scrollWidth - 4;
-  }
-  function slide(dir){
-    var card = $('.rc', track), w = card ? card.offsetWidth + 12 : 300;
-    track.scrollBy({ left: dir * w * Math.max(1, Math.floor(track.clientWidth / w)), behavior: reduce ? 'auto' : 'smooth' });
-  }
-  pPrev.addEventListener('click', function(){ slide(-1); });
-  pNext.addEventListener('click', function(){ slide(1); });
-  track.addEventListener('scroll', paddles, { passive: true });
 
   /* ---------- sheet ---------- */
   var sheet = $('#sheet'), lastFocus = null;
@@ -1219,15 +1436,24 @@ sup a:hover{color:var(--blue-hi)}
       openSheet({
         eyebrow: c.chain + ' · In court',
         title: 'Dispute #' + c._num,
-        rows: [['Registry', c.registry], ['Opened', dFull(c.at) + ', ' + hm(c.at) + ' UTC'], ['Waiting', c._wait.toFixed(1) + ' days, to the snapshot'], ['Requester', c.actor], ['Status', 'Awaiting ruling']],
-        note: 'Kleros jurors are reviewing the challenge to this request. The winning side takes the deposits, minus one arbitration cost.',
+        rows: [['Registry', c.registry], ['Challenged', dFull(c.at) + ', ' + hm(c.at) + ' UTC'], ['Requester', c.actor], ['Status', 'Awaiting ruling at the snapshot']],
+        note: '',
         acts: [['View dispute', 'btn-blue'], ['Open registry', 'btn-ghost']]
       }, opener);
+    } else if (g._kind === 'list'){
+      openSheet({
+        eyebrow: c.r.chain + ' · ' + c.r.kind + ' registry',
+        title: c.r.title,
+        rows: [['Created', dFull(c.t)], ['Chain', c.r.chain], ['Kind', c.r.kind], ['Verified', c.r.verified ? 'Yes' : 'No']],
+        note: '',
+        acts: [['Open registry', 'btn-blue'], ['Close', 'btn-ghost']]
+      }, opener);
     } else {
+      var a = actMap[c.actor];
       openSheet({
         eyebrow: c.chain + ' · Ruling',
         title: c.status,
-        rows: [['Registry', c.registry], ['Ruled', dFull(c.at) + ', ' + hm(c.at) + ' UTC'], ['Outcome', OUT[c.outcome] ? OUT[c.outcome].label : c.outcome]],
+        rows: [['Registry', c.registry], ['Ruled', dFull(c.at) + ', ' + hm(c.at) + ' UTC'], ['Requester', c.actor], ['Their rulings', (a ? a.n : 1) + ' of the latest ' + NR]],
         note: '',
         acts: [['View entry', 'btn-blue'], ['Open registry', 'btn-ghost']]
       }, opener);
@@ -1237,25 +1463,46 @@ sup a:hover{color:var(--blue-hi)}
   /* ---------- boot ---------- */
   if (document.hidden) entry = 1;   // nobody is watching a background load; show the drawn chart
   (function(){
-    var p = storyP(), s0 = clamp(Math.floor(p) + 1, 1, 4);
+    var p = storyP(), s0 = clamp(Math.floor(p) + 1, 1, NSTEP);
     setCaption(s0, true);             // caption first, so the plot is measured at its final height
-    build();
-    B.b2 = BT.b2 = blendAt(p, 2); B.b3 = BT.b3 = blendAt(p, 3); B.b4 = BT.b4 = blendAt(p, 4);
+    main.build();
+    stills.forEach(function(x){ x.chart.build(); });
+    setTargets(p); B.b2 = BT.b2; B.b3 = BT.b3; B.b4 = BT.b4; B.b5 = BT.b5;
     setStage(s0, true);
   })();
-  render();
+  main.render();
   progress();
-  paddles();
   if (!reduce) kick();
 
-  var rT = 0, wT = 0;
-  if (window.ResizeObserver){
-    new ResizeObserver(function(){ clearTimeout(rT); rT = setTimeout(function(){ build(); hideTip(); }, 120); }).observe(plot);
+  var wT = 0;
+  function watch(el, chart){
+    if (!window.ResizeObserver) return;
+    var t = 0, w0 = -1, h0 = -1;
+    new ResizeObserver(function(){
+      var w = el.clientWidth, h = el.clientHeight;
+      if (w === w0 && h === h0) return;
+      w0 = w; h0 = h;
+      clearTimeout(t); t = setTimeout(function(){ chart.build(); if (chart === main) hideTip(); }, 120);
+    }).observe(el);
   }
+  watch(plot, main);
+  stills.forEach(function(x){ watch($('.plot', x.fig), x.chart); });
+  function rebuildAll(){ main.build(); stills.forEach(function(x){ x.chart.build(); }); }
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(rebuildAll);
+  function forPrint(){
+    printing = true;
+    $$('[data-count]').forEach(function(el){ counted[el.getAttribute('data-count')] = true; el.textContent = fmt(COUNT[el.getAttribute('data-count')]); });
+    liveEls.forEach(function(el){ counted['live-' + el.getAttribute('data-live')] = true; el.textContent = fmt(LV(el.getAttribute('data-live'))); });
+    stills.forEach(function(x){ x.chart.build(); });
+  }
+  window.addEventListener('beforeprint', forPrint);
+  window.addEventListener('afterprint', function(){ printing = false; stills.forEach(function(x){ x.chart.build(); }); });
+  var PMQ = window.matchMedia('print');
+  PMQ.addEventListener && PMQ.addEventListener('change', function(e){ if (e.matches) forPrint(); });
   window.addEventListener('resize', function(){
-    clearTimeout(wT); wT = setTimeout(function(){ onScroll(); paddles(); }, 150);
+    clearTimeout(wT); wT = setTimeout(onScroll, 150);
   });
-  RMQ.addEventListener && RMQ.addEventListener('change', function(e){ reduce = e.matches; if (reduce){ entry = 1; } onScroll(); });
+  RMQ.addEventListener && RMQ.addEventListener('change', function(e){ reduce = e.matches; if (reduce){ entry = 1; } onScroll(); rebuildAll(); });
 })();
 </script>
 </body>

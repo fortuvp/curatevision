@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Curate Court Board</title>
-<meta name="description" content="CurateVision home dashboard variant: Curate requests as a status board (open to challenge, in court, decided).">
+<meta name="description" content="CurateVision home dashboard variant: every case in the pipeline with its age. Open requests and rulings carry age rings and their registry figures; disputes in court are grouped by the burst they arrived in.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&family=Urbanist:wght@500;600&display=swap" rel="stylesheet">
@@ -130,32 +130,21 @@ a{color:inherit;text-decoration:none}
 .ch-title{grid-area:title;display:flex;align-items:center;gap:8px;min-width:0;height:24px}
 .ch-title svg{flex:none;display:block}
 .ch-title h2{margin:0;font-size:13.5px;font-weight:500;white-space:nowrap}
-.ch-vis{grid-area:vis;justify-self:end;display:flex;align-items:center;height:24px}
-.ch-vis svg{display:block;overflow:visible}
+.ch-med{grid-area:vis;justify-self:end;font-family:var(--display);font-weight:500;font-size:24px;line-height:26px;letter-spacing:-.015em;font-variant-numeric:tabular-nums;color:var(--text);white-space:nowrap}
+.ch-med.na{color:var(--text-3)}
 .ch-scope{grid-area:scope;min-width:0;font-size:12px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ch-cap{grid-area:cap;justify-self:end;font-size:12px;color:var(--text-3);white-space:nowrap}
 .ch-cap b{color:var(--text-2);font-weight:500;font-variant-numeric:tabular-nums}
-.ch-reg{grid-area:reg;display:none}
-.cnt-btn{display:inline-flex;align-items:center;gap:3px;height:22px;padding:0 4px 0 7px;border-radius:7px;font-size:12px;font-weight:500;font-variant-numeric:tabular-nums;color:var(--text);background:rgba(255,255,255,.04);box-shadow:inset 0 0 0 1px var(--line-2);transition:background .15s,box-shadow .15s;white-space:nowrap}
-.cnt-btn svg{display:block;opacity:.5;transition:opacity .15s,transform .2s var(--ease)}
-.cnt-btn:hover,.cnt-btn[aria-expanded="true"]{background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 1px var(--line-3)}
-.cnt-btn:hover svg,.cnt-btn[aria-expanded="true"] svg{opacity:.9}
-.cnt-btn[aria-expanded="true"] svg{transform:rotate(180deg)}
-.cnt-btn:focus-visible,.ch-reg:focus-visible{outline:2px solid rgba(var(--blue-rgb),.8);outline-offset:2px}
-.cnt-btn.amber{color:var(--amber)}
-.cnt-btn.muted{color:var(--text-2);font-weight:400}
-.svg-in .bar-g{transform-box:fill-box;transform-origin:50% 100%;animation:grow .7s var(--ease) both;animation-delay:calc(var(--k) * 16ms + 120ms)}
-.svg-in .pop-in{transform-box:fill-box;transform-origin:50% 50%;animation:popin .5s var(--spring) both;animation-delay:calc(var(--k) * 45ms + 200ms)}
-@keyframes grow{from{transform:scaleY(0)}to{transform:none}}
-@keyframes popin{from{opacity:0;transform:scale(.3)}to{opacity:1;transform:none}}
-
+.cnt-chip{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:22px;padding:0 7px;border-radius:7px;font-size:12px;font-weight:500;font-variant-numeric:tabular-nums;color:var(--text);background:rgba(255,255,255,.04);box-shadow:inset 0 0 0 1px var(--line-2)}
+.cnt-chip.blue{color:#8fb2ff;box-shadow:inset 0 0 0 1px rgba(var(--blue-rgb),.4)}
+.cnt-chip.amber{color:var(--amber);box-shadow:inset 0 0 0 1px rgba(245,165,36,.4)}
 .list{position:relative;flex:1;min-height:0;overflow-y:auto;padding:12px 12px 24px;display:flex;flex-direction:column;gap:8px;scrollbar-width:thin;scrollbar-color:#23262d transparent;
   -webkit-mask-image:linear-gradient(#000 calc(100% - 28px),transparent);mask-image:linear-gradient(#000 calc(100% - 28px),transparent)}
 .list::-webkit-scrollbar{width:8px}
 .list::-webkit-scrollbar-thumb{background:#23262d;border-radius:8px;border:2px solid var(--frame)}
 
 /* card: always three rows, same height in every column */
-.cw{position:relative;flex:none;animation:rise .55s var(--ease) both;animation-delay:calc(var(--i,0) * 38ms + var(--cd,0ms))}
+.cw{position:relative;flex:none}
 .card{position:relative;display:flex;flex-direction:column;gap:8px;width:100%;height:98px;text-align:left;padding:11px 12px;border-radius:10px;background:linear-gradient(180deg,#121419,#0f1115);
   box-shadow:inset 0 0 0 1px var(--line),0 1px 0 rgba(0,0,0,.4);transition:box-shadow .2s var(--ease),background .2s;overflow:hidden;isolation:isolate}
 .card::before{content:"";position:absolute;inset:0;z-index:-1;opacity:0;transition:opacity .25s;
@@ -169,7 +158,7 @@ a{color:inherit;text-decoration:none}
 .av{flex:none;display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px;font-size:10px;font-weight:600;letter-spacing:.02em;color:#d5d9e1;
   background:linear-gradient(145deg,#272a33,#16181d);box-shadow:inset 0 0 0 1px rgba(255,255,255,.09)}
 .c-reg{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-2);font-size:12.5px}
-.age{margin-left:auto;flex:none;color:var(--text-2);font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.age{margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:7px;color:var(--text);font-size:12.5px;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
 .card .t{font-size:14px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .card .t2{flex:none;font-size:12.5px;color:var(--text-3);white-space:nowrap}
 .mono{font-family:var(--mono)}
@@ -204,10 +193,10 @@ a{color:inherit;text-decoration:none}
 .xr .id{font-family:var(--mono);font-size:12px;color:var(--text-3)}
 .xr .ag{font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums;min-width:30px;text-align:right}
 
-.more{flex:none;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-radius:10px;color:var(--text-3);font-size:12px;box-shadow:inset 0 0 0 1px var(--line);animation:rise .55s var(--ease) both;animation-delay:calc(var(--i,0) * 38ms + var(--cd,0ms))}
+.more{flex:none;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-radius:10px;color:var(--text-3);font-size:12px;box-shadow:inset 0 0 0 1px var(--line)}
 .more a{color:var(--text-2)}
 .more a:hover{color:#fff}
-.empty{flex:none;padding:22px 16px;border-radius:10px;text-align:center;color:var(--text-3);font-size:12px;background:rgba(255,255,255,.015);box-shadow:inset 0 0 0 1px var(--line);animation:rise .5s var(--ease) both}
+.empty{flex:none;padding:22px 16px;border-radius:10px;text-align:center;color:var(--text-3);font-size:12px;background:rgba(255,255,255,.015);box-shadow:inset 0 0 0 1px var(--line)}
 .empty b{display:block;margin-bottom:4px;color:var(--text-2);font-weight:500;font-size:13px}
 
 /* list view */
@@ -216,7 +205,7 @@ a{color:inherit;text-decoration:none}
 .lv-head{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:10px;padding:10px 22px;background:rgba(13,14,18,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);font-weight:500}
 .lv-head svg{display:block}
 .lv-head .cap{color:var(--text-3);font-weight:400;font-size:12px}
-.lv-row{display:grid;grid-template-columns:18px minmax(170px,1fr) minmax(170px,1.2fr) 150px 170px 56px;align-items:center;gap:16px;width:100%;text-align:left;padding:0 22px;height:44px;border-bottom:1px solid rgba(255,255,255,.035);transition:background .15s;animation:rise .45s var(--ease) both;animation-delay:calc(var(--i,0) * 22ms)}
+.lv-row{display:grid;grid-template-columns:18px minmax(170px,1fr) minmax(170px,1.2fr) 150px 170px 56px;align-items:center;gap:16px;width:100%;text-align:left;padding:0 22px;height:44px;border-bottom:1px solid rgba(255,255,255,.035);transition:background .15s}
 .lv-row:hover,.lv-row:focus-visible{background:rgba(255,255,255,.03);outline:none}
 .lv-row:focus-visible,.lv-row.sel{box-shadow:inset 2px 0 0 var(--blue)}
 .lv-row .si{display:flex;align-items:center;justify-content:center;height:100%}
@@ -236,32 +225,8 @@ a{color:inherit;text-decoration:none}
 .status .pill{display:inline-flex;align-items:center;gap:7px;height:22px;padding:0 9px;border-radius:7px;background:rgba(var(--blue-rgb),.08);box-shadow:inset 0 0 0 1px rgba(var(--blue-rgb),.25);color:#b8ccff}
 .status .sep{width:1px;height:12px;background:var(--line-2)}
 .status b{color:var(--text-2);font-weight:500;font-variant-numeric:tabular-nums}
-.split{display:inline-flex;gap:2px;width:44px;height:4px;vertical-align:middle;margin:0 2px}
-.split i{display:block;height:100%;border-radius:2px;background:var(--blue)}
-.split i+i{background:#5b6475}
 .kbd{display:inline-flex;align-items:center;gap:6px;margin-left:auto}
 kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 4px;border-radius:5px;font-family:var(--mono);font-size:11px;color:var(--text-2);background:#15171c;box-shadow:inset 0 0 0 1px var(--line-2),0 1px 0 rgba(0,0,0,.5)}
-
-/* ---------- registry popover ---------- */
-.pop{position:fixed;z-index:40;width:330px;max-width:calc(100vw - 24px);padding:12px 8px 10px;border-radius:14px;background:#0e1014;box-shadow:0 0 0 1px rgba(255,255,255,.1),0 24px 60px -20px rgba(0,0,0,.95);
-  opacity:0;visibility:hidden;transform:translateY(-4px) scale(.98);transform-origin:top left;transition:opacity .16s,transform .22s var(--ease),visibility 0s .22s}
-.pop.on{opacity:1;visibility:visible;transform:none;transition:opacity .16s,transform .22s var(--ease),visibility 0s}
-.pop-h{display:flex;justify-content:space-between;gap:12px;font-size:12px;color:var(--text-3);margin:0 8px 8px}
-.pop-h b{color:var(--text);font-weight:500;font-variant-numeric:tabular-nums}
-.pr{display:grid;grid-template-columns:minmax(0,1fr) 64px 34px;align-items:center;gap:10px;width:100%;height:32px;padding:0 8px;border-radius:8px;text-align:left;font-size:12.5px;color:var(--text-2);transition:background .15s,color .15s}
-.pr:hover,.pr:focus-visible{background:rgba(255,255,255,.05);color:var(--text);outline:none}
-.pr .nm{display:flex;align-items:center;gap:8px;min-width:0}
-.pr .nm span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pr .av{width:18px;height:18px;font-size:9px;border-radius:5px}
-.pr .bar{height:4px;border-radius:2px;background:rgba(255,255,255,.06);overflow:hidden}
-.pr .bar i{display:block;height:100%;border-radius:2px;background:#4a5160;transition:background .15s}
-.pr:hover .bar i{background:#8a92a0}
-.pr.on{color:#fff}
-.pr.on .bar i{background:var(--blue);box-shadow:0 0 8px rgba(var(--blue-rgb),.6)}
-.pr .v{text-align:right;font-variant-numeric:tabular-nums;color:var(--text)}
-.pop-f{display:flex;justify-content:space-between;align-items:center;margin:8px 8px 0;padding-top:8px;border-top:1px solid var(--line);font-size:12px;color:var(--text-3)}
-.pop-f button{color:var(--text-2)}
-.pop-f button:hover{color:#fff}
 
 /* ---------- sheet ---------- */
 .scrim{position:absolute;inset:0;z-index:20;background:rgba(3,4,8,.55);backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:opacity .3s var(--ease)}
@@ -290,9 +255,6 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
 .ctx-h{font-size:12px;color:var(--text-3);margin-bottom:10px}
 .ctx-h b{color:var(--text-2);font-weight:500}
 .ctx > svg{display:block;width:100%;height:auto;overflow:visible}
-.ctx-leg svg{display:block}
-.ctx-leg{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;font-size:12px;color:var(--text-2)}
-.ctx-leg span{display:inline-flex;align-items:center;gap:6px}
 .ctx .xr{padding:0 6px}
 .ctx .xr.cur{background:rgba(var(--blue-rgb),.08);box-shadow:inset 0 0 0 1px rgba(var(--blue-rgb),.3)}
 .props{margin:16px 0 0;display:grid;grid-template-columns:116px 1fr;font-size:12.5px}
@@ -302,21 +264,6 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
 .props dd .dim{color:var(--text-3)}
 .copy{flex:none;display:inline-flex;align-items:center;height:22px;padding:0 7px;border-radius:6px;font-size:12px;color:var(--text-2);box-shadow:inset 0 0 0 1px var(--line-2);background:#15171c}
 .copy:hover{color:#fff}
-.sh-h{margin:22px 0 8px;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3)}
-.amb{margin:0 0 10px;font-size:12.5px;color:var(--text-2);line-height:1.5}
-.rg{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;border-radius:12px;overflow:hidden;background:var(--line);box-shadow:inset 0 0 0 1px var(--line);margin-bottom:8px}
-.rg > div{background:#101216;padding:10px 12px}
-.rg .n{font-size:17px;font-weight:500;color:#fff;font-variant-numeric:tabular-nums}
-.rg .l{font-size:12px;color:var(--text-3);margin-top:2px}
-.rg-meta{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 6px}
-.others{margin-top:10px;border-radius:12px;box-shadow:inset 0 0 0 1px var(--line)}
-.others summary{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;font-size:12.5px;color:var(--text-2);cursor:pointer;list-style:none}
-.others summary::-webkit-details-marker{display:none}
-.others summary svg{transition:transform .2s var(--ease)}
-.others[open] summary svg{transform:rotate(180deg)}
-.others summary:hover{color:#fff}
-.orow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:9px 12px;border-top:1px solid var(--line);font-size:12.5px;color:var(--text-2)}
-.orow b{color:var(--text);font-weight:500;font-variant-numeric:tabular-nums}
 .sh-foot{display:flex;gap:8px;padding:14px 18px;border-top:1px solid var(--line)}
 .sh-foot .btn{flex:1}
 
@@ -329,13 +276,101 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
 /* mobile status tabs (hidden on desktop) */
 .mtabs{display:none}
 
+
+/* ---------- flow summary (toolbar) ---------- */
+.flow{flex:none;display:flex;align-items:center;gap:6px;min-width:0;font-size:12.5px;color:var(--text-2);white-space:nowrap}
+.fl-lab{margin-right:4px;font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.fl{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px 0 8px;border-radius:999px;background:rgba(255,255,255,.03);box-shadow:inset 0 0 0 1px var(--line-2)}
+.fl svg{display:block;flex:none}
+.fl b{font-family:var(--display);font-weight:600;font-size:15px;color:var(--text);font-variant-numeric:tabular-nums}
+.fl-ar{display:block;flex:none;color:#5d6574}
+.toolbar > #regSeg{margin-left:auto}
+.tb-r{margin-left:0}
+
+/* ---------- age ring, oldest flag, outcome groups, footnotes ---------- */
+.ring{display:block;flex:none;overflow:visible}
+.ring .trk{stroke:rgba(255,255,255,.1)}
+@keyframes ringIn{from{stroke-dasharray:0 var(--C)}}
+.old{margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 8px 0 7px;border-radius:999px;font-size:11.5px;font-weight:500;color:var(--text);background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px var(--line-3)}
+.old i{width:6px;height:6px;border-radius:50%;background:var(--c);box-shadow:0 0 7px var(--c)}
+.card.is-old{background:linear-gradient(180deg,#15171d,#101216)}
+.gh{flex:none;display:flex;align-items:center;gap:8px;padding:8px 4px 0 6px;font-size:12.5px;font-weight:500;color:var(--text)}
+.gh:first-child{padding-top:0}
+.gh .oi{display:block}
+.gh-n{margin-left:auto;font-weight:400;color:var(--text-2);font-variant-numeric:tabular-nums}
+.gh-n b{color:var(--text);font-weight:500}
+.cf{flex:none;margin:0;padding:9px 16px 11px 18px;border-top:1px solid var(--line);font-size:11.5px;line-height:1.45;color:var(--text-3)}
+.cf b{color:var(--text-2);font-weight:500}
+.lv-sub{display:flex;align-items:center;gap:8px;padding:8px 22px 6px 22px;font-size:12px;font-weight:500;color:var(--text-2);border-bottom:1px solid rgba(255,255,255,.035)}
+.lv-sub .gh-n{margin-left:8px}
+.lv-head .cnt-chip{height:20px}
+.lv-row .age{justify-content:flex-end}
+.lv-row .main .old{margin-left:6px}
+.lv-row .main .t + .old{margin-left:8px}
+.lv-row{grid-template-columns:18px minmax(170px,1fr) minmax(170px,1.2fr) 150px 170px 150px}
+.status .fn{color:var(--text-3)}
+.status .fn b{color:var(--text-2);font-weight:500}
+.strip text{font-family:var(--font);font-size:12px;fill:#8a92a0}
+.strip .lab{fill:#c9ced8}
+
+/* ---------- entrance: only while the board carries .intro, which JS removes after 640ms.
+   Every delay is at most 300ms and every run 300ms, so the board is complete by 600ms. ---------- */
+.intro .cw,.intro .burst,.intro .more,.intro .gh,.intro .empty,.intro .lv-row,.intro .lv-sub{animation:rise .3s var(--ease) backwards;animation-delay:var(--d,0ms)}
+.intro .ring .arc{animation:ringIn .3s var(--ease) backwards;animation-delay:var(--d,0ms)}
+
+/* micro-labels: say what a ring, an age or a figure row measures, right where it sits */
+.ml{flex:none;font-size:10.5px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);white-space:nowrap}
+.age .ml{margin-left:-1px}
+
+/* list figures row (open + decided cards): the card registry's own columns */
+.rf{display:inline-flex;align-items:center;gap:6px;min-width:0;overflow:hidden;font-size:12px;color:var(--text-3);white-space:nowrap}
+.rf b{color:var(--text);font-weight:500;font-variant-numeric:tabular-nums}
+.rf .ml{margin-right:1px}
+.rf .dv{flex:none;width:3px;height:3px;border-radius:50%;background:#5d6574}
+.rf .oi + b{margin-left:-2px}
+.ent{margin-left:auto;flex:none;font-size:12px;color:var(--text-3);white-space:nowrap;font-variant-numeric:tabular-nums}
+.ent b{color:var(--text-2);font-weight:500}
+
+/* ---------- In court: disputes grouped by burst (arrival batches) ---------- */
+.ch-med{height:26px}
+.ch-med small{font-family:var(--font);font-size:13px;font-weight:500;line-height:1;letter-spacing:0;color:var(--text-2)}
+.burst{position:relative;flex:none;border-radius:12px;background:linear-gradient(180deg,#121419,#0f1115);box-shadow:inset 0 0 0 1px var(--line),0 1px 0 rgba(0,0,0,.4)}
+.burst.multi{background:linear-gradient(180deg,rgba(245,165,36,.055),rgba(245,165,36,0) 70%),linear-gradient(180deg,#121419,#0f1115);box-shadow:inset 0 0 0 1px rgba(245,165,36,.2),0 1px 0 rgba(0,0,0,.4)}
+.bh{display:flex;flex-direction:column;gap:6px;padding:11px 12px 6px}
+.bh .r{display:flex;align-items:center;gap:8px;height:22px;min-width:0}
+.bage{margin-left:auto;flex:none;display:inline-flex;align-items:baseline;gap:7px;white-space:nowrap}
+.bage b{font-family:var(--display);font-weight:600;font-size:18px;letter-spacing:-.01em;color:var(--text);font-variant-numeric:tabular-nums}
+.bk{display:inline-flex;align-items:center;gap:8px;min-width:0;font-size:13.5px;font-weight:500;color:var(--text);white-space:nowrap}
+.pips{flex:none;display:inline-flex;gap:3px}
+.pips i{width:7px;height:7px;border-radius:50%;background:var(--amber);box-shadow:0 0 6px rgba(245,165,36,.55)}
+.burst:not(.multi) .pips i{background:transparent;box-shadow:inset 0 0 0 1.5px var(--amber)}
+.bt{margin-left:auto;flex:none;font-size:12px;color:var(--text-3);white-space:nowrap;font-variant-numeric:tabular-nums}
+.brows{padding:0 4px 4px}
+.brow{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;width:100%;height:32px;padding:0 8px;border-radius:8px;text-align:left;font-size:13px;color:var(--text);transition:background .15s,box-shadow .15s}
+.brow:hover,.brow:focus-visible{background:rgba(255,255,255,.05);outline:none}
+.brow:focus-visible{box-shadow:inset 0 0 0 1px rgba(var(--blue-rgb),.8)}
+.brow.sel{background:rgba(var(--blue-rgb),.08);box-shadow:inset 0 0 0 1px rgba(var(--blue-rgb),.5)}
+.brow .bn{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.brow .bn .t2{margin-left:6px;font-weight:400;color:var(--text-3);font-size:12px}
+.brow .off{font-size:12.5px;color:var(--text-2);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.brow .off .ml{margin-right:6px}
+.bf{display:flex;align-items:center;gap:8px;padding:8px 12px 10px;border-top:1px solid var(--line);font-size:12px;color:var(--text-3);white-space:nowrap;min-width:0}
+.bf span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.bf b{color:var(--text);font-weight:500;font-variant-numeric:tabular-nums}
+.meter{flex:none;position:relative;width:56px;height:5px;margin-left:auto;border-radius:5px;background:rgba(255,255,255,.1);overflow:hidden}
+.meter i{position:absolute;left:0;top:0;bottom:0;border-radius:5px;background:var(--amber);box-shadow:0 0 6px rgba(245,165,36,.6)}
+.lv-sub .pips{margin-right:2px}
+.lv-row .age .ml{margin-right:2px}
+.ctx .xr .tm{font-size:12px;color:var(--text-3);font-variant-numeric:tabular-nums}
+.ctx .xr .pip{width:7px;height:7px;border-radius:50%;background:var(--amber);justify-self:center}
+
 /* ---------- responsive ---------- */
-@media (max-width: 1280px){ .kbd{display:none} .stage{padding:36px 40px 30px} }
+@media (max-width: 1560px){ .kbd{display:none} }
+@media (max-width: 1280px){ .stage{padding:36px 40px 30px} }
 @media (max-width: 1180px){
   .nav a.opt{display:none}
   .status .md-hide,.status .sep:has(+ .md-hide){display:none}
-  .ch-scope{display:none}
-  .ch{grid-template-areas:"title vis" "cap cap"}
+  .flow .fl-lab{display:none}
 }
 @media (max-width: 860px){
   body{overflow:auto}
@@ -346,23 +381,28 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
   .toolbar{flex-wrap:wrap;padding:12px 14px 12px;gap:10px}
   .tb-title{order:1}
   .tb-r{order:2;margin-left:auto}
-  .mtabs{order:3;display:flex;width:100%}
+  .mtabs{order:4;display:flex;width:100%}
   .mtabs .seg-in{width:100%}
   .mtabs button{flex:1;justify-content:center;padding:0 8px}
-  .toolbar > #regSeg{order:4;width:100%}
+  .toolbar > #regSeg{order:5;width:100%}
   .board{display:block}
   .col{display:none;border-right:0}
   .col.active{display:flex;animation:swap .35s var(--ease) both}
   .col.from-l{animation-name:swapL}
   @keyframes swap{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:none}}
   @keyframes swapL{from{opacity:0;transform:translateX(-18px)}to{opacity:1;transform:none}}
-  .ch{grid-template-areas:"cap vis" "reg vis";padding:12px 14px 10px 16px;row-gap:2px}
-  .ch-title,.ch-scope{display:none}
-  .ch-cap{justify-self:start}
-  .ch-reg{display:inline-flex;align-items:center;gap:3px;justify-self:start;height:22px;margin-left:-6px;padding:0 6px;border-radius:7px;font-size:12px;color:var(--text-2)}
-  .ch-reg svg{opacity:.6}
-  .ch-reg[aria-expanded="true"]{background:rgba(255,255,255,.06);color:#fff}
-  .ch-vis{height:44px}
+  .ch{grid-template-areas:"scope vis" "scope cap";padding:12px 14px 10px 16px;row-gap:2px}
+  .ch-title{display:none}
+  .ch-scope{white-space:normal;font-size:12.5px;color:var(--text-2);align-self:center}
+  .flow{order:3;width:100%;justify-content:space-between;gap:4px;padding:0;font-size:12px}
+  .fl{gap:5px;padding:0 8px 0 6px}
+  .fl b{font-size:14px}
+  .fl-ar{width:12px}
+  .flow .fl-lab{display:none}
+  .toolbar > #regSeg{margin-left:0}
+  .cf{padding:10px 16px 14px}
+  .meter{width:40px}
+  .bt{font-size:11.5px}
   .list{overflow:visible;-webkit-mask-image:none;mask-image:none;padding:12px 10px 18px}
   .board.is-list{overflow:visible}
   .lv-group{display:none}
@@ -384,7 +424,6 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
   .scrim{position:fixed}
   .handle{display:block;width:40px;height:4px;border-radius:4px;background:rgba(255,255,255,.18);margin:8px auto 0}
   .sh-nav .ib.nav-btn{display:none}
-  .rg{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media (max-width: 400px){
   .tb-title h1{font-size:18px}
@@ -397,7 +436,6 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
 <body>
 <div class="aurora" aria-hidden="true"><i class="a1"></i><i class="a2"></i><i class="a3"></i><i class="a4"></i><i class="a5"></i></div>
 <div class="grain" aria-hidden="true"></div>
-
 <div class="stage">
   <div class="frame" id="frame">
     <header class="top">
@@ -419,6 +457,7 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
 
     <div class="toolbar">
       <div class="tb-title"><h1>Requests</h1></div>
+      <div class="flow" id="flow" role="img"></div>
       <div class="seg mtabs" id="mtabs" role="tablist" aria-label="Status column"><div class="seg-scroll"><div class="seg-in"><span class="seg-ind"></span></div></div></div>
       <div class="seg" id="regSeg" role="group" aria-label="Filter the board by registry"><div class="seg-scroll"><div class="seg-in"><span class="seg-ind"></span></div></div></div>
       <div class="tb-r">
@@ -449,7 +488,6 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
     </aside>
   </div>
 </div>
-<div class="pop" id="pop" role="dialog" aria-label="Breakdown by registry"></div>
 <div class="tip" id="tip" role="tooltip"></div>
 
 <script src="./snapshot.js"></script>
@@ -459,10 +497,8 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
   var S = window.CURATE_SNAPSHOT;
   var RM = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   var MOBILE = window.matchMedia("(max-width: 860px)");
-  var SNAP = Date.parse(S.snapshotAt) / 1000;
-  var DAY = 86400;
+  var SNAP = Date.parse(S.snapshotAt) / 1000;   // "now" for every age on this page
   var MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  var series = S.series30d;
 
   /* ---------- helpers ---------- */
   function $(s, el){ return (el || document).querySelector(s); }
@@ -473,16 +509,24 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
   function dTime(ts){ var d = new Date(ts * 1000); return pad(d.getUTCHours()) + ":" + pad(d.getUTCMinutes()); }
   function dDay(ts){ return dShort(ts) + ", " + dTime(ts) + " UTC"; }
   function dFull(ts){ var d = new Date(ts * 1000); return d.getUTCDate() + " " + MONTHS[d.getUTCMonth()] + " " + d.getUTCFullYear() + ", " + dTime(ts) + " UTC"; }
-  function ageShort(sec){
-    var m = Math.floor(sec / 60); if (m < 60) return m + "m";
-    var h = Math.floor(m / 60); if (h < 24) return h + "h";
-    var d = Math.floor(h / 24); return d + "d " + (h % 24) + "h";
+  // compact age: 36m · 12h 9m · 5d 9h (floored)
+  function age(sec){
+    var m = Math.floor(sec / 60), h = Math.floor(m / 60), d = Math.floor(h / 24);
+    if (h < 1) return m + "m";
+    if (d < 1) return h + "h " + (m % 60) + "m";
+    return d + "d " + (h % 24) + "h";
   }
-  function ageLong(sec){
+  // full age for tooltips: 36 min · 12h 9m · 5d 9h 56m
+  function ageFull(sec){
     var m = Math.floor(sec / 60), h = Math.floor(m / 60), d = Math.floor(h / 24);
     if (h < 1) return m + " min";
     if (d < 1) return h + "h " + (m % 60) + "m";
-    return d + "d " + (h % 24) + "h";
+    return d + "d " + (h % 24) + "h " + (m % 60) + "m";
+  }
+  function median(a){
+    if (!a.length) return null;
+    var s = a.slice().sort(function(x, y){ return x - y; }), k = s.length >> 1;
+    return s.length % 2 ? s[k] : (s[k - 1] + s[k]) / 2;
   }
   function shortAddr(a){ return a.slice(0, 6) + "…" + a.slice(-4); }
   function caip(id){ if (!id) return null; var p = id.split(":"); return { ns: p[0], chain: p[1], addr: p[2] }; }
@@ -491,7 +535,6 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
     var h = hash(addr), a = 195 + (h % 70), b = 205 + ((h >> 8) % 80), r = (h >> 16) % 360;
     return "background:conic-gradient(from " + r + "deg,hsl(" + a + " 70% 62%),hsl(" + b + " 45% 30%),hsl(" + a + " 70% 62%))";
   }
-  function plural(n, one, many){ return n + " " + (n === 1 ? one : many); }
 
   /* registry names: 2-letter avatar plus a short name; the full title stays in the sheet */
   var SHORT = { "Ledger Contract Domain Name registry v2": "Ledger Contract Domains v2", "Address Tags Query (ATQ) Registry": "ATQ Registry" };
@@ -510,6 +553,7 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
 
   /* ---------- icons ---------- */
   var CHEV = '<svg class="chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  var ARROW = '<svg class="fl-ar" width="16" height="10" viewBox="0 0 16 10" aria-hidden="true"><path d="M1 5h13M10 1.5L14 5l-4 3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   var ICON = {
     open: '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5.5" fill="none" stroke="var(--blue)" stroke-width="1.5"/></svg>',
     court: '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5.5" fill="none" stroke="var(--amber)" stroke-width="1.5"/><path d="M7 3.2A3.8 3.8 0 0 1 7 10.8z" fill="var(--amber)"/></svg>',
@@ -517,9 +561,9 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
   };
   /* ruling outcomes: blue = registered (the accent), light = rejected, hollow = removed; the glyph carries the meaning */
   var OUT = {
-    registered: { label: "Registered", fill: "var(--blue)", ink: "#fff", glyph: function(c, s){ return '<path d="M' + (c - s * .3) + ' ' + (c + s * .02) + 'l' + (s * .2) + ' ' + (s * .2) + 'l' + (s * .38) + ' -' + (s * .4) + '" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'; } },
-    rejected: { label: "Rejected", fill: "var(--neutral)", ink: "#0a0b0e", glyph: function(c, s){ var k = s * .2; return '<path d="M' + (c - k) + ' ' + (c - k) + 'l' + (2 * k) + ' ' + (2 * k) + 'M' + (c + k) + ' ' + (c - k) + 'l-' + (2 * k) + ' ' + (2 * k) + '" stroke="#0a0b0e" stroke-width="1.5" stroke-linecap="round"/>'; } },
-    removed: { label: "Removed", fill: "none", ink: "#a7adba", glyph: function(c, s){ return '<path d="M' + (c - s * .22) + ' ' + c + 'h' + (s * .44) + '" stroke="#a7adba" stroke-width="1.5" stroke-linecap="round"/>'; } }
+    registered: { label: "Registered", fill: "var(--blue)", glyph: function(c, s){ return '<path d="M' + (c - s * .3) + ' ' + (c + s * .02) + 'l' + (s * .2) + ' ' + (s * .2) + 'l' + (s * .38) + ' -' + (s * .4) + '" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'; } },
+    rejected: { label: "Rejected", fill: "var(--neutral)", glyph: function(c, s){ var k = s * .2; return '<path d="M' + (c - k) + ' ' + (c - k) + 'l' + (2 * k) + ' ' + (2 * k) + 'M' + (c + k) + ' ' + (c - k) + 'l-' + (2 * k) + ' ' + (2 * k) + '" stroke="#0a0b0e" stroke-width="1.5" stroke-linecap="round"/>'; } },
+    removed: { label: "Removed", fill: "none", glyph: function(c, s){ return '<path d="M' + (c - s * .22) + ' ' + c + 'h' + (s * .44) + '" stroke="#a7adba" stroke-width="1.5" stroke-linecap="round"/>'; } }
   };
   var OUT_ORDER = ["registered", "rejected", "removed"];
   function outIcon(k, s){
@@ -527,18 +571,18 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
     return '<svg class="oi" width="' + s + '" height="' + s + '" viewBox="0 0 ' + s + ' ' + s + '" aria-hidden="true"><circle cx="' + c + '" cy="' + c + '" r="' + r + '" fill="' + o.fill + '"' + (o.fill === "none" ? ' stroke="#7c8494" stroke-width="1.3"' : '') + '/>' + o.glyph(c, s) + '</svg>';
   }
 
-  /* ---------- model ---------- */
+  /* ---------- model: three pipeline stages, each card is one snapshot row ---------- */
   var COLS = [
-    { key: "open", title: "Open to challenge", tab: "Open", items: S.openToChallenge, icon: ICON.open, badge: "", total: S.figures.requestsOpen, regField: "open",
-      verb: "Requested", since: "since request", segCap: "Open requests by registry" },
-    { key: "court", title: "In court", tab: "In court", items: S.inCourt, icon: ICON.court, badge: "amber", total: S.figures.inCourt, regField: "inCourt",
-      verb: "Challenged", since: "since challenge", segCap: "Disputes by registry" },
-    { key: "decided", title: "Decided", tab: "Decided", items: S.decided, icon: ICON.decided, badge: "muted", total: S.decided.length, regField: null,
-      verb: "Resolved", since: "since ruling", segCap: "Latest 10 rulings by registry" }
+    { key: "open", title: "Open to challenge", tab: "Open", items: S.openToChallenge, icon: ICON.open, tone: "blue", color: "var(--blue)",
+      one: "request", many: "requests", verb: "Requested", since: "since request", at: "requested at" },
+    { key: "court", title: "In court", tab: "In court", items: S.inCourt, icon: ICON.court, tone: "amber", color: "var(--amber)",
+      one: "dispute", many: "disputes", verb: "Challenged", since: "since challenge", at: "challenged at" },
+    { key: "decided", title: "Decided", tab: "Decided", items: S.decided, icon: ICON.decided, tone: "", color: "var(--neutral)",
+      one: "ruling", many: "rulings", verb: "Ruled", since: "since ruling", at: "ruled at" }
   ];
   var COLMAP = {}; COLS.forEach(function(c, i){ c.index = i; COLMAP[c.key] = c; });
 
-  // the same address requested on several chains becomes one card
+  // the same address requested on several chains stacks into one card (each chain is still its own request)
   function groupOpen(items){
     var map = {}, out = [];
     items.forEach(function(e, i){
@@ -548,52 +592,117 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
     });
     return out;
   }
-  function regTotals(title, field){
-    return S.topRegistries.filter(function(r){ return r.title === title; }).reduce(function(a, r){ return a + (r[field] || 0); }, 0);
-  }
-  function segmentsFor(col){
-    var map = {}, order = [];
-    if (col.regField){
-      S.topRegistries.forEach(function(r){
-        var v = r[col.regField] || 0; if (!v) return;
-        if (!(r.title in map)){ map[r.title] = 0; order.push(r.title); }
-        map[r.title] += v;
-      });
-    } else {
-      col.items.forEach(function(e){ if (!(e.registry in map)){ map[e.registry] = 0; order.push(e.registry); } map[e.registry]++; });
-    }
-    return order.map(function(t){ return { title: t, value: map[t] }; }).sort(function(a, b){ return b.value - a.value; });
-  }
   COLS.forEach(function(c){
     c.units = c.key === "open" ? groupOpen(c.items) : c.items.map(function(e, i){ return { lead: i, members: [i] }; });
     c.unitOf = {}; c.units.forEach(function(u){ u.members.forEach(function(m){ c.unitOf[m] = u; }); });
-    c.segments = segmentsFor(c);
   });
 
-  // registry filter: registries that have cards on the board, most cards first (no counts on the chips)
+  // registry filter: registries that have cards on the board, most cards first
   var regCount = {};
   COLS.forEach(function(c){ c.items.forEach(function(e){ regCount[e.registry] = (regCount[e.registry] || 0) + 1; }); });
   var REGS = Object.keys(regCount).sort(function(a, b){ return regCount[b] - regCount[a]; });
 
-  // days with jurors for every dispute in court (all of them are in the snapshot)
-  var COURT_DAYS = S.inCourt.map(function(e){ return (SNAP - e.at) / DAY; });
-  var AX = Math.max(1, Math.ceil(Math.max.apply(null, COURT_DAYS)));
-  var REQ30 = series.reduce(function(a, d){ return a + d.requests; }, 0);
-
-  var state = { reg: "all", view: "board", mcol: "open", sel: null, item: null, sheetOpen: false, open: {}, intro: !RM };
+  var state = { reg: "all", view: "board", mcol: "open", sel: null, item: null, sheetOpen: false, open: {} };
 
   function matches(e){ return state.reg === "all" || e.registry === state.reg; }
-  function units(col){ return col.units.filter(function(u){ return matches(col.items[u.lead]); }); }
-  function colCount(col){
-    if (col.key === "decided") return units(col).length;
-    if (state.reg === "all") return col.total;
-    return regTotals(state.reg, col.regField);
+  function ageOf(e){ return SNAP - e.at; }
+
+  /* per column: rows shown, median age, oldest row (all from the snapshot rows under the current filter) */
+  function statsOf(col){
+    var rows = [], ages = [], oldest = null, oldestAge = null;
+    col.items.forEach(function(e, i){
+      if (!matches(e)) return;
+      var a = ageOf(e); rows.push(i); ages.push(a);
+      if (oldestAge === null || a > oldestAge){ oldestAge = a; oldest = i; }
+    });
+    return { rows: rows, ages: ages, n: rows.length, med: median(ages), oldest: oldest, oldestAge: oldestAge };
   }
   function outcomeCounts(){
     var oc = { registered: 0, rejected: 0, removed: 0 };
     S.decided.forEach(function(e){ if (matches(e)) oc[e.outcome]++; });
     return oc;
   }
+  // decided groups: largest group first
+  function groupOrder(oc){
+    return OUT_ORDER.filter(function(k){ return oc[k]; }).sort(function(a, b){ return oc[b] - oc[a] || OUT_ORDER.indexOf(a) - OUT_ORDER.indexOf(b); });
+  }
+  // cards in display order (decided: by outcome group, newest first inside a group)
+  function units(col){
+    if (col.key === "court"){
+      var ord = [];
+      burstsOf().forEach(function(b){ b.members.forEach(function(m){ ord.push(col.unitOf[m]); }); });
+      return ord;
+    }
+    var us = col.units.filter(function(u){ return matches(col.items[u.lead]); });
+    if (col.key === "decided"){
+      var go = groupOrder(outcomeCounts());
+      us = us.slice().sort(function(a, b){
+        var ea = col.items[a.lead], eb = col.items[b.lead];
+        return go.indexOf(ea.outcome) - go.indexOf(eb.outcome) || eb.at - ea.at;
+      });
+    }
+    return us;
+  }
+  function noun(col, n){ return n + " " + (n === 1 ? col.one : col.many); }
+  // entrance delay for the k-th element of column ci: never more than 300ms
+  function dl(ci, k){ return Math.min(300, ci * 60 + k * 30) + "ms"; }
+
+  /* ---------- list figures: the card registry's own row in the top-registries table ---------- */
+  // The snapshot names registries by title and some titles repeat (three "Address Tags" lists on Gnosis):
+  // a card takes the row with the same title and chain that has the most open requests, then the most entries.
+  var REGROW = {};
+  function regRow(title, chain){
+    var k = title + "|" + chain;
+    if (!(k in REGROW)){
+      var best = null;
+      S.topRegistries.forEach(function(r){
+        if (r.title !== title || r.chain !== chain) return;
+        if (!best || r.open > best.open || (r.open === best.open && r.entries > best.entries)) best = r;
+      });
+      REGROW[k] = best;
+    }
+    return REGROW[k];
+  }
+  function sameTitle(title, chain){ return S.topRegistries.filter(function(r){ return r.title === title && r.chain === chain; }).length; }
+  function pct(a, b){ return b ? (Math.round(a / b * 1000) / 10) + "%" : "–"; }
+  // rulings per outcome for one registry title, over the decided rows of the snapshot
+  function tallyOf(title){
+    var t = { registered: 0, rejected: 0, removed: 0, n: 0 };
+    S.decided.forEach(function(e){ if (e.registry === title){ t[e.outcome]++; t.n++; } });
+    return t;
+  }
+
+  /* ---------- bursts: disputes that reached court in one batch ---------- */
+  var BURST_GAP = 3600;   // a dispute challenged less than 60 min after the previous one joins its burst
+  function uniq(a){ return a.filter(function(x, i){ return a.indexOf(x) === i; }); }
+  function spanMin(sec){ return Math.max(1, Math.ceil(sec / 60)) + " min"; }
+  function offs(sec){ var m = Math.floor(sec / 60), x = Math.floor(sec % 60); return m + "m " + pad(x) + "s"; }
+  // bursts over the In court rows under the current filter: newest burst first, disputes in arrival order inside
+  function burstsOf(){
+    var col = COLMAP.court, rows = [], out = [];
+    col.items.forEach(function(e, i){ if (matches(e)) rows.push(i); });
+    rows.sort(function(a, b){ return col.items[a].at - col.items[b].at; });
+    rows.forEach(function(i){
+      var b = out[out.length - 1];
+      if (b && col.items[i].at - col.items[b.members[b.members.length - 1]].at < BURST_GAP) b.members.push(i);
+      else out.push({ members: [i] });
+    });
+    out.forEach(function(b){
+      var f = col.items[b.members[0]], l = col.items[b.members[b.members.length - 1]];
+      b.n = b.members.length; b.first = f.at; b.last = l.at; b.span = l.at - f.at; b.age = SNAP - f.at;
+      b.regs = uniq(b.members.map(function(m){ return col.items[m].registry; }));
+      b.actors = uniq(b.members.map(function(m){ return col.items[m].actor; }));
+    });
+    return out.reverse();
+  }
+  function burstOf(idx){ return burstsOf().filter(function(b){ return b.members.indexOf(idx) >= 0; })[0]; }
+  function burstWhen(b){
+    if (b.n === 1) return dShort(b.first) + ", " + dTime(b.first) + " UTC";
+    if (dShort(b.first) !== dShort(b.last)) return dShort(b.first) + " " + dTime(b.first) + " – " + dShort(b.last) + " " + dTime(b.last) + " UTC";
+    return dShort(b.first) + ", " + dTime(b.first) + "–" + dTime(b.last) + " UTC";
+  }
+  function burstLine(b){ return b.n > 1 ? b.n + " disputes within " + spanMin(b.span) : "Lone dispute"; }
+  function pips(n){ var x = ""; for (var i = 0; i < n; i++) x += "<i></i>"; return '<span class="pips" aria-hidden="true">' + x + '</span>'; }
 
   /* ---------- segmented controls ---------- */
   function placeInd(seg, btn, animate){
@@ -643,15 +752,15 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
   }
   function setReg(r){
     if (state.reg === r) return;
-    state.reg = r; closePop(); syncRegSeg(true); render();
+    state.reg = r; syncRegSeg(true); render();
   }
 
   function buildMTabs(){
     var inner = $("#mtabs .seg-in");
     var html = '<span class="seg-ind"></span>';
     COLS.forEach(function(c){
-      var badge = c.key === "decided" ? "" : '<span class="cnt ' + (c.key === "open" ? "blue" : "amber") + '" data-mcount="' + c.key + '">' + fmt(colCount(c)) + '</span>';
-      html += '<button type="button" role="tab" data-col="' + c.key + '" aria-selected="' + (c.key === state.mcol) + '">' + c.tab + badge + '</button>';
+      html += '<button type="button" role="tab" data-col="' + c.key + '" aria-selected="' + (c.key === state.mcol) + '">' + c.tab +
+        '<span class="cnt ' + (c.tone || "") + '" data-mcount="' + c.key + '"></span></button>';
     });
     inner.innerHTML = html;
     inner.addEventListener("click", function(ev){
@@ -661,13 +770,13 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
   function syncMTabs(animate){
     var seg = $("#mtabs"), btn = null;
     seg.querySelectorAll("button").forEach(function(b){ var on = b.getAttribute("data-col") === state.mcol; b.setAttribute("aria-selected", on); if (on) btn = b; });
-    seg.querySelectorAll("[data-mcount]").forEach(function(el){ el.textContent = fmt(colCount(COLMAP[el.getAttribute("data-mcount")])); });
+    seg.querySelectorAll("[data-mcount]").forEach(function(el){ el.textContent = fmt(statsOf(COLMAP[el.getAttribute("data-mcount")]).n); });
     if (MOBILE.matches) placeInd(seg, btn, animate);
   }
   function setMCol(k){
     if (state.mcol === k) return;
     var fromLeft = COLMAP[k].index < COLMAP[state.mcol].index;
-    state.mcol = k; closePop(); syncMTabs(true);
+    state.mcol = k; syncMTabs(true);
     document.querySelectorAll("[data-colwrap]").forEach(function(el){
       var on = el.getAttribute("data-colwrap") === k;
       el.classList.toggle("active", on); el.classList.toggle("from-l", on && fromLeft);
@@ -682,94 +791,69 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
   $("#viewSeg").addEventListener("click", function(ev){
     var b = ev.target.closest("button"); if (!b) return; setView(b.getAttribute("data-view"));
   });
-  function setView(v){ if (state.view === v) return; state.view = v; closePop(); syncViewSeg(true); render(); }
+  function setView(v){ if (state.view === v) return; state.view = v; syncViewSeg(true); render(); }
 
-  /* ---------- header figures (each says what it measures) ---------- */
-  // Open: requests per UTC day, last 30 days, all registries
-  function sparkBars(){
-    var W = MOBILE.matches ? 150 : 124, H = 24, n = series.length, gap = 1.6, bw = (W - gap * (n - 1)) / n;
-    var max = Math.max.apply(null, series.map(function(d){ return d.requests; })) || 1, dim = state.reg !== "all";
-    var out = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Requests per day, last 30 days, ' + fmt(REQ30) + ' in total"' + (dim ? ' style="opacity:.45"' : '') + '>';
-    series.forEach(function(d, i){
-      var v = d.requests, x = i * (bw + gap), h = v ? Math.max(2, (v / max) * (H - 1)) : 1;
-      out += '<rect class="bar-g" style="--k:' + i + (v ? ';filter:drop-shadow(0 0 2px rgba(79,140,255,.5))' : '') + '" x="' + x.toFixed(2) + '" y="' + (H - h).toFixed(2) + '" width="' + bw.toFixed(2) + '" height="' + h.toFixed(2) + '" rx="1" fill="' + (v ? "var(--blue)" : "rgba(255,255,255,.14)") + '"/>';
-      out += '<rect data-tip-day="' + i + '" x="' + (x - gap / 2).toFixed(2) + '" y="0" width="' + (bw + gap).toFixed(2) + '" height="' + H + '" fill="transparent"/>';
-    });
-    return out + '</svg>';
-  }
-  // In court: one dot per dispute, placed by days since its challenge (0 to AX days)
-  function courtStrip(o){
-    o = o || {};
-    var W = o.W || (MOBILE.matches ? 168 : 150), H = o.H || 24, big = !!o.big, r = big ? 4.5 : 2.7, step = big ? 11 : 6, padX = big ? 8 : 4;
-    var base = big ? H - 22 : H - 3, x0 = padX, x1 = W - padX;
-    var out = '<svg ' + (big ? '' : 'width="' + W + '" height="' + H + '" ') + 'viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Days since challenge for each of the ' + S.inCourt.length + ' disputes in court, axis 0 to ' + AX + ' days">';
-    out += '<line x1="' + x0 + '" y1="' + (base + .5) + '" x2="' + x1 + '" y2="' + (base + .5) + '" stroke="rgba(255,255,255,.16)"/>';
-    for (var d = 0; d <= AX; d++){
-      var tx = x0 + (d / AX) * (x1 - x0);
-      out += '<line x1="' + tx.toFixed(1) + '" y1="' + (base + 1) + '" x2="' + tx.toFixed(1) + '" y2="' + (base + (big ? 5 : 3)) + '" stroke="rgba(255,255,255,' + (d === 0 || d === AX ? .4 : .2) + ')"/>';
-      if (big && (d % 2 === 0 || AX <= 6)) out += '<text x="' + tx.toFixed(1) + '" y="' + (H - 2) + '" text-anchor="middle" font-size="12" fill="#8a92a0" font-family="Geist, sans-serif">' + d + (d === AX ? " d" : "") + '</text>';
-    }
-    var placed = [];
-    S.inCourt.map(function(e, i){ return { i: i, x: x0 + (COURT_DAYS[i] / AX) * (x1 - x0) }; })
-      .sort(function(a, b){ return a.x - b.x; })
-      .forEach(function(p, k){
-        var lvl = 0; while (placed.some(function(q){ return q.lvl === lvl && Math.abs(q.x - p.x) < r * 2 + 1; })) lvl++;
-        placed.push({ x: p.x, lvl: lvl });
-        var y = base - r - 2 - lvl * step, e = S.inCourt[p.i], on = matches(e), hi = o.hi === p.i;
-        var fill = hi ? "#fff" : "var(--blue)";
-        out += '<circle class="pop-in" style="--k:' + k + '" cx="' + p.x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + r + '" fill="' + fill + '" opacity="' + (big ? (hi ? 1 : .55) : (on ? 1 : .2)) + '"' + (on || big ? ' filter="drop-shadow(0 0 3px rgba(79,140,255,.75))"' : '') + '/>';
-        if (hi) out += '<circle cx="' + p.x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + (r + 3.5) + '" fill="none" stroke="rgba(255,255,255,.6)" stroke-width="1"/>';
-        out += '<circle data-tip-court="' + p.i + '" cx="' + p.x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + (r + 4) + '" fill="transparent"/>';
-      });
-    return out + '</svg>';
-  }
-  // Decided: the latest 10 rulings, one cell each, grouped by outcome
-  function outcomeCells(o){
-    o = o || {};
-    var cs = o.cell || 13, gap = o.gap || 3, n = S.decided.length, W = n * cs + (n - 1) * gap, H = o.H || 24, y = (H - cs) / 2, big = !!o.big;
-    var order = S.decided.map(function(e, i){ return i; }).sort(function(a, b){
-      var d = OUT_ORDER.indexOf(S.decided[a].outcome) - OUT_ORDER.indexOf(S.decided[b].outcome);
-      return d || S.decided[b].at - S.decided[a].at;
-    });
-    var out = '<svg ' + (big ? '' : 'width="' + W + '" height="' + H + '" ') + 'viewBox="-3 0 ' + (W + 6) + ' ' + H + '" role="img" aria-label="Outcome of each of the latest 10 rulings">';
-    order.forEach(function(i, k){
-      var e = S.decided[i], oo = OUT[e.outcome], x = k * (cs + gap), on = big || matches(e), hi = o.hi === i, c = cs / 2;
-      out += '<g class="pop-in" style="--k:' + k + '" opacity="' + (on ? (big && o.hi != null && !hi ? .55 : 1) : .2) + '"><g transform="translate(' + x + ' ' + y + ')">' +
-        '<rect x="' + (oo.fill === "none" ? .65 : 0) + '" y="' + (oo.fill === "none" ? .65 : 0) + '" width="' + (oo.fill === "none" ? cs - 1.3 : cs) + '" height="' + (oo.fill === "none" ? cs - 1.3 : cs) + '" rx="' + (cs * .28) + '" fill="' + oo.fill + '"' + (oo.fill === "none" ? ' stroke="#7c8494" stroke-width="1.3"' : '') + (e.outcome === "registered" ? ' filter="drop-shadow(0 0 3px rgba(79,140,255,.7))"' : '') + '/>' +
-        oo.glyph(c, cs) + '</g></g>';
-      if (hi) out += '<rect x="' + (x - 3) + '" y="' + (y - 3) + '" width="' + (cs + 6) + '" height="' + (cs + 6) + '" rx="' + (cs * .28 + 3) + '" fill="none" stroke="rgba(255,255,255,.7)" stroke-width="1"/>';
-      out += '<rect data-tip-ruling="' + i + '" x="' + (x - gap / 2) + '" y="0" width="' + (cs + gap) + '" height="' + H + '" fill="transparent"/>';
-    });
-    return out + '</svg>';
+  /* ---------- flow summary: stage counts as the snapshot reports them ---------- */
+  function renderFlow(){
+    var nodes = [
+      { icon: ICON.open, n: S.figures.requestsOpen, label: "open" },
+      { icon: ICON.court, n: S.figures.inCourt, label: "in court" },
+      { icon: ICON.decided, n: S.decided.length, label: "decided" }
+    ];
+    var el = $("#flow");
+    el.innerHTML = '<span class="fl-lab">Flow</span>' + nodes.map(function(x){
+      return '<span class="fl">' + x.icon + '<b>' + fmt(x.n) + '</b>' + x.label + '</span>';
+    }).join(ARROW);
+    el.setAttribute("aria-label", "Pipeline flow in the snapshot: " + fmt(nodes[0].n) + " open requests, then " + fmt(nodes[1].n) + " disputes in court, then " + fmt(nodes[2].n) + " rulings listed");
   }
 
-  function headScope(col){
-    if (col.key === "decided"){
-      var oc = outcomeCounts(), n = units(col).length;
-      if (!n) return "none of the latest 10";
-      var parts = OUT_ORDER.filter(function(k){ return oc[k]; }).sort(function(a, b){ return oc[b] - oc[a]; });
-      if (state.reg === "all") return oc[parts[0]] + " of 10 " + OUT[parts[0]].label.toLowerCase();
-      return n + " of the latest 10 · " + parts.map(function(k){ return oc[k] + " " + OUT[k].label.toLowerCase(); }).join(", ");
+  /* ---------- column header: count + median age ---------- */
+  function scopeText(col, st){
+    var L = col.items.length;
+    if (col.key === "open"){
+      if (state.reg === "all") return "latest " + L + " of " + fmt(S.figures.requestsOpen) + " open requests";
+      return st.n + " of the latest " + L + " requests";
     }
-    if (state.reg === "all") return col.key === "open" ? "open requests, all lists" : "disputes before jurors";
-    return fmt(colCount(col)) + " of " + fmt(col.total) + (col.key === "open" ? " open requests" : " disputes");
+    if (col.key === "court"){
+      if (state.reg === "all") return (L === S.figures.inCourt ? "all " + L : "latest " + L + " of " + fmt(S.figures.inCourt)) + " disputes before jurors";
+      return st.n + " of " + L + " disputes";
+    }
+    if (state.reg === "all") return "latest " + L + " rulings";
+    return st.n + " of the latest " + L + " rulings";
   }
-  function headCaption(col){
-    if (col.key === "open") return 'Requests/day · 30d · ' + (state.reg === "all" ? '<b>' + fmt(REQ30) + '</b>' : 'all lists');
-    if (col.key === "court") return 'Days since challenge · 0–' + AX + ' d';
-    return 'Outcome · latest 10 rulings';
-  }
-  function header(col){
-    var label = col.key === "decided" ? "latest 10" : fmt(colCount(col));
-    var aria = col.key === "decided" ? "Latest 10 rulings: breakdown by registry" : fmt(colCount(col)) + " " + (col.key === "open" ? "open requests" : "disputes") + ": breakdown by registry";
+  function header(col, st){
     return '<div class="ch">' +
       '<div class="ch-title">' + col.icon + '<h2 id="h-' + col.key + '">' + col.title + '</h2>' +
-        '<button type="button" class="cnt-btn ' + col.badge + '" data-pop="' + col.key + '" aria-haspopup="dialog" aria-expanded="false" aria-label="' + esc(aria) + '">' + label + CHEV + '</button></div>' +
-      '<div class="ch-vis">' + (col.key === "open" ? sparkBars() : col.key === "court" ? courtStrip() : outcomeCells()) + '</div>' +
-      '<div class="ch-scope">' + esc(headScope(col)) + '</div>' +
-      '<div class="ch-cap">' + headCaption(col) + '</div>' +
-      '<button type="button" class="ch-reg" data-pop="' + col.key + '" aria-haspopup="dialog" aria-expanded="false">By registry' + CHEV + '</button>' +
+        '<span class="cnt-chip ' + col.tone + '" aria-label="' + esc(noun(col, st.n)) + ' in this column">' + st.n + '</span></div>' +
+      headFig(col, st) +
+      '<div class="ch-scope">' + esc(scopeText(col, st)) + '</div>' +
     '</div>';
+  }
+  function headFig(col, st){
+    if (col.key === "court"){
+      var bs = burstsOf(), big = null;
+      bs.forEach(function(b){ if (!big || b.n > big.n) big = b; });
+      return '<div class="ch-med' + (bs.length ? '' : ' na') + '" data-tip-bursts="1">' + (bs.length ? bs.length + '<small> ' + (bs.length === 1 ? 'burst' : 'bursts') + '</small>' : '–') + '</div>' +
+        '<div class="ch-cap">' + (!bs.length ? 'no dispute' : big.n > 1 ? 'largest <b>' + big.n + ' within ' + spanMin(big.span) + '</b>' : 'none within 60 min of another') + '</div>';
+    }
+    return '<div class="ch-med' + (st.med === null ? ' na' : '') + '" data-tip-med="' + col.key + '">' + (st.med === null ? '–' : age(st.med)) + '</div>' +
+      '<div class="ch-cap">median age' + (st.oldestAge === null ? '' : ' · oldest <b>' + age(st.oldestAge) + '</b>') + '</div>';
+  }
+  function footnote(col, st){
+    var s = '<b>Median age</b> = median of (snapshot time − requested at), ' + noun(col, st.n) + ' shown. <b>Ring</b> = card age ÷ oldest card age in column. <b>List</b> = the card registry\'s open requests and disputes in court (top-registries row, same title and chain).';
+    if (col.key === "court") s = '<b>Burst</b> = disputes challenged less than 60 min after the previous one, ' + noun(col, st.n) + ' shown. <b>In court</b> = snapshot time − the burst\'s first challenge; <b>+7m 10s</b> style offsets = time after that challenge. <b>List</b> = registry disputes in court ÷ its open requests.';
+    if (col.key === "decided") s = '<b>Median age</b> = median of (snapshot time − ruled at), ' + noun(col, st.n) + ' shown. <b>Ring</b> = card age ÷ oldest in column. <b>Groups</b> = rulings per outcome. <b>Rulings here</b> = the card registry\'s rulings per outcome in the latest ' + col.items.length + '.';
+    return '<p class="cf">' + s + '</p>';
+  }
+
+  /* ---------- age ring: card age as a share of the oldest card's age in the same column ---------- */
+  function ring(col, sec, oldestAge, size){
+    size = size || 20;
+    var sw = 2.4, c = size / 2, r = c - sw / 2 - .4, C = 2 * Math.PI * r, f = oldestAge ? Math.min(1, sec / oldestAge) : 0, d = C * f;
+    return '<svg class="ring" width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" role="img" aria-label="Age ring: ' + Math.round(f * 100) + '% of the oldest card age in this column">' +
+      '<circle class="trk" cx="' + c + '" cy="' + c + '" r="' + r.toFixed(2) + '" fill="none" stroke-width="' + sw + '"/>' +
+      '<circle class="arc" cx="' + c + '" cy="' + c + '" r="' + r.toFixed(2) + '" fill="none" stroke="' + col.color + '" stroke-width="' + sw + '" stroke-linecap="round" stroke-dasharray="' + d.toFixed(2) + ' ' + C.toFixed(2) + '" transform="rotate(-90 ' + c + ' ' + c + ')" style="--C:' + C.toFixed(2) + '" filter="drop-shadow(0 0 2px ' + col.color + ')"/>' +
+    '</svg>';
   }
 
   /* ---------- cards ---------- */
@@ -784,20 +868,64 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
     max = max || 3; var s = ids.slice(0, max).map(mark).join("");
     return '<span class="stack" aria-hidden="true">' + s + '</span>';
   }
-  function cardLabel(col, u){
-    var e = col.items[u.lead], sec = SNAP - e.at;
-    var what = col.key === "open" ? shortAddr(caip(e.id).addr) + (u.members.length > 1 ? " on " + u.members.length + " chains" : " on " + chainOf(caip(e.id).chain).name)
-      : col.key === "court" ? e.status : e.status;
-    return col.title + ": " + shortName(e.registry) + ", " + what + ", " + ageLong(sec) + " " + col.since;
+  function isOldest(u, st){ return st.oldest !== null && u.members.indexOf(st.oldest) >= 0; }
+  function cardLabel(col, u, st){
+    var e = col.items[u.lead], sec = ageOf(e);
+    var what = col.key === "open" ? shortAddr(caip(e.id).addr) + (u.members.length > 1 ? " on " + u.members.length + " chains" : " on " + chainOf(caip(e.id).chain).name) : e.status;
+    return col.title + ": " + shortName(e.registry) + ", " + what + ", " + ageFull(sec) + " " + col.since + (isOldest(u, st) ? ", oldest in this column" : "");
   }
-  function card(col, u, i){
-    var e = col.items[u.lead], sec = SNAP - e.at, grp = u.members.length > 1, id = col.key + ":" + u.lead, r3r = "";
+  function oldTag(){ return '<span class="old"><i></i>Oldest</span>'; }
+  function listFigs(e){
+    var r = regRow(e.registry, e.chain);
+    if (!r) return '<span class="rf"><span class="ml">List</span>not in the top-registries table</span>';
+    return '<span class="rf" data-tip-list="' + esc(e.registry + "|" + e.chain) + '"><span class="ml">List</span><b>' + fmt(r.open) + '</b> open<i class="dv"></i><b>' + fmt(r.inCourt) + '</b> in court</span>';
+  }
+  function tallyFigs(e){
+    var t = tallyOf(e.registry);
+    return '<span class="rf" data-tip-tally="' + esc(e.registry) + '"><span class="ml">Rulings here</span>' +
+      OUT_ORDER.filter(function(k){ return t[k]; }).map(function(k){ return outIcon(k, 12) + '<b>' + t[k] + '</b>'; }).join('') +
+      '<span>of ' + t.n + ' listed</span></span>';
+  }
+  function entFigs(e){
+    var r = regRow(e.registry, e.chain);
+    return r ? '<span class="ent" data-tip-list="' + esc(e.registry + "|" + e.chain) + '"><b>' + fmt(r.entries) + '</b> entries</span>' : '';
+  }
+  function listDd(e){
+    var r = regRow(e.registry, e.chain);
+    if (!r) return '<span class="dim">not in the top-registries table</span>';
+    return fmt(r.inCourt) + ' of ' + fmt(r.open) + ' open requests in court (' + pct(r.inCourt, r.open) + ') · ' + fmt(r.entries) + ' entries' + (sameTitle(e.registry, e.chain) > 1 ? ' <span class="dim">(' + sameTitle(e.registry, e.chain) + ' lists share this title on ' + esc(e.chain) + '; figures from the one with the most open requests)</span>' : '');
+  }
+  function browLabel(b, m){
+    var e = COLMAP.court.items[m];
+    return "In court: " + shortName(e.registry) + ", " + e.status + ", " + (b.n > 1 ? "burst of " + b.n + " within " + spanMin(b.span) + ", " + offs(e.at - b.first) + " after the first" : "lone dispute") + ", burst in court " + ageFull(b.age);
+  }
+  function burstBlock(b, k){
+    var col = COLMAP.court, lead = col.items[b.members[0]], one = b.regs.length === 1, r = one ? regRow(lead.registry, lead.chain) : null, multi = b.n > 1;
+    var head = '<div class="bh">' +
+      '<div class="r">' + (one ? '<span class="av" aria-hidden="true">' + initials(lead.registry) + '</span><span class="c-reg">' + esc(shortName(lead.registry)) + '</span>' : '<span class="c-reg">' + b.regs.length + ' registries</span>') +
+        '<span class="bage" data-tip-burst="' + b.members[0] + '"><span class="ml">In court</span><b>' + age(b.age) + '</b></span></div>' +
+      '<div class="r"><span class="bk">' + pips(b.n) + burstLine(b) + '</span><span class="bt">' + burstWhen(b) + '</span></div>' +
+    '</div>';
+    var rows = b.members.map(function(m){
+      var e = col.items[m];
+      return '<button type="button" class="brow" data-card="court:' + m + '" aria-label="' + esc(browLabel(b, m)) + '">' +
+        '<span class="bn">' + esc(e.status) + (one ? '' : '<span class="t2">' + esc(shortName(e.registry)) + '</span>') + '</span>' +
+        '<span class="off">' + (multi ? '+' + offs(e.at - b.first) : '') + '</span>' +
+      '</button>';
+    }).join("");
+    var foot = r ? '<div class="bf" data-tip-list="' + esc(lead.registry + "|" + lead.chain) + '"><span class="ml">List</span><span><b>' + fmt(r.inCourt) + '</b> of <b>' + fmt(r.open) + '</b> open requests disputed · ' + pct(r.inCourt, r.open) + '</span>' +
+      '<span class="meter" role="img" aria-label="' + esc(pct(r.inCourt, r.open) + ' of the open requests in ' + shortName(lead.registry) + ' are in court') + '"><i style="width:' + (r.open ? Math.min(100, r.inCourt / r.open * 100) : 0).toFixed(1) + '%"></i></span></div>' : '';
+    return '<div class="burst' + (multi ? ' multi' : '') + '" style="--d:' + dl(1, k) + '">' + head + '<div class="brows">' + rows + '</div>' + foot + '</div>';
+  }
+  function card(col, u, i, st){
+    var e = col.items[u.lead], sec = ageOf(e), grp = u.members.length > 1, id = col.key + ":" + u.lead, r3r = "", old = isOldest(u, st);
     if (col.key === "open" && !grp){ var ch = caip(e.id).chain; r3r = '<span class="where">' + mark(ch) + '<span>' + esc(chainOf(ch).name) + '</span></span>'; }
-    var html = '<div class="cw' + (state.open[id] ? ' open' : '') + '" style="--i:' + i + ';--cd:' + (col.index * 70) + 'ms">' +
-      '<button type="button" class="card' + (grp ? ' grp' : '') + '" data-card="' + id + '" aria-label="' + esc(cardLabel(col, u)) + '">' +
-        '<div class="r"><span class="av" aria-hidden="true">' + initials(e.registry) + '</span><span class="c-reg">' + esc(shortName(e.registry)) + '</span><span class="age" data-tip-age="' + col.key + ':' + u.lead + '">' + ageShort(sec) + '</span></div>' +
-        '<div class="r">' + mainLine(col, e) + '</div>' +
-        '<div class="r r3">' + who(e) + r3r + '</div>' +
+    var html = '<div class="cw' + (state.open[id] ? ' open' : '') + '" style="--d:' + dl(col.index, i) + ';--c:' + col.color + '">' +
+      '<button type="button" class="card' + (grp ? ' grp' : '') + (old ? ' is-old' : '') + '" data-card="' + id + '" aria-label="' + esc(cardLabel(col, u, st)) + '">' +
+        '<div class="r"><span class="av" aria-hidden="true">' + initials(e.registry) + '</span><span class="c-reg">' + esc(shortName(e.registry)) + '</span>' +
+          '<span class="age" data-tip-age="' + col.key + ':' + u.lead + '">' + age(sec) + ring(col, sec, st.oldestAge) + '<span class="ml">vs oldest</span></span></div>' +
+        '<div class="r">' + mainLine(col, e) + (old ? oldTag() : '') + '</div>' +
+        '<div class="r r3">' + (col.key === "open" ? listFigs(e) : tallyFigs(e)) + (col.key === "decided" ? entFigs(e) : r3r) + '</div>' +
       '</button>';
     if (grp){
       var ids = chainsOf(u, col), xid = "xl-" + u.lead;
@@ -805,70 +933,96 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
         '<div class="xw"><div class="xl" id="' + xid + '"' + (state.open[id] ? '' : ' inert') + '><div class="xl-in">' +
         u.members.map(function(m){
           var it = col.items[m], c = caip(it.id);
-          return '<button type="button" class="xr" data-item="open:' + m + '">' + mark(c.chain) + '<span>' + esc(chainOf(c.chain).name) + '</span><span class="id">' + c.ns + ':' + c.chain + '</span><span class="ag">' + ageShort(SNAP - it.at) + '</span></button>';
+          return '<button type="button" class="xr" data-item="open:' + m + '">' + mark(c.chain) + '<span>' + esc(chainOf(c.chain).name) + '</span><span class="id">' + c.ns + ':' + c.chain + '</span><span class="ag">' + age(ageOf(it)) + '</span></button>';
         }).join("") + '</div></div></div>';
     }
     return html + '</div>';
+  }
+  function groupHead(o, n, i){
+    return '<div class="gh" style="--d:' + dl(2, i) + '">' + outIcon(o, 14) + '<span>' + OUT[o].label + '</span><span class="gh-n"><b>' + n + '</b> ' + (n === 1 ? 'ruling' : 'rulings') + '</span></div>';
+  }
+  function emptyText(col){
+    var r = esc(shortName(state.reg));
+    if (col.key === "open") return '<b>No open request from ' + r + '</b>among the latest ' + col.items.length + ' requests';
+    if (col.key === "court") return '<b>No dispute in court</b>for ' + r;
+    return '<b>No ruling from ' + r + '</b>among the latest ' + col.items.length + ' rulings';
   }
 
   /* ---------- render ---------- */
   function renderBoard(){
     var board = $("#board");
     board.classList.remove("is-list");
-    board.classList.toggle("svg-in", state.intro);
     board.innerHTML = COLS.map(function(col){
-      var us = units(col), count = colCount(col), shownReq = 0;
-      us.forEach(function(u){ shownReq += u.members.length; });
-      var list = us.map(function(u, i){ return card(col, u, i); }).join("");
-      if (!us.length){
-        list = '<div class="empty"><b>' + (col.key === "court" ? "No disputes in court" : col.key === "open" ? "Not among the 10 latest requests" : "No ruling among the latest 10") + '</b>' +
-          (col.key === "open" && count ? fmt(count) + " open requests in " + esc(shortName(state.reg)) + ' · <a href="#" style="color:var(--text-2)">View all</a>' : esc(shortName(state.reg))) + '</div>';
-      }
-      if (col.key === "open" && us.length && count - shownReq > 0){
-        list += '<div class="more" style="--i:' + us.length + ';--cd:0ms"><span>+' + fmt(count - shownReq) + ' older open requests</span><a href="#">View all →</a></div>';
+      var st = statsOf(col), us = units(col), oc = outcomeCounts(), list = "", k = 0, last = null;
+      if (col.key === "court") burstsOf().forEach(function(b){ list += burstBlock(b, k++); });
+      else us.forEach(function(u){
+        if (col.key === "decided"){
+          var o = col.items[u.lead].outcome;
+          if (o !== last){ list += groupHead(o, oc[o], k++); last = o; }
+        }
+        list += card(col, u, k++, st);
+      });
+      if (!us.length) list = '<div class="empty">' + emptyText(col) + '</div>';
+      if (col.key === "open" && us.length){
+        list += '<div class="more" style="--d:' + dl(0, k) + '"><span>Older open requests</span><a href="#">View all' + (state.reg === "all" ? ' ' + fmt(S.figures.requestsOpen) : '') + ' →</a></div>';
       }
       if (col.key === "decided" && us.length){
-        list += '<div class="more" style="--i:' + us.length + ';--cd:140ms"><span>Older rulings</span><a href="#">History →</a></div>';
+        list += '<div class="more" style="--d:' + dl(2, k) + '"><span>Older rulings</span><a href="#">History →</a></div>';
       }
       return '<section class="col' + (col.key === state.mcol ? " active" : "") + '" data-colwrap="' + col.key + '" aria-labelledby="h-' + col.key + '">' +
-        header(col) + '<div class="list" data-list="' + col.key + '">' + list + '</div></section>';
+        header(col, st) + '<div class="list" data-list="' + col.key + '">' + list + '</div>' + footnote(col, st) + '</section>';
     }).join("");
-    state.intro = false;
   }
 
   function renderList(){
     var board = $("#board");
     board.classList.add("is-list");
-    board.classList.remove("svg-in");
     var n = 0;
     board.innerHTML = COLS.map(function(col){
-      var us = units(col), count = colCount(col);
-      var rows = us.map(function(u){
-        var e = col.items[u.lead], grp = u.members.length > 1, where;
+      var st = statsOf(col), us = units(col), oc = outcomeCounts(), last = null, rows = "", bmap = {}, bs = col.key === "court" ? burstsOf() : [];
+      bs.forEach(function(b){ b.members.forEach(function(m){ bmap[m] = b; }); });
+      us.forEach(function(u){
+        var e = col.items[u.lead], grp = u.members.length > 1, where, old = col.key !== "court" && isOldest(u, st), bb = bmap[u.lead];
+        if (bb && bb.members[0] === u.lead){
+          rows += '<div class="lv-sub" style="--d:' + Math.min(300, n * 18) + 'ms">' + pips(bb.n) + '<span>' + burstLine(bb) + '</span><span class="gh-n">' + burstWhen(bb) + ' · in court <b>' + age(bb.age) + '</b></span></div>';
+        }
+        if (col.key === "decided" && e.outcome !== last){
+          last = e.outcome;
+          rows += '<div class="lv-sub">' + outIcon(last, 12) + '<span>' + OUT[last].label + '</span><span class="gh-n"><b>' + oc[last] + '</b> ' + (oc[last] === 1 ? 'ruling' : 'rulings') + '</span></div>';
+        }
         if (col.key === "open"){
           var ids = chainsOf(u, col);
           where = grp ? '<span class="where">' + stack(ids) + '<span>' + ids.length + ' chains</span></span>' : '<span class="where">' + mark(ids[0]) + '<span>' + esc(chainOf(ids[0]).name) + '</span></span>';
         } else where = '<span class="when">' + dShort(e.at) + ' · ' + dTime(e.at) + ' UTC</span>';
-        return '<button type="button" class="lv-row" data-card="' + col.key + ':' + u.lead + '" style="--i:' + (n++) + '" aria-label="' + esc(cardLabel(col, u)) + '">' +
+        rows += '<button type="button" class="lv-row" data-card="' + col.key + ':' + u.lead + '" style="--d:' + Math.min(300, (n++) * 18) + 'ms;--c:' + col.color + '" aria-label="' + esc(bb ? browLabel(bb, u.lead) : cardLabel(col, u, st)) + '">' +
           '<span class="si">' + col.icon + '</span>' +
           '<span class="reg"><span class="av" aria-hidden="true">' + initials(e.registry) + '</span><span>' + esc(shortName(e.registry)) + '</span></span>' +
-          '<span class="main">' + mainLine(col, e) + '</span>' +
+          '<span class="main">' + mainLine(col, e) + (old ? oldTag() : '') + '</span>' +
           '<span class="whocell">' + who(e) + '</span>' +
           '<span class="wcell">' + where + '</span>' +
-          '<span class="age" data-tip-age="' + col.key + ':' + u.lead + '">' + ageShort(SNAP - e.at) + '</span>' +
+          (bb ? '<span class="age">' + (bb.n > 1 ? '+' + offs(e.at - bb.first) : '<span class="ml">lone</span>') + '</span>'
+              : '<span class="age" data-tip-age="' + col.key + ':' + u.lead + '">' + age(ageOf(e)) + ring(col, ageOf(e), st.oldestAge, 16) + '<span class="ml">vs oldest</span></span>') +
         '</button>';
-      }).join("");
-      if (!us.length) rows = '<div class="empty" style="margin:12px 16px">Nothing in this group for ' + esc(shortName(state.reg)) + '</div>';
-      var cap = col.key === "open" ? "latest 10 requests, same address grouped" : col.key === "court" ? "every dispute before jurors" : "latest 10 rulings";
+      });
+      if (!us.length) rows = '<div class="empty" style="margin:12px 16px">' + emptyText(col) + '</div>';
       return '<section class="lv-group' + (col.key === state.mcol ? " active" : "") + '" data-colwrap="' + col.key + '">' +
-        '<div class="lv-head">' + col.icon + '<span>' + col.title + '</span>' + (col.key === "decided" ? '' : '<span class="cnt ' + (col.key === "open" ? "blue" : "amber") + '">' + fmt(count) + '</span>') + '<span class="cap">' + cap + '</span></div>' +
-        rows + '</section>';
+        '<div class="lv-head">' + col.icon + '<span>' + col.title + '</span><span class="cnt-chip ' + col.tone + '">' + st.n + '</span>' +
+        '<span class="cap">' + esc(scopeText(col, st)) + (col.key === "court" ? (bs.length ? ' · <b style="color:var(--text);font-weight:500">' + bs.length + '</b> ' + (bs.length === 1 ? 'burst' : 'bursts') + ', challenged less than 60 min apart' : '') : st.med === null ? '' : ' · median age <b style="color:var(--text);font-weight:500">' + age(st.med) + '</b>') + '</span></div>' +
+        rows + footnote(col, st) + '</section>';
     }).join("");
   }
 
+  var introT = 0;
+  function playIntro(){
+    if (RM) return;   // reduced motion: the final state, immediately
+    var b = $("#board");
+    b.classList.remove("intro"); void b.offsetWidth; b.classList.add("intro");
+    clearTimeout(introT); introT = setTimeout(function(){ b.classList.remove("intro"); }, 640);
+  }
   function render(){
-    closePop(); hideTip();
+    hideTip();
     if (state.view === "board") renderBoard(); else renderList();
+    playIntro();
     syncMTabs(false);
     if (state.sel){
       var el = document.querySelector('[data-card="' + state.sel + '"]');
@@ -876,21 +1030,17 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
     }
   }
 
-  /* ---------- status bar ---------- */
+  /* ---------- status bar: snapshot time and the definitions every figure uses ---------- */
   function renderChrome(){
-    var eth = S.entriesByChain.find(function(c){ return c.chain === "Ethereum"; }) || { entries: 0 };
-    var gno = S.entriesByChain.find(function(c){ return c.chain === "Gnosis"; }) || { entries: 0 };
     var d = new Date(SNAP * 1000);
     var stamp = "Snapshot · " + d.getUTCDate() + " " + MONTHS[d.getUTCMonth()] + " " + d.getUTCFullYear() + ", " + dTime(SNAP) + " UTC";
     $("#status").innerHTML =
       '<span class="pill"><span class="dot"></span>' + stamp + '</span>' +
       '<span class="sep"></span>' +
-      '<span data-tip-split="1">Entries by chain <span class="split" aria-hidden="true"><i style="flex:' + eth.entries + '"></i><i style="flex:' + gno.entries + '"></i></span> Ethereum <b>' + fmt(eth.entries) + '</b> · Gnosis <b>' + fmt(gno.entries) + '</b></span>' +
+      '<span class="fn"><b>Age</b> = snapshot time − event time · ' + esc(S.scope.replace(/\s*\(.*\)\s*$/, "")) + '</span>' +
       '<span class="sep"></span>' +
-      '<span class="xs-hide"><b>' + fmt(S.figures.registries) + '</b> registries · <b>' + fmt(S.figures.verified) + '</b> verified</span>' +
-      '<span class="sep"></span>' +
-      '<span class="xs-hide md-hide"><b>' + fmt(S.figures.curators30d) + '</b> curators · 30d</span>' +
-      '<span class="kbd"><kbd>J</kbd><kbd>K</kbd> move <kbd>H</kbd><kbd>L</kbd> column <kbd>↵</kbd> open <kbd>V</kbd> layout <kbd>esc</kbd> close</span>';
+      '<span class="fn"><b>Flow</b> = open requests and disputes in court across all lists; decided = rulings listed (latest ' + S.decided.length + ')</span>' +
+      '<span class="kbd"><kbd>J</kbd><kbd>K</kbd> move <kbd>H</kbd><kbd>L</kbd> column <kbd>↵</kbd> open <kbd>V</kbd> layout</span>';
   }
 
   /* ---------- tooltip ---------- */
@@ -905,29 +1055,37 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
   function hideTip(){ tip.classList.remove("on"); }
   function tipFor(t){
     var el;
-    if ((el = t.closest("[data-tip-day]"))){
-      var d = series[+el.getAttribute("data-tip-day")];
-      return '<div>' + dShort(d.day) + ' (UTC day)</div><div class="r"><span>Requests, all lists</span><b>' + d.requests + '</b></div>';
+    if ((el = t.closest("[data-tip-med]"))){
+      var mc = COLMAP[el.getAttribute("data-tip-med")], ms = statsOf(mc);
+      if (ms.med === null) return null;
+      return '<div><b>Median age ' + ageFull(ms.med) + '</b></div><div>over the ' + noun(mc, ms.n) + ' shown</div><div class="r"><span>Oldest</span><b>' + ageFull(ms.oldestAge) + '</b></div>';
     }
-    if ((el = t.closest("[data-tip-court]"))){
-      var ci = +el.getAttribute("data-tip-court"), ce = S.inCourt[ci];
-      return '<div><b>' + esc(ce.status) + '</b> · ' + esc(shortName(ce.registry)) + '</div><div class="r"><span>Days since challenge</span><b>' + COURT_DAYS[ci].toFixed(1) + ' d</b></div><div>Challenged ' + dFull(ce.at) + '</div>';
+    if ((el = t.closest("[data-tip-bursts]"))){
+      var bl = burstsOf();
+      return '<div><b>' + bl.length + ' ' + (bl.length === 1 ? 'burst' : 'bursts') + '</b> over the ' + noun(COLMAP.court, statsOf(COLMAP.court).n) + ' shown</div><div>A dispute challenged less than 60 min after the previous one joins its burst.</div>' +
+        bl.map(function(x){ return '<div class="r"><span>' + burstWhen(x) + '</span><b>' + x.n + '</b></div>'; }).join('');
     }
-    if ((el = t.closest("[data-tip-ruling]"))){
-      var e = S.decided[+el.getAttribute("data-tip-ruling")];
-      return '<div><b>' + esc(e.status) + '</b></div><div>' + esc(shortName(e.registry)) + '</div><div>' + dFull(e.at) + '</div>';
+    if ((el = t.closest("[data-tip-burst]"))){
+      var bu = burstOf(+el.getAttribute("data-tip-burst")), bf = COLMAP.court.items[bu.members[0]];
+      return '<div><b>In court ' + ageFull(bu.age) + '</b></div><div>since ' + esc(bf.status) + ', challenged ' + dFull(bu.first) + '</div>' + (bu.n > 1 ? '<div class="r"><span>Last of the burst</span><b>' + dTime(bu.last) + ' UTC</b></div>' : '');
+    }
+    if ((el = t.closest("[data-tip-list]"))){
+      var lk = el.getAttribute("data-tip-list").split("|"), lr = regRow(lk[0], lk[1]), ln = sameTitle(lk[0], lk[1]);
+      if (!lr) return null;
+      return '<div><b>' + esc(lk[0]) + '</b> · ' + esc(lk[1]) + '</div><div class="r"><span>Entries</span><b>' + fmt(lr.entries) + '</b></div><div class="r"><span>Open requests</span><b>' + fmt(lr.open) + '</b></div><div class="r"><span>In court</span><b>' + fmt(lr.inCourt) + ' (' + pct(lr.inCourt, lr.open) + ')</b></div>' +
+        '<div>' + (ln > 1 ? ln + ' lists share this title on ' + esc(lk[1]) + '; this is the one with the most open requests.' : 'Row of the top-registries table.') + '</div>';
+    }
+    if ((el = t.closest("[data-tip-tally]"))){
+      var tn = el.getAttribute("data-tip-tally"), tt = tallyOf(tn);
+      return '<div><b>' + esc(tn) + '</b>: ' + tt.n + ' of the latest ' + S.decided.length + ' rulings</div>' + OUT_ORDER.map(function(k){ return '<div class="r"><span>' + OUT[k].label + '</span><b>' + tt[k] + '</b></div>'; }).join('');
     }
     if ((el = t.closest("[data-tip-chains]"))){
       var u = COLMAP.open.unitOf[+el.getAttribute("data-tip-chains")];
       return '<div><b>Same address on ' + u.members.length + ' chains</b></div><div>' + u.members.map(function(m){ return esc(chainOf(caip(S.openToChallenge[m].id).chain).name); }).join(", ") + '</div>';
     }
     if ((el = t.closest("[data-tip-age]"))){
-      var p = el.getAttribute("data-tip-age").split(":"), c = COLMAP[p[0]], ev = c.items[+p[1]], sec = SNAP - ev.at;
-      return '<div><b>' + ageLong(sec) + '</b> ' + c.since + '</div><div>' + c.verb + ' ' + dFull(ev.at) + '</div>';
-    }
-    if ((el = t.closest("[data-tip-split]"))){
-      var tt = S.entriesByChain.reduce(function(a, x){ return a + x.entries; }, 0);
-      return '<div><b>Entries by chain</b></div>' + S.entriesByChain.map(function(x){ return '<div class="r"><span>' + x.chain + '</span><b>' + fmt(x.entries) + ' · ' + (x.entries / tt * 100).toFixed(1) + '%</b></div>'; }).join("");
+      var p = el.getAttribute("data-tip-age").split(":"), c = COLMAP[p[0]], ev = c.items[+p[1]], sec = ageOf(ev), st = statsOf(c);
+      return '<div><b>' + ageFull(sec) + '</b> ' + c.since + '</div><div>' + c.verb + ' ' + dFull(ev.at) + '</div><div class="r"><span>Ring: share of the oldest (' + age(st.oldestAge) + ')</span><b>' + Math.round(sec / st.oldestAge * 100) + '%</b></div>';
     }
     return null;
   }
@@ -940,47 +1098,6 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
   });
   document.addEventListener("pointerleave", hideTip);
 
-  /* ---------- registry popover (hover, focus or tap the column count) ---------- */
-  var pop = $("#pop"), popKey = null, popAnchor = null, popTimer = null;
-  function openPop(key, anchor){
-    clearTimeout(popTimer);
-    if (popKey === key && popAnchor === anchor) return;
-    closePop(true);
-    var col = COLMAP[key], segs = col.segments, tot = segs.reduce(function(a, s){ return a + s.value; }, 0), max = segs.length ? segs[0].value : 1;
-    pop.innerHTML = '<div class="pop-h"><span>' + col.segCap + '</span><b>' + fmt(tot) + '</b></div>' +
-      segs.map(function(s){
-        return '<button type="button" class="pr' + (state.reg === s.title ? ' on' : '') + '" data-reg="' + esc(s.title) + '" title="' + esc(s.title) + '"><span class="nm"><span class="av" aria-hidden="true">' + initials(s.title) + '</span><span>' + esc(shortName(s.title)) + '</span></span><span class="bar"><i style="width:' + Math.max(3, s.value / max * 100) + '%"></i></span><span class="v">' + fmt(s.value) + '</span></button>';
-      }).join("") +
-      '<div class="pop-f"><span>' + (state.reg === "all" ? "Pick a registry to filter the board" : "Filtered to " + esc(shortName(state.reg))) + '</span>' + (state.reg === "all" ? '' : '<button type="button" data-reg="all">Clear</button>') + '</div>';
-    var r = anchor.getBoundingClientRect(), vw = window.innerWidth, w = Math.min(330, vw - 24);
-    pop.style.left = Math.max(12, Math.min(vw - w - 12, r.left - 6)) + "px";
-    pop.style.top = (r.bottom + 8) + "px";
-    pop.classList.add("on"); popKey = key; popAnchor = anchor; anchor.setAttribute("aria-expanded", "true");
-  }
-  function closePop(now){
-    clearTimeout(popTimer);
-    if (!popKey) return;
-    pop.classList.remove("on");
-    if (popAnchor) popAnchor.setAttribute("aria-expanded", "false");
-    popKey = null; popAnchor = null;
-  }
-  function closePopSoon(){ clearTimeout(popTimer); popTimer = setTimeout(closePop, 180); }
-  document.addEventListener("mouseover", function(ev){
-    var a = ev.target.closest && ev.target.closest("[data-pop]");
-    if (a && !MOBILE.matches){ clearTimeout(popTimer); popTimer = setTimeout(function(){ openPop(a.getAttribute("data-pop"), a); }, 140); return; }
-    if (ev.target.closest && ev.target.closest("#pop")){ clearTimeout(popTimer); return; }
-    if (popKey) closePopSoon();
-    else clearTimeout(popTimer);
-  });
-  pop.addEventListener("click", function(ev){
-    var b = ev.target.closest("[data-reg]"); if (!b) return;
-    var r = b.getAttribute("data-reg");
-    setReg(r !== "all" && state.reg === r ? "all" : r);
-  });
-  document.addEventListener("pointerdown", function(ev){
-    if (popKey && !ev.target.closest("#pop") && !ev.target.closest("[data-pop]")) closePop();
-  });
-
   /* ---------- sheet ---------- */
   var sheet = $("#sheet"), scrim = $("#scrim"), lastFocus = null;
   function visibleOrder(){
@@ -988,76 +1105,86 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
     COLS.forEach(function(c){ units(c).forEach(function(u){ out.push(c.key + ":" + u.lead); }); });
     return out;
   }
-  function regBlock(r){
-    return '<div class="rg"><div><div class="n">' + fmt(r.entries) + '</div><div class="l">entries</div></div><div><div class="n">' + fmt(r.open) + '</div><div class="l">open</div></div><div><div class="n">' + fmt(r.inCourt) + '</div><div class="l">in court</div></div><div><div class="n">' + r.created.slice(0, 4) + '</div><div class="l">created</div></div></div>' +
-      '<div class="rg-meta"><span class="chip">' + r.kind + ' Curate</span><span class="chip">' + r.chain + '</span>' + (r.verified ? '<span class="chip v">Verified</span>' : '<span class="chip">Not verified</span>') + '<span class="chip">since ' + r.created + '</span></div>';
-  }
-  function regSection(col, e){
-    var regs = S.topRegistries.filter(function(r){ return r.title === e.registry; });
-    if (!regs.length) return "";
-    if (regs.length === 1) return '<div class="sh-h">Registry</div>' + regBlock(regs[0]);
-    var chains = regs.map(function(r){ return r.chain; }).filter(function(c, i, a){ return a.indexOf(c) === i; });
-    var where = chains.length === 1 ? chains[0] + " registries" : "registries";
-    // open requests and disputes are all inside these registries (their totals match the snapshot), so the one with any is the item's list
-    var field = col.regField, holders = field ? regs.filter(function(r){ return r[field] > 0; }) : [];
-    var main, line;
-    if (holders.length === 1){
-      main = holders[0];
-      line = regs.length + ' ' + where + ' share this title. This one is ' + (main.verified ? 'the verified one, ' : '') + 'the only one with ' + (field === "open" ? "open requests" : "disputes in court") + '.';
-    } else {
-      main = regs.filter(function(r){ return r.verified; })[0] || regs[0];
-      line = regs.length + ' ' + where + ' share this title, and the snapshot does not say which one ruled. Showing the ' + (main.verified ? 'verified' : 'largest') + ' one.';
+  // where this card sits among the ages of its column: one tick per row, dashed line at the median
+  function ageStrip(col, hi){
+    var st = statsOf(col); if (!st.n) return "";
+    var W = 356, H = 72, px = 8, base = 46, max = st.oldestAge || 1;
+    function X(a){ return px + (a / max) * (W - 2 * px); }
+    var out = '<svg class="strip" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Age of each ' + col.one + ' in this column on an axis from 0 to ' + ageFull(max) + '; dashed line at the median, ' + ageFull(st.med) + '; this ' + col.one + ' in white">';
+    out += '<line x1="' + px + '" y1="' + (base + .5) + '" x2="' + (W - px) + '" y2="' + (base + .5) + '" stroke="rgba(255,255,255,.16)"/>';
+    st.rows.forEach(function(i, k){
+      if (i === hi) return;
+      var x = X(st.ages[k]).toFixed(1);
+      out += '<line x1="' + x + '" y1="' + (base - 14) + '" x2="' + x + '" y2="' + base + '" stroke="' + col.color + '" stroke-width="2" stroke-linecap="round" opacity=".75"/>';
+    });
+    var mx = X(st.med), anchor = mx < 70 ? "start" : mx > W - 70 ? "end" : "middle", lx = anchor === "start" ? mx - 2 : anchor === "end" ? mx + 2 : mx;
+    out += '<line x1="' + mx.toFixed(1) + '" y1="16" x2="' + mx.toFixed(1) + '" y2="' + (base + 4) + '" stroke="rgba(255,255,255,.55)" stroke-dasharray="2 3"/>';
+    out += '<text class="lab" x="' + lx.toFixed(1) + '" y="11" text-anchor="' + anchor + '">median ' + age(st.med) + '</text>';
+    var hk = st.rows.indexOf(hi);
+    if (hk >= 0){
+      var hx = X(st.ages[hk]).toFixed(1);
+      out += '<line x1="' + hx + '" y1="' + (base - 20) + '" x2="' + hx + '" y2="' + base + '" stroke="#fff" stroke-width="2" stroke-linecap="round"/><circle cx="' + hx + '" cy="' + (base - 23) + '" r="3.5" fill="#fff"/>';
     }
-    var others = regs.filter(function(r){ return r !== main; });
-    return '<div class="sh-h">Registry</div><p class="amb">' + line + '</p>' + regBlock(main) +
-      '<details class="others"><summary>' + plural(others.length, "other registry", "other registries") + ' with this title' + CHEV + '</summary>' +
-      others.map(function(r){ return '<div class="orow"><span>' + r.kind + ' · since ' + r.created + (r.verified ? ' · verified' : '') + '</span><span><b>' + fmt(r.entries) + '</b> entries</span><span><b>' + fmt(r.open) + '</b> open</span></div>'; }).join("") +
-      '</details>';
+    out += '<text x="' + px + '" y="' + (H - 4) + '" text-anchor="start">0</text>';
+    out += '<text x="' + (W - px) + '" y="' + (H - 4) + '" text-anchor="end">oldest ' + age(max) + '</text>';
+    return out + '</svg>';
+  }
+  // the dispute's burst: the disputes challenged with it, in arrival order, this one highlighted
+  function burstCtx(idx){
+    var col = COLMAP.court, b = burstOf(idx);
+    var h = b.n > 1 ? '<b>Burst of ' + b.n + '</b> · challenged within ' + spanMin(b.span) + ' on ' + dShort(b.first) + (b.actors.length === 1 ? ', all on requests by ' + esc(b.actors[0]) : '')
+                    : '<b>Lone dispute</b> · no other dispute challenged within 60 min of it';
+    return '<div class="ctx"><div class="ctx-h">' + h + '</div>' + b.members.map(function(m){
+      var e = col.items[m];
+      return '<button type="button" class="xr' + (m === idx ? ' cur' : '') + '" data-item="court:' + m + '"' + (m === idx ? ' aria-current="true"' : '') + '><i class="pip" aria-hidden="true"></i><span>' + esc(e.status) + '</span><span class="tm">' + dTime(e.at) + ' UTC</span><span class="ag">' + (b.n > 1 ? '+' + offs(e.at - b.first) : '') + '</span></button>';
+    }).join("") + '</div>';
   }
   function openSheet(id, keepFocus){
-    var p = id.split(":"), col = COLMAP[p[0]], idx = +p[1], e = col.items[idx], sec = SNAP - e.at, u = col.unitOf[idx];
+    var p = id.split(":"), col = COLMAP[p[0]], idx = +p[1], e = col.items[idx], sec = ageOf(e), u = col.unitOf[idx];
     var leadId = col.key + ":" + u.lead;
     state.sel = leadId; state.item = id;
-    document.querySelectorAll(".card.sel,.lv-row.sel").forEach(function(x){ x.classList.remove("sel"); });
+    document.querySelectorAll(".card.sel,.lv-row.sel,.brow.sel").forEach(function(x){ x.classList.remove("sel"); });
     var el = document.querySelector('[data-card="' + leadId + '"]'); if (el){ el.classList.add("sel"); el.scrollIntoView({ block: "nearest", behavior: RM ? "auto" : "smooth" }); }
     $("#shStatus").innerHTML = (col.key === "decided" ? outIcon(e.outcome, 12) : col.icon.replace(/width="14" height="14"/, 'width="12" height="12"')) + col.title;
 
-    var c = caip(e.id), title, ctx = "", props;
-    var evLine = '<div class="sh-ev"><span>' + col.verb + ' ' + dDay(e.at) + '</span><i></i><b>' + (col.key === "court" ? "with jurors for " + ageLong(sec) : ageLong(sec) + " ago") + '</b></div>';
+    var c = caip(e.id), title, group = "", props, st = statsOf(col);
+    var evLine = '<div class="sh-ev"><span>' + col.verb + ' ' + dDay(e.at) + '</span><i></i><b>' + (col.key === "court" ? "with jurors for " + ageFull(sec) : ageFull(sec) + " ago") + '</b>' + (st.oldest === idx && col.key !== "court" ? '<span class="old" style="--c:' + col.color + ';margin-left:4px"><i></i>Oldest in column</span>' : '') + '</div>';
+    var ctx = col.key === "court" ? burstCtx(idx) : '<div class="ctx"><div class="ctx-h"><b>Age in this column</b> · one tick per ' + col.one + ', this one in white, dashed line = median</div>' + ageStrip(col, idx) + '</div>';
     if (col.key === "open"){
       var ch = chainOf(c.chain);
       title = '<h3 class="sh-title mono" id="shTitle">' + shortAddr(c.addr) + '</h3>';
       if (u.members.length > 1){
         var oneReq = u.members.every(function(m){ return col.items[m].actor === e.actor; });
-        ctx = '<div class="ctx"><div class="ctx-h"><b>Requested on ' + u.members.length + ' chains</b> · same address' + (oneReq ? ', same requester' : '') + '</div>' +
+        group = '<div class="ctx"><div class="ctx-h"><b>Requested on ' + u.members.length + ' chains</b> · same address' + (oneReq ? ', same requester' : '') + '</div>' +
           u.members.map(function(m){
             var it = col.items[m], cc = caip(it.id);
-            return '<button type="button" class="xr' + (m === idx ? ' cur' : '') + '" data-item="open:' + m + '"' + (m === idx ? ' aria-current="true"' : '') + '>' + mark(cc.chain) + '<span>' + esc(chainOf(cc.chain).name) + '</span><span class="id">' + cc.ns + ':' + cc.chain + '</span><span class="ag">' + ageShort(SNAP - it.at) + '</span></button>';
+            return '<button type="button" class="xr' + (m === idx ? ' cur' : '') + '" data-item="open:' + m + '"' + (m === idx ? ' aria-current="true"' : '') + '>' + mark(cc.chain) + '<span>' + esc(chainOf(cc.chain).name) + '</span><span class="id">' + cc.ns + ':' + cc.chain + '</span><span class="ag">' + age(ageOf(it)) + '</span></button>';
           }).join("") + '</div>';
       }
       props = '<dt>Request</dt><dd>' + esc(e.status) + '</dd>' +
         '<dt>Requested by</dt><dd>' + who(e).replace('>by <', '><') + '</dd>' +
         '<dt>Item chain</dt><dd>' + mark(c.chain) + esc(ch.name) + ' <span class="mono dim">' + c.ns + ':' + c.chain + '</span></dd>' +
         '<dt>Registry chain</dt><dd>' + esc(e.chain) + '</dd>' +
+        '<dt>List figures</dt><dd>' + listDd(e) + '</dd>' +
         '<dt>Item ID</dt><dd><span class="mono" id="caipVal">' + esc(e.id) + '</span><button class="copy" type="button" data-copy="' + esc(e.id) + '">Copy</button></dd>';
     } else if (col.key === "court"){
       title = '<h3 class="sh-title" id="shTitle">' + esc(e.status) + '</h3>';
-      ctx = '<div class="ctx"><div class="ctx-h"><b>Days since challenge</b> · this dispute (white) among all ' + S.inCourt.length + ' in court</div>' + courtStrip({ W: 356, H: 58, big: true, hi: idx }) + '</div>';
       props = '<dt>Dispute</dt><dd>' + esc(e.status.replace(/^Dispute\s*/, "")) + ' · Kleros court on ' + esc(e.chain) + '</dd>' +
         '<dt>Requested by</dt><dd>' + who(e).replace('>by <', '><') + '</dd>' +
-        '<dt>Registry chain</dt><dd>' + esc(e.chain) + '</dd>';
+        '<dt>Registry chain</dt><dd>' + esc(e.chain) + '</dd>' +
+        '<dt>List figures</dt><dd>' + listDd(e) + '</dd>';
     } else {
       title = '<h3 class="sh-title" id="shTitle">' + outIcon(e.outcome, 22) + esc(e.status) + '</h3>';
-      var oc = { registered: 0, rejected: 0, removed: 0 }; S.decided.forEach(function(x){ oc[x.outcome]++; });
-      ctx = '<div class="ctx"><div class="ctx-h"><b>Outcome of the latest 10 rulings</b> · this one outlined</div>' + outcomeCells({ cell: 24, gap: 7, H: 32, big: true, hi: idx }) +
-        '<div class="ctx-leg">' + OUT_ORDER.map(function(k){ return '<span>' + outIcon(k, 12) + oc[k] + ' ' + OUT[k].label.toLowerCase() + '</span>'; }).join("") + '</div></div>';
+      var tl = tallyOf(e.registry);
       props = '<dt>Ruling</dt><dd>' + OUT[e.outcome].label + '</dd>' +
         '<dt>Requested by</dt><dd>' + who(e).replace('>by <', '><') + '</dd>' +
-        '<dt>Registry chain</dt><dd>' + esc(e.chain) + '</dd>';
+        '<dt>Registry chain</dt><dd>' + esc(e.chain) + '</dd>' +
+        '<dt>Rulings here</dt><dd>' + OUT_ORDER.filter(function(k){ return tl[k]; }).map(function(k){ return tl[k] + ' ' + OUT[k].label.toLowerCase(); }).join(' · ') + ' <span class="dim">of the latest ' + S.decided.length + ' rulings</span></dd>' +
+        '<dt>List figures</dt><dd>' + listDd(e) + '</dd>';
     }
     $("#shBody").innerHTML =
-      '<div class="sh-reg"><span class="av" aria-hidden="true">' + initials(e.registry) + '</span>' + esc(e.registry) + '</div>' + title + evLine + ctx +
-      '<dl class="props">' + props + '</dl>' + regSection(col, e);
+      '<div class="sh-reg"><span class="av" aria-hidden="true">' + initials(e.registry) + '</span>' + esc(e.registry) + '</div>' + title + evLine + ctx + group +
+      '<dl class="props">' + props + '</dl>';
     $("#shFoot").innerHTML = col.key === "open"
       ? '<a class="btn btn-ghost" href="#">Open item</a><a class="btn btn-primary" href="#">Challenge</a>'
       : col.key === "court" ? '<a class="btn btn-ghost" href="#">Open item</a><a class="btn btn-primary" href="#">View dispute</a>'
@@ -1066,7 +1193,7 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
     $("#shPrev").disabled = pos <= 0; $("#shNext").disabled = pos >= order.length - 1;
     if (!state.sheetOpen){
       lastFocus = document.activeElement;
-      closePop(); hideTip();
+      hideTip();
       state.sheetOpen = true; sheet.classList.add("on"); scrim.classList.add("on"); sheet.setAttribute("aria-hidden", "false");
       if (!keepFocus) setTimeout(function(){ $("#shClose").focus({ preventScroll: true }); }, RM ? 0 : 120);
     }
@@ -1087,7 +1214,7 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
     else { state.sel = next; focusCard(next); }
   }
   function focusCard(id){
-    document.querySelectorAll(".card.sel,.lv-row.sel").forEach(function(x){ x.classList.remove("sel"); });
+    document.querySelectorAll(".card.sel,.lv-row.sel,.brow.sel").forEach(function(x){ x.classList.remove("sel"); });
     var el = document.querySelector('[data-card="' + id + '"]');
     if (el){ el.focus({ preventScroll: true }); el.scrollIntoView({ block: "nearest", behavior: RM ? "auto" : "smooth" }); }
   }
@@ -1114,8 +1241,6 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
   }
 
   $("#board").addEventListener("click", function(ev){
-    var a = ev.target.closest("[data-pop]");
-    if (a){ var k = a.getAttribute("data-pop"); if (popKey === k && popAnchor === a) closePop(); else openPop(k, a); return; }
     var x = ev.target.closest("[data-xp]"); if (x){ toggleGroup(x.getAttribute("data-xp"), x); return; }
     var it = ev.target.closest("[data-item]"); if (it){ openSheet(it.getAttribute("data-item")); return; }
     var c = ev.target.closest("[data-card]"); if (c) openSheet(c.getAttribute("data-card"));
@@ -1160,7 +1285,6 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
     var tag = (ev.target.tagName || "").toLowerCase(); if (tag === "input" || tag === "textarea") return;
     var k = ev.key;
     if (k === "Escape"){
-      if (popKey){ ev.preventDefault(); var a = popAnchor; closePop(); if (a) a.focus({ preventScroll: true }); return; }
       if (state.sheetOpen){ ev.preventDefault(); closeSheet(); }
       return;
     }
@@ -1171,7 +1295,6 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
       else if (!ev.shiftKey && document.activeElement === f[f.length - 1]){ ev.preventDefault(); f[0].focus(); }
       return;
     }
-    if (popKey) return;
     if (k === "j" || k === "ArrowDown"){ ev.preventDefault(); step(1); }
     else if (k === "k" || k === "ArrowUp"){ ev.preventDefault(); step(-1); }
     else if ((k === "h" || k === "ArrowLeft") && state.view === "board"){ ev.preventDefault(); stepCol(-1); }
@@ -1184,11 +1307,11 @@ kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 
   });
 
   /* ---------- init ---------- */
-  buildRegSeg(); buildMTabs(); renderChrome(); render();
+  buildRegSeg(); buildMTabs(); renderFlow(); renderChrome(); render();
   function placeAll(){ syncRegSeg(false); syncViewSeg(false); syncMTabs(false); }
   placeAll();
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(placeAll);
-  window.addEventListener("resize", function(){ placeAll(); closePop(); });
+  window.addEventListener("resize", placeAll);
   function onBreakpoint(){ render(); placeAll(); }
   (MOBILE.addEventListener ? MOBILE.addEventListener("change", onBreakpoint) : MOBILE.addListener(onBreakpoint));
 })();

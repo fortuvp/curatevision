@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Curate Mission Control</title>
-<meta name="description" content="Instrument-panel dashboard variant for Curate, drawn from a real Ethereum + Gnosis snapshot.">
+<meta name="description" content="Instrument-panel dashboard variant for Curate: Ethereum and Gnosis side by side in mirrored bars, computed from a real snapshot of both chains.">
 <meta name="color-scheme" content="dark">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -24,10 +24,15 @@
   --hair:#3a3d4b;     /* strokes only, never text */
   --blue:#3b82f6;
   --blue-hi:#8fb4ff;
-  --lit:#86abff;
-  --amber:#f3b14e;
-  --green:#7fe0ae;
-  --rose:#f59aa8;
+  /* the two sides, validated as a pair on the card surface (dataviz validate_palette, dark) */
+  --eth:#6f82f0;
+  --eth-hi:#9aa8ff;
+  --gno:#2cad84;
+  --gno-hi:#5fd6ad;
+  /* event stages, validated as a set on the card surface */
+  --st-open:#9277e0;
+  --st-court:#b58226;
+  --st-dec:#c45a8c;
   --r-card:22px;
   --ui:'Geist',system-ui,-apple-system,'Segoe UI',sans-serif;
   --mono:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
@@ -40,6 +45,7 @@ body{background:var(--stage);color:var(--text);font-family:var(--ui);-webkit-fon
 button{font:inherit;color:inherit}
 a{color:inherit}
 [hidden]{display:none!important}
+.sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 
 /* stage: vertical blue wash + one blurred diagonal streak (no grid) */
 .stage{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;
@@ -80,165 +86,146 @@ a{color:inherit}
 .crumb{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;font-size:15px;color:var(--text)}
 .crumb .c-a{color:var(--muted)}
 .crumb .sep{color:var(--dim)}
+.crumb h1{margin:0;font:inherit;display:inline-flex;align-items:center;gap:8px}
+.crumb h1 .vs{color:var(--muted);font-size:13px}
 .chip{display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 10px;margin-left:6px;border:1px solid var(--line-2);border-radius:8px;font:400 11.5px var(--mono);color:var(--text-2);white-space:nowrap}
 .chip svg{color:var(--muted)}
 .sub-r{margin-left:auto;display:flex;align-items:center;gap:10px}
 
-/* deck */
-.deck{display:grid;grid-template-columns:1.22fr 1fr 1fr 1fr;gap:14px;margin-top:16px}
-.card{position:relative;display:flex;flex-direction:column;background:linear-gradient(180deg,var(--card-hi),var(--card) 46%);border:1px solid var(--line);border-radius:var(--r-card);padding:18px 18px 16px;overflow:hidden;min-width:0}
+/* deck: row 1 = mirrored bars + the entry split, row 2 = where the snapshot's events fall */
+.deck{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px;margin-top:16px}
+.card{position:relative;display:flex;flex-direction:column;background:linear-gradient(180deg,var(--card-hi),var(--card) 46%);border:1px solid var(--line);border-radius:var(--r-card);padding:18px 18px 14px;overflow:hidden;min-width:0}
 .card::before{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 1px 0 rgba(255,255,255,.05);pointer-events:none}
+.mir{grid-column:span 7}
+.split-c{grid-column:span 5}
+.ev{grid-column:1/-1}
 .ch{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:12px}
 .ct{margin:0;font:600 16px/1.25 var(--num);letter-spacing:.01em}
-.cc{grid-column:1/-1;margin:5px 0 0;font:400 11px/1.4 var(--mono);color:var(--muted)}
-.tag{flex:none;font:400 10.5px/1 var(--mono);color:var(--text-2);padding:6px 8px;border-radius:7px;background:rgba(255,255,255,.035);border:1px solid var(--line);white-space:nowrap;text-decoration:none}
-a.tag{transition:background .2s,color .2s}
-a.tag:hover{background:rgba(255,255,255,.07);color:var(--text)}
-.cf{margin-top:auto;padding-top:14px;display:flex;align-items:center;justify-content:space-between;gap:10px}
-.key{display:grid;gap:5px;font:400 10.5px var(--mono);color:var(--muted);min-width:0}
-.key span{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
-.key i{display:inline-block;flex:none}
+.cc{grid-column:1/-1;margin:5px 0 0;font:400 11px/1.45 var(--mono);color:var(--muted)}
+.tag{flex:none;font:400 10.5px/1 var(--mono);color:var(--text-2);padding:6px 8px;border-radius:7px;background:rgba(255,255,255,.035);border:1px solid var(--line);white-space:nowrap}
+.cf{margin-top:auto;padding-top:12px;display:flex;align-items:center;justify-content:space-between;gap:10px}
 .inspect{all:unset;flex:none;display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border-radius:9px;border:1px solid var(--line-2);background:rgba(255,255,255,.03);font:500 12px var(--ui);color:var(--text);cursor:pointer;transition:background .2s,border-color .2s}
 .inspect:hover{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.18)}
 .inspect svg{transition:transform .2s}
 .inspect:hover svg{transform:translateX(2px)}
-.inspect:focus-visible,.link:focus-visible,.tabs button:focus-visible,.seg button:focus-visible,.btn:focus-visible,.nav a:focus-visible,.row:focus-visible,.pr:focus-visible,.ap:focus-visible,.sh-x:focus-visible,a.tag:focus-visible,.more a:focus-visible{outline:2px solid var(--blue-hi);outline-offset:2px}
-.sw{display:inline-block;flex:none;width:8px;height:8px;border-radius:2px}
-.sw.blue{background:#5b8dff;box-shadow:0 0 8px rgba(91,141,255,.6)}
-.sw.amber{background:var(--amber);box-shadow:0 0 8px rgba(243,177,78,.5)}
+.inspect:focus-visible,.btn:focus-visible,.nav a:focus-visible,.mb-row:focus-visible,.ev-row:focus-visible,.sh-x:focus-visible{outline:2px solid var(--blue-hi);outline-offset:2px}
+.sw{display:inline-block;flex:none;width:9px;height:9px;border-radius:3px}
+.sw.eth{background:var(--eth);box-shadow:0 0 8px rgba(111,130,240,.6)}
+.sw.gno{background:var(--gno);box-shadow:0 0 8px rgba(44,173,132,.6)}
+.cf-note{font:400 11px/1.4 var(--mono);color:var(--muted);min-width:0}
 
-/* readout: one big figure per card, swapped in place on hover */
-.ro{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 9px;margin-top:16px;min-height:42px}
-.ro .big{font:600 42px/1 var(--num);letter-spacing:-.01em;color:#f4f6ff;font-variant-numeric:tabular-nums}
-.ro .of{font:400 12px var(--mono);color:var(--text-2)}
+/* footnote: every derived figure states its formula and window */
+.fn{margin:12px 0 0;padding-top:10px;border-top:1px solid var(--line);font:400 10.5px/1.5 var(--mono);color:var(--dim)}
+.fn b{font-weight:500;color:var(--muted)}
+.fn+.fn{margin-top:6px;padding-top:0;border-top:0}
 
-/* hero: odometer + chain split */
-.odo{display:flex;align-items:flex-start;margin-top:16px;font:600 clamp(60px,5.3vw,76px)/1 var(--num);letter-spacing:-.015em;color:#f4f6ff;font-variant-numeric:proportional-nums}
-.od-col{display:inline-block;height:1em;overflow:hidden}
-.odo.rolling .od-col{-webkit-mask-image:linear-gradient(180deg,transparent,#000 22%,#000 78%,transparent);mask-image:linear-gradient(180deg,transparent,#000 22%,#000 78%,transparent)}
-.od-reel{display:block;will-change:transform}
-.od-reel span{display:block;height:1em;text-align:center}
-.od-sep{display:inline-block;margin:0 .04em 0 .01em;color:#9aa0b8}
-.split{margin-top:18px}
-.split-h{display:flex;align-items:center;justify-content:space-between;font:400 11px var(--mono);color:var(--muted)}
-.link{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:5px;font:500 12px var(--ui);color:var(--text-2);border-radius:6px;transition:color .2s}
-.link:hover{color:var(--text)}
-.link svg{transition:transform .2s}
-.link:hover svg{transform:translateX(2px)}
-.bar{display:flex;gap:3px;height:10px;margin-top:9px;transform-origin:left center}
-.bar .seg{flex-basis:0;border-radius:99px;transition:opacity .2s}
-.bar .g{background:linear-gradient(90deg,#2648c4,#8fb4ff);box-shadow:0 0 14px rgba(90,140,255,.55)}
-.bar .e{min-width:6px;background:#9aa0b8}
-.split-l{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:9px;font-size:12.5px;color:var(--text-2)}
-.split-l span{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;transition:opacity .2s}
-.split-l b{font:500 12.5px var(--mono);color:var(--text)}
-.split-l em{font:400 11px var(--mono);font-style:normal;color:var(--muted)}
-.split-l .sw.g{background:#6f9bff;box-shadow:0 0 8px rgba(91,141,255,.6)}
-.split-l .sw.e{background:#9aa0b8}
-.split[data-hl=g] .e,.split[data-hl=g] .split-l [data-k=e]{opacity:.35}
-.split[data-hl=e] .g,.split[data-hl=e] .split-l [data-k=g]{opacity:.35}
-.bar .seg,.split-l span{cursor:default}
-.strip{margin:auto 0 0;padding-top:16px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
-.strip div{padding:12px 0 0;border-top:1px solid var(--line);min-width:0}
-.strip div+div{padding-left:14px;border-left:1px solid var(--line)}
-.strip dt{font:400 10.5px var(--mono);color:var(--muted);white-space:nowrap}
-.strip dd{margin:7px 0 0;font:600 24px/1 var(--num);font-variant-numeric:tabular-nums}
+/* mirrored bars: Ethereum grows left from the label column, Gnosis grows right */
+.mb{--cols:80px minmax(0,1fr) 150px minmax(0,1fr) 80px;flex:1 1 auto;margin-top:16px;display:flex;flex-direction:column;gap:2px}
+.mb-head{display:grid;grid-template-columns:var(--cols);align-items:end;padding:0 0 8px;border-bottom:1px solid var(--line);font:500 12.5px var(--ui);color:var(--text)}
+.mb-head .l{grid-column:1/3;display:flex;align-items:center;justify-content:flex-end;gap:8px;padding-right:2px}
+.mb-head .m{grid-column:3;text-align:center;font:400 10.5px var(--mono);color:var(--dim)}
+.mb-head .r{grid-column:4/6;display:flex;align-items:center;gap:8px;padding-left:2px}
+.mb-row{all:unset;box-sizing:border-box;display:grid;grid-template-columns:var(--cols);grid-template-areas:"vl tl lab tr vr";align-items:center;flex:1 1 auto;min-height:58px;padding:6px 0;border-radius:12px;cursor:pointer;transition:background .18s var(--ease)}
+.mb-row+.mb-row{box-shadow:inset 0 1px 0 var(--line)}
+.mb-row:hover,.mb-row:focus-visible,.mb-row.on{background:rgba(255,255,255,.035)}
+.mb-v{display:flex;flex-direction:column;gap:3px;min-width:0}
+.mb-v b{font:600 21px/1 var(--num);color:var(--text);font-variant-numeric:tabular-nums}
+.mb-v small{font:400 10.5px/1.2 var(--mono);color:var(--muted);white-space:nowrap}
+.mb-v.l{grid-area:vl;align-items:flex-end;text-align:right;padding-right:12px}
+.mb-v.r{grid-area:vr;align-items:flex-start;padding-left:12px}
+.mb-lab{grid-area:lab;text-align:center;padding:0 10px;min-width:0}
+.mb-lab span{display:block;font:500 13px/1.25 var(--ui);color:var(--text)}
+.mb-lab small{display:block;margin-top:3px;font:400 10px/1.3 var(--mono);color:var(--muted)}
+.mb-t{position:relative;height:24px;border-radius:7px;background:rgba(255,255,255,.035)}
+.mb-t.l{grid-area:tl;border-radius:7px 2px 2px 7px}
+.mb-t.r{grid-area:tr;border-radius:2px 7px 7px 2px}
+.bar{position:absolute;top:0;bottom:0;width:calc(var(--w) * 100%);min-width:3px}
+.mb-t.l .bar{right:0;border-radius:6px 2px 2px 6px;background:linear-gradient(270deg,var(--eth),var(--eth-hi));transform-origin:right center}
+.mb-t.r .bar{left:0;border-radius:2px 6px 6px 2px;background:linear-gradient(90deg,var(--gno),var(--gno-hi));transform-origin:left center}
+.mb-t .bar.ghost{background:none!important;border:1.5px solid;opacity:.75}
+.mb-t.l .bar.ghost{border-color:var(--eth)}
+.mb-t.r .bar.ghost{border-color:var(--gno)}
+.mb-t.zero .bar{display:none}
+.mb-t.zero::after{content:"";position:absolute;top:3px;bottom:3px;width:2px;border-radius:1px;background:var(--hair)}
+.mb-t.l.zero::after{right:0}
+.mb-t.r.zero::after{left:0}
+.mb-read{display:flex;align-items:center;flex-wrap:wrap;gap:4px 12px;min-height:40px;margin:10px 0 0;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.025);font:400 12px/1.45 var(--mono);color:var(--text-2)}
+.mb-read b{font-weight:500;color:var(--text)}
+.mb-read .hint{color:var(--dim)}
+.mb-key{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:12px;font:400 10.5px var(--mono);color:var(--muted)}
+.mb-key span{display:inline-flex;align-items:center;gap:7px}
+.mb-key i{display:inline-block;width:18px;height:9px;border-radius:2px}
+.mb-key i.solid{background:linear-gradient(90deg,var(--eth),var(--gno))}
+.mb-key i.ghost{border:1.5px solid var(--text-2);opacity:.75}
+.mb-key i.zero{width:2px;height:12px;background:var(--hair)}
 
-/* lists verified: 237-dot unit field, filled column by column */
-.df{--r:10;display:grid;grid-template-rows:repeat(var(--r),auto);grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);margin-top:14px;touch-action:pan-y}
-.df i{display:block;position:relative;aspect-ratio:1}
-.df i::before{content:"";position:absolute;inset:21%;border-radius:50%;background:rgba(255,255,255,.1);transition:opacity .2s,background .2s}
-.df i.v::before{background:#9cbcff;box-shadow:0 0 7px rgba(110,155,255,.85)}
-.df[data-hl=v] i:not(.v)::before{opacity:.35}
-.df[data-hl=n] i.v::before{opacity:.3}
-.df[data-hl=n] i:not(.v)::before{background:rgba(255,255,255,.3)}
-.kd{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.16)}
-.kd.v{background:#9cbcff;box-shadow:0 0 6px rgba(110,155,255,.85)}
+/* entry split: two big counts, one 100% bar, the ratio */
+.sp{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:end;gap:12px;margin-top:20px}
+.sp-side{min-width:0}
+.sp-side.r{text-align:right}
+.sp-ch{display:inline-flex;align-items:center;gap:8px;font:500 13px var(--ui);color:var(--text-2)}
+.sp-n{display:block;margin-top:10px;font:600 clamp(36px,3.1vw,48px)/1 var(--num);letter-spacing:-.01em;color:#f4f6ff;font-variant-numeric:tabular-nums}
+.sp-s{display:block;margin-top:8px;font:400 11.5px var(--mono);color:var(--text-2)}
+.sp-mid{text-align:center;padding:0 4px 2px}
+.sp-x{display:block;font:600 26px/1 var(--num);color:var(--text);font-variant-numeric:tabular-nums}
+.sp-xl{display:block;margin-top:6px;font:400 10.5px/1.3 var(--mono);color:var(--muted)}
+.sp-bar{display:flex;gap:2px;height:18px;margin-top:16px}
+.sp-bar i{display:block;height:100%;min-width:3px}
+.sp-bar .eth{border-radius:6px 2px 2px 6px;background:var(--eth);transform-origin:left center}
+.sp-bar .gno{border-radius:2px 6px 6px 2px;background:linear-gradient(90deg,var(--gno),var(--gno-hi));transform-origin:left center}
+.sp-axis{display:flex;justify-content:space-between;margin-top:6px;font:400 10px var(--mono);color:var(--dim)}
 
-/* challenges won: one pip per challenge, grouped by curator */
-.pips{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:2px}
-.pr{display:grid;grid-template-columns:92px minmax(0,1fr) auto;align-items:center;gap:12px;height:31px;padding:0 6px;margin:0 -6px;border-radius:8px;cursor:default;transition:background .15s,opacity .2s}
-.pr:hover,.pr:focus-visible{background:rgba(255,255,255,.045)}
-.pips:has(.pr:hover) .pr:not(:hover){opacity:.45}
-.pr .ad{font:400 11.5px var(--mono);color:var(--text-2);white-space:nowrap}
-.pp{display:flex;gap:4px}
-.pp i,.kp{display:block;width:7px;height:16px;border-radius:3px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.2)}
-.pp i.w,.kp.w{background:linear-gradient(180deg,#b9d0ff,#5b8dff);box-shadow:0 0 9px rgba(91,141,255,.7)}
-.kp{width:6px;height:12px}
-.pr .wr{font:500 12px var(--mono);color:var(--text);text-align:right;white-space:nowrap}
-.pr .wr span{color:var(--muted)}
+/* spec table: the top lists per chain, mirrored like the bars */
+.spec{width:100%;margin-top:18px;border-collapse:collapse;table-layout:fixed;font-size:12.5px}
+.spec caption{caption-side:top;text-align:left;padding:0 0 8px;font:400 10.5px var(--mono);color:var(--muted)}
+.spec th,.spec td{padding:9px 0;border-top:1px solid var(--line);vertical-align:top}
+.spec thead th{border-top:0;padding-top:0;font:500 11px var(--mono);color:var(--text-2)}
+.spec tbody th{font:400 10.5px/1.35 var(--mono);color:var(--muted);text-align:center;padding-left:8px;padding-right:8px;width:30%}
+.spec td{width:35%;font:500 13px/1.3 var(--ui);color:var(--text);font-variant-numeric:tabular-nums}
+.spec .l{text-align:left}
+.spec .r{text-align:right}
+.spec td small{display:block;margin-top:3px;font:400 10.5px/1.3 var(--mono);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.spec td .cell{display:block;min-width:0;max-width:100%}
+.spec thead .l span,.spec thead .r span{display:inline-flex;align-items:center;gap:7px}
 
-/* event log */
-.log{list-style:none;margin:8px 0 0;padding:0}
-.ev{display:grid;grid-template-columns:54px 6px minmax(0,1fr);column-gap:10px;padding:6px 0;border-top:1px solid var(--line)}
-.ev:first-child{border-top:0}
-.ev time{font:400 11px/18px var(--mono);color:var(--dim);white-space:nowrap}
-.ev .mk{width:6px;height:6px;margin-top:6px;border-radius:50%;background:#5b8dff;box-shadow:0 0 8px rgba(91,141,255,.8)}
-.ev.k-dispute .mk{background:var(--amber);box-shadow:0 0 8px rgba(243,177,78,.7)}
-.ev.k-ruling .mk{background:#d9ddeb;box-shadow:none}
-.ev .l1{display:block;font:500 12.5px/18px var(--ui);color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ev .l2{display:block;font:400 12px/16px var(--ui);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ev .l2 .who{font:400 11px var(--mono)}
-
-/* daily activity: LED stacks, one per UTC day */
-.act{grid-column:span 3}
-.seg{display:flex;padding:3px;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid var(--line)}
-.seg button{all:unset;cursor:pointer;font:500 12px var(--ui);color:var(--muted);padding:5px 11px;border-radius:7px;white-space:nowrap;transition:color .2s,background .2s}
-.seg button[aria-pressed=true]{color:var(--text);background:#1c1d26;box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}
-.rd{display:flex;align-items:center;gap:6px 22px;margin-top:12px;min-height:28px;font-size:12.5px;color:var(--text-2)}
-.rd-d{font:500 12px var(--mono);color:var(--text);min-width:150px}
-.rd-s{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
-.rd-s b{font:600 19px/1 var(--num);color:var(--text);font-variant-numeric:tabular-nums}
-.rd-p{font:400 11px var(--mono);color:var(--amber)}
-.ap{position:relative;margin-top:10px;touch-action:pan-y;cursor:crosshair;border-radius:8px;-webkit-user-select:none;user-select:none}
-.ap svg{display:block;width:100%;height:auto;overflow:visible}
-.ap .base{stroke:var(--hair);stroke-width:1}
-.ap .hit{fill:transparent;transition:fill .15s}
-.ap .gh rect{fill:rgba(255,255,255,.032)}
-.ap .lr{fill:var(--lit)}
-.ap .lc{fill:var(--amber)}
-.ap .lit{transition:opacity .2s}
-.ap .col.act .hit{fill:rgba(143,180,255,.08)}
-.ap .has-sel .col:not(.act) .lit{opacity:.38}
-.ap-days{position:relative;height:14px;margin-top:9px;font:400 10.5px var(--mono);color:var(--dim)}
-.ap-days span{position:absolute;top:0;white-space:nowrap}
-.act-key{display:flex;flex-wrap:wrap;align-items:center;gap:8px 20px;margin-top:auto;padding-top:10px;font:400 10.5px var(--mono);color:var(--muted)}
-.act-key span{display:inline-flex;align-items:center;gap:7px}
-.ks{display:inline-block;width:12px;height:5px;border-radius:2px}
-.ks.r{background:var(--lit);box-shadow:0 0 6px rgba(110,155,255,.7)}
-.ks.r.part{opacity:.4;box-shadow:none}
-.ks.c{background:var(--amber);box-shadow:0 0 6px rgba(243,177,78,.6)}
-.act-key .hint{margin-left:auto;color:var(--dim)}
-
-/* court */
-.tabs{position:relative;display:flex;gap:4px;padding:3px;border-radius:11px;background:rgba(255,255,255,.03);border:1px solid var(--line)}
-.tabs button{all:unset;position:relative;z-index:1;flex:1;text-align:center;font:500 12.5px var(--ui);color:var(--muted);padding:7px 8px;border-radius:8px;cursor:pointer;transition:color .2s}
-.tabs button[aria-selected=true]{color:var(--text)}
-.tabs .n{margin-left:5px;font:500 11px var(--mono);color:var(--dim)}
-.tabs button[aria-selected=true] .n{color:var(--text-2)}
-.ink{position:absolute;top:3px;bottom:3px;left:3px;width:calc(50% - 5px);border-radius:8px;background:#1c1d26;box-shadow:inset 0 1px 0 rgba(255,255,255,.07);transition:transform .35s var(--ease)}
-.tabs[data-on="1"] .ink{transform:translateX(calc(100% + 4px))}
-.panel{display:flex;flex-direction:column;flex:1;margin-top:12px}
-.panel .cc{margin:0 2px}
-.rows{list-style:none;margin:6px 0 0;padding:0}
-.row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;height:29px;padding:0 6px;border-radius:8px;text-decoration:none;color:var(--text-2);font-size:12.5px;transition:background .15s,color .15s}
-.row:hover{background:rgba(255,255,255,.04);color:var(--text)}
-.row .id{font:400 11px var(--mono);color:var(--amber);min-width:40px}
-.row .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.row .a{font:400 11px var(--mono);color:var(--muted)}
-.pill{font:500 10px/1 var(--mono);padding:4px 6px;border-radius:5px;min-width:72px;text-align:center}
-.pill.registered{color:var(--green);background:rgba(95,211,154,.1)}
-.pill.rejected{color:var(--rose);background:rgba(240,120,138,.1)}
-.pill.removed{color:#c3c7d6;background:rgba(255,255,255,.07)}
-.more{margin-top:auto;padding:10px 6px 0;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px;font:400 11px var(--mono);color:var(--muted)}
-.more a{display:inline-flex;align-items:center;gap:6px;font:500 12px var(--ui);color:var(--text);text-decoration:none;border-radius:6px}
-.more a svg{transition:transform .2s}
-.more a:hover svg{transform:translateX(2px)}
+/* events: stacked bars per list, coloured by stage */
+.ev-grid{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:28px;margin-top:16px;align-items:start}
+.ev-rows{display:flex;flex-direction:column;gap:4px;min-width:0}
+.ev-row{all:unset;box-sizing:border-box;display:grid;grid-template-columns:250px minmax(0,1fr) 44px;align-items:center;gap:14px;min-height:44px;padding:6px 10px;border-radius:12px;cursor:pointer;transition:background .18s var(--ease)}
+.ev-row:hover,.ev-row:focus-visible,.ev-row.on{background:rgba(255,255,255,.035)}
+.ev-row.none{cursor:default}
+.ev-row.none:hover{background:none}
+.ev-name{display:flex;align-items:center;gap:9px;min-width:0;font-size:13px;color:var(--text)}
+.ev-name span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ev-name small{flex:none;font:400 10.5px var(--mono);color:var(--muted)}
+.ev-track{position:relative;height:24px}
+.ev-bar{display:flex;gap:2px;height:100%;width:calc(var(--w) * 100%);transform-origin:left center}
+.ev-bar i{display:flex;align-items:center;justify-content:center;flex:var(--n) 1 0;min-width:0;height:100%;font:600 11px var(--mono);font-style:normal;color:#0b0c11}
+.ev-bar i:first-child{border-top-left-radius:6px;border-bottom-left-radius:6px}
+.ev-bar i:last-child{border-top-right-radius:6px;border-bottom-right-radius:6px}
+.ev-bar .open{background:var(--st-open)}
+.ev-bar .court{background:var(--st-court)}
+.ev-bar .decided{background:var(--st-dec)}
+.ev-track.empty{border-radius:7px;background:repeating-linear-gradient(135deg,rgba(255,255,255,.035) 0 6px,transparent 6px 12px);box-shadow:inset 0 0 0 1px var(--line)}
+.ev-n{font:600 18px/1 var(--num);text-align:right;font-variant-numeric:tabular-nums}
+.ev-read{min-height:34px;margin:8px 0 0;padding:8px 10px;font:400 12px/1.45 var(--mono);color:var(--text-2)}
+.ev-read b{font-weight:500;color:var(--text)}
+.ev-read .hint{color:var(--dim)}
+.ev-side{display:flex;flex-direction:column;gap:14px;padding:14px 16px;border:1px solid var(--line);border-radius:16px;background:rgba(255,255,255,.015)}
+.ev-tot{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ev-tot div{display:flex;flex-direction:column;gap:6px}
+.ev-tot span{display:inline-flex;align-items:center;gap:7px;font:400 11px var(--mono);color:var(--text-2)}
+.ev-tot b{font:600 34px/1 var(--num);font-variant-numeric:tabular-nums}
+.ev-lg{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px;border-top:1px solid var(--line);padding-top:12px}
+.ev-lg li{display:grid;grid-template-columns:12px minmax(0,1fr) auto;align-items:center;gap:10px;font-size:12.5px;color:var(--text)}
+.ev-lg li i{width:12px;height:12px;border-radius:3px}
+.ev-lg li small{font:400 10.5px var(--mono);color:var(--muted);text-align:right}
+.ev-span{font:400 11px/1.45 var(--mono);color:var(--muted)}
 
 /* sheet */
 .scrim{position:fixed;inset:0;z-index:40;background:rgba(3,4,10,.5);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);opacity:0;transition:opacity .3s ease}
 .scrim.open{opacity:1}
-.sheet{position:fixed;z-index:41;top:12px;right:12px;bottom:12px;width:min(460px,calc(100vw - 24px));display:flex;flex-direction:column;
+.sheet{position:fixed;z-index:41;top:12px;right:12px;bottom:12px;width:min(480px,calc(100vw - 24px));display:flex;flex-direction:column;
   background:linear-gradient(180deg,#12131a,#0b0c11 30%);border:1px solid var(--line-2);border-radius:24px;box-shadow:0 30px 80px -20px rgba(0,0,0,.9);
   transform:translateX(calc(100% + 24px));transition:transform .45s var(--ease)}
 .sheet.open{transform:none}
@@ -251,7 +238,8 @@ a.tag:hover{background:rgba(255,255,255,.07);color:var(--text)}
 .sh-x{all:unset;flex:none;display:grid;place-items:center;width:34px;height:34px;border-radius:10px;border:1px solid var(--line-2);cursor:pointer;color:var(--text-2)}
 .sh-x:hover{background:rgba(255,255,255,.06);color:var(--text)}
 .sh-body{flex:1;overflow:auto;padding:6px 14px 22px;overscroll-behavior:contain}
-.sh-sec{display:flex;justify-content:space-between;margin:18px 8px 6px;font:400 10.5px var(--mono);color:var(--muted)}
+.sh-sec{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:18px 8px 6px;font:400 10.5px var(--mono);color:var(--muted)}
+.sh-sec>span:first-child{display:inline-flex;align-items:center;gap:8px;color:var(--text-2)}
 .srow{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:14px;padding:11px 8px;border-bottom:1px solid var(--line)}
 .srow:last-child{border-bottom:0}
 .srow .nm{display:flex;align-items:center;gap:6px;font-size:13.5px;color:var(--text);min-width:0}
@@ -260,37 +248,25 @@ a.tag:hover{background:rgba(255,255,255,.07);color:var(--text)}
 .srow .mt{margin-top:4px;font:400 11px var(--mono);color:var(--muted)}
 .srow .rt{text-align:right}
 .srow .val{font:500 13px var(--mono);color:var(--text)}
-.srow .sub2{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:6px;font:400 10.5px var(--mono);color:var(--muted)}
+.srow .sub2{margin-top:5px;font:400 10.5px var(--mono);color:var(--muted)}
 .srow .none{font:400 11px var(--mono);color:var(--dim)}
-.srow .pp i{width:5px;height:12px}
-.meter{display:inline-flex;gap:2px}
-.meter i{display:block;width:3px;height:11px;border-radius:1px;background:linear-gradient(rgba(133,169,255,var(--o,0)),rgba(133,169,255,var(--o,0))),#262832}
-.caps{padding:6px 8px 4px}
-.cap-row{margin-top:16px}
-.cap-top{display:flex;justify-content:space-between;align-items:baseline;font-size:13.5px}
-.cap-top b{font:500 13px var(--mono)}
-.cap-top span span{font:400 11px var(--mono);color:var(--muted);margin-left:8px}
-.cap{height:12px;margin-top:9px;border-radius:99px;background:#191a22;overflow:hidden}
-.cap b{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#2648c4,#8fb4ff);box-shadow:0 0 14px rgba(90,140,255,.5)}
-.cap.alt b{background:linear-gradient(90deg,#3a3d4d,#9aa0b8);box-shadow:none}
+.st-dot{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:2px}
+.sh-fn{margin:18px 8px 0;font:400 10.5px/1.5 var(--mono);color:var(--dim)}
 .nodata{color:var(--text-2);font:400 13px var(--mono)}
 
 /* intro: only runs in a visible tab; the resting state is always the final one */
 @keyframes rise{from{opacity:0;transform:translateY(14px)}}
-@keyframes pop{from{transform:scale(.2)}}
-@keyframes up{from{opacity:0;transform:translateY(6px)}}
 @keyframes grow{from{transform:scaleX(0)}}
 .intro .card{animation:rise .8s var(--ease) both;animation-delay:calc(var(--i,0) * 90ms)}
-.intro .df i.v::before{animation:pop .5s var(--ease) both;animation-delay:calc(420ms + var(--k) * 15ms)}
-.intro .pp i.w{animation:pop .45s var(--ease) both;animation-delay:calc(520ms + var(--k) * 45ms)}
-.intro .ap .lit{animation:up .55s var(--ease) both;animation-delay:calc(560ms + var(--c) * 22ms)}
-.intro .bar{animation:grow 1s var(--ease) both;animation-delay:.3s}
+.intro .mb-t .bar{animation:grow 1.1s var(--ease) both;animation-delay:calc(380ms + var(--k,0) * 90ms)}
+.intro .sp-bar i{animation:grow 1.2s var(--ease) both;animation-delay:260ms}
+.intro .ev-bar{animation:grow 1s var(--ease) both;animation-delay:calc(560ms + var(--k,0) * 80ms)}
 
 /* tablet */
 @media (max-width:1180px){
-  .deck{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .act,.court{grid-column:1/-1}
+  .mir,.split-c{grid-column:1/-1}
   .scope{display:none}
+  .ev-grid{grid-template-columns:minmax(0,1fr)}
 }
 /* phone */
 @media (max-width:760px){
@@ -308,17 +284,31 @@ a.tag:hover{background:rgba(255,255,255,.07);color:var(--text)}
   .sub-r{margin-left:0}
   .sub-r .btn{flex:1;justify-content:center}
   .deck{grid-template-columns:minmax(0,1fr);gap:12px}
-  .act,.court{grid-column:auto}
-  .card{padding:16px}
-  .odo{font-size:60px;margin-top:12px}
-  .ro{margin-top:12px;min-height:0}
-  .ro .big{font-size:34px}
-  .df{--r:8;margin-top:12px}
-  .act .ch{row-gap:10px}
-  .rd{flex-wrap:wrap;row-gap:6px}
-  .rd-d{width:100%}
-  .rd-s b{font-size:17px}
-  .act-key .hint,.m-hide{display:none}
+  .mir,.split-c,.ev{grid-column:auto}
+  .card{padding:16px 16px 12px}
+  .mb{--cols:70px minmax(0,1fr) minmax(0,1fr) 70px}
+  .mb-head .l{grid-column:1/3}
+  .mb-head .m{display:none}
+  .mb-head .r{grid-column:3/5}
+  .mb-row{grid-template-areas:"lab lab lab lab" "vl tl tr vr";row-gap:8px;padding:10px 0}
+  .mb-lab{padding:0 0 0;text-align:center}
+  .mb-lab small{margin-top:2px}
+  .mb-v b{font-size:17px}
+  .mb-v.l{padding-right:8px}
+  .mb-v.r{padding-left:8px}
+  .mb-t{height:20px}
+  .mb-t.l{border-radius:6px 0 0 6px;box-shadow:inset -1px 0 0 var(--hair)}
+  .mb-t.r{border-radius:0 6px 6px 0}
+  .sp{grid-template-columns:minmax(0,1fr) minmax(0,1fr);row-gap:10px}
+  .sp-mid{grid-column:1/-1;grid-row:2;display:flex;align-items:baseline;justify-content:center;gap:10px;text-align:left}
+  .sp-xl{margin-top:0}
+  .sp-n{font-size:40px}
+  .spec tbody th{width:28%;padding-left:6px;padding-right:6px}
+  .spec td{font-size:12.5px}
+  .ev-row{grid-template-columns:minmax(0,1fr) 34px;grid-template-areas:"nm nm" "tr n";row-gap:8px;padding:8px 6px}
+  .ev-name{grid-area:nm}
+  .ev-track{grid-area:tr}
+  .ev-n{grid-area:n}
   .sheet{top:auto;left:0;right:0;bottom:0;width:auto;max-height:86vh;border-radius:24px 24px 0 0;transform:translateY(100%)}
   .sh-grab{display:block;width:40px;height:4px;border-radius:2px;background:rgba(255,255,255,.18);margin:10px auto 0}
   .sh-head{padding:14px 18px 16px}
@@ -347,111 +337,71 @@ a.tag:hover{background:rgba(255,255,255,.07);color:var(--text)}
 
   <section class="sub">
     <div class="crumb">
-      <span class="c-a">Curate</span><span class="sep">/</span><span>Overview</span>
-      <span class="chip"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span data-snap>Snapshot · 18 Oct 2026, 19:58 UTC</span></span>
+      <span class="c-a">Curate</span><span class="sep">/</span><h1><i class="sw eth" aria-hidden="true"></i>Ethereum <span class="vs">vs</span> Gnosis<i class="sw gno" aria-hidden="true"></i></h1>
+      <span class="chip"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span data-snap>Snapshot</span></span>
     </div>
     <div class="sub-r">
       <a class="btn primary" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Launch a list</a>
     </div>
   </section>
 
-  <main class="deck">
-    <article class="card hero" style="--i:0">
+  <main class="deck" id="deck">
+    <article class="card mir" style="--i:0">
       <header class="ch">
-        <h2 class="ct">Entries on all lists</h2><span class="tag">at snapshot</span>
-        <p class="cc">items on every list, both chains</p>
+        <h2 class="ct">Side by side, row by row</h2><span class="tag">at snapshot</span>
+        <p class="cc" id="mbCc">each row compares one measure across the two chains</p>
       </header>
-      <div class="odo" id="odo" role="img" aria-label="31,228 entries">31,228</div>
-      <div class="split" id="split" role="group" aria-label="Entries by chain">
-        <div class="split-h"><span>By chain</span><button class="link" type="button" data-sheet="chains">Inspect chains<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
-        <div class="bar" id="bar" role="img" aria-label="Gnosis 29,928 entries, 95.8%. Ethereum 1,300 entries, 4.2%."><span class="seg g" data-k="g" style="flex-grow:29928"></span><span class="seg e" data-k="e" style="flex-grow:1300"></span></div>
-        <div class="split-l" aria-hidden="true">
-          <span data-k="g"><i class="sw g"></i>Gnosis <b id="gN">29,928</b><em id="gP">95.8%</em></span>
-          <span data-k="e">Ethereum <b id="eN">1,300</b><em id="eP">4.2%</em><i class="sw e"></i></span>
+      <div class="mb" id="mb">
+        <div class="mb-head" aria-hidden="true">
+          <span class="l">Ethereum<i class="sw eth"></i></span>
+          <span class="m">measure</span>
+          <span class="r"><i class="sw gno"></i>Gnosis</span>
         </div>
+        <!-- rows are inserted here -->
       </div>
-      <dl class="strip">
-        <div><dt>Registries</dt><dd data-f="registries">237</dd></div>
-        <div><dt>Open requests</dt><dd data-f="requestsOpen">206</dd></div>
-        <div><dt>Curators · 30d</dt><dd data-f="curators30d">12</dd></div>
-      </dl>
+      <div class="mb-key" id="mbKey"></div>
+      <p class="mb-read" id="mbRead" aria-live="polite"></p>
+      <table class="sr" id="mbTable"></table>
+      <p class="fn" id="fnMb"></p>
     </article>
 
-    <article class="card ver" style="--i:1">
+    <article class="card split-c" style="--i:1">
       <header class="ch">
-        <h2 class="ct">Lists verified</h2><span class="tag">at snapshot</span>
-        <p class="cc">1 dot = 1 registry</p>
+        <h2 class="ct">Where the entries live</h2><span class="tag">at snapshot</span>
+        <p class="cc" id="spCc">entries split by chain</p>
       </header>
-      <div class="ro" aria-live="polite"><span class="big" id="vBig">36</span><span class="of" id="vOf">of 237 lists</span></div>
-      <div class="df" id="df" role="img" aria-label="36 of 237 registries are verified"></div>
-      <footer class="cf">
-        <span class="key"><span><i class="kd v"></i>verified</span><span><i class="kd"></i>not verified</span></span>
-        <button class="inspect" type="button" data-sheet="lists">Inspect lists<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
-      </footer>
+      <div class="sp">
+        <div class="sp-side l"><span class="sp-ch"><i class="sw eth" aria-hidden="true"></i>Ethereum</span><b class="sp-n" id="spEthN"></b><span class="sp-s" id="spEthS"></span></div>
+        <div class="sp-mid"><span class="sp-x" id="spX"></span><span class="sp-xl" id="spXl"></span></div>
+        <div class="sp-side r"><span class="sp-ch">Gnosis<i class="sw gno" aria-hidden="true"></i></span><b class="sp-n" id="spGnoN"></b><span class="sp-s" id="spGnoS"></span></div>
+      </div>
+      <div class="sp-bar" id="spBar" role="img"></div>
+      <div class="sp-axis" aria-hidden="true"><span>0%</span><span>50%</span><span>100% of entries</span></div>
+      <table class="spec" id="spec"></table>
+      <footer class="cf"><span class="cf-note" id="spNote"></span><button class="inspect" type="button" data-sheet="lists">Lists<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></footer>
+      <p class="fn" id="fnSp"></p>
+      <p class="fn" id="fnSpec"></p>
     </article>
 
-    <article class="card chal" style="--i:2">
+    <article class="card ev" style="--i:2">
       <header class="ch">
-        <h2 class="ct">Challenges won</h2><span class="tag">last 30 days</span>
-        <p class="cc" id="chalCap">top 10 curators · 16 of all 17 raised</p>
+        <h2 class="ct">Where the snapshot's events fall</h2><span class="tag">at snapshot</span>
+        <p class="cc">the open requests, disputes in court and rulings the snapshot lists, counted by list and stage</p>
       </header>
-      <div class="ro" aria-live="polite"><span class="big" id="cBig">7</span><span class="of" id="cOf">of 16 raised</span></div>
-      <ul class="pips" id="pips" aria-label="Challenges per curator, won and raised"></ul>
-      <footer class="cf">
-        <span class="key"><span><i class="kp w"></i>won</span><span><i class="kp"></i>lost or still open</span></span>
-        <button class="inspect" type="button" data-sheet="curators">Inspect curators<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
-      </footer>
-    </article>
-
-    <article class="card logc" style="--i:3">
-      <header class="ch">
-        <h2 class="ct">Event log</h2><a class="tag" href="#">View all</a>
-        <p class="cc">newest first · age at snapshot</p>
-      </header>
-      <ol class="log" id="log"></ol>
-    </article>
-
-    <article class="card act" style="--i:4">
-      <header class="ch">
-        <h2 class="ct">Daily activity</h2>
-        <div class="seg" role="group" aria-label="Range">
-          <button type="button" data-r="14" aria-pressed="false">14 days</button>
-          <button type="button" data-r="30" aria-pressed="true">30 days</button>
+      <div class="ev-grid">
+        <div>
+          <div class="ev-rows" id="evRows"></div>
+          <p class="ev-read" id="evRead" aria-live="polite"></p>
         </div>
-        <p class="cc" id="actCap">per UTC day · last 30 days</p>
-      </header>
-      <div class="rd" aria-live="polite">
-        <span class="rd-d" id="rdD">Last 30 days</span>
-        <span class="rd-s"><i class="sw blue"></i>Requests <b id="rdR">1,440</b></span>
-        <span class="rd-s"><i class="sw amber"></i>Challenges <b id="rdC">17</b></span>
-        <span class="rd-p" id="rdP"></span>
+        <aside class="ev-side" aria-label="Event totals by chain and stage">
+          <div class="ev-tot" id="evTot"></div>
+          <ul class="ev-lg" id="evLg"></ul>
+          <p class="ev-span" id="evSpan"></p>
+          <button class="inspect" type="button" data-sheet="events" style="align-self:flex-start">Events<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+        </aside>
       </div>
-      <div class="ap" id="ap" tabindex="0" role="group" aria-label="Daily activity chart. Left and right arrow keys step through the days."><svg id="apSvg" aria-hidden="true"></svg></div>
-      <div class="ap-days" id="apDays" aria-hidden="true"></div>
-      <footer class="act-key">
-        <span><i class="ks r"></i>= 10 requests</span>
-        <span><i class="ks r part"></i>faded = fewer than 10</span>
-        <span><i class="ks c"></i>= 1 challenge</span>
-        <span class="hint">hover or drag to read a day</span>
-      </footer>
-    </article>
-
-    <article class="card court" style="--i:5">
-      <div class="tabs" role="tablist" aria-label="Disputes" data-on="0">
-        <span class="ink" aria-hidden="true"></span>
-        <button type="button" role="tab" id="t-court" aria-selected="true" aria-controls="p-court">In court<span class="n" id="nCourt">7</span></button>
-        <button type="button" role="tab" id="t-rul" aria-selected="false" aria-controls="p-rul" tabindex="-1">Rulings<span class="n" id="nRul">10</span></button>
-      </div>
-      <div class="panel" id="p-court" role="tabpanel" aria-labelledby="t-court">
-        <p class="cc">disputes open now · time since challenge</p>
-        <ul class="rows" id="courtRows"></ul>
-        <div class="more"><span id="courtMore"></span><a href="#" id="courtLink">Court view<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div>
-      </div>
-      <div class="panel" id="p-rul" role="tabpanel" aria-labelledby="t-rul" hidden>
-        <p class="cc" id="rulCap">latest rulings</p>
-        <ul class="rows" id="rulRows"></ul>
-        <div class="more"><span id="rulMore"></span><a href="#" id="rulLink">View all<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div>
-      </div>
+      <table class="sr" id="evTable"></table>
+      <p class="fn" id="fnEv"></p>
     </article>
   </main>
 </div>
@@ -479,347 +429,231 @@ if (!S) {
   return;
 }
 const RM = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const PHONE = window.matchMedia('(max-width: 760px)');
 /* the intro only runs in a visible tab; a background tab renders the final state at once */
 const ANIM = !RM && document.visibilityState === 'visible';
 const F = S.figures;
 const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const fmt = n => Number(n).toLocaleString('en-US');
+const fmt1 = n => Number(n).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const pct1 = x => (x * 100).toFixed(1) + '%';
-const plural = (n, w) => `${fmt(n)} ${w}${n === 1 ? '' : 's'}`;
+const plural = (n, w, ws) => `${fmt(n)} ${n === 1 ? w : (ws || w + 's')}`;
 const pad = n => String(n).padStart(2, '0');
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const sum = (arr, k) => arr.reduce((a, d) => a + (d[k] || 0), 0);
 const snap = new Date(S.snapshotAt);
-const snapSec = Math.floor(snap.getTime() / 1000);
 const hhmm = `${pad(snap.getUTCHours())}:${pad(snap.getUTCMinutes())}`;
-const snapLabel = `Snapshot · ${snap.getUTCDate()} ${MON[snap.getUTCMonth()]} ${snap.getUTCFullYear()}, ${hhmm} UTC`;
+const snapDate = `${snap.getUTCDate()} ${MON[snap.getUTCMonth()]} ${snap.getUTCFullYear()}`;
+const AT = `at snapshot, ${snapDate} ${hhmm} UTC`;
 const dShort = sec => { const d = new Date(sec * 1000); return `${d.getUTCDate()} ${MON[d.getUTCMonth()]}`; };
-const dLong = sec => { const d = new Date(sec * 1000); return `${DOW[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
-const dur = s => {
-  s = Math.max(0, s);
-  const d = Math.floor(s / 86400); s -= d * 86400;
-  const h = Math.floor(s / 3600); s -= h * 3600;
-  const m = Math.floor(s / 60);
-  return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`;
-};
-const age = sec => dur(snapSec - sec);
+const dFull = sec => { const d = new Date(sec * 1000); return `${d.getUTCDate()} ${MON[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
 const monthYear = iso => { const [y, m] = iso.split('-'); return `${MON[+m - 1]} ${y}`; };
+const SCOPE = String(S.scope || 'Ethereum + Gnosis').replace(/\s*\(.*\)\s*$/, '');
 const arrow = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+const check = '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" role="img" aria-label="verified"><path d="M12 2l2.4 1.8 3-.2.9 2.9 2.5 1.7-1 2.8 1 2.8-2.5 1.7-.9 2.9-3-.2L12 22l-2.4-1.8-3 .2-.9-2.9L3.2 15.8l1-2.8-1-2.8 2.5-1.7.9-2.9 3 .2L12 2Z" opacity=".22"/><path d="M8 12.2l2.6 2.6L16.2 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
-/* derived, all from the snapshot */
-const series = S.series30d, last = series.length - 1;
-const reqMax = Math.max(1, ...series.map(d => d.requests));
-const chMax = Math.max(1, ...series.map(d => d.challenges));
-const chTotal = sum(series, 'challenges');
-const cur = S.curators;
-const raised = sum(cur, 'challenges');
-const won = sum(cur, 'won');
-const chainN = name => (S.entriesByChain.find(c => c.chain === name) || { entries: 0 }).entries;
-const gno = chainN('Gnosis'), eth = chainN('Ethereum');
+/* ---------- derived, all from the snapshot ---------- */
+const L = 'Ethereum', R = 'Gnosis';
+const top = S.topRegistries || [], TOPN = top.length;
+const chainTotal = sum(S.entriesByChain, 'entries');
+const STAGES = [
+  { k: 'open', label: 'Open to challenge', rows: S.openToChallenge || [], of: F.requestsOpen, word: 'open' },
+  { k: 'court', label: 'In court', rows: S.inCourt || [], of: F.inCourt, word: 'in court' },
+  { k: 'decided', label: 'Decided by ruling', rows: S.decided || [], of: null, word: 'decided' }
+];
+const EVENTS = STAGES.flatMap(g => g.rows.map(e => ({ ...e, stage: g.k })));
+const EVN = EVENTS.length;
+function stat(ch) {
+  const t = top.filter(r => r.chain === ch);
+  const created = t.map(r => r.created).sort();
+  return {
+    ch, lists: t,
+    entries: (S.entriesByChain.find(c => c.chain === ch) || { entries: 0 }).entries,
+    n: t.length,
+    verified: t.filter(r => r.verified).length,
+    open: sum(t, 'open'),
+    court: sum(t, 'inCourt'),
+    topEntries: sum(t, 'entries'),
+    mean: t.length ? sum(t, 'entries') / t.length : 0,
+    events: EVENTS.filter(e => e.chain === ch).length,
+    largest: t.reduce((m, r) => (!m || r.entries > m.entries ? r : m), null),
+    first: created[0], last: created[created.length - 1],
+    classic: t.filter(r => r.kind === 'Classic').length,
+    light: t.filter(r => r.kind === 'Light').length
+  };
+}
+const A = stat(L), B = stat(R);
+const SIDE = { [L]: A, [R]: B };
+const openAll = A.open + B.open === F.requestsOpen;
+const courtAll = A.court + B.court === F.inCourt;
+const evTimes = EVENTS.map(e => e.at).filter(Boolean);
+const evFrom = Math.min(...evTimes), evTo = Math.max(...evTimes);
+const evSpan = evTimes.length ? `dated ${dShort(evFrom)} – ${dFull(evTo)}` : 'no dated events';
 
 if (ANIM) document.body.classList.add('intro');
-$$('[data-snap]').forEach(el => { el.textContent = snapLabel; });
-$$('[data-f]').forEach(el => { const v = F[el.dataset.f]; if (v != null) el.textContent = fmt(v); });
+$$('[data-snap]').forEach(el => { el.textContent = `Snapshot · ${snapDate}, ${hhmm} UTC`; });
 
-/* ---------- hero: odometer (rests on the real value, rolls one full turn back to it) ---------- */
-const odo = $('#odo');
-const odoStr = fmt(F.entries);
-odo.setAttribute('aria-label', `${odoStr} entries`);
-const reelHTML = '01234567890123456789'.split('').map(x => `<span>${x}</span>`).join('');
-odo.innerHTML = [...odoStr].map(ch => /\d/.test(ch)
-  ? `<span class="od-col" aria-hidden="true"><span class="od-reel" data-d="${ch}" style="transform:translateY(-${10 + +ch}em)">${reelHTML}</span></span>`
-  : `<span class="od-sep" aria-hidden="true">${ch}</span>`).join('');
-const reels = $$('.od-reel', odo);
-const reelEnd = r => `translateY(-${10 + +r.dataset.d}em)`;
-function rollOdo() {
-  reels.forEach(r => { r.style.transition = 'none'; r.style.transform = `translateY(-${+r.dataset.d}em)`; });
-  void odo.offsetWidth;
-  odo.classList.add('rolling');
-  reels.forEach((r, i) => {
-    r.style.transition = `transform ${1400 + i * 150}ms cubic-bezier(.16,1,.3,1) ${260 + i * 80}ms`;
-    r.style.transform = reelEnd(r);
-  });
-}
-/* each column takes its own digit's width, so a narrow 1 does not leave a gap */
-function fitOdo() {
-  const cs = getComputedStyle(odo), fs = parseFloat(cs.fontSize) || 1;
-  const ctx = document.createElement('canvas').getContext('2d');
-  if (!ctx) return;
-  ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
-  const ls = parseFloat(cs.letterSpacing) || 0;
-  reels.forEach(r => { r.parentNode.style.width = ((ctx.measureText(r.dataset.d).width + ls) / fs).toFixed(3) + 'em'; });
-}
-fitOdo();
-if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitOdo);
-function settleOdo() {
-  odo.classList.remove('rolling');
-  reels.forEach(r => { r.style.transition = 'none'; r.style.transform = reelEnd(r); });
-}
-
-/* chain split: one 100% bar, the hero number broken down */
-const split = $('#split');
-$('.seg.g', split).style.flexGrow = gno;
-$('.seg.e', split).style.flexGrow = eth;
-$('#gN').textContent = fmt(gno); $('#gP').textContent = pct1(gno / F.entries);
-$('#eN').textContent = fmt(eth); $('#eP').textContent = pct1(eth / F.entries);
-$('#bar').setAttribute('aria-label', `Gnosis ${fmt(gno)} entries, ${pct1(gno / F.entries)}. Ethereum ${fmt(eth)} entries, ${pct1(eth / F.entries)}.`);
-$$('[data-k]', split).forEach(el => {
-  el.addEventListener('pointerenter', () => { split.dataset.hl = el.dataset.k; });
-  el.addEventListener('pointerleave', () => { delete split.dataset.hl; });
-});
-
-/* ---------- lists verified: one dot per registry ---------- */
-const V = F.verified, REG = F.registries;
-const df = $('#df'), vBig = $('#vBig'), vOf = $('#vOf');
-let dh = '';
-for (let i = 0; i < REG; i++) dh += i < V ? `<i class="v" style="--k:${i}"></i>` : '<i></i>';
-df.innerHTML = dh;
-df.setAttribute('aria-label', `${fmt(V)} of ${fmt(REG)} registries are verified`);
-function setV(m) {
-  if (m === 'n') { vBig.textContent = fmt(REG - V); vOf.textContent = `not verified, of ${fmt(REG)}`; }
-  else if (m === 'v') { vBig.textContent = fmt(V); vOf.textContent = `verified, of ${fmt(REG)}`; }
-  else { vBig.textContent = fmt(V); vOf.textContent = `of ${fmt(REG)} lists`; }
-  if (m) df.dataset.hl = m; else delete df.dataset.hl;
-}
-setV(null);
-df.addEventListener('pointerover', e => { const t = e.target.closest('i'); if (t) setV(t.classList.contains('v') ? 'v' : 'n'); });
-df.addEventListener('pointerleave', () => setV(null));
-
-/* ---------- challenges won: one pip per challenge, grouped by curator ---------- */
-const raisers = cur.filter(c => c.challenges > 0).sort((a, b) => b.challenges - a.challenges || b.won - a.won);
-const cBig = $('#cBig'), cOf = $('#cOf');
-$('#chalCap').textContent = raised <= chTotal
-  ? `top ${cur.length} curators · ${fmt(raised)} of all ${fmt(chTotal)} raised`
-  : `top ${cur.length} curators`;
-let pk = 0;
-$('#pips').innerHTML = raisers.map(c => {
-  let p = '';
-  for (let i = 0; i < c.challenges; i++) p += `<i class="${i < c.won ? 'w' : ''}" style="--k:${pk++}"></i>`;
-  return `<li class="pr" tabindex="0" data-a="${esc(c.address)}" data-w="${c.won}" data-n="${c.challenges}" aria-label="${esc(c.address)}: won ${c.won} of ${c.challenges}">
-    <span class="ad">${esc(c.address)}</span><span class="pp" aria-hidden="true">${p}</span><span class="wr" aria-hidden="true">${c.won}<span> / ${c.challenges}</span></span></li>`;
-}).join('');
-function setC(row) {
-  if (row) { cBig.textContent = row.dataset.w; cOf.textContent = `of ${row.dataset.n} · ${row.dataset.a}`; }
-  else { cBig.textContent = fmt(won); cOf.textContent = `of ${fmt(raised)} raised`; }
-}
-setC(null);
-$$('.pr').forEach(row => {
-  row.addEventListener('pointerenter', () => setC(row));
-  row.addEventListener('pointerleave', () => setC(null));
-  row.addEventListener('focus', () => setC(row));
-  row.addEventListener('blur', () => setC(null));
-});
-
-/* ---------- event log: bursts collapse into one line ---------- */
-const evs = [
-  ...S.openToChallenge.map(e => ({ ...e, k: 'req' })),
-  ...S.inCourt.map(e => ({ ...e, k: 'dispute' })),
-  ...S.decided.map(e => ({ ...e, k: 'ruling' }))
-].sort((a, b) => b.at - a.at);
-const groups = [];
-evs.forEach(e => {
-  const key = [e.k, String(e.status).replace(/#\d+/, ''), e.registry, e.chain, e.k === 'req' ? e.actor : ''].join('|');
-  const g = groups[groups.length - 1];
-  if (g && g.key === key && g.items[g.items.length - 1].at - e.at <= 3 * 3600) g.items.push(e);
-  else groups.push({ key, k: e.k, items: [e] });
-});
-function evLabel(g) {
-  const n = g.items.length, e = g.items[0];
-  if (g.k === 'req') {
-    const noun = String(e.status).replace(/ requested$/i, ' request').toLowerCase();
-    return n > 1 ? `${n} ${noun}s` : e.status;
-  }
-  if (g.k === 'dispute') {
-    const ids = g.items.map(x => '#' + String(x.status).replace(/\D/g, '')).reverse();
-    return n > 1 ? `Disputes ${ids.join(', ')} opened` : `Dispute ${ids[0]} opened`;
-  }
-  return n > 1 ? `${n} ${String(e.status).toLowerCase()}` : e.status;
-}
-$('#log').innerHTML = groups.slice(0, 5).map(g => {
-  const e = g.items[0], n = g.items.length;
-  const spanTxt = n > 1 ? ` · within ${dur(e.at - g.items[n - 1].at)}` : '';
-  const who = g.k === 'req' && e.actor ? ` · <span class="who">by ${esc(e.actor)}</span>` : '';
-  const full = `${evLabel(g)} · ${e.registry} · ${e.chain}`;
-  return `<li class="ev k-${g.k}" title="${esc(full)}"><time datetime="PT${snapSec - e.at}S">${age(e.at)}</time><i class="mk" aria-hidden="true"></i>
-    <div style="min-width:0"><span class="l1">${esc(evLabel(g))}</span><span class="l2">${esc(e.registry)}${who}${spanTxt}</span></div></li>`;
-}).join('');
-
-/* ---------- daily activity: LED stacks, height = count ---------- */
-const UNIT = 10;
-const reqRows = Math.ceil(reqMax / UNIT), chRows = chMax;
-const ap = $('#ap'), apSvg = $('#apSvg'), apDays = $('#apDays');
-const st = { range: PHONE.matches ? 14 : 30, sel: null, w: 0 };
-function drawAct() {
-  const n = st.range, off = series.length - n, days = series.slice(off);
-  const W = Math.round(ap.clientWidth) || 600; st.w = W;
-  const pitch = W < 520 ? 7 : 8, segH = pitch - 3, mid = 14;
-  const upH = reqRows * pitch, dnTop = upH + mid, H = dnTop + chRows * pitch;
-  const colW = W / n, segW = Math.max(5, Math.min(16, Math.round(colW * .52)));
-  const R = (x, y, o) => `<rect x="${x}" y="${y}" width="${segW}" height="${segH}" rx="${Math.min(2, segH / 2)}"${o != null ? ` opacity="${o}"` : ''}/>`;
-  let out = '';
-  days.forEach((d, i) => {
-    const x = (i * colW + (colW - segW) / 2).toFixed(1);
-    const full = Math.floor(d.requests / UNIT), rem = (d.requests % UNIT) / UNIT;
-    let gh = '', lr = '', lc = '';
-    for (let j = 0; j < reqRows; j++) {
-      const y = (upH - (j + 1) * pitch + 1.5).toFixed(1);
-      if (j < full) lr += R(x, y);
-      else if (j === full && rem > 0) lr += R(x, y, Math.max(.2, rem).toFixed(2));
-      else gh += R(x, y);
-    }
-    for (let j = 0; j < chRows; j++) {
-      const y = (dnTop + j * pitch + 1.5).toFixed(1);
-      if (j < d.challenges) lc += R(x, y); else gh += R(x, y);
-    }
-    out += `<g class="col" data-i="${off + i}" style="--c:${i}"><rect class="hit" x="${(i * colW).toFixed(1)}" y="-4" width="${colW.toFixed(1)}" height="${H + 8}" rx="6"/><g class="gh">${gh}</g><g class="lit"><g class="lr" filter="url(#glB)">${lr}</g><g class="lc" filter="url(#glA)">${lc}</g></g></g>`;
-  });
-  apSvg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-  apSvg.setAttribute('width', W); apSvg.setAttribute('height', H);
-  apSvg.innerHTML = `<defs>
-      <filter id="glB" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="2.2" result="b"/><feColorMatrix in="b" type="matrix" values="0 0 0 0 .38  0 0 0 0 .56  0 0 0 0 1  0 0 0 .8 0"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-      <filter id="glA" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="2.2" result="b"/><feColorMatrix in="b" type="matrix" values="0 0 0 0 .95  0 0 0 0 .69  0 0 0 0 .3  0 0 0 .7 0"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-    </defs><g class="plot"><line class="base" x1="0" x2="${W}" y1="${upH + mid / 2}" y2="${upH + mid / 2}"/>${out}</g>`;
-  const marks = [0, Math.floor((n - 1) / 2), n - 1];
-  apDays.innerHTML = marks.map((i, k) => {
-    const lab = dShort(days[i].day) + (off + i === last ? '<span class="m-hide"> · partial</span>' : '');
-    const pos = k === 0 ? 'left:0' : k === 2 ? 'right:0' : `left:${((i + .5) / n * 100).toFixed(2)}%;transform:translateX(-50%)`;
-    return `<span style="${pos}">${lab}</span>`;
-  }).join('');
-  if (st.sel != null && st.sel < off) st.sel = null;
-  markSel();
-}
-function markSel() {
-  $$('.col', apSvg).forEach(c => c.classList.toggle('act', +c.dataset.i === st.sel));
-  const plot = $('.plot', apSvg); if (plot) plot.classList.toggle('has-sel', st.sel != null);
-  const days = series.slice(-st.range);
-  if (st.sel == null) {
-    $('#rdD').textContent = `Last ${st.range} days`;
-    $('#rdR').textContent = fmt(sum(days, 'requests'));
-    $('#rdC').textContent = fmt(sum(days, 'challenges'));
-    $('#rdP').textContent = '';
-  } else {
-    const d = series[st.sel];
-    $('#rdD').textContent = dLong(d.day);
-    $('#rdR').textContent = fmt(d.requests);
-    $('#rdC').textContent = fmt(d.challenges);
-    $('#rdP').textContent = st.sel === last ? `partial day, to ${hhmm} UTC` : '';
-  }
-}
-const pick = e => {
-  const r = ap.getBoundingClientRect(), n = st.range;
-  const i = Math.min(n - 1, Math.max(0, Math.floor((e.clientX - r.left) / r.width * n)));
-  const gi = series.length - n + i;
-  if (gi !== st.sel) { st.sel = gi; markSel(); }
+/* ---------- mirrored bars ---------- */
+const stageSum = g => `${g.rows.length}${g.of != null ? ` of ${fmt(g.of)}` : ''} ${g.word}`;
+const ROWS = [
+  { k: 'entries', label: 'Entries', sub: 'every list on the chain', l: A.entries, r: B.entries, sheet: 'lists',
+    read: () => `<b>Entries</b> · Ethereum ${fmt(A.entries)}, Gnosis ${fmt(B.entries)} · Gnosis holds ${pct1(B.entries / chainTotal)} of the ${fmt(chainTotal)}` },
+  { k: 'lists', label: `Lists in the top ${TOPN}`, sub: 'outline = lists, solid = verified', l: A.n, r: B.n, lv: A.verified, rv: B.verified, sheet: 'lists',
+    read: () => `<b>Top ${TOPN} lists</b> · Ethereum ${A.n}, ${A.verified} verified (${pct1(A.n ? A.verified / A.n : 0)}) · Gnosis ${B.n}, ${B.verified} verified (${pct1(B.n ? B.verified / B.n : 0)})` },
+  { k: 'mean', label: 'Entries per top list', sub: `mean over its top-${TOPN} lists`, l: A.mean, r: B.mean, sheet: 'lists', dec: true,
+    read: () => `<b>Entries per top list</b> · Ethereum ${fmt1(A.mean)} (${fmt(A.topEntries)} over ${A.n}), Gnosis ${fmt1(B.mean)} (${fmt(B.topEntries)} over ${B.n}) · ${A.mean ? `${(B.mean / A.mean).toFixed(1)}× as many` : ''}` },
+  { k: 'open', label: 'Open requests', sub: `on the top ${TOPN}${openAll ? ` · all ${fmt(F.requestsOpen)}` : ` · of ${fmt(F.requestsOpen)}`}`, l: A.open, r: B.open, sheet: 'lists',
+    read: () => `<b>Open requests</b> · Ethereum ${fmt(A.open)}, Gnosis ${fmt(B.open)} · ${openAll ? `the top ${TOPN} hold all ${fmt(F.requestsOpen)} open at snapshot` : `${fmt(A.open + B.open)} of ${fmt(F.requestsOpen)} open at snapshot`}` },
+  { k: 'court', label: 'In court', sub: `on the top ${TOPN}${courtAll ? ` · all ${fmt(F.inCourt)}` : ` · of ${fmt(F.inCourt)}`}`, l: A.court, r: B.court, sheet: 'events',
+    read: () => `<b>In court</b> · Ethereum ${fmt(A.court)}, Gnosis ${fmt(B.court)} · ${courtAll ? `all ${fmt(F.inCourt)} disputes at snapshot` : `${fmt(A.court + B.court)} of ${fmt(F.inCourt)} disputes`}` },
+  { k: 'events', label: 'Events listed', sub: 'open + in court + decided', l: A.events, r: B.events, sheet: 'events',
+    read: () => `<b>Events listed</b> · Ethereum ${fmt(A.events)}, Gnosis ${fmt(B.events)} · ${STAGES.map(stageSum).join(' · ')}` }
+];
+const shareTxt = (v, o) => (v + o ? pct1(v / (v + o)) : '–');
+const track = (side, v, max, ghost, k) => {
+  if (!v) return `<span class="mb-t ${side} zero"></span>`;
+  const w = (v / max).toFixed(4);
+  if (ghost == null) return `<span class="mb-t ${side}"><i class="bar" style="--w:${w};--k:${k}"></i></span>`;
+  const gw = ghost ? (ghost / max).toFixed(4) : 0;
+  return `<span class="mb-t ${side}"><i class="bar ghost" style="--w:${w};--k:${k}"></i>${ghost ? `<i class="bar" style="--w:${gw};--k:${k}"></i>` : ''}</span>`;
 };
-ap.addEventListener('pointermove', pick);
-ap.addEventListener('pointerdown', pick);
-ap.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') { st.sel = null; markSel(); } });
-ap.addEventListener('keydown', e => {
-  const lo = series.length - st.range, hi = series.length - 1;
-  let s = st.sel;
-  if (e.key === 'ArrowRight') s = s == null ? lo : Math.min(hi, s + 1);
-  else if (e.key === 'ArrowLeft') s = s == null ? hi : Math.max(lo, s - 1);
-  else if (e.key === 'Home') s = lo;
-  else if (e.key === 'End') s = hi;
-  else if (e.key === 'Escape') s = null;
-  else return;
-  e.preventDefault(); st.sel = s; markSel();
-});
-const rangeBtns = $$('.seg button');
-function setRange(r) {
-  st.range = r; st.sel = null;
-  rangeBtns.forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.r === r)));
-  $('#actCap').textContent = `per UTC day · last ${r} days`;
-  drawAct();
+$('#mb').insertAdjacentHTML('beforeend', ROWS.map((r, k) => {
+  const max = Math.max(r.l, r.r) || 1;
+  const ghost = r.lv != null;
+  const subL = ghost ? `${r.lv} verified` : r.dec ? `${fmt(A.topEntries)} / ${A.n}` : shareTxt(r.l, r.r);
+  const subR = ghost ? `${r.rv} verified` : r.dec ? `${fmt(B.topEntries)} / ${B.n}` : shareTxt(r.r, r.l);
+  const V = x => (r.dec ? fmt1(x) : fmt(x));
+  const aria = `${r.label}: Ethereum ${V(r.l)}${ghost ? `, ${r.lv} verified` : ''}; Gnosis ${V(r.r)}${ghost ? `, ${r.rv} verified` : ''}. Opens the ${r.sheet === 'lists' ? 'lists' : 'events'} behind it.`;
+  return `<button class="mb-row" type="button" data-row="${r.k}" data-sheet="${r.sheet}" aria-label="${esc(aria)}">
+    <span class="mb-v l"><b>${r.dec ? fmt1(r.l) : fmt(r.l)}</b><small>${subL}</small></span>
+    ${track('l', r.l, max, ghost ? r.lv : null, k)}
+    <span class="mb-lab"><span>${esc(r.label)}</span><small>${esc(r.sub)}</small></span>
+    ${track('r', r.r, max, ghost ? r.rv : null, k)}
+    <span class="mb-v r"><b>${r.dec ? fmt1(r.r) : fmt(r.r)}</b><small>${subR}</small></span>
+  </button>`;
+}).join(''));
+$('#mbCc').textContent = 'each row compares one measure; the larger chain fills its half, the other is drawn to the same scale';
+$('#mbKey').innerHTML = `<span><i class="solid"></i>value, to the row's scale</span><span><i class="ghost"></i>lists (with solid = verified)</span><span><i class="zero"></i>zero</span><span>% = the chain's share of the row; a / b = entries / lists</span>`;
+const READ_IDLE = '<span class="hint">Hover, focus or tap a row to read it; selecting it opens the lists or events behind it.</span>';
+const mbRead = $('#mbRead');
+mbRead.innerHTML = READ_IDLE;
+let selRow = null;
+function readRow(k) {
+  selRow = k;
+  $$('.mb-row').forEach(b => b.classList.toggle('on', b.dataset.row === k));
+  const r = ROWS.find(x => x.k === k);
+  mbRead.innerHTML = r ? r.read() : READ_IDLE;
 }
-rangeBtns.forEach(b => b.addEventListener('click', () => { if (+b.dataset.r !== st.range) setRange(+b.dataset.r); }));
-setRange(st.range);
-if ('ResizeObserver' in window) new ResizeObserver(() => { const w = Math.round(ap.clientWidth); if (w && w !== st.w) drawAct(); }).observe(ap);
-else window.addEventListener('resize', drawAct);
-
-/* ---------- court card ---------- */
-const SHOW = 7;
-const nowCourt = S.inCourt.slice().sort((a, b) => a.at - b.at);
-$('#nCourt').textContent = nowCourt.length;
-$('#courtRows').innerHTML = nowCourt.slice(0, SHOW).map(e =>
-  `<li><a class="row" href="#" title="${esc(e.registry)} · ${esc(e.chain)}"><span class="id">${esc(String(e.status).replace(/^Dispute\s*/, ''))}</span><span class="t">${esc(e.registry)}</span><span class="a">${age(e.at)}</span></a></li>`).join('');
-$('#courtMore').textContent = nowCourt.length <= SHOW ? `all ${nowCourt.length} shown` : `${SHOW} of ${nowCourt.length} shown`;
-const rul = S.decided.slice().sort((a, b) => b.at - a.at);
-$('#nRul').textContent = rul.length;
-if (rul.length) $('#rulCap').textContent = `latest ${rul.length} rulings · since ${dShort(Math.min(...rul.map(r => r.at)))}`;
-$('#rulRows').innerHTML = rul.slice(0, SHOW).map(e => {
-  const o = e.outcome || 'removed';
-  return `<li><a class="row" href="#" title="${esc(e.status)} · ${esc(e.registry)}"><span class="pill ${esc(o)}">${esc(o.charAt(0).toUpperCase() + o.slice(1))}</span><span class="t">${esc(e.registry)}</span><span class="a">${age(e.at)} ago</span></a></li>`;
-}).join('');
-$('#rulMore').textContent = rul.length <= SHOW ? `all ${rul.length} shown` : `${SHOW} of ${rul.length} shown`;
-$('#rulLink').innerHTML = `View all ${rul.length}${arrow}`;
-const tabs = $('.tabs'), tabBtns = $$('[role=tab]', tabs);
-function selectTab(i) {
-  tabs.dataset.on = i;
-  tabBtns.forEach((b, j) => {
-    b.setAttribute('aria-selected', String(i === j));
-    b.tabIndex = i === j ? 0 : -1;
-    $('#' + b.getAttribute('aria-controls')).hidden = i !== j;
-  });
-}
-tabBtns.forEach((b, i) => {
-  b.addEventListener('click', () => selectTab(i));
-  b.addEventListener('keydown', e => {
-    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { const j = (i + 1) % 2; selectTab(j); tabBtns[j].focus(); e.preventDefault(); }
-  });
+$$('.mb-row').forEach(b => {
+  b.addEventListener('pointerenter', () => readRow(b.dataset.row));
+  b.addEventListener('focus', () => readRow(b.dataset.row));
+  b.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse' && document.activeElement !== b) readRow(null); });
+  b.addEventListener('blur', () => readRow(null));
 });
+$('#mbTable').innerHTML = `<caption>Ethereum and Gnosis side by side, ${esc(AT)}</caption><thead><tr><th>Measure</th><th>Ethereum</th><th>Gnosis</th></tr></thead><tbody>${
+  ROWS.map(r => `<tr><th>${esc(r.label)} (${esc(r.sub)})</th><td>${r.dec ? fmt1(r.l) : fmt(r.l)}${r.lv != null ? `, ${r.lv} verified` : ''}</td><td>${r.dec ? fmt1(r.r) : fmt(r.r)}${r.rv != null ? `, ${r.rv} verified` : ''}</td></tr>`).join('')}</tbody>`;
+$('#fnMb').innerHTML = `<b>bar length</b> = the chain's value / the larger of the two values in that row, so each row has its own scale · <b>%</b> = chain value / (Ethereum + Gnosis) for that row · <b>entries per top list</b> = entries on a chain's top-${TOPN} lists / its number of top-${TOPN} lists · <b>entries</b> from the per-chain entry count · <b>lists, verified, open, in court</b> summed over the ${TOPN} largest lists in the snapshot · <b>events listed</b> = ${STAGES.map(g => `${g.rows.length} ${g.word}`).join(' + ')} rows the snapshot lists · ${esc(AT)} · ${esc(SCOPE)}`;
 
-/* ---------- inspect sheets ---------- */
+/* ---------- entry split ---------- */
+const shA = chainTotal ? A.entries / chainTotal : 0, shB = chainTotal ? B.entries / chainTotal : 0;
+$('#spEthN').textContent = fmt(A.entries);
+$('#spGnoN').textContent = fmt(B.entries);
+$('#spEthS').textContent = `${pct1(shA)} of entries`;
+$('#spGnoS').textContent = `${pct1(shB)} of entries`;
+const ratio = A.entries ? B.entries / A.entries : 0;
+$('#spX').textContent = A.entries ? `${ratio.toFixed(1)}×` : '–';
+$('#spXl').textContent = 'Gnosis entries per Ethereum entry';
+$('#spCc').textContent = `the ${fmt(chainTotal)} entries split by chain${chainTotal === F.entries ? ' (the full entry count)' : ` (of ${fmt(F.entries)} counted in all)`}`;
+const spBar = $('#spBar');
+spBar.setAttribute('aria-label', `Share of entries: Ethereum ${pct1(shA)}, Gnosis ${pct1(shB)}`);
+spBar.innerHTML = `<i class="eth" style="flex:0 0 calc(${(shA * 100).toFixed(3)}% - 1px)" title="Ethereum ${fmt(A.entries)} · ${pct1(shA)}"></i><i class="gno" style="flex:1 1 0" title="Gnosis ${fmt(B.entries)} · ${pct1(shB)}"></i>`;
+$('#fnSp').innerHTML = `<b>share</b> = chain entries / ${fmt(chainTotal)} (Ethereum + Gnosis entries) · <b>×</b> = Gnosis entries / Ethereum entries · ${esc(AT)}`;
+
+const covA = A.entries ? A.topEntries / A.entries : 0, covB = B.entries ? B.topEntries / B.entries : 0;
+const kinds = s => `${s.classic} Classic · ${s.light} Light`;
+const largestCell = (s, side) => s.largest
+  ? `<span class="cell"><span>${fmt(s.largest.entries)}</span><small title="${esc(s.largest.title)}">${esc(s.largest.title)}</small></span>` : '–';
+const SPEC = [
+  ['Largest list (entries)', largestCell(A), largestCell(B)],
+  ['Top lists created', A.first ? `${monthYear(A.first)}<small>to ${monthYear(A.last)}</small>` : '–', B.first ? `${monthYear(B.first)}<small>to ${monthYear(B.last)}</small>` : '–'],
+  ['List kinds', kinds(A), kinds(B)],
+  ['Entries on its top lists', `${pct1(covA)}<small>${fmt(A.topEntries)} of ${fmt(A.entries)}</small>`, `${pct1(covB)}<small>${fmt(B.topEntries)} of ${fmt(B.entries)}</small>`]
+];
+$('#spec').innerHTML = `<caption>The ${TOPN} largest lists, by chain</caption>
+  <thead><tr><th class="l" scope="col"><span><i class="sw eth" aria-hidden="true"></i>Ethereum</span></th><th scope="col"><span class="sr">Measure</span></th><th class="r" scope="col"><span>Gnosis<i class="sw gno" aria-hidden="true"></i></span></th></tr></thead>
+  <tbody>${SPEC.map(([m, a, b]) => `<tr><td class="l">${a}</td><th scope="row">${m}</th><td class="r">${b}</td></tr>`).join('')}</tbody>`;
+$('#spNote').textContent = `${fmt(F.registries)} lists in all; the snapshot splits only the ${TOPN} largest by chain`;
+$('#fnSpec').innerHTML = `<b>table</b> from the ${TOPN} largest lists by entries · <b>entries on its top lists</b> = entries on a chain's top-${TOPN} lists / all entries on that chain · ${esc(AT)}`;
+
+/* ---------- events by list and stage ---------- */
+const groups = [];
+EVENTS.forEach(e => {
+  let g = groups.find(x => x.registry === e.registry && x.chain === e.chain);
+  if (!g) groups.push(g = { registry: e.registry, chain: e.chain, open: 0, court: 0, decided: 0, n: 0 });
+  g[e.stage]++; g.n++;
+});
+groups.sort((a, b) => b.n - a.n || a.registry.localeCompare(b.registry));
+const gMax = Math.max(1, ...groups.map(g => g.n));
+const chainCls = ch => (ch === L ? 'eth' : 'gno');
+const quietChains = [A, B].filter(s => s.events === 0);
+const dupNames = [...new Set(top.map(t => t.title).filter((t, i, a) => a.indexOf(t) !== i))];
+$('#evRows').innerHTML = groups.map((g, k) => {
+  const segs = STAGES.filter(st => g[st.k]).map(st => `<i class="${st.k}" style="--n:${g[st.k]}" title="${st.label}: ${g[st.k]}">${g[st.k]}</i>`).join('');
+  const parts = STAGES.filter(st => g[st.k]).map(st => `${g[st.k]} ${st.word}`).join(', ');
+  return `<button class="ev-row" type="button" data-sheet="events" data-reg="${esc(g.registry)}" data-parts="${esc(parts)}" data-chain="${esc(g.chain)}" aria-label="${esc(`${g.registry} on ${g.chain}: ${g.n} events, ${parts}. Opens the events.`)}">
+    <span class="ev-name"><i class="sw ${chainCls(g.chain)}" aria-hidden="true"></i><span title="${esc(g.registry)}">${esc(g.registry)}</span>${dupNames.includes(g.registry) ? '<small>by name</small>' : ''}</span>
+    <span class="ev-track"><span class="ev-bar" style="--w:${(g.n / gMax).toFixed(4)};--k:${k}">${segs}</span></span>
+    <b class="ev-n">${g.n}</b>
+  </button>`;
+}).join('') + quietChains.map(s => `<div class="ev-row none" role="note" aria-label="${esc(`${s.ch}: none of the ${EVN} listed events`)}">
+    <span class="ev-name"><i class="sw ${chainCls(s.ch)}" aria-hidden="true"></i><span>Every ${esc(s.ch)} list</span><small>none listed</small></span>
+    <span class="ev-track empty"></span><b class="ev-n">0</b></div>`).join('');
+const EV_IDLE = `<span class="hint">Hover or focus a list to read its stages; the hatched row is a chain with none of the ${EVN} events.</span>`;
+const evRead = $('#evRead');
+evRead.innerHTML = EV_IDLE;
+$$('.ev-row[data-reg]').forEach(b => {
+  const on = () => { $$('.ev-row').forEach(x => x.classList.toggle('on', x === b)); evRead.innerHTML = `<b>${esc(b.dataset.reg)}</b> · ${esc(b.dataset.chain)} · ${esc(b.dataset.parts)}`; };
+  const off = () => { b.classList.remove('on'); evRead.innerHTML = EV_IDLE; };
+  b.addEventListener('pointerenter', on);
+  b.addEventListener('focus', on);
+  b.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse' && document.activeElement !== b) off(); });
+  b.addEventListener('blur', off);
+});
+$('#evTot').innerHTML = [B, A].map(s => `<div><span><i class="sw ${chainCls(s.ch)}" aria-hidden="true"></i>${esc(s.ch)}</span><b>${fmt(s.events)}</b></div>`).join('');
+$('#evLg').innerHTML = STAGES.map(st => `<li><i style="background:var(--st-${st.k === 'decided' ? 'dec' : st.k})" aria-hidden="true"></i><span>${st.label}</span><small>${st.rows.length} listed${st.of != null ? ` of ${fmt(st.of)}` : ''}</small></li>`).join('');
+$('#evSpan').textContent = `${plural(EVN, 'event')} listed, ${evSpan}.`;
+$('#evTable').innerHTML = `<caption>Events the snapshot lists, by list and stage</caption><thead><tr><th>List</th><th>Chain</th>${STAGES.map(st => `<th>${st.label}</th>`).join('')}<th>Total</th></tr></thead><tbody>${
+  groups.map(g => `<tr><td>${esc(g.registry)}</td><td>${esc(g.chain)}</td>${STAGES.map(st => `<td>${g[st.k]}</td>`).join('')}<td>${g.n}</td></tr>`).join('')}</tbody>`;
+const decidedNote = STAGES[2].rows.length ? `${STAGES[2].rows.length} rulings` : 'no rulings';
+$('#fnEv').innerHTML = `<b>events</b> = the ${STAGES[0].rows.length} open requests (of ${fmt(F.requestsOpen)}), ${STAGES[1].rows.length} disputes in court (of ${fmt(F.inCourt)}) and the ${decidedNote} that the snapshot lists, grouped by list name and stage${dupNames.length ? ` · several Gnosis lists share the name ${dupNames.map(esc).join(', ')}, so those rows are by name` : ''} · <b>bar length</b> = events on that list / the busiest list (${gMax}) · ${esc(evSpan)} · ${esc(SCOPE)}`;
+
+/* ---------- inspect sheets: the rows behind each comparison ---------- */
 const scrim = $('.scrim'), sheet = $('.sheet');
 let lastFocus = null;
-const check = '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-label="verified"><path d="M12 2l2.4 1.8 3-.2.9 2.9 2.5 1.7-1 2.8 1 2.8-2.5 1.7-.9 2.9-3-.2L12 22l-2.4-1.8-3 .2-.9-2.9L3.2 15.8l1-2.8-1-2.8 2.5-1.7.9-2.9 3 .2L12 2Z" opacity=".22"/><path d="M8 12.2l2.6 2.6L16.2 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-const meter = share => {
-  let h = '';
-  for (let i = 0; i < 10; i++) { const o = Math.max(0, Math.min(1, share * 10 - i)); h += `<i style="--o:${o.toFixed(2)}"></i>`; }
-  return `<span class="meter" aria-hidden="true">${h}</span>`;
-};
-const pipsFor = c => { let p = ''; for (let i = 0; i < c.challenges; i++) p += `<i class="${i < c.won ? 'w' : ''}"></i>`; return `<span class="pp" aria-hidden="true">${p}</span>`; };
 const SHEETS = {
   lists() {
-    const top = S.topRegistries, v = top.filter(r => r.verified).length;
-    return {
-      eye: 'Lists verified · at snapshot',
-      title: `${fmt(V)} of ${fmt(REG)} lists are verified`,
-      cap: `Below are the ${top.length} largest lists by entries; ${v} of them are verified. The meter is each list's share of all ${fmt(F.entries)} entries, one tick per 10%.`,
-      body: `<div class="sh-sec"><span>Largest ${top.length} lists</span><span>entries · share</span></div>` + top.map(r => `
+    const sec = s => `<div class="sh-sec"><span><i class="sw ${chainCls(s.ch)}" aria-hidden="true"></i>${esc(s.ch)} · ${plural(s.n, 'list')}</span><span>${fmt(s.topEntries)} entries · ${s.open} open · ${s.court} in court</span></div>`
+      + s.lists.map(r => `
         <div class="srow"><div><div class="nm"><span>${esc(r.title)}</span>${r.verified ? check : ''}</div>
-        <div class="mt">${esc(r.chain)} · ${esc(r.kind)} · since ${monthYear(r.created)}${r.open ? ` · ${fmt(r.open)} open` : ''}</div></div>
-        <div class="rt"><div class="val">${fmt(r.entries)}</div><div class="sub2">${meter(r.entries / F.entries)}<span>${pct1(r.entries / F.entries)}</span></div></div></div>`).join('')
+        <div class="mt">${esc(r.kind)} · since ${monthYear(r.created)}</div></div>
+        <div class="rt"><div class="val">${fmt(r.entries)}</div><div class="sub2">${r.open} open · ${r.inCourt} in court</div></div></div>`).join('');
+    return {
+      eye: `The ${TOPN} largest lists · ${AT}`,
+      title: `${A.n} on Ethereum, ${B.n} on Gnosis`,
+      cap: `The lists, entries-per-list, open and in-court rows of the side-by-side bars are computed from these lists. Verified lists carry the badge: ${A.verified} of ${A.n} on Ethereum, ${B.verified} of ${B.n} on Gnosis.`,
+      body: sec(A) + sec(B) + `<p class="sh-fn">${fmt(F.registries)} lists exist in all; only these ${TOPN} carry a chain in the snapshot · ${esc(SCOPE)}</p>`
     };
   },
-  curators() {
+  events() {
+    const sec = st => `<div class="sh-sec"><span><i class="st-dot" style="background:var(--st-${st.k === 'decided' ? 'dec' : st.k})" aria-hidden="true"></i>${st.label}</span><span>${st.rows.length} listed${st.of != null ? ` of ${fmt(st.of)}` : ''}</span></div>`
+      + (st.rows.length ? st.rows.map(e => `
+        <div class="srow"><div><div class="nm"><i class="sw ${chainCls(e.chain)}" aria-hidden="true"></i><span>${esc(e.registry)}</span></div>
+        <div class="mt">${esc(e.chain)} · ${esc(e.status)} · ${esc(e.actor)}</div></div>
+        <div class="rt"><div class="val">${dShort(e.at)}</div></div></div>`).join('') : '<div class="srow"><span class="none">none listed</span></div>');
     return {
-      eye: 'Challenges won · last 30 days',
-      title: `${fmt(won)} of ${fmt(raised)} challenges won`,
-      cap: `The ${cur.length} most active of ${fmt(F.curators30d)} curators in the last 30 days. They raised ${fmt(raised)} of the ${fmt(chTotal)} challenges in that window. One pip per challenge: lit means won, dim means lost or still open.`,
-      body: `<div class="sh-sec"><span>Curator</span><span>won / raised</span></div>` + cur.map(c => `
-        <div class="srow"><div><div class="nm"><span style="font-family:var(--mono);font-size:12.5px">${esc(c.address)}</span></div>
-        <div class="mt">${plural(c.submissions, 'submission')}</div></div>
-        <div class="rt">${c.challenges ? `<div class="val">${fmt(c.won)} / ${fmt(c.challenges)}</div><div class="sub2">${pipsFor(c)}</div>` : '<span class="none">no challenges</span>'}</div></div>`).join('')
-    };
-  },
-  chains() {
-    const by = ch => S.topRegistries.filter(r => r.chain === ch).slice(0, 5);
-    const list = ch => by(ch).map(r => `
-      <div class="srow"><div><div class="nm"><span>${esc(r.title)}</span>${r.verified ? check : ''}</div><div class="mt">${esc(r.kind)} · since ${monthYear(r.created)}</div></div>
-      <div class="rt"><div class="val">${fmt(r.entries)}</div></div></div>`).join('');
-    return {
-      eye: 'Entries by chain · at snapshot',
-      title: `${fmt(gno)} of ${fmt(F.entries)} entries are on Gnosis`,
-      cap: 'Entries counted per chain at snapshot. Below, the largest lists on each chain.',
-      body: `<div class="caps">
-          <div class="cap-row"><div class="cap-top"><span>Gnosis<span>${pct1(gno / F.entries)}</span></span><b>${fmt(gno)}</b></div><div class="cap"><b style="width:${(gno / F.entries * 100).toFixed(2)}%"></b></div></div>
-          <div class="cap-row"><div class="cap-top"><span>Ethereum<span>${pct1(eth / F.entries)}</span></span><b>${fmt(eth)}</b></div><div class="cap alt"><b style="width:${(eth / F.entries * 100).toFixed(2)}%"></b></div></div>
-        </div>
-        <div class="sh-sec"><span>Largest on Gnosis</span><span>entries</span></div>${list('Gnosis')}
-        <div class="sh-sec"><span>Largest on Ethereum</span><span>entries</span></div>${list('Ethereum')}`
+      eye: `Events listed · ${AT}`,
+      title: `${fmt(B.events)} on Gnosis, ${fmt(A.events)} on Ethereum`,
+      cap: `The rows behind the events chart and the in-court bar, newest first in each stage.`,
+      body: STAGES.map(sec).join('') + `<p class="sh-fn">${esc(evSpan)} · ${esc(SCOPE)}</p>`
     };
   }
 };
@@ -859,14 +693,10 @@ document.addEventListener('keydown', e => {
   }
 });
 
-/* ---------- intro: cards rise, odometer turns once, then everything rests on final values ---------- */
+/* ---------- intro: cards rise and bars grow from the axis; the rest state is always final ---------- */
 if (ANIM) {
-  let painted = false;
-  const endIntro = () => { document.body.classList.remove('intro'); settleOdo(); };
-  requestAnimationFrame(() => requestAnimationFrame(() => { painted = true; }));
-  rollOdo();
-  setTimeout(() => { if (!painted) endIntro(); }, 240);
-  setTimeout(endIntro, 3300);
+  const endIntro = () => document.body.classList.remove('intro');
+  setTimeout(endIntro, 2600);
   document.addEventListener('visibilitychange', () => { if (document.hidden) endIntro(); }, { once: true });
 }
 })();

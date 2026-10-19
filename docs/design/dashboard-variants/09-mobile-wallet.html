@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Curate Pocket</title>
-<meta name="description" content="Mobile wallet style dashboard variant for Kleros Curate, drawn from a real Ethereum + Gnosis snapshot.">
+<meta name="description" content="Phone-first Curate dashboard: your starred lists, open / in court / decided cards, a 30-day requests chart and dispute details, from a real Ethereum + Gnosis snapshot.">
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#07080c">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -94,7 +94,7 @@ h1,h2,h3,p{margin:0}
 .tabwrap{position:absolute;left:16px;right:16px;bottom:calc(var(--bottom) - 4px);z-index:50;padding:5px;border-radius:999px;background:linear-gradient(90deg,rgba(37,99,235,.5),rgba(91,33,182,.45));box-shadow:inset 0 0 0 1px rgba(255,255,255,.08),0 20px 40px -12px rgba(0,0,0,.9)}
 .tabbar{position:relative;display:flex;height:62px;padding:6px;border-radius:999px;background:#0b0c0f;box-shadow:inset 0 1px 0 rgba(255,255,255,.06);overflow:hidden}
 .tabbar::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:.5;mix-blend-mode:screen;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='s'><feTurbulence type='fractalNoise' baseFrequency='1.4' numOctaves='1'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 9 -8.2'/></filter><rect width='100%25' height='100%25' filter='url(%23s)'/></svg>")}
-.tab-pill{position:absolute;top:6px;bottom:6px;left:6px;width:calc((100% - 12px) / 4);border-radius:999px;background:repeating-conic-gradient(from 8deg at 50% 50%,rgba(255,255,255,.035) 0 3deg,transparent 3deg 10deg),#17181e;box-shadow:inset 0 1px 0 rgba(255,255,255,.07);transform:translateX(calc(var(--i,0) * 100%));transition:transform .62s var(--spring)}
+.tab-pill{position:absolute;top:6px;bottom:6px;left:6px;width:calc((100% - 12px) / 3);border-radius:999px;background:repeating-conic-gradient(from 8deg at 50% 50%,rgba(255,255,255,.035) 0 3deg,transparent 3deg 10deg),#17181e;box-shadow:inset 0 1px 0 rgba(255,255,255,.07);transform:translateX(calc(var(--i,0) * 100%));transition:transform .62s var(--spring)}
 .tab{position:relative;z-index:1;flex:1;display:grid;place-items:center;border-radius:999px;color:#6b6f7c;transition:color .2s}
 .tab svg{width:24px;height:24px;fill:currentColor;transition:filter .3s}
 .tab:hover{color:#9196a3}
@@ -105,7 +105,7 @@ h1,h2,h3,p{margin:0}
 .slit{position:absolute;left:0;right:0;top:calc(var(--top) * -1);height:440px;pointer-events:none;overflow:hidden;z-index:0;-webkit-mask-image:linear-gradient(#000 76%,transparent);mask-image:linear-gradient(#000 76%,transparent)}
 .slit i{position:absolute;left:-12%;right:-12%;height:300px;border-radius:50%}
 .slit .g1,.slit .d1{top:-182px}
-.slit .g2,.slit .d2{top:232px}
+.slit .g2,.slit .d2{top:252px}
 .slit .g1,.slit .g2{box-shadow:0 0 34px 2px rgba(130,176,255,.6),0 0 96px 18px rgba(59,130,246,.38)}
 .slit .d1{background:radial-gradient(closest-side,#05060d 60%,#0c1840 75%,#1d4ed8 88%,#7fb0ff 95.5%,#f2f6ff 100%);filter:blur(5px)}
 .slit .d2{background:radial-gradient(closest-side,#05060d 60%,#121848 75%,#2a56e2 88%,#8db5ff 95.5%,#f2f6ff 100%);filter:blur(5px)}
@@ -128,21 +128,7 @@ h1,h2,h3,p{margin:0}
 .hero-label{margin-top:30px;color:var(--text-2);font-size:14px}
 .hero-label b{color:var(--text);font-weight:500}
 .hero-num{margin-top:2px;font:600 66px/1.02 var(--title);letter-spacing:-.025em;color:#fff;text-shadow:0 0 30px rgba(4,8,24,.85),0 2px 18px rgba(4,8,24,.6);font-variant-numeric:tabular-nums}
-.split{margin:56px auto 0;max-width:300px;text-align:left}
-.split-top{display:flex;justify-content:space-between;font-size:11.5px;color:var(--text-2);margin-bottom:7px}
-.split-bar{display:flex;gap:3px;height:6px}
-.split-bar span{border-radius:3px;transition:flex-grow 1.1s var(--spring-soft)}
-.split-bar .g{background:linear-gradient(90deg,#2563eb,#7fa8ff);box-shadow:0 0 12px rgba(59,130,246,.55)}
-.split-bar .e{background:#c9d6f7}
-.split-legend{display:flex;justify-content:space-between;margin-top:8px;font:400 11.5px var(--ui);color:var(--text-2);font-variant-numeric:tabular-nums}
-.split-legend i{display:inline-block;width:7px;height:7px;border-radius:2px;margin-right:6px;vertical-align:1px}
 
-.ctas{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:24px 20px 0}
-.cta{height:54px;border-radius:18px;display:flex;align-items:center;justify-content:center;gap:8px;font:600 15px var(--ui);background:var(--card-2);box-shadow:inset 0 0 0 1px var(--line-2),inset 0 1px 0 rgba(255,255,255,.05);transition:transform .35s var(--spring),background .2s}
-.cta:hover{background:#1a1e2a}
-.cta:active{transform:scale(.95)}
-.cta svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.cta.primary{background:linear-gradient(160deg,#5b9bff,#2563eb 58%,#1d4ed8);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.16),inset 0 1px 0 rgba(255,255,255,.32),0 14px 28px -12px rgba(37,99,235,.95)}
 
 .chart{position:relative;margin:30px 20px 0}
 .chart-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
@@ -161,20 +147,16 @@ h1,h2,h3,p{margin:0}
 .plot .bar.zero{fill:#2a2f3d}
 .plot .bar.partial{fill:url(#hatch);stroke:#7fa8ff;stroke-width:1}
 .plot .bars{filter:drop-shadow(0 0 8px rgba(59,130,246,.35))}
-.plot .cdot{fill:var(--amber);transition:opacity .18s}
 .plot svg.grow .bar{transform-box:fill-box;transform-origin:50% 100%;animation:grow .8s var(--spring-soft) both;animation-delay:calc(var(--d) * 16ms)}
-.plot svg.grow .cdot{animation:fadeIn .4s var(--ease) both;animation-delay:calc(var(--d) * 16ms + 300ms)}
 @keyframes grow{from{transform:scaleY(0)}}
 @keyframes fadeIn{from{opacity:0}}
-.plot svg.scrub .bar,.plot svg.scrub .cdot{opacity:.28}
+.plot svg.scrub .bar{opacity:.28}
 .plot svg.scrub .bar.on{opacity:1;fill:#e4ecff}
 .plot svg.scrub .bar.partial.on{fill:url(#hatchOn);stroke:#e4ecff}
-.plot svg.scrub .cdot.on{opacity:1}
 .plot svg.scrub .xl{opacity:.35}
 .legend{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:8px;font-size:11px;color:var(--muted)}
 .legend i{display:inline-block;margin-right:6px;vertical-align:0}
 .lg-bar{width:6px;height:10px;border-radius:2px;background:linear-gradient(#a9c6ff,#2563eb)}
-.lg-dot{width:6px;height:6px;border-radius:50%;background:var(--amber);vertical-align:1px!important}
 .lg-hatch{width:7px;height:10px;border-radius:2px;box-shadow:inset 0 0 0 1px #7fa8ff;background:repeating-linear-gradient(135deg,#7fa8ff 0 1.2px,transparent 1.2px 3px)}
 
 .sec-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:30px 16px 0 20px}
@@ -199,13 +181,6 @@ h1,h2,h3,p{margin:0}
 .sc-num b{font:600 46px/.9 var(--title);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .sc-num span{font-size:12.5px;line-height:1.35;color:var(--muted);padding-bottom:1px}
 .sc-num span em{font-style:normal}
-.subset{display:flex;gap:2px;height:6px;margin:12px 0 2px}
-.subset span{border-radius:3px}
-.subset .ss-a{background:linear-gradient(90deg,#2563eb,#7fa8ff);box-shadow:0 0 10px rgba(59,130,246,.5)}
-.subset .ss-c{background:var(--amber);box-shadow:0 0 10px rgba(243,177,78,.55);min-width:4px}
-.ss-cap{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:6px}
-.ob-title{margin-top:10px;font:600 15px var(--ui)}
-.ob-sub{margin-top:2px;font-size:12px;color:var(--muted)}
 .sc-rows{margin:8px -8px 0}
 .dots{display:flex;justify-content:center;gap:6px;margin-top:8px}
 .dots i{width:6px;height:6px;border-radius:3px;background:rgba(255,255,255,.2);transition:width .5s var(--spring),background .3s}
@@ -218,7 +193,6 @@ h1,h2,h3,p{margin:0}
 .seg.sm{padding:3px}
 .seg.sm button{min-height:38px;min-width:46px;padding:0 10px;font:500 12.5px var(--ui)}
 .seg.sm .seg-ind{top:3px;bottom:3px;background:linear-gradient(180deg,#2c5fd6,#1f48b5);box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 6px 16px -6px rgba(37,99,235,.9)}
-.seg-wrap{margin:30px 20px 0}
 .list{margin:8px 12px 0}
 .list-cap{margin:8px 20px 0;font-size:11.5px;color:var(--muted)}
 
@@ -249,8 +223,6 @@ h1,h2,h3,p{margin:0}
 .ico.t-rose{background:rgba(245,154,168,.12);color:var(--rose)}
 .ico.t-grey{background:rgba(154,161,181,.12);color:#b4bacb}
 /* stacked icon for a group of events, with its count */
-.ico.stack{box-shadow:4px -4px 0 -1px color-mix(in srgb,currentColor 20%,transparent)}
-.ico .cnt{position:absolute;right:-6px;bottom:-6px;min-width:19px;height:19px;padding:0 5px;border-radius:999px;display:grid;place-items:center;background:#e9efff;color:#0a0d18;font:600 10.5px/1 var(--ui);box-shadow:0 0 0 2px var(--screen);font-variant-numeric:tabular-nums}
 /* registry token art: generated glyph per registry name */
 .glyph{position:relative;flex:none;width:42px;height:42px;border-radius:14px}
 .glyph > svg{display:block;width:100%;height:100%;border-radius:inherit;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
@@ -260,7 +232,6 @@ h1,h2,h3,p{margin:0}
 .chainmark svg{width:14px;height:14px;display:block}
 .chainmark.eth{background:#1f2440}
 .chainmark.gno{background:#123b2c}
-.avatar{width:42px;height:42px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
 .more{display:flex;align-items:center;justify-content:center;gap:4px;width:100%;min-height:48px;margin-top:4px;border-radius:16px;color:var(--blue-hi);font-size:13.5px;font-weight:500;background:rgba(255,255,255,.03)}
 .more svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .foot-stamp{margin:26px 20px 0;text-align:center;font:400 11px/1.6 var(--ui);color:var(--dim)}
@@ -274,16 +245,6 @@ h1,h2,h3,p{margin:0}
 .fchip{flex:none;min-height:40px;padding:0 14px;border-radius:999px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);font-size:13.5px;font-weight:500;color:var(--text-2);display:inline-flex;align-items:center;gap:7px;transition:background .25s,color .25s,transform .3s var(--spring)}
 .fchip:active{transform:scale(.95)}
 .fchip[aria-pressed="true"]{background:var(--blue-2);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 8px 20px -8px rgba(37,99,235,.95)}
-.duo{display:grid;grid-template-columns:.85fr 1.15fr;gap:10px;margin:18px 20px 0}
-.tilecard{border-radius:22px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);padding:14px 14px 13px;min-width:0}
-.tc-l{font-size:12px;color:var(--muted)}
-.tc-n{margin-top:6px;font:600 32px/1 var(--title);font-variant-numeric:tabular-nums}
-.tc-c{margin-top:6px;font-size:12px;color:var(--text-2)}
-.obar{display:flex;gap:3px;height:10px;margin-top:12px}
-.obar span{border-radius:4px;min-width:6px}
-.olegend{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:8px;font:400 11.5px var(--ui);color:var(--text-2);font-variant-numeric:tabular-nums}
-.olegend i{display:inline-block;width:7px;height:7px;border-radius:2px;margin-right:5px;vertical-align:0}
-.o-rejected{background:var(--rose)}.o-registered{background:var(--green)}.o-removed{background:#9aa1b5}
 .glabel{display:flex;justify-content:space-between;gap:12px;margin:24px 20px 2px;font:500 12.5px var(--ui);color:var(--muted)}
 .glabel span{font:400 11.5px var(--ui);font-variant-numeric:tabular-nums;white-space:nowrap}
 
@@ -318,9 +279,6 @@ h1,h2,h3,p{margin:0}
 .sv-bar span{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,#2563eb,#93b8ff);box-shadow:0 0 12px rgba(59,130,246,.6)}
 .sv-bar.tiny{overflow:visible;background:#1a1d28}
 .sv-bar.tiny span{position:absolute;left:0;top:50%;width:8px;height:8px;margin-top:-4px;border-radius:50%;background:#bcd2ff;box-shadow:0 0 8px rgba(147,184,255,.9)}
-.pips{display:flex;gap:4px;margin-top:10px}
-.pips i{flex:1;height:8px;border-radius:3px;background:#262a36}
-.pips i.on{background:var(--blue);box-shadow:0 0 10px rgba(59,130,246,.6)}
 .steps{list-style:none;margin:20px 0 4px;padding:0;display:flex}
 .steps li{flex:1;position:relative;text-align:center;font-size:11.5px;line-height:1.3;color:var(--dim);padding:20px 2px 0}
 .steps li i{position:absolute;top:0;left:50%;width:12px;height:12px;margin-left:-6px;border-radius:50%;background:#2c3140;z-index:1}
@@ -349,12 +307,6 @@ h1,h2,h3,p{margin:0}
 .sh-glabel{display:flex;justify-content:space-between;gap:12px;margin:20px 2px 2px;font:500 12.5px var(--ui);color:var(--muted)}
 .sh-glabel b{font-weight:500;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sh-glabel span{flex:none;font-variant-numeric:tabular-nums}
-.qrow{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:6px}
-.qbtn{min-height:40px;padding:0 15px;border-radius:999px;display:grid;place-items:center;font:600 13px var(--ui);color:var(--blue-hi);background:rgba(59,130,246,.13);box-shadow:inset 0 0 0 1px rgba(147,184,255,.24);transition:background .2s,transform .3s var(--spring)}
-.qbtn:hover{background:rgba(59,130,246,.22)}
-.qbtn:active{transform:scale(.94)}
-.callout{margin-top:14px;padding:12px 14px;border-radius:16px;background:rgba(59,130,246,.08);box-shadow:inset 0 0 0 1px rgba(147,184,255,.16);font-size:12.5px;line-height:1.45;color:var(--text-2)}
-.callout b{color:var(--text);font-weight:500}
 
 /* ---------- responsive ---------- */
 @media (min-width:1000px){
@@ -381,10 +333,98 @@ h1,h2,h3,p{margin:0}
   .sheet.open{transition:transform .66s var(--spring-soft),visibility 0s}
   .sheet::after{content:'';position:absolute;left:0;right:0;top:calc(100% - 1px);height:90px;background:#0d0f15}
 }
-@media (max-width:360px){.hero-num{font-size:56px}.cta{font-size:14px}}
+@media (max-width:360px){.hero-num{font-size:56px}}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;animation-iteration-count:1!important;transition-duration:.01ms!important;transition-delay:0s!important;scroll-behavior:auto!important}
 }
+
+/* ---------- watchlist hero ---------- */
+.hero-label b{font-variant-numeric:tabular-nums}
+.hero-sub{margin-top:8px;font-size:13.5px;color:var(--text-2);font-variant-numeric:tabular-nums}
+.hero-sub .t-amber{font-weight:500}
+.hero-edit{display:inline-flex;align-items:center;gap:6px;min-height:44px;margin-top:6px;padding:0 6px;color:var(--blue-hi);font:500 13px var(--ui)}
+.hero-edit svg{width:15px;height:15px;fill:currentColor}
+.cover{margin:46px auto 0;max-width:300px;text-align:left}
+.cover-top{display:flex;justify-content:space-between;gap:12px;font-size:11.5px;color:var(--text-2);margin-bottom:7px}
+.cover-top b{font-weight:500;color:var(--text);font-variant-numeric:tabular-nums}
+.cover-bar{position:relative;height:6px;border-radius:3px;background:rgba(201,214,247,.16)}
+.cover-bar span{position:absolute;left:0;top:0;bottom:0;border-radius:3px;transition:width 1.1s var(--spring-soft)}
+.cover-bar .o{background:linear-gradient(90deg,#2563eb,#7fa8ff);box-shadow:0 0 12px rgba(59,130,246,.55)}
+.cover-bar .c{border-radius:3px 0 0 3px;background:var(--amber);box-shadow:0 0 10px rgba(243,177,78,.6)}
+.cover-leg{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 10px;margin-top:8px;font:400 11.5px var(--ui);color:var(--text-2);font-variant-numeric:tabular-nums}
+.cover-leg i{display:inline-block;width:7px;height:7px;border-radius:2px;margin-right:6px;vertical-align:0}
+
+/* ---------- footnotes: formula and window under every derived figure ---------- */
+.fn{margin:10px 20px 0;font:400 11px/1.5 var(--ui);color:var(--muted);text-wrap:pretty}
+.fn b{font-weight:500;color:var(--text-2)}
+.hero .fn{margin:12px auto 0;max-width:300px;text-align:left}
+.chart .fn{margin:10px 0 0}
+.sheet .fn{margin:14px 2px 0}
+
+/* ---------- cards: count + the newest item ---------- */
+.sec-head{position:relative;z-index:1}
+.sec-aside{font-size:12px;color:var(--muted)}
+.sc-new{display:flex;justify-content:space-between;gap:10px;margin:14px 0 0;padding-top:12px;border-top:1px solid var(--line);font:500 10.5px var(--ui);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.sc-new span{letter-spacing:0;text-transform:none;font-weight:400;font-variant-numeric:tabular-nums}
+.sc-rows{margin:4px -8px 0}
+
+/* ---------- watchlist rows: open + in court per list, star to watch ---------- */
+.wrow{display:grid;grid-template-columns:minmax(0,1fr) 44px;align-items:center;gap:2px}
+.cnts{display:flex;flex-direction:column;align-items:flex-end;gap:3px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.cnt-o{font:600 15px/1 var(--title);color:var(--text)}
+.cnt-o small{font:400 11.5px var(--ui);color:var(--muted);margin-left:3px}
+.cnt-o.zero{color:var(--dim)}
+.cnt-c{display:inline-flex;align-items:center;gap:5px;font:400 11.5px var(--ui);color:var(--amber)}
+.cnt-c i{width:6px;height:6px;border-radius:50%;background:var(--amber);box-shadow:0 0 0 3px rgba(243,177,78,.16)}
+.cnt-c.zero{color:var(--dim)}
+.cnt-c.zero i{background:#3a3f4e;box-shadow:none}
+.star{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;color:#5d6375;transition:color .18s var(--ease),background .18s var(--ease),transform .35s var(--spring)}
+.star:hover{background:rgba(255,255,255,.05);color:var(--text-2)}
+.star:active{transform:scale(.86)}
+.star svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linejoin:round;transition:fill .18s var(--ease)}
+.star[aria-pressed="true"]{color:var(--blue-hi)}
+.star[aria-pressed="true"] svg{fill:currentColor;filter:drop-shadow(0 0 6px rgba(147,184,255,.75)) drop-shadow(0 0 14px rgba(59,130,246,.55))}
+.star.pop svg{animation:pop .55s var(--spring)}
+@keyframes pop{35%{transform:scale(1.32) rotate(-8deg)}}
+.star.wide{width:auto;min-height:44px;padding:0 16px 0 12px;border-radius:12px;display:inline-flex;gap:7px;font:600 13.5px var(--ui);color:var(--text-2);background:rgba(255,255,255,.07);box-shadow:inset 0 0 0 1px var(--line-2)}
+.star.wide[aria-pressed="true"]{color:#fff;background:rgba(59,130,246,.18);box-shadow:inset 0 0 0 1px rgba(147,184,255,.35)}
+.star.wide svg{width:18px;height:18px}
+.empty{margin:6px 20px 0;padding:14px 16px;border-radius:16px;background:rgba(255,255,255,.03);box-shadow:inset 0 0 0 1px var(--line);font-size:12.5px;color:var(--text-2);line-height:1.45}
+.seg-wrap{margin:18px 20px 0}
+.chips .fchip span{font-variant-numeric:tabular-nums;opacity:.75}
+
+/* ---------- sheet: the dispute's list in context (one square per open request) ---------- */
+.ctx{padding:14px 14px 12px}
+.ctx-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.ctx-head > span{min-width:0}
+.ctx-k{display:block;font-size:12px;color:var(--muted)}
+.ctx-head b{display:block;margin-top:1px;font:500 14px var(--ui);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ctx-fig{display:flex;align-items:baseline;gap:6px;margin-top:14px;font-size:13px;color:var(--text-2);font-variant-numeric:tabular-nums}
+.ctx-fig b{font:600 26px/1 var(--title);color:var(--amber);letter-spacing:-.01em}
+.ctx-fig b.all{color:var(--text)}
+.ctx-fig em{margin-left:auto;font-style:normal;font-weight:500;color:var(--text)}
+.waffle{display:grid;grid-template-columns:repeat(var(--cols),minmax(0,1fr));gap:3px;max-width:calc(var(--cols) * 19px);margin-top:10px}
+.waffle i{aspect-ratio:1;border-radius:3px;background:rgba(91,143,255,.28);box-shadow:inset 0 0 0 1px rgba(147,184,255,.18);animation:cellIn .32s var(--ease) both;animation-delay:calc(var(--k) * 7ms)}
+.waffle i.ct{background:rgba(243,177,78,.55);box-shadow:inset 0 0 0 1px rgba(243,177,78,.5)}
+.waffle i.me{background:var(--amber);box-shadow:0 0 0 2px #121520,0 0 0 3.5px var(--amber),0 0 12px rgba(243,177,78,.8)}
+@keyframes cellIn{from{opacity:0;transform:scale(.4)}}
+.sheet-body.still .waffle i{animation:none}
+.ctx-leg{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:10px;font-size:11.5px;color:var(--text-2);font-variant-numeric:tabular-nums}
+.ctx-leg i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:0}
+.ctx-share{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding-top:11px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.ctx-share b{display:inline-flex;align-items:center;gap:8px;font:500 12.5px var(--ui);color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pips{display:inline-flex;gap:3px}
+.pips i{width:9px;height:9px;border-radius:2px;background:#2a2f3d}
+.pips i.on{background:var(--amber)}
+.sh-watch{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:18px;padding:12px 12px 12px 14px;border-radius:18px;background:rgba(255,255,255,.035);box-shadow:inset 0 0 0 1px var(--line)}
+.sh-watch b{display:block;font:500 13.5px var(--ui);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sh-watch > span{min-width:0}
+.sh-watch > span > span{display:flex;gap:10px;margin-top:3px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.sh-duo{display:flex;justify-content:center;gap:26px;padding:22px 0 4px;text-align:center}
+.sh-duo .sh-fig{font-size:42px}
+.plot{height:108px}
+.chart-read{margin-top:8px}
+
 </style>
 </head>
 <body>
@@ -402,73 +442,61 @@ h1,h2,h3,p{margin:0}
           <div class="navbar" id="navbar" aria-hidden="true"><span id="navTitle">Home</span></div>
           <div class="scroller" id="scroller">
 
-            <!-- HOME -->
+            <!-- HOME: my watchlist figure, the three status cards, the watched lists, then the all-lists 30-day chart -->
             <section class="view is-active" id="view-home" data-view="home" aria-label="Home">
               <div class="slit" aria-hidden="true"><i class="g1"></i><i class="g2"></i><i class="d1"></i><i class="d2"></i></div>
               <div class="head">
-                <div class="acct"><span class="orb" aria-hidden="true"></span><div><b>CurateVision</b><span>Ethereum + Gnosis</span></div></div>
-                <button class="icon-btn" type="button" data-go="lists" aria-label="Browse registries"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg></button>
+                <div class="acct"><span class="orb" aria-hidden="true"></span><div><b>My Curate</b><span>Ethereum + Gnosis</span></div></div>
+                <button class="icon-btn" type="button" data-go="watch" aria-label="Edit watchlist"><svg viewBox="0 0 24 24"><path d="m12 3.6 2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/></svg></button>
               </div>
               <div class="hero">
-                <span class="stamp"><i></i><span id="stampText">Snapshot · 18 Oct 2026, 19:58 UTC</span></span>
-                <p class="hero-label">Entries across <b id="regCount">237</b> registries</p>
-                <p class="hero-num" id="heroNum">31,228</p>
-                <div class="split" id="split"></div>
+                <span class="stamp"><i></i><span id="stampText"></span></span>
+                <div id="heroBody"></div>
               </div>
 
-              <div class="ctas">
-                <button class="cta primary" type="button" data-sheet="submit"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Submit entry</button>
-                <button class="cta" type="button" data-sheet="challenge"><svg viewBox="0 0 24 24"><path d="M5 21V4.5M5 4.5h11.5l-2.3 4 2.3 4H5"/></svg>Challenge</button>
-              </div>
+              <div class="sec-head"><h2>Right now</h2><span class="sec-aside" aria-hidden="true">Swipe for more</span></div>
+              <div class="cards" id="cards" aria-label="Open, in court and decided"></div>
+              <div class="dots" id="dots" aria-hidden="true"><i class="on"></i><i></i><i></i></div>
+              <p class="fn" id="fnCards"></p>
+
+              <div class="sec-head"><h2>Watchlist</h2><button class="link" type="button" data-go="watch">All lists<svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></button></div>
+              <p class="list-cap" id="wlCap"></p>
+              <div class="list" id="wlHome"></div>
+              <p class="fn" id="fnWl"></p>
 
               <div class="chart">
-                <div class="chart-head">
-                  <div><h2 class="chart-title">Requests per day</h2><p class="chart-sub" id="chartSub">Last 30 days</p></div>
-                  <div class="seg sm" id="rangeSeg" role="group" aria-label="Chart range"><span class="seg-ind"></span><button type="button" data-v="7" aria-pressed="false">7D</button><button type="button" data-v="30" aria-pressed="true">30D</button></div>
-                </div>
+                <div class="chart-head"><div><h2 class="chart-title">Requests per day, all lists</h2><p class="chart-sub" id="chartSub"></p></div></div>
                 <p class="chart-read" id="chartRead"></p>
-                <div class="plot" id="plot" tabindex="0" role="img" aria-label="Requests per day"><svg id="chartSvg" aria-hidden="true"></svg></div>
-                <div class="legend"><span><i class="lg-bar"></i>Requests that day</span><span><i class="lg-dot"></i>Challenges, 1 dot each</span><span id="lgPartial"><i class="lg-hatch"></i>Partial day</span></div>
+                <div class="plot" id="plot" tabindex="0" role="img"><svg id="chartSvg" aria-hidden="true"></svg></div>
+                <div class="legend"><span><i class="lg-bar"></i>Requests made that UTC day</span><span id="lgPartial"><i class="lg-hatch"></i>Partial day</span></div>
+                <p class="fn" id="fnChart"></p>
               </div>
 
-              <div class="sec-head"><h2>Requests &amp; rulings</h2><span class="vh">Swipe sideways for more cards</span></div>
-              <div class="cards" id="cards"></div>
-              <div class="dots" id="dots" aria-hidden="true"><i class="on"></i><i></i><i></i></div>
-
-              <div class="seg-wrap">
-                <div class="seg" id="listSeg" role="group" aria-label="List"><span class="seg-ind"></span>
-                  <button type="button" data-v="reg" aria-pressed="true">Registries</button>
-                  <button type="button" data-v="cur" aria-pressed="false">Curators</button>
-                </div>
-              </div>
-              <p class="list-cap" id="listCap"></p>
-              <div class="list" id="homeList"></div>
               <p class="foot-stamp" id="footStamp"></p>
             </section>
 
-            <!-- REGISTRIES -->
-            <section class="view" id="view-lists" data-view="lists" aria-label="Registries">
-              <div class="lt"><h1>Registries</h1><p id="regSub"></p></div>
-              <div class="chips" id="regChips" role="group" aria-label="Filter registries"></div>
-              <p class="list-cap" id="regCap"></p>
-              <div class="list" id="regList"></div>
+            <!-- WATCHLIST: star the lists to follow -->
+            <section class="view" id="view-watch" data-view="watch" aria-label="Watchlist">
+              <div class="lt"><h1>Watchlist</h1><p>Star a list to follow it. Stars stay on this device.</p></div>
+              <div class="chips" id="wlChips" role="group" aria-label="Filter lists"></div>
+              <p class="list-cap" id="wlViewCap"></p>
+              <div class="list" id="wlView"></div>
+              <p class="fn" id="fnWlView"></p>
             </section>
 
-            <!-- COURT -->
-            <section class="view" id="view-court" data-view="court" aria-label="Court">
-              <div class="lt"><h1>Court</h1><p>Disputes before Kleros jurors, and the latest rulings.</p></div>
-              <div class="duo" id="courtDuo"></div>
-              <h3 class="glabel">In court now <span id="courtN"></span></h3>
-              <div class="list" id="courtList"></div>
-              <h3 class="glabel">Latest rulings <span id="rulingN"></span></h3>
-              <div class="list" id="rulingList"></div>
-            </section>
-
-            <!-- ACTIVITY -->
-            <section class="view" id="view-activity" data-view="activity" aria-label="Activity">
-              <div class="lt"><h1>Activity</h1><p id="actSub"></p></div>
-              <div id="actList"></div>
-              <p class="foot-stamp" id="actStamp"></p>
+            <!-- REQUESTS: the items behind the three cards -->
+            <section class="view" id="view-requests" data-view="requests" aria-label="Requests">
+              <div class="lt"><h1>Requests</h1><p id="reqSub"></p></div>
+              <div class="seg-wrap">
+                <div class="seg" id="reqSeg" role="group" aria-label="Status"><span class="seg-ind"></span>
+                  <button type="button" data-v="open" aria-pressed="true">Open</button>
+                  <button type="button" data-v="court" aria-pressed="false">In court</button>
+                  <button type="button" data-v="done" aria-pressed="false">Decided</button>
+                </div>
+              </div>
+              <p class="list-cap" id="reqCap"></p>
+              <div class="list" id="reqList"></div>
+              <p class="fn" id="fnReq"></p>
             </section>
           </div>
 
@@ -477,9 +505,8 @@ h1,h2,h3,p{margin:0}
             <nav class="tabbar" id="tabbar" aria-label="Main">
               <span class="tab-pill" id="tabPill"></span>
               <button class="tab" type="button" data-tab="home" aria-label="Home" aria-current="page"><svg viewBox="0 0 24 24"><path d="M10.6 3.4a2.2 2.2 0 0 1 2.8 0l6.6 5.4c.6.5 1 1.3 1 2.1v7.6a2.5 2.5 0 0 1-2.5 2.5h-3a1 1 0 0 1-1-1v-4.3a1.5 1.5 0 0 0-1.5-1.5h-2a1.5 1.5 0 0 0-1.5 1.5V20a1 1 0 0 1-1 1h-3A2.5 2.5 0 0 1 3 18.5v-7.6c0-.8.4-1.6 1-2.1z"/></svg></button>
-              <button class="tab" type="button" data-tab="lists" aria-label="Registries"><svg viewBox="0 0 24 24"><path d="M11.1 2.9a2 2 0 0 1 1.8 0l8.2 4.2c.7.4.7 1.4 0 1.8l-8.2 4.2a2 2 0 0 1-1.8 0L2.9 8.9c-.7-.4-.7-1.4 0-1.8z"/><path d="m4.7 11.8 6.4 3.3a2 2 0 0 0 1.8 0l6.4-3.3 1.8.9c.7.4.7 1.4 0 1.8l-8.2 4.2a2 2 0 0 1-1.8 0l-8.2-4.2c-.7-.4-.7-1.4 0-1.8z" opacity=".7"/></svg></button>
-              <button class="tab" type="button" data-tab="court" aria-label="Court"><svg viewBox="0 0 24 24"><path d="M12 2.6c.7 0 1.3.6 1.3 1.3v.6h5.4a1.1 1.1 0 0 1 1 1.6l-.2.3 2.6 6.2c.1.3.1.6 0 .9-.5 1.6-2 2.7-3.8 2.7s-3.3-1.1-3.8-2.7c-.1-.3-.1-.6 0-.9l2.5-6H13.3v12.2H17a1.1 1.1 0 1 1 0 2.2H7a1.1 1.1 0 1 1 0-2.2h3.7V6.6H7l2.5 6c.1.3.1.6 0 .9-.5 1.6-2 2.7-3.8 2.7S2.4 15.1 1.9 13.5c-.1-.3-.1-.6 0-.9l2.6-6.2-.2-.3a1.1 1.1 0 0 1 1-1.6h5.4v-.6c0-.7.6-1.3 1.3-1.3zM5.7 8.5 4.1 12.4h3.2zm12.6 0-1.6 3.9h3.2z"/></svg></button>
-              <button class="tab" type="button" data-tab="activity" aria-label="Activity"><svg viewBox="0 0 24 24"><path d="M13.3 2.3a.9.9 0 0 1 1.5.7L13.7 10h5.2a.9.9 0 0 1 .7 1.5l-8.8 10.2a.9.9 0 0 1-1.5-.7l1.1-7H5.1a.9.9 0 0 1-.7-1.5z"/></svg></button>
+              <button class="tab" type="button" data-tab="watch" aria-label="Watchlist"><svg viewBox="0 0 24 24"><path d="M11.1 2.9a1 1 0 0 1 1.8 0l2.5 5.1 5.6.8a1 1 0 0 1 .6 1.7l-4.1 4 1 5.6a1 1 0 0 1-1.5 1L12 18.5l-5 2.6a1 1 0 0 1-1.5-1l1-5.6-4.1-4a1 1 0 0 1 .6-1.7l5.6-.8z"/></svg></button>
+              <button class="tab" type="button" data-tab="requests" aria-label="Requests"><svg viewBox="0 0 24 24"><path d="M13.3 2.3a.9.9 0 0 1 1.5.7L13.7 10h5.2a.9.9 0 0 1 .7 1.5l-8.8 10.2a.9.9 0 0 1-1.5-.7l1.1-7H5.1a.9.9 0 0 1-.7-1.5z"/></svg></button>
             </nav>
           </div>
         </div>
@@ -493,8 +520,9 @@ h1,h2,h3,p{margin:0}
     </aside>
   </div>
 </main>
+<p class="vh" id="live" aria-live="polite"></p>
 
-<footer class="stage-foot" id="stageStamp">Snapshot · 18 Oct 2026, 19:58 UTC · Ethereum + Gnosis</footer>
+<footer class="stage-foot" id="stageStamp"></footer>
 
 <script src="./snapshot.js"></script>
 <script>
@@ -509,6 +537,7 @@ var $ = function(s, r){ return (r || document).querySelector(s); };
 var $$ = function(s, r){ return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
 var F = S.figures;
 var SNAP = Date.parse(S.snapshotAt) / 1000;
+var SCOPE = 'Ethereum + Gnosis';
 var MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 var DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 function pad(n){ return (n < 10 ? '0' : '') + n; }
@@ -519,14 +548,21 @@ function dFull(t){ var d = D(t); return d.getUTCDate() + ' ' + MON[d.getUTCMonth
 function hm(t){ var d = D(t); return pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); }
 function dLong(t){ return dFull(t) + ', ' + hm(t) + ' UTC'; }
 function dow(t){ return DOW[D(t).getUTCDay()]; }
-function ago(t){ var s = SNAP - t; if (s < 3600) return Math.max(1, Math.round(s / 60)) + 'm ago'; if (s < 86400) return Math.floor(s / 3600) + 'h ago'; return Math.floor(s / 86400) + 'd ago'; }
-function span(t){ var s = SNAP - t, d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60); return d ? d + 'd ' + h + 'h' : h ? h + 'h ' + m + 'm' : m + 'm'; }
+/* age of an event = snapshot time − event time */
+function age(t){ var s = SNAP - t, d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60); return d ? d + 'd ' + h + 'h' : h ? h + 'h ' + m + 'm' : Math.max(1, m) + 'm'; }
+function ago(t){ return age(t) + ' ago'; }
 function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function year(iso){ return iso.split('-')[0]; }
 function dateIso(iso){ var p = iso.split('-'); return (+p[2]) + ' ' + MON[+p[1] - 1] + ' ' + p[0]; }
 function shortAddr(a){ return a.length > 14 ? a.slice(0, 6) + '…' + a.slice(-4) : a; }
 function cap(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
-function plural(n, one, many){ return n + ' ' + (n === 1 ? one : (many || one + 's')); }
+function plural(n, one, many){ return fmt(n) + ' ' + (n === 1 ? one : (many || one + 's')); }
+function ordinal(n){ var s = ['th','st','nd','rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); }
+function sum(a, f){ return a.reduce(function(s, x){ return s + f(x); }, 0); }
+function pct(x){ var p = x * 100; return (p === 0 || p >= 10 || p === Math.round(p) ? Math.round(p) : p.toFixed(1)) + '%'; }
+/* share with one decimal kept when it is not whole: 5 ÷ 40 = 12.5% */
+function pct1(x){ var p = Math.round(x * 1000) / 10; return (p % 1 ? p.toFixed(1) : String(p)) + '%'; }
+function range0(n){ var a = []; for (var i = 0; i < n; i++) a.push(i); return a; }
 
 var STAMP = 'Snapshot · ' + dLong(SNAP);
 
@@ -534,16 +570,14 @@ var STAMP = 'Snapshot · ' + dLong(SNAP);
 var I = {
   up: '<svg viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
   scale: '<svg viewBox="0 0 24 24"><path d="M12 4v15.5M8 19.5h8M4.5 7.5h15"/><path d="M6.5 7.5 3.6 14h5.8zM17.5 7.5 14.6 14h5.8z"/></svg>',
-  flag: '<svg viewBox="0 0 24 24"><path d="M5 21V4.5M5 4.5h11.5l-2.3 4 2.3 4H5"/></svg>',
-  plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
   check: '<svg viewBox="0 0 24 24"><path d="m5.5 12.5 4.2 4.2L18.5 8"/></svg>',
   x: '<svg viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>',
   back: '<svg viewBox="0 0 24 24"><path d="m14.5 6-6 6 6 6"/></svg>',
   minus: '<svg viewBox="0 0 24 24"><path d="M6 12h12"/></svg>',
   chev: '<svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>',
-  clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/></svg>',
+  star: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3.6 2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/></svg>',
+  starF: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11.1 2.9a1 1 0 0 1 1.8 0l2.5 5.1 5.6.8a1 1 0 0 1 .6 1.7l-4.1 4 1 5.6a1 1 0 0 1-1.5 1L12 18.5l-5 2.6a1 1 0 0 1-1.5-1l1-5.6-4.1-4a1 1 0 0 1 .6-1.7l5.6-.8z"/></svg>',
   verified: '<svg viewBox="0 0 24 24" aria-label="Verified" role="img"><path fill="#3b82f6" d="M12 2.5l2.3 1.7 2.9-.1.9 2.7 2.3 1.8-.9 2.7.9 2.7-2.3 1.8-.9 2.7-2.9-.1L12 21.5l-2.3-1.7-2.9.1-.9-2.7-2.3-1.8.9-2.7-.9-2.7 2.3-1.8.9-2.7 2.9.1z"/><path d="m8.4 12.2 2.5 2.5 4.8-5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-  /* chain marks, drawn for 14px */
   eth: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#c8d1ff" d="M12 2 5.6 12.4 12 16.1l6.4-3.7z"/><path fill="#8f9dea" d="M5.6 13.8 12 22l6.4-8.2L12 17.5z"/></svg>',
   gno: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#efe9d8" d="M4.2 5.2 7.6 7.4A6 6 0 0 1 12 9a6 6 0 0 1 4.4-1.6l3.4-2.2-.4 4A5.6 5.6 0 0 1 21 12.6a5.4 5.4 0 0 1-8.2 4.6L12 19.8l-.8-2.6A5.4 5.4 0 0 1 3 12.6a5.6 5.6 0 0 1 1.6-3.4z"/><circle cx="8.4" cy="12.6" r="2.3" fill="#123b2c"/><circle cx="15.6" cy="12.6" r="2.3" fill="#123b2c"/></svg>'
 };
@@ -552,162 +586,51 @@ var I = {
 var NET = { '1': 'Ethereum', '10': 'OP Mainnet', '56': 'BNB Chain', '100': 'Gnosis', '137': 'Polygon', '999': 'HyperEVM', '8453': 'Base', '42161': 'Arbitrum One', '42220': 'Celo', '43114': 'Avalanche' };
 function caip(id){ var p = (id || '').split(':'); return p.length === 3 ? { chainId: p[1], addr: p[2], net: NET[p[1]] || 'Chain ID ' + p[1] } : { chainId: '', addr: id || '', net: '' }; }
 
-/* ---------- derived ---------- */
+/* ---------- data ---------- */
 var REG = S.topRegistries;
-var CUR = S.curators.slice().sort(function(a, b){ return b.submissions - a.submissions; });
-var SERIES = S.series30d;
-var OUT = { rejected: 0, registered: 0, removed: 0 };
-S.decided.forEach(function(e){ if (OUT[e.outcome] != null) OUT[e.outcome]++; });
-var SRC = { request: S.openToChallenge, dispute: S.inCourt, ruling: S.decided };
-var OLDEST_RULING = S.decided[S.decided.length - 1];
-function regByTitle(t){ for (var i = 0; i < REG.length; i++) if (REG[i].title === t && REG[i].verified) return REG[i]; return null; }
-function openLabel(r){ return r.open ? r.open + ' open' + (r.inCourt ? ' (' + r.inCourt + ' in court)' : '') : 'None open'; }
+var KEY = REG.map(function(r){ return r.title + '|' + r.chain + '|' + r.created; });
+var OPEN = S.openToChallenge, COURT = S.inCourt, DONE = S.decided, SERIES = S.series30d;
+function pick(list, newest){ var b = 0; for (var i = 1; i < list.length; i++) if (newest ? list[i].at > list[b].at : list[i].at < list[b].at) b = i; return b; }
+function byNewest(list){ return range0(list.length).sort(function(a, b){ return list[b].at - list[a].at; }); }
+var NEW = { open: pick(OPEN, true), court: pick(COURT, true), done: pick(DONE, true) };
+var OLD = { open: pick(OPEN, false), court: pick(COURT, false), done: pick(DONE, false) };
+/* the list an event belongs to: same title and chain; when titles repeat, the one list with that kind of activity */
+function regFor(e, field){
+  var c = range0(REG.length).filter(function(i){ return REG[i].title === e.registry && REG[i].chain === e.chain; });
+  if (c.length === 1) return c[0];
+  var f = c.filter(function(i){ return REG[i][field] > 0; });
+  return f.length === 1 ? f[0] : -1;
+}
+var TOP_OPEN = sum(REG, function(r){ return r.open; }), TOP_COURT = sum(REG, function(r){ return r.inCourt; });
+
+/* ---------- watchlist: starred lists, kept in this browser ---------- */
+var WL_KEY = 'curatevision.09-mobile-wallet.watchlist';
+var WL = (function(){
+  try { var a = JSON.parse(window.localStorage.getItem(WL_KEY) || '[]'); return Array.isArray(a) ? a.filter(function(k, j){ return KEY.indexOf(k) >= 0 && a.indexOf(k) === j; }) : []; }
+  catch (err) { return []; }
+})();
+function saveWL(){ try { window.localStorage.setItem(WL_KEY, JSON.stringify(WL)); } catch (err) {} }
+function isW(i){ return WL.indexOf(KEY[i]) >= 0; }
+/* watched lists, most pressing first: disputes in court, then open requests */
+function watched(){ return range0(REG.length).filter(isW).sort(function(a, b){ return REG[b].inCourt - REG[a].inCourt || REG[b].open - REG[a].open || REG[b].entries - REG[a].entries; }); }
 
 /* ---------- static text ---------- */
 $('#stampText').textContent = STAMP;
-$('#stageStamp').textContent = STAMP + ' · Ethereum + Gnosis';
-$('#footStamp').textContent = STAMP + ' · Ethereum + Gnosis';
-$('#actStamp').textContent = STAMP;
-$('#regCount').textContent = fmt(F.registries);
+$('#stageStamp').textContent = STAMP + ' · ' + SCOPE;
+$('#footStamp').textContent = STAMP + ' · ' + SCOPE;
 
-/* ---------- hero ---------- */
-function countUp(el, to, dur){
-  if (RM.matches) { el.textContent = fmt(to); return; }
+/* ---------- motion helpers ---------- */
+function countUp(el, from, to, dur){
+  if (RM.matches || from === to) { el.textContent = fmt(to); return; }
   var t0 = performance.now();
-  el.textContent = '0';
-  function step(now){
+  el.textContent = fmt(from);
+  (function step(now){
     var p = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - p, 4);
-    el.textContent = fmt(Math.round(to * e));
+    el.textContent = fmt(Math.round(from + (to - from) * e));
     if (p < 1) requestAnimationFrame(step);
-  }
-  requestAnimationFrame(step);
+  })(t0);
 }
-countUp($('#heroNum'), F.entries, 1300);
-$('#heroNum').setAttribute('aria-label', fmt(F.entries) + ' entries');
-
-(function split(){
-  var chains = S.entriesByChain.slice().sort(function(a, b){ return b.entries - a.entries; });
-  var tot = chains.reduce(function(a, c){ return a + c.entries; }, 0);
-  var cls = function(c){ return c.chain === 'Gnosis' ? 'g' : 'e'; };
-  var top = chains[0];
-  $('#split').innerHTML =
-    '<div class="split-top"><span>Entries by chain</span><span>' + top.chain + ' ' + (top.entries / tot * 100).toFixed(1) + '%</span></div>' +
-    '<div class="split-bar" role="img" aria-label="' + chains.map(function(c){ return c.chain + ' ' + fmt(c.entries) + ' entries'; }).join(', ') + '">' +
-    chains.map(function(c){ return '<span class="' + cls(c) + '" data-g="' + c.entries + '" style="flex:' + (RM.matches ? c.entries : 0.0001) + ' 1 0"></span>'; }).join('') + '</div>' +
-    '<div class="split-legend">' + chains.map(function(c){ return '<span><i style="background:' + (cls(c) === 'g' ? '#5b8fff' : '#c9d6f7') + '"></i>' + c.chain + ' ' + fmt(c.entries) + '</span>'; }).join('') + '</div>';
-  requestAnimationFrame(function(){ requestAnimationFrame(function(){ $$('#split .split-bar span').forEach(function(s){ s.style.flexGrow = s.getAttribute('data-g'); }); }); });
-})();
-
-/* ---------- segmented control with stretchy indicator ---------- */
-var SEGS = [];
-function initSeg(el, onChange){
-  var ind = $('.seg-ind', el), btns = $$('button', el), cur = btns.findIndex(function(b){ return b.getAttribute('aria-pressed') === 'true'; });
-  function place(i, animate){
-    var b = btns[i]; if (!b.offsetWidth) return;
-    var L = b.offsetLeft, R = el.clientWidth - (b.offsetLeft + b.offsetWidth);
-    if (!animate) { ind.style.transition = 'none'; }
-    else { ind.style.transition = ''; ind.style.transitionDelay = i > cur ? '70ms, 0ms' : '0ms, 70ms'; }
-    ind.style.left = L + 'px'; ind.style.right = R + 'px';
-    if (!animate) { void ind.offsetWidth; ind.style.transition = ''; }
-  }
-  btns.forEach(function(b, i){
-    b.addEventListener('click', function(){
-      if (i === cur) return;
-      btns.forEach(function(x, j){ x.setAttribute('aria-pressed', j === i ? 'true' : 'false'); });
-      place(i, true); cur = i; onChange(b.getAttribute('data-v'));
-    });
-  });
-  var api = { layout: function(){ place(cur, false); } };
-  SEGS.push(api); api.layout();
-  return api;
-}
-
-/* ---------- chart: requests per day ---------- */
-var plot = $('#plot'), svg = $('#chartSvg'), readEl = $('#chartRead');
-var range = 30, active = -1, geo = null, growNext = true;
-function windowData(){ return SERIES.slice(-range); }
-function isPartial(d){ return d.day + 86400 > SNAP; }
-function dayLabel(d){ return dow(d.day) + ' ' + dDay(d.day) + (isPartial(d) ? ', to ' + hm(SNAP) + ' UTC' : ''); }
-function setRead(i){
-  var data = windowData();
-  if (i < 0) {
-    var r = data.reduce(function(a, d){ return a + d.requests; }, 0), c = data.reduce(function(a, d){ return a + d.challenges; }, 0);
-    readEl.innerHTML = '<b>' + fmt(r) + '</b><span>requests</span><span>·</span><em>' + plural(c, 'challenge') + '</em><span>in ' + range + ' days</span>';
-  } else {
-    var d = data[i];
-    readEl.innerHTML = '<b>' + fmt(d.requests) + '</b><span>request' + (d.requests === 1 ? '' : 's') + '</span><span>·</span><em>' + plural(d.challenges, 'challenge') + '</em><span>on ' + dayLabel(d) + '</span>';
-  }
-}
-function renderChart(){
-  var W = plot.clientWidth, H = plot.clientHeight; if (!W) return;
-  var data = windowData(), n = data.length;
-  var max = Math.max.apply(null, data.map(function(d){ return d.requests; }).concat([1]));
-  var top = 18, base = H - 46;
-  var gap = n > 12 ? 3 : 10;
-  var bw = Math.min((W - gap * (n - 1)) / n, 30);
-  var tw = bw * n + gap * (n - 1), x0 = (W - tw) / 2;
-  geo = { x0: x0, bw: bw, gap: gap, n: n };
-  var s = '<defs><linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b8d0ff"/><stop offset=".42" stop-color="#3b82f6"/><stop offset="1" stop-color="#1d4ed8" stop-opacity=".45"/></linearGradient>' +
-    '<pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="4" height="4" fill="rgba(59,130,246,.14)"/><rect width="1.4" height="4" fill="#7fa8ff"/></pattern>' +
-    '<pattern id="hatchOn" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="4" height="4" fill="rgba(228,236,255,.18)"/><rect width="1.6" height="4" fill="#e4ecff"/></pattern></defs>';
-  s += '<line class="maxline" x1="0" x2="' + W + '" y1="' + top + '" y2="' + top + '"/>';
-  s += '<text class="maxlab" x="0" y="' + (top - 6) + '">Peak ' + fmt(max) + ' a day</text>';
-  s += '<line class="baseline" x1="0" x2="' + W + '" y1="' + (base + .5) + '" y2="' + (base + .5) + '"/>';
-  s += '<g class="bars">';
-  var dots = '', labels = '', anyPartial = false;
-  data.forEach(function(d, i){
-    var x = x0 + i * (bw + gap), part = isPartial(d);
-    if (part) anyPartial = true;
-    var h = d.requests ? Math.max(3, d.requests / max * (base - top)) : 2;
-    s += '<rect class="bar' + (d.requests ? '' : ' zero') + (part ? ' partial' : '') + '" style="--d:' + i + '" data-i="' + i + '" x="' + (x + (part ? .5 : 0)).toFixed(2) + '" y="' + (base - h + (part ? .5 : 0)).toFixed(2) + '" width="' + (bw - (part ? 1 : 0)).toFixed(2) + '" height="' + (h - (part ? .5 : 0)).toFixed(2) + '" rx="' + Math.min(bw / 2, 4).toFixed(2) + '"/>';
-    for (var k = 0; k < d.challenges; k++) dots += '<circle class="cdot" style="--d:' + i + '" data-i="' + i + '" cx="' + (x + bw / 2).toFixed(2) + '" cy="' + (base + 9 + k * 6.5) + '" r="' + Math.min(2.4, bw / 2.4).toFixed(2) + '"/>';
-    var cx = x + bw / 2;
-    if (n <= 7) labels += '<text class="xl" text-anchor="' + (i === n - 1 ? 'end' : 'middle') + '" x="' + (i === n - 1 ? x + bw : cx).toFixed(1) + '" y="' + (H - 3) + '">' + (part ? 'to ' + hm(SNAP) : dow(d.day) + ' ' + D(d.day).getUTCDate()) + '</text>';
-    else if (i === 0) labels += '<text class="xl" text-anchor="start" x="' + x.toFixed(1) + '" y="' + (H - 3) + '">' + dDay(d.day) + '</text>';
-    else if (i === n - 1) labels += '<text class="xl" text-anchor="end" x="' + (x + bw).toFixed(1) + '" y="' + (H - 3) + '">' + dDay(d.day) + (part ? ', to ' + hm(SNAP) : '') + '</text>';
-    else if (i === Math.floor((n - 1) / 2)) labels += '<text class="xl" text-anchor="middle" x="' + cx.toFixed(1) + '" y="' + (H - 3) + '">' + dDay(d.day) + '</text>';
-  });
-  s += '</g>' + dots + labels;
-  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
-  svg.innerHTML = s;
-  svg.classList.toggle('grow', growNext && !RM.matches);
-  growNext = false;
-  var first = data[0].day, last = data[n - 1].day;
-  $('#chartSub').textContent = 'Last ' + range + ' days · ' + dDay(first) + ' – ' + dDay(last) + ' (UTC)';
-  $('#lgPartial').innerHTML = '<i class="lg-hatch"></i>' + dDay(last) + ' to ' + hm(SNAP) + ' UTC';
-  $('#lgPartial').style.display = anyPartial ? '' : 'none';
-  var tot = data.reduce(function(a, d){ return a + d.requests; }, 0);
-  var peak = data.reduce(function(a, d){ return d.requests > a.requests ? d : a; }, data[0]);
-  plot.setAttribute('aria-label', 'Bar chart of requests per day, ' + dDay(first) + ' to ' + dDay(last) + ' (the last day runs to ' + hm(SNAP) + ' UTC): ' + fmt(tot) + ' requests in total, peak ' + peak.requests + ' on ' + dDay(peak.day) + '. Use arrow keys to read each day.');
-  active = -1; setRead(-1);
-}
-function idxAt(clientX){
-  var r = plot.getBoundingClientRect(), x = clientX - r.left;
-  return Math.max(0, Math.min(geo.n - 1, Math.floor((x - geo.x0 + geo.gap / 2) / (geo.bw + geo.gap))));
-}
-function setActive(i){
-  if (i === active) return;
-  active = i;
-  svg.classList.toggle('scrub', i >= 0);
-  $$('.bar,.cdot', svg).forEach(function(el){ el.classList.toggle('on', +el.getAttribute('data-i') === i); });
-  setRead(i);
-}
-plot.addEventListener('pointermove', function(e){ if (geo) setActive(idxAt(e.clientX)); });
-plot.addEventListener('pointerdown', function(e){ if (geo) setActive(idxAt(e.clientX)); });
-plot.addEventListener('pointerleave', function(){ setActive(-1); });
-plot.addEventListener('pointerup', function(e){ if (e.pointerType !== 'mouse') setActive(-1); });
-plot.addEventListener('pointercancel', function(){ setActive(-1); });
-plot.addEventListener('keydown', function(e){
-  if (!geo) return;
-  if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-    e.preventDefault();
-    var dir = e.key === 'ArrowRight' ? 1 : -1;
-    var i = active < 0 ? (dir > 0 ? 0 : geo.n - 1) : active + dir;
-    setActive(Math.max(0, Math.min(geo.n - 1, i)));
-  } else if (e.key === 'Escape') setActive(-1);
-});
-plot.addEventListener('blur', function(){ setActive(-1); });
-initSeg($('#rangeSeg'), function(v){ range = +v; growNext = true; renderChart(); });
+function settle(fn){ if (RM.matches) fn(); else requestAnimationFrame(function(){ requestAnimationFrame(fn); }); }
 
 /* ---------- registry token art: a glyph generated from the registry name ---------- */
 function hash(s){ var h = 2166136261; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
@@ -721,7 +644,7 @@ var SHAPES = [
   function(c){ return '<path d="M0 0H20L0 20Z" fill="' + c + '"/>'; }
 ];
 function glyph(r){
-  var h = hash(r.title), p = r.kind === 'Classic' ? PAL.classic : PAL.light, s = '<svg viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" fill="' + p.bg + '"/>';
+  var h = hash(r.title + r.created), p = r.kind === 'Classic' ? PAL.classic : PAL.light, s = '<svg viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" fill="' + p.bg + '"/>';
   for (var k = 0; k < 4; k++) {
     var sh = ((h >>> (k * 5)) + k) % SHAPES.length, rot = ((h >>> (k * 5 + 3)) % 4) * 90, col = p.c[((h >>> (k * 3 + 17)) + k) % 3];
     s += '<g transform="translate(' + (k % 2) * 20 + ' ' + Math.floor(k / 2) * 20 + ') rotate(' + rot + ' 10 10)">' + SHAPES[sh](col) + '</g>';
@@ -732,106 +655,77 @@ function chainMark(chain){ var e = chain === 'Ethereum'; return '<span class="ch
 function regTile(r){ return '<span class="glyph' + (r.verified ? '' : ' muted') + '" aria-hidden="true">' + glyph(r) + chainMark(r.chain) + '</span>'; }
 
 /* ---------- rows ---------- */
-function regRow(r, i){
-  return '<button class="row" type="button" data-sheet="registry:' + i + '">' + regTile(r) +
+function starBtn(i, wide){
+  var r = REG[i], on = isW(i);
+  return '<button class="star' + (wide ? ' wide' : '') + '" type="button" data-star="' + i + '" aria-pressed="' + on + '" aria-label="Watch ' + esc(r.title) + ' (' + r.chain + ', since ' + year(r.created) + ')">' + (on ? I.starF : I.star) + (wide ? '<span>' + (on ? 'Watching' : 'Watch') + '</span>' : '') + '</button>';
+}
+function counts(r){
+  return '<span class="cnts"><span class="cnt-o' + (r.open ? '' : ' zero') + '">' + fmt(r.open) + '<small>open</small></span>' +
+    '<span class="cnt-c' + (r.inCourt ? '' : ' zero') + '"><i></i>' + fmt(r.inCourt) + ' in court</span></span>';
+}
+function regRow(i){
+  var r = REG[i];
+  return '<div class="wrow"><button class="row" type="button" data-sheet="registry:' + i + '">' + regTile(r) +
     '<span style="min-width:0"><span class="r-t"><span>' + esc(r.title) + '</span>' + (r.verified ? I.verified : '<span class="tag">Unverified</span>') + '</span>' +
-    '<span class="r-s">' + r.chain + ' · since ' + year(r.created) + '</span></span>' +
-    '<span><span class="r-v">' + fmt(r.entries) + '</span><span class="r-m' + (r.open ? ' t-blue' : '') + '">' + openLabel(r) + '</span></span></button>';
+    '<span class="r-s">' + r.chain + ' · ' + r.kind + ' · since ' + year(r.created) + '</span></span>' + counts(r) + '</button>' + starBtn(i) + '</div>';
 }
-function avatarBg(addr){
-  var h = parseInt(addr.slice(2, 6), 16) || 0, a = 205 + (h % 75), b = a + 30 + (h % 40), ang = h % 360;
-  return 'background:radial-gradient(circle at 30% 28%,hsl(' + a + ' 95% 78%),transparent 46%),conic-gradient(from ' + ang + 'deg,hsl(' + a + ' 85% 56%),hsl(' + b + ' 70% 38%),hsl(' + a + ' 85% 56%))';
+function evRow(type, i, small){
+  var e = type === 'open' ? OPEN[i] : type === 'court' ? COURT[i] : DONE[i], ic, title, sub, right, key;
+  if (type === 'open') { var c = caip(e.id); ic = ['t-blue', I.up]; title = c.net || e.status; sub = '<span class="mono">' + esc(shortAddr(c.addr)) + '</span> · ' + esc(e.registry); right = '<span class="r-v time" title="' + dLong(e.at) + '">' + ago(e.at) + '</span>'; key = 'request:' + i; }
+  else if (type === 'court') { ic = ['t-amber', I.scale]; title = e.status; sub = esc(e.registry); right = '<span><span class="r-v" title="Challenged ' + dLong(e.at) + '">' + age(e.at) + '</span><span class="r-m">in court</span></span>'; key = 'dispute:' + i; }
+  else { ic = e.outcome === 'registered' ? ['t-green', I.check] : e.outcome === 'removed' ? ['t-grey', I.minus] : ['t-rose', I.x]; title = e.status; sub = esc(e.registry); right = '<span class="r-v time" title="' + dLong(e.at) + '">' + ago(e.at) + '</span>'; key = 'ruling:' + i; }
+  return '<button class="row' + (small ? ' sm' : '') + '" type="button" data-sheet="' + key + '"><span class="ico ' + ic[0] + '" aria-hidden="true">' + ic[1] + '</span>' +
+    '<span style="min-width:0"><span class="r-t"><span>' + esc(title) + '</span></span><span class="r-s">' + sub + '</span></span>' + right + '</button>';
 }
-/* curator.challenges counts challenges raised against the curator's own submissions; won counts those it kept */
-function keptLine(c){ return c.challenges ? plural(c.challenges, 'submission') + ' challenged · ' + c.won + ' kept' : 'No submissions challenged'; }
-function curRow(c, i){
-  return '<button class="row" type="button" data-sheet="curator:' + i + '">' +
-    '<span class="avatar" aria-hidden="true" style="' + avatarBg(c.address) + '"></span>' +
-    '<span style="min-width:0"><span class="r-t"><span class="mono" style="font-size:13.5px">' + esc(c.address) + '</span></span><span class="r-s">' + keptLine(c) + '</span></span>' +
-    '<span><span class="r-v">' + fmt(c.submissions) + '</span><span class="r-m">submissions</span></span></button>';
-}
-function evIcon(type, e){
-  if (type === 'request') return ['t-blue', I.up];
-  if (type === 'dispute') return ['t-amber', I.scale];
-  if (e.outcome === 'registered') return ['t-green', I.check];
-  if (e.outcome === 'removed') return ['t-grey', I.minus];
-  return ['t-rose', I.x];
-}
-function dnum(e){ return e.status.replace(/^Dispute\s*/, ''); }
 
-/* group consecutive events of one kind on one registry (and one outcome); sameDay keeps groups inside a day */
-function groupEvents(items, sameDay){
-  var out = [];
-  items.forEach(function(o){
-    var g = out[out.length - 1];
-    if (g && g.t === o.t && g.e.registry === o.e.registry && (o.t !== 'ruling' || g.e.outcome === o.e.outcome) && (!sameDay || dFull(g.e.at) === dFull(o.e.at))) { g.ix.push(o.i); g.last = o.e; }
-    else out.push({ t: o.t, e: o.e, last: o.e, ix: [o.i] });
+/* ---------- hero: my watchlist in one figure ---------- */
+/* until something is starred, the figure sums every list that has an open request */
+function activeLists(){ return range0(REG.length).filter(function(i){ return REG[i].open > 0; }).sort(function(a, b){ return REG[b].inCourt - REG[a].inCourt || REG[b].open - REG[a].open || REG[b].entries - REG[a].entries; }); }
+var heroFrom = 0;
+function renderHero(){
+  var starred = watched(), mine = starred.length > 0, w = mine ? starred : activeLists(), el = $('#heroBody');
+  var open = sum(w, function(i){ return REG[i].open; }), court = sum(w, function(i){ return REG[i].inCourt; }), share = open / F.requestsOpen;
+  var courtShare = court / F.requestsOpen, rest = F.requestsOpen - open;
+  var label = mine ? 'Open requests on <b>' + plural(w.length, 'watched list') + '</b>' : 'Open requests on the <b>' + plural(w.length, 'list') + '</b> that have any';
+  var courtLine = court ? '<span class="t-amber">' + fmt(court) + ' of them in court</span>, ' + (court === F.inCourt ? 'all ' + fmt(F.inCourt) + ' disputes' : fmt(court) + ' of ' + fmt(F.inCourt) + ' disputes') : 'None of them in court';
+  var courtTerms = w.filter(function(i){ return REG[i].inCourt > 0; }).map(function(i){ return fmt(REG[i].inCourt); });
+  el.innerHTML = '<p class="hero-label">' + label + '</p>' +
+    '<p class="hero-num" id="heroNum" aria-label="' + fmt(open) + ' open requests">' + fmt(heroFrom) + '</p>' +
+    '<p class="hero-sub">' + courtLine + '</p>' +
+    '<div class="cover"><div class="cover-top"><span>Share of all ' + fmt(F.requestsOpen) + ' open requests</span><b>' + pct(share) + '</b></div>' +
+    '<div class="cover-bar" role="img" aria-label="' + fmt(open) + ' of ' + fmt(F.requestsOpen) + ' open requests are on ' + (mine ? 'your watchlist' : 'these lists') + ', ' + fmt(court) + ' of them in court"><span class="o" style="width:0"></span><span class="c" style="width:0"></span></div>' +
+    '<div class="cover-leg">' + (court ? '<span><i style="background:var(--amber)"></i>In court ' + fmt(court) + '</span>' : '') + '<span><i style="background:#5b8fff"></i>' + (court ? 'Other open ' : 'Open ') + fmt(open - court) + '</span><span><i style="background:rgba(201,214,247,.35)"></i>' + (mine ? 'Not watched ' : 'Other lists ') + fmt(rest) + '</span></div></div>' +
+    (mine ? '' : '<button class="hero-edit" type="button" data-go="watch">' + I.starF + 'Star your own lists</button>') +
+    '<p class="fn">' + (mine ? '' : '<b>' + plural(w.length, 'list') + '</b> = every list in the snapshot with an open request (the default until you star lists). ') +
+      '<b>open</b> = ' + (w.length === 1 ? 'open requests on that list = ' : w.length <= 5 ? w.map(function(i){ return fmt(REG[i].open); }).join(' + ') + ' = ' : 'sum over the ' + w.length + ' lists = ') + fmt(open) +
+      '; <b>in court</b> = their disputes = ' + (courtTerms.length > 1 && courtTerms.length <= 5 ? courtTerms.join(' + ') + ' = ' : '') + fmt(court) + ' of ' + fmt(F.inCourt) + (court ? '; other open = ' + fmt(open) + ' − ' + fmt(court) : '') + '; ' + (mine ? 'not watched' : 'other lists') + ' = ' + fmt(F.requestsOpen) + ' − ' + fmt(open) +
+      '; <b>share</b> = ' + fmt(open) + ' ÷ ' + fmt(F.requestsOpen) + ' open requests in all lists. At the snapshot, ' + SCOPE + '.</p>';
+  countUp($('#heroNum'), heroFrom, open, 900);
+  heroFrom = open;
+  settle(function(){
+    var o = $('#heroBody .cover-bar .o'), c = $('#heroBody .cover-bar .c');
+    if (o) o.style.width = (share * 100).toFixed(2) + '%';
+    if (c && court) c.style.width = 'max(3px, ' + (courtShare * 100).toFixed(2) + '%)';
   });
-  return out;
-}
-function numList(ix){
-  var ns = ix.map(function(i){ return +dnum(S.inCourt[i]).replace('#', ''); }).sort(function(a, b){ return a - b; });
-  var parts = [], s = ns[0], p = ns[0];
-  for (var k = 1; k <= ns.length; k++) {
-    if (ns[k] === p + 1) { p = ns[k]; continue; }
-    parts.push(s === p ? '#' + s : p === s + 1 ? '#' + s + ', #' + p : '#' + s + '–#' + p);
-    s = p = ns[k];
-  }
-  return parts.join(', ');
-}
-/* opts: small, clock (times as hh:mm), court (dispute number as title) */
-function gRow(g, opts){
-  opts = opts || {};
-  var n = g.ix.length, e = g.e, ic = evIcon(g.t, e), title, sub, key;
-  if (g.t === 'request') {
-    if (n > 1) { title = n + ' ' + e.status.replace(/\s*requested$/i, '').toLowerCase() + ' requests'; sub = e.registry; }
-    else if (opts.court) { var c = caip(e.id); title = c.net || e.status; sub = shortAddr(c.addr) + ' · ' + e.registry; }
-    else { title = e.status; sub = e.registry; }
-  } else if (g.t === 'dispute') {
-    if (n > 1) { title = 'Challenged ' + n + ' requests'; sub = numList(g.ix) + ' · ' + e.registry; }
-    else if (opts.court) { title = e.status; sub = e.registry; }
-    else { title = 'Challenged'; sub = dnum(e) + ' · ' + e.registry; }
-  } else {
-    title = n > 1 ? n + ' ' + e.outcome + ' by ruling' : e.status; sub = e.registry;
-  }
-  key = n > 1 ? 'group:' + g.t + ':' + g.ix.join('.') : g.t + ':' + g.ix[0];
-  var t = opts.clock ? (n > 1 ? hm(g.last.at) + '–' + hm(e.at) : hm(e.at)) : ago(e.at);
-  return '<button class="row' + (opts.small ? ' sm' : '') + '" type="button" data-sheet="' + key + '">' +
-    '<span class="ico ' + ic[0] + (n > 1 ? ' stack' : '') + '" aria-hidden="true">' + ic[1] + (n > 1 ? '<span class="cnt">' + n + '</span>' : '') + '</span>' +
-    '<span style="min-width:0"><span class="r-t"><span>' + esc(title) + '</span></span><span class="r-s">' + esc(sub) + '</span></span>' +
-    '<span class="r-v time" title="' + dLong(e.at) + '">' + t + '</span></button>';
-}
-function rowsOf(type, idxs, opts, sameDay){
-  return groupEvents(idxs.map(function(i){ return { t: type, e: SRC[type][i], i: i }; }), sameDay).map(function(g){ return gRow(g, opts); }).join('');
-}
-function range0(n){ var a = []; for (var i = 0; i < n; i++) a.push(i); return a; }
-function outcomeBar(){
-  var tot = S.decided.length, keys = ['rejected', 'registered', 'removed'];
-  return '<div class="obar" role="img" aria-label="Outcomes of the last ' + tot + ' rulings: ' + keys.map(function(k){ return OUT[k] + ' ' + k; }).join(', ') + '">' +
-    keys.filter(function(k){ return OUT[k]; }).map(function(k){ return '<span class="o-' + k + '" style="flex:' + OUT[k] + '"></span>'; }).join('') + '</div>' +
-    '<div class="olegend">' + keys.filter(function(k){ return OUT[k]; }).map(function(k){ return '<span><i class="o-' + k + '"></i>' + OUT[k] + ' ' + k + '</span>'; }).join('') + '</div>';
 }
 
-/* ---------- home cards: open requests, the in-court subset, latest rulings ---------- */
+/* ---------- swipeable cards: Open / In court / Decided ---------- */
 (function cards(){
-  var h = '';
-  h += '<article class="scard" data-tone="open" aria-label="Open requests">' +
-    '<header class="sc-top"><span><i></i>Open requests</span><button class="link" type="button" data-go="activity">Activity' + I.chev + '</button></header>' +
-    '<div class="sc-num"><b>' + fmt(F.requestsOpen) + '</b><span>open requests<br><em class="t-amber">' + F.inCourt + ' of them in court</em></span></div>' +
-    '<div class="subset" role="img" aria-label="' + F.requestsOpen + ' open requests, ' + F.inCourt + ' of them in court"><span class="ss-a" style="flex:' + (F.requestsOpen - F.inCourt) + '"></span><span class="ss-c" style="flex:' + F.inCourt + '"></span></div>' +
-    '<p class="ss-cap"><span>All open requests</span><span class="t-amber">In court</span></p>' +
-    '<div class="sc-rows">' + rowsOf('request', range0(S.openToChallenge.length), { small: true }) + '</div></article>';
-  h += '<article class="scard" data-tone="court" aria-label="In court">' +
-    '<header class="sc-top"><span><i></i>In court</span><button class="link" type="button" data-go="court">All ' + F.inCourt + I.chev + '</button></header>' +
-    '<div class="sc-num"><b>' + fmt(F.inCourt) + '</b><span>of the ' + F.requestsOpen + ' open requests<br>are before Kleros jurors</span></div>' +
-    '<div class="sc-rows">' + S.inCourt.slice(0, 3).map(function(e, i){ return gRow({ t: 'dispute', e: e, last: e, ix: [i] }, { small: true, court: true }); }).join('') + '</div></article>';
-  h += '<article class="scard" data-tone="done" aria-label="Latest rulings">' +
-    '<header class="sc-top"><span><i></i>Latest rulings</span><button class="link" type="button" data-go="court">All' + I.chev + '</button></header>' +
-    '<p class="ob-title">Outcomes of the last ' + S.decided.length + ' rulings</p><p class="ob-sub">' + dDay(OLDEST_RULING.at) + ' – ' + dDay(S.decided[0].at) + '</p>' + outcomeBar() +
-    '<div class="sc-rows">' + S.decided.slice(0, 2).map(function(e, i){ return gRow({ t: 'ruling', e: e, last: e, ix: [i] }, { small: true }); }).join('') + '</div></article>';
-  $('#cards').innerHTML = h;
+  var spanDone = dDay(DONE[OLD.done].at) + ' – ' + dDay(DONE[NEW.done].at);
+  function card(tone, label, n, capHTML, newLabel, row, seg){
+    return '<article class="scard" data-tone="' + tone + '" aria-label="' + label + '">' +
+      '<header class="sc-top"><span><i></i>' + label + '</span><button class="link" type="button" data-req="' + seg + '">List' + I.chev + '</button></header>' +
+      '<div class="sc-num"><b data-n="' + n + '">' + fmt(n) + '</b><span>' + capHTML + '</span></div>' +
+      '<p class="sc-new">' + newLabel + '</p><div class="sc-rows">' + row + '</div></article>';
+  }
+  $('#cards').innerHTML =
+    card('open', 'Open', F.requestsOpen, 'open requests,<br><em class="t-amber">' + fmt(F.inCourt) + ' of them in court</em>', 'Newest request <span>' + hm(OPEN[NEW.open].at) + ' UTC</span>', evRow('open', NEW.open, true), 'open') +
+    card('court', 'In court', F.inCourt, 'disputes before<br>Kleros jurors', 'Newest dispute <span>' + dDay(COURT[NEW.court].at) + '</span>', evRow('court', NEW.court, true), 'court') +
+    card('done', 'Decided', DONE.length, 'rulings,<br>' + spanDone, 'Newest ruling <span>' + dDay(DONE[NEW.done].at) + '</span>', evRow('done', NEW.done, true), 'done');
+  $('#fnCards').innerHTML = '<b>Open</b> and <b>In court</b> = counts at the snapshot (Open includes the ones in court). <b>Decided</b> = rulings in the snapshot, ' + spanDone + '. ' +
+    '<b>Newest</b> = latest timestamp in each list; its age = snapshot (' + dLong(SNAP) + ') − that time. ' + SCOPE + '.';
+  if (!RM.matches) $$('#cards .sc-num > b').forEach(function(b, k){ b.textContent = '0'; setTimeout(function(){ countUp(b, 0, +b.getAttribute('data-n'), 1000); }, 120 + k * 80); });
 })();
-
 var cardsEl = $('#cards'), dotEls = $$('#dots i');
 function cardStep(){ var c = cardsEl.children; return c.length > 1 ? c[1].offsetLeft - c[0].offsetLeft : cardsEl.clientWidth; }
 cardsEl.addEventListener('scroll', function(){
@@ -856,70 +750,145 @@ cardsEl.addEventListener('scroll', function(){
   });
 })(cardsEl);
 
-/* ---------- home list ---------- */
-var listMode = 'reg';
-function renderHomeList(){
-  var el = $('#homeList');
-  if (listMode === 'reg') {
-    $('#listCap').textContent = 'Largest ' + REG.length + ' of ' + fmt(F.registries) + ' registries, by entries';
-    el.innerHTML = REG.slice(0, 6).map(regRow).join('') + '<button class="more" type="button" data-go="lists">See all ' + REG.length + I.chev + '</button>';
+/* ---------- 30-day mini chart: requests per UTC day ---------- */
+var plot = $('#plot'), svg = $('#chartSvg'), readEl = $('#chartRead');
+var active = -1, geo = null, growNext = true;
+var TOTAL = sum(SERIES, function(d){ return d.requests; });
+var PEAK = SERIES.reduce(function(a, d){ return d.requests > a.requests ? d : a; }, SERIES[0]);
+function isPartial(d){ return d.day + 86400 > SNAP; }
+function dayLabel(d){ return dow(d.day) + ' ' + dDay(d.day) + (isPartial(d) ? ', to ' + hm(SNAP) + ' UTC' : ''); }
+function setRead(i){
+  if (i < 0) readEl.innerHTML = '<b>' + fmt(TOTAL) + '</b><span>requests in ' + SERIES.length + ' days</span><span>·</span><span>peak ' + fmt(PEAK.requests) + ' on ' + dDay(PEAK.day) + '</span>';
+  else { var d = SERIES[i]; readEl.innerHTML = '<b>' + fmt(d.requests) + '</b><span>request' + (d.requests === 1 ? '' : 's') + ' on ' + dayLabel(d) + '</span>'; }
+}
+function renderChart(){
+  var W = plot.clientWidth, H = plot.clientHeight; if (!W) return;
+  var data = SERIES, n = data.length, max = Math.max(PEAK.requests, 1);
+  var top = 8, base = H - 20, gap = 3;
+  var bw = Math.min((W - gap * (n - 1)) / n, 30), tw = bw * n + gap * (n - 1), x0 = (W - tw) / 2;
+  geo = { x0: x0, bw: bw, gap: gap, n: n };
+  var s = '<defs><linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b8d0ff"/><stop offset=".42" stop-color="#3b82f6"/><stop offset="1" stop-color="#1d4ed8" stop-opacity=".45"/></linearGradient>' +
+    '<pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="4" height="4" fill="rgba(59,130,246,.14)"/><rect width="1.4" height="4" fill="#7fa8ff"/></pattern>' +
+    '<pattern id="hatchOn" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="4" height="4" fill="rgba(228,236,255,.18)"/><rect width="1.6" height="4" fill="#e4ecff"/></pattern></defs>';
+  s += '<line class="baseline" x1="0" x2="' + W + '" y1="' + (base + .5) + '" y2="' + (base + .5) + '"/><g class="bars">';
+  var labels = '';
+  data.forEach(function(d, i){
+    var x = x0 + i * (bw + gap), part = isPartial(d);
+    var h = d.requests ? Math.max(3, d.requests / max * (base - top)) : 2;
+    s += '<rect class="bar' + (d.requests ? '' : ' zero') + (part ? ' partial' : '') + '" style="--d:' + i + '" data-i="' + i + '" x="' + (x + (part ? .5 : 0)).toFixed(2) + '" y="' + (base - h + (part ? .5 : 0)).toFixed(2) + '" width="' + (bw - (part ? 1 : 0)).toFixed(2) + '" height="' + (h - (part ? .5 : 0)).toFixed(2) + '" rx="' + Math.min(bw / 2, 3).toFixed(2) + '"/>';
+    if (i === 0) labels += '<text class="xl" text-anchor="start" x="' + x.toFixed(1) + '" y="' + (H - 3) + '">' + dDay(d.day) + '</text>';
+    else if (i === n - 1) labels += '<text class="xl" text-anchor="end" x="' + (x + bw).toFixed(1) + '" y="' + (H - 3) + '">' + dDay(d.day) + '</text>';
+    else if (i === Math.floor((n - 1) / 2)) labels += '<text class="xl" text-anchor="middle" x="' + (x + bw / 2).toFixed(1) + '" y="' + (H - 3) + '">' + dDay(d.day) + '</text>';
+  });
+  s += '</g>' + labels;
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  svg.innerHTML = s;
+  svg.classList.toggle('grow', growNext && !RM.matches);
+  growNext = false;
+  var first = data[0].day, last = data[n - 1].day, part = isPartial(data[n - 1]);
+  $('#chartSub').textContent = 'Last ' + n + ' days · ' + dDay(first) + ' – ' + dDay(last) + ' (UTC)';
+  $('#lgPartial').innerHTML = '<i class="lg-hatch"></i>' + dDay(last) + ' to ' + hm(SNAP) + ' UTC';
+  $('#lgPartial').style.display = part ? '' : 'none';
+  $('#fnChart').innerHTML = 'Each bar = requests made that UTC day, ' + dDay(first) + ' – ' + dFull(last) + ', ' + SCOPE + (part ? '; ' + dDay(last) + ' runs to ' + hm(SNAP) + ' UTC' : '') +
+    '. <b>Total</b> = sum of the ' + n + ' days; <b>peak</b> = the highest day. Bar height = that day ÷ peak.';
+  plot.setAttribute('aria-label', 'Bar chart of requests per day, ' + dDay(first) + ' to ' + dDay(last) + ': ' + fmt(TOTAL) + ' in total, peak ' + fmt(PEAK.requests) + ' on ' + dDay(PEAK.day) + '. Use arrow keys to read each day.');
+  active = -1; setRead(-1);
+}
+function idxAt(clientX){ var r = plot.getBoundingClientRect(), x = clientX - r.left; return Math.max(0, Math.min(geo.n - 1, Math.floor((x - geo.x0 + geo.gap / 2) / (geo.bw + geo.gap)))); }
+function setActive(i){
+  if (i === active) return;
+  active = i;
+  svg.classList.toggle('scrub', i >= 0);
+  $$('.bar', svg).forEach(function(el){ el.classList.toggle('on', +el.getAttribute('data-i') === i); });
+  setRead(i);
+}
+plot.addEventListener('pointermove', function(e){ if (geo) setActive(idxAt(e.clientX)); });
+plot.addEventListener('pointerdown', function(e){ if (geo) setActive(idxAt(e.clientX)); });
+plot.addEventListener('pointerleave', function(){ setActive(-1); });
+plot.addEventListener('pointerup', function(e){ if (e.pointerType !== 'mouse') setActive(-1); });
+plot.addEventListener('pointercancel', function(){ setActive(-1); });
+plot.addEventListener('keydown', function(e){
+  if (!geo) return;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+    e.preventDefault();
+    var dir = e.key === 'ArrowRight' ? 1 : -1, i = active < 0 ? (dir > 0 ? 0 : geo.n - 1) : active + dir;
+    setActive(Math.max(0, Math.min(geo.n - 1, i)));
+  } else if (e.key === 'Escape') setActive(-1);
+});
+plot.addEventListener('blur', function(){ setActive(-1); });
+
+/* ---------- watchlist on home ---------- */
+function renderWlHome(){
+  var w = watched(), el = $('#wlHome');
+  if (w.length) {
+    $('#wlCap').textContent = 'Most pressing first: disputes in court, then open requests';
+    el.innerHTML = w.map(regRow).join('');
   } else {
-    $('#listCap').textContent = 'Most active ' + CUR.length + ' of ' + F.curators30d + ' curators, by submissions in the last 30 days';
-    el.innerHTML = CUR.map(curRow).join('');
+    var sug = activeLists();
+    $('#wlCap').textContent = 'Nothing starred yet. The ' + sug.length + ' lists summed above:';
+    el.innerHTML = sug.map(regRow).join('') + '<button class="more" type="button" data-go="watch">All ' + REG.length + ' lists' + I.chev + '</button>';
   }
-  markSel();
+  $('#fnWl').innerHTML = 'Per list: <b>open</b> = its open requests, <b>in court</b> = its disputes, both at the snapshot. Stars are saved in this browser only.';
 }
-initSeg($('#listSeg'), function(v){ listMode = v; renderHomeList(); });
 
-/* ---------- registries view ---------- */
+/* ---------- watchlist view: every list in the snapshot, star to follow ---------- */
+var wlFilter = 'all';
 var FILTERS = [
-  { k: 'all', label: 'All', fn: function(){ return true; }, cap: function(n){ return 'Largest ' + n + ' of ' + fmt(F.registries) + ' registries, by entries'; } },
-  { k: 'ver', label: 'Verified', fn: function(r){ return r.verified; }, cap: function(n){ return n + ' of the ' + F.verified + ' verified registries, from the largest ' + REG.length; } },
-  { k: 'gno', label: 'Gnosis', fn: function(r){ return r.chain === 'Gnosis'; }, cap: function(n){ return n + ' of the largest ' + REG.length + ' are on Gnosis'; } },
-  { k: 'eth', label: 'Ethereum', fn: function(r){ return r.chain === 'Ethereum'; }, cap: function(n){ return n + ' of the largest ' + REG.length + ' are on Ethereum'; } },
-  { k: 'open', label: 'With open requests', fn: function(r){ return r.open > 0; }, cap: function(n){ return n + ' of the largest ' + REG.length + ' have open requests'; } }
+  { k: 'all', label: 'All', fn: function(){ return true; } },
+  { k: 'mine', label: 'Watched', fn: function(i){ return isW(i); } },
+  { k: 'open', label: 'With open requests', fn: function(i){ return REG[i].open > 0; } }
 ];
-var regFilter = 'all';
-$('#regSub').textContent = fmt(F.registries) + ' on Ethereum + Gnosis · ' + fmt(F.verified) + ' verified';
-function renderRegs(){
-  $('#regChips').innerHTML = FILTERS.map(function(f){ return '<button class="fchip" type="button" data-filter="' + f.k + '" aria-pressed="' + (f.k === regFilter) + '">' + f.label + '</button>'; }).join('');
-  var f = FILTERS.filter(function(x){ return x.k === regFilter; })[0];
-  var rows = REG.map(function(r, i){ return { r: r, i: i }; }).filter(function(o){ return f.fn(o.r); });
-  $('#regCap').textContent = f.cap(rows.length);
-  $('#regList').innerHTML = rows.map(function(o){ return regRow(o.r, o.i); }).join('');
+function renderWlView(){
+  $('#wlChips').innerHTML = FILTERS.map(function(f){ var n = range0(REG.length).filter(f.fn).length; return '<button class="fchip" type="button" data-filter="' + f.k + '" aria-pressed="' + (f.k === wlFilter) + '">' + f.label + ' <span>' + n + '</span></button>'; }).join('');
+  var f = FILTERS.filter(function(x){ return x.k === wlFilter; })[0], rows = range0(REG.length).filter(f.fn);
+  $('#wlViewCap').textContent = wlFilter === 'all' ? 'The ' + REG.length + ' largest of ' + fmt(F.registries) + ' lists, by entries' : rows.length + ' of the ' + REG.length + ' lists';
+  $('#wlView').innerHTML = rows.length ? rows.map(regRow).join('') : '<p class="empty">No list starred yet. Tap the star beside a list to watch it.</p>';
+  $('#fnWlView').innerHTML = 'Open and in court per list at the snapshot. These ' + REG.length + ' lists hold ' + fmt(TOP_OPEN) + ' of the ' + fmt(F.requestsOpen) + ' open requests and ' + fmt(TOP_COURT) + ' of the ' + fmt(F.inCourt) +
+    ' disputes in court (sum of each list ÷ the total), ' + SCOPE + '.';
+}
+$('#wlChips').addEventListener('click', function(e){ var b = e.target.closest('[data-filter]'); if (!b) return; wlFilter = b.getAttribute('data-filter'); renderWlView(); markSel(); });
+
+/* ---------- requests view: the items behind each card ---------- */
+var reqMode = 'open';
+function renderReq(){
+  var list = reqMode === 'open' ? OPEN : reqMode === 'court' ? COURT : DONE, total = reqMode === 'open' ? F.requestsOpen : reqMode === 'court' ? F.inCourt : list.length;
+  var noun = reqMode === 'open' ? 'open requests' : reqMode === 'court' ? 'disputes in court' : 'rulings';
+  $('#reqSub').textContent = fmt(F.requestsOpen) + ' open · ' + fmt(F.inCourt) + ' in court · ' + fmt(DONE.length) + ' latest rulings';
+  $('#reqCap').textContent = (list.length < total ? 'Latest ' + list.length + ' of ' + fmt(total) + ' ' : 'All ' + fmt(total) + ' ') + noun + ', newest first';
+  $('#reqList').innerHTML = byNewest(list).map(function(i){ return evRow(reqMode, i); }).join('');
+  $('#fnReq').textContent = (reqMode === 'open' ? 'Age = snapshot − request time.' : reqMode === 'court' ? 'Days in court = snapshot − challenge time.' : 'Age = snapshot − ruling time.') + ' Snapshot ' + dLong(SNAP) + ', ' + SCOPE + '.';
   markSel();
 }
-$('#regChips').addEventListener('click', function(e){ var b = e.target.closest('[data-filter]'); if (!b) return; regFilter = b.getAttribute('data-filter'); renderRegs(); });
 
-/* ---------- court view ---------- */
-(function court(){
-  var oldest = S.inCourt[S.inCourt.length - 1];
-  $('#courtDuo').innerHTML =
-    '<div class="tilecard"><p class="tc-l">Longest in court</p><p class="tc-n">' + span(oldest.at) + '</p><p class="tc-c">' + esc(dnum(oldest)) + ', since its challenge</p></div>' +
-    '<div class="tilecard"><p class="tc-l">Outcomes of the last ' + S.decided.length + ' rulings</p>' + outcomeBar() + '</div>';
-  $('#courtN').textContent = F.inCourt + ' of ' + F.requestsOpen + ' open requests';
-  $('#rulingN').textContent = dDay(OLDEST_RULING.at) + ' – ' + dDay(S.decided[0].at);
-  $('#courtList').innerHTML = S.inCourt.map(function(e, i){ return gRow({ t: 'dispute', e: e, last: e, ix: [i] }, { court: true }); }).join('');
-  $('#rulingList').innerHTML = S.decided.map(function(e, i){ return gRow({ t: 'ruling', e: e, last: e, ix: [i] }); }).join('');
-})();
-
-/* ---------- activity view: grouped by day, then by registry ---------- */
-(function activity(){
-  var ev = [];
-  ['request', 'dispute', 'ruling'].forEach(function(t){ SRC[t].forEach(function(e, i){ ev.push({ e: e, t: t, i: i }); }); });
-  ev.sort(function(a, b){ return b.e.at - a.e.at; });
-  $('#actSub').textContent = 'Latest ' + S.openToChallenge.length + ' requests, ' + S.inCourt.length + ' disputes and ' + S.decided.length + ' rulings';
-  var days = [];
-  ev.forEach(function(o){ var d = dFull(o.e.at); if (!days.length || days[days.length - 1].d !== d) days.push({ d: d, at: o.e.at, items: [] }); days[days.length - 1].items.push(o); });
-  $('#actList').innerHTML = days.map(function(day){
-    return '<h3 class="glabel">' + dow(day.at) + ' ' + day.d + ' <span>' + plural(day.items.length, 'event') + '</span></h3><div class="list">' +
-      groupEvents(day.items, true).map(function(g){ return gRow(g, { clock: true }); }).join('') + '</div>';
-  }).join('');
-})();
+/* ---------- segmented control with stretchy indicator ---------- */
+var SEGS = [];
+function initSeg(el, onChange){
+  var ind = $('.seg-ind', el), btns = $$('button', el), cur = btns.findIndex(function(b){ return b.getAttribute('aria-pressed') === 'true'; });
+  function place(i, animate){
+    var b = btns[i]; if (!b.offsetWidth) return;
+    var L = b.offsetLeft, R = el.clientWidth - (b.offsetLeft + b.offsetWidth);
+    if (!animate) { ind.style.transition = 'none'; }
+    else { ind.style.transition = ''; ind.style.transitionDelay = i > cur ? '70ms, 0ms' : '0ms, 70ms'; }
+    ind.style.left = L + 'px'; ind.style.right = R + 'px';
+    if (!animate) { void ind.offsetWidth; ind.style.transition = ''; }
+  }
+  function choose(i, animate){
+    btns.forEach(function(x, j){ x.setAttribute('aria-pressed', j === i ? 'true' : 'false'); });
+    place(i, animate); cur = i;
+  }
+  btns.forEach(function(b, i){ b.addEventListener('click', function(){ if (i === cur) return; choose(i, true); onChange(b.getAttribute('data-v')); }); });
+  var api = {
+    layout: function(){ place(cur, false); },
+    set: function(v){ var i = btns.findIndex(function(b){ return b.getAttribute('data-v') === v; }); if (i >= 0) { choose(i, false); onChange(v); } }
+  };
+  SEGS.push(api); api.layout();
+  return api;
+}
+var reqSeg = initSeg($('#reqSeg'), function(v){ reqMode = v; renderReq(); });
 
 /* ---------- tabs ---------- */
-var VIEWS = ['home', 'lists', 'court', 'activity'];
-var TITLES = { home: fmt(F.entries) + ' entries', lists: 'Registries', court: 'Court', activity: 'Activity' };
+var VIEWS = ['home', 'watch', 'requests'];
+var TITLES = { home: 'Home', watch: 'Watchlist', requests: 'Requests' };
 var current = 'home';
 var scroller = $('#scroller'), navbar = $('#navbar'), navTitle = $('#navTitle');
 function go(v){
@@ -931,17 +900,17 @@ function go(v){
   scroller.scrollTop = 0;
   navTitle.textContent = TITLES[v];
   onScroll();
-  if (v === 'home') requestAnimationFrame(function(){ renderChart(); SEGS.forEach(function(s){ s.layout(); }); });
+  requestAnimationFrame(function(){ if (v === 'home') renderChart(); SEGS.forEach(function(s){ s.layout(); }); });
 }
 $('#tabbar').addEventListener('click', function(e){ var b = e.target.closest('[data-tab]'); if (b) go(b.getAttribute('data-tab')); });
 function onScroll(){ navbar.classList.toggle('on', scroller.scrollTop > (current === 'home' ? 200 : 52)); }
 scroller.addEventListener('scroll', onScroll, { passive: true });
-navTitle.textContent = TITLES.home;
 
 /* ---------- sheet: overlay on phones, docked detail pane at 1000px and wider ---------- */
 var sheet = $('#sheet'), sheetBody = $('#sheetBody'), scrim = $('#scrim'), app = $('#app');
 var lastFocus = null, curKey = null, docked = DOCK.matches;
-var HOME_PANE = 'challenge';
+/* the docked pane starts on the dispute that has been in court the longest */
+var HOME_PANE = 'dispute:' + OLD.court;
 function stepper(steps, cur, notes, tone){
   return '<ol class="steps"' + (tone ? ' style="--tone:' + tone + '"' : '') + '>' + steps.map(function(s, i){
     var c = i < cur ? 'done' : i === cur ? 'cur' : '';
@@ -950,7 +919,7 @@ function stepper(steps, cur, notes, tone){
   }).join('') + '</ol>';
 }
 function closeBtn(key){
-  if (docked) return key === HOME_PANE ? '' : '<button class="sh-x" type="button" data-close aria-label="Back to open requests">' + I.back + '</button>';
+  if (docked) return key === HOME_PANE ? '' : '<button class="sh-x" type="button" data-close aria-label="Back to the longest dispute">' + I.back + '</button>';
   return '<button class="sh-x" type="button" data-close aria-label="Close">' + I.x + '</button>';
 }
 function sheetHTML(o){
@@ -959,123 +928,81 @@ function sheetHTML(o){
     (o.hero ? '<div class="sh-hero"><p class="sh-fig ' + (o.hero.cls || '') + '">' + o.hero.value + '</p><p class="sh-cap">' + o.hero.label + '</p></div>' : '') +
     (o.lead || '') + (o.viz || '') + (o.steps || '') +
     (o.facts ? '<dl class="facts">' + o.facts.map(function(f){ return '<div><dt>' + f[0] + '</dt><dd' + (f[2] ? ' class="mono"' : '') + '>' + f[1] + '</dd></div>'; }).join('') + '</dl>' : '') +
-    (o.extra || '') +
-    (o.note ? '<p class="sh-note">' + o.note + '</p>' : '') +
+    (o.extra || '') + (o.fn ? '<p class="fn">' + o.fn + '</p>' : '') +
     (o.cta ? '<div class="sh-cta">' + o.cta + '</div>' : '');
 }
-/* one open request, with a Challenge button beside it */
-function queueRow(e, i){
-  var c = caip(e.id);
-  return '<div class="qrow"><button class="row sm" type="button" data-sheet="request:' + i + '"><span class="ico t-blue" aria-hidden="true">' + I.up + '</span>' +
-    '<span style="min-width:0"><span class="r-t"><span>' + esc(c.net || e.status) + '</span></span><span class="r-s"><span class="mono">' + esc(shortAddr(c.addr)) + '</span> · ' + ago(e.at) + '</span></span><span></span></button>' +
-    '<a class="qbtn" href="#" aria-label="Challenge ' + esc(shortAddr(c.addr)) + ' on ' + esc(c.net) + '">Challenge</a></div>';
+/* the list an item sits on, its live counts and a star to watch it */
+function watchBlock(ri){
+  if (ri < 0) return '';
+  var r = REG[ri];
+  return '<div class="sh-watch"><span><b>' + esc(r.title) + '</b><span><span class="t-blue">' + fmt(r.open) + ' open</span><span class="' + (r.inCourt ? 't-amber' : '') + '">' + fmt(r.inCourt) + ' in court</span></span></span>' + starBtn(ri, true) + '</div>';
 }
-function queueByRegistry(idxs){
-  var blocks = [];
-  idxs.forEach(function(i){ var e = S.openToChallenge[i], b = blocks[blocks.length - 1]; if (!b || b.reg !== e.registry) blocks.push(b = { reg: e.registry, ix: [] }); b.ix.push(i); });
-  return blocks.map(function(b){
-    return '<h3 class="sh-glabel"><b>' + esc(b.reg) + '</b><span>' + plural(b.ix.length, 'request') + '</span></h3><div class="sh-list">' + b.ix.map(function(i){ return queueRow(S.openToChallenge[i], i); }).join('') + '</div>';
-  }).join('');
-}
-function repeatedAddr(idxs){
-  var cnt = {}, best = null;
-  idxs.forEach(function(i){ var a = caip(S.openToChallenge[i].id).addr.toLowerCase(); cnt[a] = (cnt[a] || 0) + 1; if (!best || cnt[a] > cnt[best]) best = a; });
-  if (!best || cnt[best] < 2) return '';
-  var orig = caip(S.openToChallenge[idxs.filter(function(i){ return caip(S.openToChallenge[i].id).addr.toLowerCase() === best; })[0]].id).addr;
-  return '<p class="callout"><b class="mono">' + esc(shortAddr(orig)) + '</b> was submitted on ' + cnt[best] + ' networks in this batch.</p>';
+/* the dispute's list in context: one square per open request on that list, its disputes first, this one ringed */
+function regContext(i, ri){
+  if (ri < 0) return '';
+  var r = REG[ri], e = COURT[i], n = Math.max(r.open, r.inCourt), cols = Math.min(n, 20), other = r.inCourt - 1, calm = n - r.inCourt;
+  var cells = range0(n).map(function(k){ return '<i class="' + (k === 0 ? 'me' : k < r.inCourt ? 'ct' : '') + '" style="--k:' + k + '"></i>'; }).join('');
+  var pips = range0(F.inCourt).map(function(k){ return '<i class="' + (k < r.inCourt ? 'on' : '') + '"></i>'; }).join('');
+  return '<div class="sh-viz ctx">' +
+    '<div class="ctx-head"><span><span class="ctx-k">Its list · one square per open request</span><b>' + esc(r.title) + '</b></span>' + starBtn(ri, true) + '</div>' +
+    '<p class="ctx-fig"><b>' + fmt(r.inCourt) + '</b><span>of</span><b class="all">' + fmt(r.open) + '</b><span>open requests in court</span><em>' + pct1(r.inCourt / r.open) + '</em></p>' +
+    '<div class="waffle" style="--cols:' + cols + '" role="img" aria-label="' + esc(r.title) + ': ' + fmt(r.inCourt) + ' of its ' + fmt(r.open) + ' open requests are in court, including ' + esc(e.status) + '">' + cells + '</div>' +
+    '<div class="ctx-leg"><span><i style="background:var(--amber)"></i>This dispute</span>' + (other > 0 ? '<span><i style="background:rgba(243,177,78,.55)"></i>' + plural(other, 'other dispute') + '</span>' : '') + (calm > 0 ? '<span><i style="background:rgba(91,143,255,.45)"></i>' + fmt(calm) + ' open, no dispute</span>' : '') + '</div>' +
+    '<div class="ctx-share"><span>Share of all ' + fmt(F.inCourt) + ' disputes in court</span><b><span class="pips" aria-hidden="true">' + pips + '</span>' + fmt(r.inCourt) + ' of ' + fmt(F.inCourt) + '</b></div></div>';
 }
 var BUILD = {
-  challenge: function(key){
-    return sheetHTML({ key: key, tone: 't-blue', icon: I.flag, kicker: 'Open to challenge · latest ' + S.openToChallenge.length, title: 'Challenge an entry',
-      lead: '<p class="sh-note" style="margin-top:12px">A challenge is backed by a deposit. Kleros jurors decide, and the winner takes the deposit pool minus one arbitration cost.</p>',
-      extra: queueByRegistry(range0(S.openToChallenge.length)) });
-  },
   dispute: function(key, i){
-    var e = S.inCourt[i], r = regByTitle(e.registry);
-    var facts = [['Registry', esc(e.registry)], ['Challenger', esc(e.actor), 1], ['Challenged', dLong(e.at)]];
-    if (r) facts.push(['Registry now', openLabel(r)]);
+    var e = COURT[i], secs = SNAP - e.at, rank = 1 + COURT.filter(function(x){ return SNAP - x.at > secs; }).length, ri = regFor(e, 'inCourt'), r = ri < 0 ? null : REG[ri];
     return sheetHTML({ key: key, tone: 't-amber', icon: I.scale, kicker: 'In court · ' + e.chain, title: esc(e.status),
-      hero: { value: span(e.at), label: 'in court since the challenge, as of the snapshot' },
+      hero: { value: age(e.at), label: 'in court, from the challenge to the snapshot' },
+      viz: regContext(i, ri),
       steps: stepper(['Requested', 'Challenged', 'In court', 'Ruling'], 2, { 1: dDay(e.at), 2: 'now' }, 'var(--amber)'),
-      facts: facts,
-      note: 'Kleros jurors decide whether the entry belongs on the list. The winner takes the deposit pool minus one arbitration cost.',
+      facts: [['Registry', esc(e.registry)], ['Network', e.chain], ['Requested by', esc(e.actor), 1], ['Challenged', dLong(e.at)], ['Time in court', (rank === 1 ? 'Longest' : ordinal(rank) + ' longest') + ' of ' + COURT.length]],
+      extra: r ? '' : watchBlock(ri),
+      fn: (r ? '<b>In court share</b> = disputes in court on ' + esc(r.title) + ' ÷ its open requests = ' + fmt(r.inCourt) + ' ÷ ' + fmt(r.open) + ' = ' + pct1(r.inCourt / r.open) + '; <b>share of all</b> = ' + fmt(r.inCourt) + ' of the ' + fmt(F.inCourt) + ' disputes in court in all lists. ' : '') +
+        '<b>Age</b> = snapshot (' + dLong(SNAP) + ') − challenge (' + dLong(e.at) + ') = ' + age(e.at) + '; <b>rank</b> orders the ' + COURT.length + ' disputes in court by the same age. <b>Requested by</b> = the address that made the request. At the snapshot, ' + SCOPE + '.',
       cta: '<a class="btn primary" href="#">Open in Court</a><a class="btn" href="#">Evidence</a>' });
   },
   request: function(key, i){
-    var e = S.openToChallenge[i], c = caip(e.id);
-    return sheetHTML({ key: key, tone: 't-blue', icon: I.up, kicker: 'Open to challenge · ' + e.chain, title: esc(e.status),
-      hero: { value: esc(shortAddr(c.addr)), cls: 'mono', label: c.net ? 'Address on ' + esc(c.net) : 'Item' },
+    var e = OPEN[i], c = caip(e.id);
+    return sheetHTML({ key: key, tone: 't-blue', icon: I.up, kicker: 'Open · ' + esc(e.status), title: '<span class="mono">' + esc(shortAddr(c.addr)) + '</span>' + (c.net ? ' on ' + esc(c.net) : ''),
+      hero: { value: age(e.at), label: 'since the request, as of the snapshot' },
       steps: stepper(['Requested', 'Challenge window', 'Accepted'], 1, { 0: hm(e.at) + ' UTC', 1: 'open now' }),
-      facts: [['Registry', esc(e.registry)], ['Full address', esc(c.addr), 1], ['Requested by', esc(e.actor), 1], ['Requested', dLong(e.at) + '<br><span class="t-dim">' + span(e.at) + ' before the snapshot</span>']],
-      note: 'Anyone can challenge it during the challenge window by posting a deposit. If no one does, the entry is accepted.',
+      facts: [['Registry', esc(e.registry)], ['Address', esc(c.addr), 1], ['Requested by', esc(e.actor), 1], ['Requested', dLong(e.at)]],
+      extra: watchBlock(regFor(e, 'open')),
+      fn: '<b>Age</b> = snapshot (' + dLong(SNAP) + ') − request (' + dLong(e.at) + ').',
       cta: '<a class="btn primary" href="#">Challenge</a><a class="btn" href="#">View entry</a>' });
   },
   ruling: function(key, i){
-    var e = S.decided[i], col = e.outcome === 'registered' ? 'var(--green)' : e.outcome === 'removed' ? '#9aa1b5' : 'var(--rose)';
-    var ic = evIcon('ruling', e);
+    var e = DONE[i], col = e.outcome === 'registered' ? 'var(--green)' : e.outcome === 'removed' ? '#9aa1b5' : 'var(--rose)';
+    var ic = e.outcome === 'registered' ? ['t-green', I.check] : e.outcome === 'removed' ? ['t-grey', I.minus] : ['t-rose', I.x];
     return sheetHTML({ key: key, tone: ic[0], icon: ic[1], kicker: 'Decided · ' + e.chain, title: esc(e.status),
-      hero: { value: '<span style="color:' + col + '">' + cap(e.outcome) + '</span>', label: 'outcome of the jurors’ ruling' },
+      hero: { value: '<span style="color:' + col + '">' + cap(e.outcome) + '</span>', label: 'ruled ' + ago(e.at) },
       steps: stepper(['Requested', 'Challenged', 'In court', cap(e.outcome)], 4, { 3: dDay(e.at) }, col),
-      facts: [['Registry', esc(e.registry)], ['Account', esc(e.actor), 1], ['Ruled', dLong(e.at)]],
-      note: 'The side that won took the deposit pool minus one arbitration cost.',
-      cta: '<a class="btn primary" href="#">View ruling</a><a class="btn" href="#">View entry</a>' });
+      facts: [['Registry', esc(e.registry)], ['Requested by', esc(e.actor), 1], ['Ruled', dLong(e.at)]],
+      fn: '<b>Ago</b> = snapshot (' + dLong(SNAP) + ') − ruling (' + dLong(e.at) + ').',
+      cta: '<a class="btn primary" href="#">View ruling</a>' });
   },
   registry: function(key, i){
-    var r = REG[i], pct = r.entries / F.entries * 100, tiny = pct < 1;
+    var r = REG[i];
+    var mine = byNewest(COURT).filter(function(k){ return regFor(COURT[k], 'inCourt') === i; });
+    var list = mine.length && mine.length === r.inCourt
+      ? '<h3 class="sh-glabel"><b>In court on this list</b><span>' + plural(mine.length, 'dispute') + '</span></h3><div class="sh-list">' + mine.map(function(k){ return evRow('court', k, true); }).join('') + '</div>' : '';
     return sheetHTML({ key: key, tile: regTile(r), kicker: r.kind + ' list · ' + r.chain + (r.verified ? ' · verified' : ' · unverified'), title: esc(r.title),
-      hero: { value: fmt(r.entries), label: 'entries on this list' },
-      viz: '<div class="sh-viz"><div class="sv-top"><span>Share of all ' + fmt(F.entries) + ' entries</span><b>' + (tiny ? pct.toFixed(2) : pct.toFixed(1)) + '%</b></div><div class="sv-bar' + (tiny ? ' tiny' : '') + '"><span' + (tiny ? '' : ' style="width:' + pct.toFixed(2) + '%"') + '></span></div></div>',
-      facts: [['Open requests', r.open ? '<span class="t-blue">' + r.open + '</span>' + (r.inCourt ? ' <span class="t-amber">(' + r.inCourt + ' in court)</span>' : '') : 'None'], ['Created', dateIso(r.created)]],
-      cta: '<a class="btn primary" href="#">Open list</a><a class="btn" href="#">Submit entry</a>' });
-  },
-  curator: function(key, i){
-    var c = CUR[i];
-    var viz = c.challenges
-      ? '<div class="sh-viz"><div class="sv-top"><span>Challenged submissions kept</span><b>' + c.won + ' of ' + c.challenges + '</b></div><div class="pips" role="img" aria-label="' + c.won + ' of ' + c.challenges + ' challenged submissions kept">' + Array.apply(null, Array(c.challenges)).map(function(_, k){ return '<i class="' + (k < c.won ? 'on' : '') + '"></i>'; }).join('') + '</div></div>'
-      : '<div class="sh-viz"><div class="sv-top"><span>Challenged submissions kept</span><b>None challenged</b></div></div>';
-    var mine = [];
-    ['request', 'dispute', 'ruling'].forEach(function(t){ SRC[t].forEach(function(e, k){ if (e.actor === c.address) mine.push({ e: e, t: t, i: k }); }); });
-    mine.sort(function(a, b){ return b.e.at - a.e.at; });
-    var extra = mine.length
-      ? '<h3 class="sh-glabel"><b>In the latest requests, disputes and rulings</b><span>' + plural(mine.length, 'event') + '</span></h3><div class="sh-list">' + groupEvents(mine, false).map(function(g){ return gRow(g, {}); }).join('') + '</div>'
-      : '<p class="sh-note">Not part of the latest requests, disputes or rulings in this snapshot.</p>';
-    return sheetHTML({ key: key, tile: '<span class="avatar" aria-hidden="true" style="' + avatarBg(c.address) + '"></span>', kicker: 'Curator · #' + (i + 1) + ' of ' + F.curators30d + ' active in 30 days', title: esc(c.address), monoTitle: true,
-      hero: { value: fmt(c.submissions), label: 'submissions in the last 30 days' }, viz: viz, extra: extra,
-      note: mine.some(function(o){ return o.t === 'dispute'; }) ? 'Challenged submissions counts challenges raised against this curator’s own entries. In the disputes above, this curator is the challenger.' : '',
-      cta: '<a class="btn primary" href="#">View activity</a>' });
-  },
-  group: function(key, type, ix){
-    var first = SRC[type][ix[0]], last = SRC[type][ix[ix.length - 1]], when = dDay(last.at) === dDay(first.at) ? dDay(first.at) + ', ' + hm(last.at) + '–' + hm(first.at) + ' UTC' : dDay(last.at) + ' – ' + dDay(first.at);
-    if (type === 'request') {
-      var actors = ix.map(function(i){ return S.openToChallenge[i].actor; }).filter(function(a, k, arr){ return arr.indexOf(a) === k; });
-      return sheetHTML({ key: key, tone: 't-blue', icon: I.up, kicker: 'Open to challenge · ' + plural(ix.length, 'request'), title: esc(first.registry),
-        facts: [['Requested', when]].concat(actors.length === 1 ? [['Requested by', esc(actors[0]), 1]] : []),
-        extra: repeatedAddr(ix) + '<div class="sh-list" style="margin-top:12px">' + ix.map(function(i){ return queueRow(S.openToChallenge[i], i); }).join('') + '</div>' });
-    }
-    var title = type === 'dispute' ? plural(ix.length, 'challenge') : ix.length + ' ' + first.outcome + ' by ruling';
-    var ic = evIcon(type, first);
-    return sheetHTML({ key: key, tone: ic[0], icon: ic[1], kicker: (type === 'dispute' ? 'In court · ' : 'Decided · ') + esc(first.registry), title: title,
-      facts: [[type === 'dispute' ? 'Challenged' : 'Ruled', when]],
-      extra: '<div class="sh-list" style="margin-top:12px">' + ix.map(function(i){ return gRow({ t: type, e: SRC[type][i], last: SRC[type][i], ix: [i] }, { court: true }); }).join('') + '</div>' });
-  },
-  submit: function(key){
-    var picks = REG.map(function(r, i){ return { r: r, i: i }; }).filter(function(o){ return o.r.verified; }).slice(0, 5);
-    return sheetHTML({ key: key, tone: 't-blue', icon: I.plus, kicker: 'New entry', title: 'Submit to a list',
-      note: 'Each entry is backed by a deposit. Anyone can challenge it during the challenge window, and Kleros jurors settle disputes.',
-      extra: '<h3 class="sh-glabel"><b>Largest verified lists</b><span>by entries</span></h3><div class="sh-list">' + picks.map(function(o){ return regRow(o.r, o.i); }).join('') + '</div>',
-      cta: '<button class="btn" type="button" data-go="lists">Browse all registries</button>' });
+      lead: '<div class="sh-duo"><div><p class="sh-fig t-blue">' + fmt(r.open) + '</p><p class="sh-cap">open requests</p></div><div><p class="sh-fig' + (r.inCourt ? ' t-amber' : ' t-dim') + '">' + fmt(r.inCourt) + '</p><p class="sh-cap">in court</p></div></div>',
+      facts: [['Entries', fmt(r.entries)], ['Created', dateIso(r.created)]],
+      extra: '<div style="margin-top:16px">' + starBtn(i, true) + '</div>' + list,
+      fn: 'Open requests and disputes in court for this list at the snapshot, ' + dLong(SNAP) + '.',
+      cta: '<a class="btn primary" href="#">Open list</a>' });
   }
 };
-function build(key){
-  var p = key.split(':');
-  if (p[0] === 'group') return BUILD.group(key, p[1], p[2].split('.').map(Number));
-  return BUILD[p[0]](key, +p[1]);
-}
+function build(key){ var p = key.split(':'); return BUILD[p[0]](key, +p[1]); }
 function markSel(){ $$('#app [data-sheet]').forEach(function(b){ b.classList.toggle('sel', docked && b.getAttribute('data-sheet') === curKey); }); }
 function swapBody(){ sheetBody.classList.remove('swap'); void sheetBody.offsetWidth; sheetBody.classList.add('swap'); }
 function openSheet(key){
   var wasOpen = sheet.classList.contains('open');
   curKey = key;
+  sheetBody.classList.remove('still');
   sheetBody.innerHTML = build(key);
   sheetBody.scrollTop = 0;
   markSel();
@@ -1092,6 +1019,7 @@ function closeSheet(){
   curKey = null;
   sheet.classList.remove('open', 'dragging'); sheet.style.transform = ''; scrim.style.opacity = '';
   scrim.classList.remove('on'); app.classList.remove('is-sunk'); app.removeAttribute('inert'); sheet.setAttribute('inert', '');
+  markSel();
   if (lastFocus && document.contains(lastFocus)) lastFocus.focus({ preventScroll: true });
 }
 function applyMode(){
@@ -1100,7 +1028,7 @@ function applyMode(){
   scrim.classList.remove('on'); app.classList.remove('is-sunk'); app.removeAttribute('inert');
   if (docked) {
     sheet.removeAttribute('inert'); sheet.removeAttribute('aria-modal'); sheet.setAttribute('role', 'region');
-    var k = curKey || HOME_PANE; curKey = k; sheetBody.innerHTML = build(k); markSel();
+    curKey = curKey || HOME_PANE; sheetBody.innerHTML = build(curKey); markSel();
   } else {
     sheet.setAttribute('inert', ''); sheet.setAttribute('aria-modal', 'true'); sheet.setAttribute('role', 'dialog');
     curKey = null; markSel();
@@ -1134,19 +1062,36 @@ document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeS
   sheet.addEventListener('pointercancel', end);
 })();
 
+/* ---------- star: add or remove a list, then redraw everything that sums it ---------- */
+function renderWatch(){ renderHero(); renderWlHome(); renderWlView(); markSel(); }
+function toggleStar(i, btn){
+  var k = WL.indexOf(KEY[i]), on = k < 0;
+  if (on) WL.push(KEY[i]); else WL.splice(k, 1);
+  saveWL();
+  var host = btn.closest('[id]'), hostId = host ? host.id : '', hadFocus = document.activeElement === btn;
+  renderWatch();
+  if (curKey && (docked || sheet.classList.contains('open'))) { var st = sheetBody.scrollTop; sheetBody.classList.add('still'); sheetBody.innerHTML = build(curKey); sheetBody.scrollTop = st; }
+  var nb = hostId ? $('#' + hostId + ' [data-star="' + i + '"]') : null;
+  if (nb) { if (hadFocus) nb.focus({ preventScroll: true }); if (!RM.matches) nb.classList.add('pop'); }
+  else if (hadFocus && host) { var f = $('[data-star], button', host); if (f) f.focus({ preventScroll: true }); }
+  $('#live').textContent = REG[i].title + (on ? ' added to' : ' removed from') + ' your watchlist. ' + plural(WL.length, 'list') + ' watched.';
+}
+
 /* ---------- delegated clicks ---------- */
 document.addEventListener('click', function(e){
-  var t = e.target.closest('[data-sheet],[data-go],[data-close],a[href="#"]');
+  var t = e.target.closest('[data-star],[data-sheet],[data-go],[data-req],[data-close],a[href="#"]');
   if (!t) return;
+  if (t.hasAttribute('data-star')) { toggleStar(+t.getAttribute('data-star'), t); return; }
   if (t.hasAttribute('data-close')) { closeSheet(); return; }
   if (t.hasAttribute('data-sheet')) { openSheet(t.getAttribute('data-sheet')); return; }
+  if (t.hasAttribute('data-req')) { closeSheet(); go('requests'); requestAnimationFrame(function(){ reqSeg.set(t.getAttribute('data-req')); }); return; }
   if (t.hasAttribute('data-go')) { closeSheet(); go(t.getAttribute('data-go')); return; }
   if (t.matches('a[href="#"]')) e.preventDefault();
 });
 
 /* ---------- layout ---------- */
-renderHomeList();
-renderRegs();
+renderWatch();
+renderReq();
 applyMode();
 var rT = 0;
 window.addEventListener('resize', function(){ clearTimeout(rT); rT = setTimeout(function(){ renderChart(); SEGS.forEach(function(s){ s.layout(); }); }, 80); });
